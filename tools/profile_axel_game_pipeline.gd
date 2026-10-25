@@ -23,6 +23,9 @@ var cancel_stream_frames:=0
 var uncapped_runtime:=false
 var cancel_during_capture:=false
 var white_material:=false
+var map_texture_stage:=false
+var texture_lighting:=false
+var stage_screenshot:=false
 var early_white_camera:=false
 var loading_disable_3d:=false
 var initial_cover:CanvasLayer
@@ -103,6 +106,7 @@ func observe()->void:
 			var queue:Node=map.get_node_or_null("DeferredAssets")
 			if queue!=null:
 				row.deferred={"pending":queue.pending.size(),"demanded":queue._demanded_by_id.size(),"unpublished":queue.pending.filter(func(item):return queue._demanded_by_id.has(item.record.uuid)).size(),"admission":queue._admission.snapshot(),"profile":queue.profile.duplicate(true),"jobs":[]}
+				if map_texture_stage:row.deferred.shared_pixels=queue._shared_images.snapshot()
 				for path:String in queue._jobs:
 					var job:Dictionary=queue._jobs[path];var worker:Thread=job.get("worker")
 					row.deferred.jobs.append({"path":path,"stage":job.get("stage",""),"alive":worker!=null and worker.is_alive(),"age_ms":(now-int(job.get("dispatch_us",now)))/1000.,"ready":job.has("result")})
@@ -121,6 +125,9 @@ func finish(code:int)->void:
 	if process_frame.is_connected(observe):process_frame.disconnect(observe)
 	report.frames=frames
 	report.prefab_material_identity={"reuses":preload("res://scripts/world3d/house_prefab.gd").material_identity_reuses,"scans":preload("res://scripts/world3d/house_prefab.gd").material_identity_scans}
+	if preload("res://scripts/world3d/runtime_texture_cache.gd").profile_enabled:
+		report.texture_stages=preload("res://scripts/world3d/runtime_texture_cache.gd").profile_snapshot()
+		report.paint_texture_stages=preload("res://scripts/world3d/surface_materials.gd").profile_snapshot()
 	if monitor!=null:report.monitor=monitor.finish();monitor=null
 	if current_scene!=null:
 		for key:String in ["initial_loading_cover_started","initial_loading_cover_released","initial_loading_cover_aborted"]:
@@ -128,6 +135,9 @@ func finish(code:int)->void:
 		if current_scene.has_method("is_world_ready"):report.is_world_ready=current_scene.is_world_ready()
 	var map:Node=mesh_map if mesh_map!=null else (current_scene.get("_map_root") if current_scene!=null and current_scene.has_method("is_world_ready") else null)
 	if map!=null:
+		if map_texture_stage and not report.has("map_texture_render_audit"):
+			if DisplayServer.get_name()!="headless":await preload("res://scripts/util/frame_presentation.gd").drawn()
+			audit_map_texture_stage()
 		if mesh_only and white_material:
 			report.white_render_audit={"gpu_surfaces":0,"shader_surfaces":0,"nonwhite_surfaces":0,"examples":[]}
 			for visual:MeshInstance3D in preload("res://scripts/world3d/surface_materials.gd").meshes(map):
@@ -177,6 +187,7 @@ func finish(code:int)->void:
 							if field not in preload("res://scripts/world3d/map_dependency_index.gd").COMMON_FIELDS+preload("res://scripts/world3d/map_dependency_index.gd").ROAD_FIELDS:report.unknown_records.road_extra_fields[field]=int(report.unknown_records.road_extra_fields.get(field,0))+1
 	report.map_sha_after=FileAccess.get_sha256(MAP)
 	check(report.map_sha_after==report.map_sha,"formal map unchanged")
+	report.cpu_restore_profile=preload("res://scripts/world3d/ground_cpu_mesh.gd").profile_rows.duplicate(true)
 	if is_instance_valid(mesh_map):
 		report.stream_append_timing=mesh_map.get_meta("stream_append_timing",{})
 		report.stream_append_slow=mesh_map.get_meta("stream_append_slow",[])
@@ -187,6 +198,7 @@ func finish(code:int)->void:
 		report.stage_ring=final_queue.profile.get("stage_ring",[])
 		report.stage_slow=final_queue.profile.get("stage_slow",[])
 		report.publish_slow=final_queue.profile.get("publish_slow",[])
+		if map_texture_stage:report.map_texture_final=texture_stage_snapshot(final_queue)
 	if mesh_only and is_instance_valid(mesh_map):await retire_white_map()
 	preload("res://scripts/world3d/map_resource_store.gd").wait_bundle_writes()
 	report.resource_bundle=preload("res://scripts/world3d/map_resource_store.gd").bundle_profile.duplicate()
@@ -276,6 +288,9 @@ func run()->void:
 			preload("res://scripts/world3d/world_navigation.gd").legacy_retirement_geometry_scan_enabled=true
 		elif arg=="--without-taa":root.use_taa=false
 		elif arg=="--white-material":white_material=true;preload("res://scripts/world3d/runtime_probe_controls.gd").enable_white_materials()
+		elif arg=="--map-texture-stage":map_texture_stage=true
+		elif arg=="--texture-lighting":texture_lighting=true
+		elif arg=="--stage-screenshot":stage_screenshot=true
 		elif arg=="--late-white-gltf":preload("res://scripts/world3d/runtime_probe_controls.gd").early_white_gltf_enabled=false
 		elif arg=="--serial-index-definitions":preload("res://scripts/world3d/map_dependency_index.gd").parallel_definition_checks=false
 		elif arg=="--native-index-snapshot":preload("res://scripts/world3d/stream_index_preparation.gd").native_snapshot_validation_enabled=true
@@ -306,12 +321,22 @@ func run()->void:
 		elif arg=="--background-prefab-textures":
 			preload("res://scripts/world3d/deferred_asset_loader.gd").prefab_texture_preparation_enabled=true
 			preload("res://scripts/world3d/deferred_asset_loader.gd").shared_prefab_texture_preparation_enabled=true
+		elif arg=="--legacy-prepared-material-publication":preload("res://scripts/world3d/deferred_asset_loader.gd").prepared_material_slicing_enabled=false
+		elif arg=="--without-mounted-texture-source-reuse":preload("res://scripts/world3d/prefab_texture_preparation.gd").mounted_source_reuse_enabled=false
 		elif arg=="--texture-stage-profile":
 			preload("res://scripts/world3d/runtime_texture_cache.gd").profile_enabled=true
 			preload("res://scripts/world3d/surface_materials.gd").texture_profile_enabled=true
 			preload("res://scripts/world3d/runtime_texture_cache.gd").reset_profile()
+			preload("res://scripts/world3d/ground_cpu_mesh.gd").profile_enabled=true
+			preload("res://scripts/world3d/ground_cpu_mesh.gd").profile_rows.clear()
 		elif arg.begins_with("--runtime-seconds="):runtime_seconds=arg.trim_prefix("--runtime-seconds=").to_float()
 	if output.is_empty() or not preload("res://scripts/world3d/map_paths.gd").allowed(output,"D:/code/rmmo_runtime/review_artifacts"):quit(2);return
+	var stage_error:=map_texture_stage_argument_error(OS.get_cmdline_user_args())
+	if not stage_error.is_empty():
+		check(false,stage_error);save();quit(2);return
+	if map_texture_stage:
+		preload("res://scripts/world3d/runtime_probe_controls.gd").enable_native_geometry_only()
+		preload("res://scripts/world3d/runtime_probe_controls.gd").hud_enabled=false
 	if preload("res://scripts/world3d/runtime_probe_controls.gd").discard_map_textures and not preload("res://scripts/world3d/runtime_probe_controls.gd").white_materials:
 		# Native products embed texture resources; they cannot enter a no-texture
 		# control or its separately keyed procedural cache.
@@ -325,6 +350,12 @@ func run()->void:
 	report.map=MAP;report.map_sha=FileAccess.get_sha256(MAP);report.engine=Engine.get_version_info();report.pid=OS.get_process_id()
 	report.controls={"hud":preload("res://scripts/world3d/runtime_probe_controls.gd").hud_enabled,"map_textures":not preload("res://scripts/world3d/runtime_probe_controls.gd").discard_map_textures,"compiled":preload("res://scripts/world3d/compiled_asset_cache.gd").enabled}
 	report.controls.white_native=report.controls.compiled and preload("res://scripts/world3d/white_native_asset_cache.gd").active() and preload("res://scripts/world3d/white_native_asset_cache.gd").enabled
+	report.controls.map_texture_stage=map_texture_stage
+	report.controls.texture_lighting=texture_lighting
+	report.controls.stage_screenshot=stage_screenshot
+	report.controls.native_geometry_only=preload("res://scripts/world3d/runtime_probe_controls.gd").native_geometry_only
+	report.controls.prepared_material_slicing=preload("res://scripts/world3d/deferred_asset_loader.gd").prepared_material_slicing_enabled
+	report.controls.mounted_texture_source_reuse=preload("res://scripts/world3d/prefab_texture_preparation.gd").mounted_source_reuse_enabled
 	report.controls.worker_model_scenes=preload("res://scripts/world3d/model_parse_preparation.gd").initial_scene_preparation_enabled
 	report.controls.cold_index_handoff=preload("res://scripts/world3d/map_loader.gd").cold_index_handoff_enabled
 	report.controls.cold_read_diagnostics=preload("res://scripts/world3d/map_loader.gd").cold_read_diagnostics_enabled
@@ -455,6 +486,7 @@ func run()->void:
 	finish(0 if report.failures.is_empty() else 1)
 func run_mesh_only(spawn:Vector3)->void:
 	report.scope="MapLoader plus core streaming only; no World3D gameplay, avatar, HUD, radar, navigation, weather or events. This isolates geometry cost and is not a full game entry."
+	if map_texture_stage:report.scope="MapLoader plus core streaming with authored procedural map/prefab materials and textures; imported models retain material-free native geometry with canonical white materials. No gameplay, avatar, HUD, radar, navigation baking, weather or events. Not full model materials or a full game entry."
 	var host:=Node3D.new();root.add_child(host);current_scene=host
 	if loading_disable_3d:
 		root.get_viewport().disable_3d=true
@@ -483,7 +515,7 @@ func run_mesh_only(spawn:Vector3)->void:
 	check(result[0]!=null and str(result[2]).is_empty(),"pure geometry loader succeeds")
 	if result[0]==null:finish(1);return
 	mesh_map=result[0]
-	if Trace.methods_enabled:mesh_map.set_meta("profile_frame",true)
+	mesh_map.set_meta("profile_frame",true)
 	if white_material:
 		# Unshaded debug draw still runs custom spatial shaders. This separate
 		# control removes material/shader rendering while preserving every mesh,
@@ -541,9 +573,95 @@ func run_mesh_only(spawn:Vector3)->void:
 	finish(0 if report.failures.is_empty() else 1)
 func create_white_camera(host:Node3D,spawn:Vector3)->void:
 	var camera:=Camera3D.new();host.add_child(camera);camera.position=spawn+Vector3(0,4,7);camera.look_at(spawn+Vector3(0,1,0));camera.current=true;camera.fov=55.
+	if texture_lighting:
+		var environment:=Environment.new()
+		environment.background_mode=Environment.BG_COLOR;environment.background_color=Color(.18,.18,.18)
+		environment.ambient_light_source=Environment.AMBIENT_SOURCE_COLOR;environment.ambient_light_color=Color.WHITE;environment.ambient_light_energy=.6
+		environment.reflected_light_source=Environment.REFLECTION_SOURCE_DISABLED
+		environment.tonemap_mode=Environment.TONE_MAPPER_LINEAR;environment.tonemap_exposure=1.
+		var world_environment:=WorldEnvironment.new();world_environment.name="ProbeTextureEnvironment";world_environment.environment=environment;host.add_child(world_environment)
+		var sun:=DirectionalLight3D.new();sun.name="ProbeTextureSun";sun.rotation_degrees=Vector3(-45,-35,0);sun.light_energy=1.;sun.shadow_enabled=false;host.add_child(sun)
+		report.texture_lighting={"ambient_color":[1.,1.,1.],"ambient_energy":.6,"background_color":[.18,.18,.18],"sun_rotation_degrees":[-45.,-35.,0.],"sun_energy":1.,"sun_shadows":false,"tonemap":"linear","exposure":1.,"scope":"Fixed probe lighting for both comparison arms; no weather, sky or gameplay systems."}
 	# White unshaded materials already provide the isolation. Keep the normal
 	# renderer path; a separate control can reproduce the earlier debug mode.
 	if "--white-debug-draw" in OS.get_cmdline_user_args():root.debug_draw=Viewport.DEBUG_DRAW_UNSHADED
 
 func whiten_spec(spec:Dictionary)->void:
 	preload("res://scripts/world3d/runtime_probe_controls.gd").whiten_spec(spec)
+
+static func map_texture_stage_argument_error(arguments:PackedStringArray)->String:
+	if not "--map-texture-stage" in arguments:return ""
+	for conflict:String in ["--white-material","--without-map-textures","--without-compiled"]:
+		if conflict in arguments:return "--map-texture-stage conflicts with "+conflict
+	if not "--mesh-only" in arguments:return "--map-texture-stage requires --mesh-only isolation"
+	return ""
+
+static func texture_pixels_settled(snapshot:Dictionary)->bool:
+	return int(snapshot.get("outputs",-1))==0 and int(snapshot.get("consumers",-1))==0 and int(snapshot.get("retained_bytes",-1))==0
+
+func texture_stage_snapshot(queue:Node)->Dictionary:
+	var pixels=preload("res://scripts/world3d/runtime_texture_cache.gd")
+	var paint=preload("res://scripts/world3d/surface_materials.gd")
+	var snapshot:={"at_ms":(Time.get_ticks_usec()-began)/1000.,"shared_pixels":queue._shared_images.snapshot(),"texture_profiling_enabled":pixels.profile_enabled,"paint_profiling_enabled":paint.texture_profile_enabled,"contract":"Pixel pool leases are always observed. Detailed stage timings exist only with --texture-stage-profile; absent counters are not zero work. Upload submissions are not a GPU completion fence or measured VRAM."}
+	var river=preload("res://scripts/world3d/river_materials.gd")
+	snapshot.region_masks={"prepared_hits":river.region_mask_prepared_hits,"fallback_generations":river.region_mask_fallback_generations}
+	for field:String in ["generations","bytes","us","on_main"]:
+		snapshot.region_masks["worker_"+field]=int(queue.profile.get("reference_terrain_mask_"+field,0))
+	for field:String in ["prefab_pixels","pixel_continuations","pixel_retries","texture_dispatch"]:
+		if queue.profile.has(field):snapshot[field]=queue.profile[field].duplicate(true) if queue.profile[field] is Dictionary else queue.profile[field]
+	if pixels.profile_enabled:snapshot.texture_stages=pixels.profile_snapshot()
+	if paint.texture_profile_enabled:snapshot.paint_texture_stages=paint.profile_snapshot()
+	return snapshot
+
+static func texture_material_info(material:Material)->Dictionary:
+	var textures:Dictionary={};var nonwhite:=false;var passes:Dictionary={}
+	while material!=null and not passes.has(material.get_instance_id()):
+		passes[material.get_instance_id()]=true
+		if not material is StandardMaterial3D or material.shading_mode!=BaseMaterial3D.SHADING_MODE_UNSHADED or material.albedo_color!=Color.WHITE:nonwhite=true
+		if material is BaseMaterial3D:
+			for property:String in preload("res://scripts/world3d/surface_materials.gd").TEXTURE_PROPERTIES:
+				var texture:Texture2D=material.get(property)
+				if texture!=null:textures[texture.get_instance_id()]=true
+		elif material is ShaderMaterial and material.shader!=null:
+			for uniform:Dictionary in material.shader.get_shader_uniform_list():
+				var texture:Variant=material.get_shader_parameter(uniform.name)
+				if texture is Texture:textures[texture.get_instance_id()]=true
+		material=material.next_pass
+	return {"nonwhite":nonwhite or not textures.is_empty(),"textures":textures}
+
+func audit_map_texture_stage()->void:
+	var started:=Time.get_ticks_usec()
+	var audit:={"gpu_surfaces":0,"nonwhite_surfaces":0,"textured_surfaces":0,"unique_textures":0,"examples":[],"after_real_draw":DisplayServer.get_name()!="headless" and not root.get_viewport().disable_3d,"contract":"Visible uploaded meshes and their active materials after the first real 3D frame. Does not prove every authored texture or full imported-model materials are present."}
+	var texture_ids:Dictionary={}
+	for visual:MeshInstance3D in preload("res://scripts/world3d/surface_materials.gd").meshes(mesh_map):
+		if not visual.is_visible_in_tree() or visual.mesh==null or visual.mesh is CpuMesh or visual.cast_shadow==GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY:continue
+		for slot:int in visual.mesh.get_surface_count():
+			var material:Material=visual.get_active_material(slot)
+			var info:=texture_material_info(material)
+			audit.gpu_surfaces+=1
+			if info.nonwhite:audit.nonwhite_surfaces+=1
+			if not info.textures.is_empty():
+				audit.textured_surfaces+=1;texture_ids.merge(info.textures)
+				if audit.examples.size()<8:audit.examples.append({"node":str(visual.name),"surface":slot,"material":material.resource_path,"class":material.get_class(),"texture_count":info.textures.size()})
+	audit.unique_textures=texture_ids.size();audit.elapsed_us=Time.get_ticks_usec()-started
+	report.map_texture_render_audit=audit
+	check(audit.after_real_draw and audit.nonwhite_surfaces>0 and audit.textured_surfaces>0,"map texture stage restores visible GPU material and texture bindings after a real 3D draw")
+
+func capture_stage_screenshot()->void:
+	var previous_phase:=phase;phase="stage_screenshot"
+	var path:=output.get_basename()+".webp"
+	var drawable:=mesh_only and DisplayServer.get_name()!="headless" and not root.get_viewport().disable_3d and initial_cover==null
+	check(drawable and not FileAccess.file_exists(path),"stage screenshot uses an uncovered GPU frame and a new external artifact path")
+	if drawable and not FileAccess.file_exists(path):
+		await preload("res://scripts/util/frame_presentation.gd").drawn()
+		var draw_ticks:=Time.get_ticks_usec()
+		var rendered_frame:=Engine.get_frames_drawn()
+		var captured:=root.get_viewport().get_texture().get_image()
+		if captured==null or captured.is_empty():check(false,"stage screenshot has viewport pixels")
+		else:
+			var result:=captured.save_webp(path,true,.90)
+			report.stage_screenshot={"path":path,"width":captured.get_width(),"height":captured.get_height(),"lossy":true,"quality":.90,"post_draw_ticks_us":draw_ticks,"post_draw_at_ms":(draw_ticks-began)/1000.,"rendered_frame":rendered_frame,"error":result,"contract":"Actual viewport after post-ready steady; GPU readback and WebP encoding stay in this separate phase and outside full-ready/steady measurements. Mesh host has no avatar."}
+			if result==OK:report.stage_screenshot.sha256=FileAccess.get_sha256(path)
+			check(result==OK,"stage screenshot saves a lossy WebP quality 90 at original dimensions")
+	await process_frame # Retain capture overhead in raw frames under its own phase.
+	phase=previous_phase

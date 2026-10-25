@@ -8,7 +8,7 @@ const Controls=preload("res://scripts/world3d/runtime_probe_controls.gd")
 const Writer=preload("res://scripts/world3d/white_native_asset_writer.gd")
 const META=Writer.META
 static var enabled:=true
-static func active()->bool:return Controls.white_materials and Controls.discard_map_textures
+static func active()->bool:return Writer.active()
 static func directory(root:String)->String:return Writer.directory(root)
 static func generator()->String:return Writer.generator()
 static func index_path(path:String,root:String)->String:return Writer.index_path(path,root)

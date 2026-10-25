@@ -421,6 +421,9 @@ func _mesh(record: Dictionary, effects: bool=true, timings: Variant=null) -> Mes
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.world_document._mesh") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	var profile_mark:int=Time.get_ticks_usec() if timings!=null else 0
 	var cpu_index:bool=effects and load_immutable_records and (preload("res://scripts/world3d/ground_batch_geometry.gd").candidate(record) or (record.has("water_depth_effect") and preload("res://scripts/world3d/river_materials.gd").water_cpu_index_enabled))
+	# Mounted package declarations were prepared by the loader. Actual material
+	# construction still resolves its textures; editing/strict calls keep preflight.
+	var trusted_texture_load:bool=effects and load_immutable_records and preload("res://scripts/world3d/runtime_package_policy.gd").trusted()
 	# This immutable white entry is never used for authored material restoration.
 	# Its effective material was already the global white override; retain that
 	# exact shared material in the CPU slots instead of constructing hidden colors.
@@ -431,7 +434,7 @@ func _mesh(record: Dictionary, effects: bool=true, timings: Variant=null) -> Mes
 		# stream actually instantiates a component, not once for every recipe row.
 		var visual:MeshInstance3D=prefab.visual(record,effects and not load_immutable_records,load_paint_validation,load_material_pool,timings)
 		if timings!=null:timings.prefab_visual_ms=(Time.get_ticks_usec()-profile_mark)/1000.;profile_mark=Time.get_ticks_usec()
-		var texture_error:=SurfaceMaterials.texture_error(record,load_texture_checks)
+		var texture_error:="" if trusted_texture_load else SurfaceMaterials.texture_error(record,load_texture_checks)
 		if not texture_error.is_empty():visual.set_meta("paint_error",texture_error)
 		if timings!=null:timings.texture_validation_ms=(Time.get_ticks_usec()-profile_mark)/1000.
 		# Immutable payloads already live in the document. Duplicating the entire
@@ -440,7 +443,7 @@ func _mesh(record: Dictionary, effects: bool=true, timings: Variant=null) -> Mes
 	var mesh_node := MeshInstance3D.new()
 	mesh_node.name = str(record.get("uuid", "box"))
 	if record.has("terrain_mesh"):
-		var texture_error:=SurfaceMaterials.texture_error(record,load_texture_checks)
+		var texture_error:="" if trusted_texture_load else SurfaceMaterials.texture_error(record,load_texture_checks)
 		if not texture_error.is_empty():mesh_node.set_meta("paint_error",texture_error)
 		if timings!=null:timings.texture_validation_ms=(Time.get_ticks_usec()-profile_mark)/1000.;profile_mark=Time.get_ticks_usec()
 	var signature: String = _save_meshes.key(record, terrain_neighbors.data.get(str(record.uuid), {})) if not effects else ""

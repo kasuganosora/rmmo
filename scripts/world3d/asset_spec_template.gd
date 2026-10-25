@@ -98,13 +98,16 @@ static func prepare_one(packed:PackedScene,value:Dictionary,order:int,token:RefC
 	return {"specs":cursor.specs,"record":value,"profile":cursor.profile}
 
 static func supports(packed:PackedScene,value:Dictionary,local_collision:bool=false)->bool:
-	if not enabled or local_collision or not Controls.white_materials or not preload("res://scripts/world3d/runtime_package_policy.gd").trusted():return false
+	var native_stage:bool=Controls.native_geometry_only and packed.get_meta("white_native_geometry",false)
+	if not enabled or local_collision or (not Controls.white_materials and not native_stage) or not preload("res://scripts/world3d/runtime_package_policy.gd").trusted():return false
 	var description:Dictionary=packed.get_meta(META,{})
 	if description.is_empty() or description.white_generation!=Controls.white_generation:return false
 	if value.has("model_building") and not description.generic:return false
 	for key:String in ["house_prefab","bridge_mesh","parametric_tree","tree_settings","vegetation_batch","wind_response","banner"]:
 		if value.has(key):return false
-	if value.has("surface_paint") and not preload("res://scripts/world3d/surface_materials.gd").white_face_mapping_elision_enabled:return false
+	# The partial texture arm retains ordinary model templates, but real face
+	# paint still needs its graph/material adapter. White's elision cannot apply.
+	if value.has("surface_paint") and (not Controls.white_materials or not preload("res://scripts/world3d/surface_materials.gd").white_face_mapping_elision_enabled):return false
 	return true
 
 func begin(packed:PackedScene,value:Dictionary,order:int)->void:

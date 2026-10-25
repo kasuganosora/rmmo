@@ -11,12 +11,25 @@ static var water_cpu_normal_hits:=0
 # Main-thread runtime indexing counters; the entry probe resets between runs.
 static var cpu_index_override_count:=0
 static var cpu_index_legacy_restore_count:=0
+static var region_mask_prepared_hits:=0
+static var region_mask_fallback_generations:=0
 static var cache: Dictionary={}
 static var hidden_slab: ShaderMaterial
 
 static func reset_index_profile()->void:
 	cpu_index_override_count=0;cpu_index_legacy_restore_count=0
 	water_cpu_normal_hits=0
+	region_mask_prepared_hits=0;region_mask_fallback_generations=0
+
+## Main-thread publication borrows the private worker Image. Editing and other
+## synchronous callers retain the existing fallback when no context was prepared.
+static func _region_mask(record:Dictionary,context:Dictionary)->Image:
+	var image:Image=context.get("region_mask")
+	if image!=null:
+		region_mask_prepared_hits+=1
+		return image
+	region_mask_fallback_generations+=1
+	return preload("res://scripts/world3d/terrain_regions.gd").mask(record)
 
 static func bind(material: ShaderMaterial, prefix: String, definition: Dictionary,path_checks:Variant=null) -> void:
 	var started:=Time.get_ticks_usec() if Trace.enabled else 0
@@ -34,6 +47,28 @@ static func bind(material: ShaderMaterial, prefix: String, definition: Dictionar
 	material.set_shader_parameter(prefix+"_strength",definition.get("normal_strength",1.0) if definition.has("normal_path") else 0.0)
 	if Trace.enabled:Trace.elapsed("river.bind",started,{"prefix":prefix})
 
+static func _terrain_textures_current(material:ShaderMaterial,record:Dictionary,base:Dictionary,config:Dictionary,depth_enabled:bool)->bool:
+	# A live ShaderMaterial can outlast both texture catalogues. Compare only
+	# this cache entry with the current prepared/pinned owners, without IO.
+	var definitions:Dictionary={"base":base,"sand":config.sand_material if depth_enabled else base,"rock":config.get("rock_material",base),"soil":config.get("transition_material",base)}
+	if record.has("terrain_regions"):
+		definitions.region_a=record.terrain_regions.materials[0]
+		definitions.region_b=record.terrain_regions.materials[1] if record.terrain_regions.materials.size()>1 else base
+	for prefix:String in definitions:
+		var definition:Dictionary=definitions[prefix]
+		for pair:Array in [["albedo","texture_path"],["normal","normal_path"],["rough","roughness_path"],["metal","metallic_path"],["ao","ao_path"],["height","height_path"]]:
+			var path:String=definition.get(pair[1],"")
+			if path.is_empty():continue
+			var key:String=path+("|flip_y" if pair[1]=="normal_path" and definition.get("normal_format","opengl")=="directx" else "")
+			var owner:RefCounted=Paint.prepared_images.get(key)
+			if owner==null:owner=Paint.retained_texture(key)
+			if owner==null:continue
+			var expected:String=owner.get_meta("runtime_source_sha256","")
+			if expected.is_empty():continue
+			var texture:Texture2D=material.get_shader_parameter(prefix+"_"+pair[0])
+			if texture==null or texture.get_meta("runtime_source_sha256","")!=expected:return false
+	return true
+
 static func terrain(record: Dictionary, context: Dictionary={}) -> ShaderMaterial:
 	var depth_enabled: bool=record.has("terrain_depth_blend")
 	var config: Dictionary=record.terrain_depth_blend if depth_enabled else record.get("terrain_slope_blend",{})
@@ -46,7 +81,9 @@ static func terrain(record: Dictionary, context: Dictionary={}) -> ShaderMateria
 	var key:="terrain:"+str(hash(signature))
 	# Avoid serializing thousands of heights on every hit. Verify equality so a
 	# hash collision is a cache miss, never another patch's heights/materials.
-	if cache.has(key) and cache[key].get_meta("terrain_signature",[])==signature: return cached(key)
+	if cache.has(key) and cache[key].get_meta("terrain_signature",[])==signature:
+		if _terrain_textures_current(cache[key],record,base,config,depth_enabled):return cached(key)
+		cache.erase(key)
 	var started:=Time.get_ticks_usec() if Trace.enabled else 0
 	var result:=ShaderMaterial.new(); result.shader=preload("res://scripts/world3d/river_terrain.gdshader")
 	if Trace.enabled:Trace.elapsed("river.terrain_create",started)
@@ -71,8 +108,7 @@ static func terrain(record: Dictionary, context: Dictionary={}) -> ShaderMateria
 	if record.has("terrain_regions"):
 		var regions: Dictionary=record.terrain_regions
 		result.set_shader_parameter("terrain_span",Vector2(record.size[0],record.size[2]))
-		var image:Image=context.get("region_mask")
-		if image==null:image=preload("res://scripts/world3d/terrain_regions.gd").mask(record)
+		var image:=_region_mask(record,context)
 		result.set_meta("ground_mask_image",image)
 		result.set_shader_parameter("ground_mask",ImageTexture.create_from_image(image))
 		bind(result,"region_a",regions.materials[0],checks)

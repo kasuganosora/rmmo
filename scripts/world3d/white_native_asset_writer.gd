@@ -11,7 +11,7 @@ const META:=&"_rmmo_native_cpu_geometry_v1"
 const PRODUCT_REVISION:=2
 static var _generator:=""
 static var _generator_mutex:=Mutex.new()
-static func active()->bool:return Controls.white_materials and Controls.discard_map_textures
+static func active()->bool:return Controls.native_geometry_only or (Controls.white_materials and Controls.discard_map_textures)
 static func directory(root:String)->String:return root.path_join("cache/world3d/white_native_assets_v1")
 static func generator()->String:
 	_generator_mutex.lock()
@@ -41,7 +41,9 @@ static func _store_geometry(mesh:ArrayMesh)->void:
 	if mesh.has_meta(preload("res://scripts/world3d/importer_lod_hint.gd").META):mesh.remove_meta(preload("res://scripts/world3d/importer_lod_hint.gd").META)
 
 static func build(path:String,root:String)->Dictionary:
-	assert(Thread.is_main_thread() and active())
+	# The staged runtime mode may read this product alongside map textures, but
+	# must not change the established offline material-free export semantics.
+	assert(Thread.is_main_thread() and Controls.white_materials and Controls.discard_map_textures)
 	if not Paths.allowed(path,root):return {"ok":false,"reason":"source_path"}
 	var began:=Time.get_ticks_usec();var sha:=FileAccess.get_sha256(path)
 	var manifest:=preload("res://scripts/world3d/asset_bounds_manifest.gd").read(path)

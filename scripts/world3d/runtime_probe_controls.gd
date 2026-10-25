@@ -4,16 +4,25 @@ extends RefCounted
 static var discard_map_textures:=false
 static var hud_enabled:=true
 static var white_materials:=false
+## Staged texture probe: keep imported models on material-free native products
+## while restoring authored map/prefab materials. Never enabled by normal UI.
+static var native_geometry_only:=false
 static var white_generation:=0
 static var early_white_gltf_enabled:=true
 static var _white:Dictionary={}
 static func enable_white_materials()->void:
+	_prepare_white_materials()
+	white_materials=true;white_generation+=1
+static func enable_native_geometry_only()->void:
+	_prepare_white_materials()
+	native_geometry_only=true
+static func _prepare_white_materials()->void:
 	# Called on main before any diagnostic workers start; workers only read it.
+	if not _white.is_empty():return
 	for cull:int in [BaseMaterial3D.CULL_BACK,BaseMaterial3D.CULL_FRONT,BaseMaterial3D.CULL_DISABLED]:
 		var material:=StandardMaterial3D.new();material.albedo_color=Color.WHITE
 		material.shading_mode=BaseMaterial3D.SHADING_MODE_UNSHADED;material.cull_mode=cull
 		_white[cull]=material
-	white_materials=true;white_generation+=1
 static func white_material(cull:int=BaseMaterial3D.CULL_BACK)->StandardMaterial3D:
 	return _white[cull]
 static func prepare_cpu_materials(source:Mesh,replacements:Array)->Mesh:

@@ -461,18 +461,37 @@ static func prepare_cpu(record:Dictionary,collision_candidates:Dictionary={},sou
 	for triangles:PackedVector3Array in faces:vertices+=triangles.size()
 	return {"sha256":packet.sha256,"data":owned_data,"geometry_keys":keys,"collision_faces":faces,"face_work":{"prepared_slots":faces.size()-skipped_slots,"skipped_slots":skipped_slots,"prepared_vertices":vertices,"shadow_render_slots":int(shadow_render and ShadowFaces.white_render_slot(data)>=0)}}
 
-static func publish_prepared(record:Dictionary,prepared:Dictionary,paint_validation:Variant=null,material_pool:Variant=null,timings:Variant=null,texture_packet:Dictionary={})->bool:
+static func publish_prepared(record:Dictionary,prepared:Dictionary,paint_validation:Variant=null,material_pool:Variant=null,timings:Variant=null,texture_packet:Dictionary={},scope_state:Variant=null)->bool:
+	var publication_started:=Time.get_ticks_usec()
+	var materials:Array=[]
+	if prepared.get("data") is Dictionary and prepared.data.get("materials") is Array:materials=prepared.data.materials
+	var scope:=begin_texture_publication(record,material_pool,texture_packet,scope_state,materials)
+	if not scope.ok:return false
+	var result:=_publish_prepared(record,prepared,paint_validation,material_pool,timings)
+	end_texture_publication(scope)
+	preload("res://scripts/world3d/load_trace.gd").elapsed("prefab_pixels.publish",publication_started,{"uuid":record.get("uuid",""),"images":texture_packet.get("images",{}).size(),"parts_ms":timings if timings!=null else {}})
+	return result
+
+static func begin_texture_publication(record:Dictionary,material_pool:Variant,texture_packet:Dictionary,state:Variant=null,materials:Array=[])->Dictionary:
 	# Installation and resource caches are main-thread-only. Scope the supplied
-	# CPU images to this one synchronous publication; unconsumed pixels remain in
-	# the charged job, never a global dictionary after its admission is released.
-	var publication_started:=Time.get_ticks_usec();var previous:Variant=null
+	# CPU images to one synchronous publication or material slice. The matching
+	# end call restores the prior scope; unconsumed pixels stay in the charged job.
+	var previous:Variant=null
 	var resident:Dictionary=texture_packet.get("resident_textures",{})
-	if not tickets_valid(resident,texture_packet.get("sources",{})):return false
+	if not tickets_valid(resident,texture_packet.get("sources",{})):return {"ok":false}
+	if state!=null and _texture_scope_current(record,texture_packet,state,material_pool,materials):
+		# The first slice already invalidated older generations. Missing GPU
+		# entries mean this packet has work left, not another source replacement.
+		# Keep only the synchronous Image handoff; do not sweep all render caches.
+		previous=Cook.Paint.prepared_images
+		Cook.Paint.prepared_images=texture_packet.get("images",{}).duplicate()
+		state.reuses=int(state.get("reuses",0))+1
+		return {"ok":true,"previous":previous}
 	if not resident.is_empty():
 		var source_ids:Dictionary=texture_packet.sources
 		var stale:Dictionary=_stale_material_keys(Cook.Paint._materials.values(),source_ids)
 		if material_pool!=null:stale.merge(_stale_material_keys(material_pool.values(),source_ids),true)
-		var entry:Dictionary=_meshes.get(record.house_prefab.sha256,{})
+		var entry:Dictionary=_meshes.get(record.get("house_prefab",{}).get("sha256",""),{})
 		for name_:String in ["mesh","source"]:
 			if entry.has(name_):stale.merge(_stale_material_keys(entry[name_].materials,source_ids),true)
 		if not stale.is_empty():
@@ -492,10 +511,38 @@ static func publish_prepared(record:Dictionary,prepared:Dictionary,paint_validat
 			# still own the exact verified texture. Invalidate actual old versions.
 			if not _stale_material_keys(material_pool.values(),texture_packet.get("sources",{})).is_empty():material_pool.clear()
 		previous=load("res://scripts/world_editor/terrain_texture_preparation.gd").install({"images":texture_packet.images,"failed":[]})
-	var result:=_publish_prepared(record,prepared,paint_validation,material_pool,timings)
-	if previous!=null:load("res://scripts/world_editor/terrain_texture_preparation.gd").restore(previous)
-	preload("res://scripts/world3d/load_trace.gd").elapsed("prefab_pixels.publish",publication_started,{"uuid":record.get("uuid",""),"images":texture_packet.get("images",{}).size(),"parts_ms":timings if timings!=null else {}})
-	return result
+	if state!=null:
+		state.sources=texture_packet.get("sources",{}).duplicate()
+		state.initialized=true;state.initializations=int(state.get("initializations",0))+1
+	return {"ok":true,"previous":previous}
+
+static func _texture_scope_current(record:Dictionary,packet:Dictionary,state:Dictionary,material_pool:Variant,materials:Array)->bool:
+	if not state.get("initialized",false) or state.get("sources",{})!=packet.get("sources",{}):return false
+	# A resident-only packet has no Images to expose a changed weak-cache owner.
+	# Reinstall its valid immutable tickets if the catalogue no longer resolves
+	# to their generation; the ordinary hot-owner rejection still runs above.
+	for key:String in packet.get("resident_textures",{}):
+		var texture:Texture2D=Cook.Paint._textures.get(key)
+		if texture==null and Cook.Paint._texture_refs.has(key):texture=Cook.Paint._texture_refs[key].get_ref()
+		if texture==null or texture.get_meta("runtime_source_sha256","")!=packet.resident_textures[key].source_sha:return false
+	# Another publication may have replaced a source between slices. Re-enter
+	# the full invalidation protocol only for an actually different live owner.
+	for key:String in packet.get("images",{}):
+		var texture:Texture2D=Cook.Paint._textures.get(key)
+		if texture==null and Cook.Paint._texture_refs.has(key):texture=Cook.Paint._texture_refs[key].get_ref()
+		if texture!=null and texture.get_meta("runtime_source_sha256","")!=packet.images[key].get_meta("runtime_source_sha256",""):return false
+	# A cache catalogue may be empty while actual materials still own another
+	# generation. Inspect only this target's live owners, never all map caches.
+	if material_pool!=null:
+		for slot:Dictionary in materials:
+			if material_pool.has([slot]) and not _stale_material_keys([material_pool[[slot]]],state.sources).is_empty():return false
+	var entry:Dictionary=_meshes.get(record.get("house_prefab",{}).get("sha256",""),{})
+	for field:String in ["mesh","source"]:
+		if entry.has(field) and not _stale_material_keys(entry[field].materials,state.sources).is_empty():return false
+	return true
+
+static func end_texture_publication(scope:Dictionary)->void:
+	if scope.get("previous")!=null:load("res://scripts/world_editor/terrain_texture_preparation.gd").restore(scope.previous)
 
 static func _publish_prepared(record:Dictionary,prepared:Dictionary,paint_validation:Variant=null,material_pool:Variant=null,timings:Variant=null)->bool:
 	# Main-thread resource/material publication only. Never place this packet in

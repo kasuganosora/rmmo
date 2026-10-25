@@ -47,6 +47,7 @@ static var fair_publication_enabled:=true # Probe may select the old distance-on
 static var independent_instance_preparation_enabled:=true # Diagnostic control for dependency-blocked private cursors.
 static var native_prefab_direct_specs_enabled:=true
 static var material_publication_slices_enabled:=true # Probe-only synchronous control.
+static var prepared_material_slicing_enabled:=true # Probe-only control for prepared/shared pixel publication.
 static var collision_first_enabled:=false # Exact sidecar experiment; normal geometry/nav gates remain available.
 static var collision_query_cache_enabled:=true # Disable for the legacy guard cost/behaviour comparison.
 static var collision_query_profile_enabled:=false # Detailed timers are opt-in to avoid perturbing physics ticks.
@@ -389,6 +390,9 @@ func _init()->void:
 	_doc.load_immutable_records=true;_doc.load_paint_validation={};_doc.load_texture_checks={};_doc.load_material_pool={};_doc.load_box_meshes={}
 
 func configure_references(index:Dictionary,path:String,content_root:String,ownership_proof:OwnershipProof=null)->void:
+	# A new mounted operation must not inherit the previous source identities.
+	# In-flight consumers keep their original pool until their jobs retire.
+	if _jobs.is_empty():_shared_images=SharedImages.new()
 	if _reference_handoff!=null:_reference_handoff.retire();_reference_handoff=null
 	_invalidate_collision_queries()
 	_runtime_building_records.clear()
@@ -1780,12 +1784,23 @@ func _prefab_texture_plan(item:Dictionary,requests:Array)->Dictionary:
 	var sources:Dictionary={}
 	for at:int in positions:
 		if at>=0 and at<_reference_index.get("rows",[]).size():sources.merge(_reference_index.rows[at].get("prefab_textures",{}),true)
+	var texture_plan_started:=Time.get_ticks_usec() if preload("res://scripts/world3d/runtime_texture_cache.gd").profile_enabled else 0
 	var result:Dictionary=PrefabTextures.estimate(sources,_reference_root) if not sources.is_empty() else {}
+	_record_texture_dispatch("header_plan",texture_plan_started,str(item.get("path","")),sources.size())
 	if result.get("rows",{}).is_empty():result={}
 	if _prefab_texture_attempts.size()>=16:_prefab_texture_attempts.erase(_prefab_texture_attempts.keys()[0])
 	_prefab_texture_attempts[key]=result
 	profile.prefab_texture_plan_builds=int(profile.get("prefab_texture_plan_builds",0))+1
 	return result
+
+func _record_texture_dispatch(label:String,started:int,path:String,keys:int)->void:
+	if started==0:return
+	var elapsed:=Time.get_ticks_usec()-started
+	if not profile.has("texture_dispatch"):profile.texture_dispatch={}
+	var stages:Dictionary=profile.texture_dispatch
+	if not stages.has(label):stages[label]={"calls":0,"total_us":0,"max_us":0,"keys":0,"slowest_path":""}
+	var entry:Dictionary=stages[label];entry.calls+=1;entry.total_us+=elapsed;entry.keys+=keys
+	if elapsed>entry.max_us:entry.max_us=elapsed;entry.slowest_path=path
 
 func _estimate_job(item:Dictionary,requests:Array,need_model:bool=true)->Dictionary:
 	var reference_bytes:=0
@@ -2039,7 +2054,7 @@ func _accept_prepared_records(result:Dictionary)->void:
 	var reference_profile:Dictionary=result.get("read_profile",{})
 	for field:String in ["prefab_faces_prepared_slots","prefab_faces_skipped_slots","prefab_faces_prepared_vertices"]:
 		profile["reference_"+field]=int(profile.get("reference_"+field,0))+int(reference_profile.get(field,0))
-	for field in ["preflight_us","preflight_ownership_us","selected_ownership_us","selected_uuid_lookup_us","map_authentications","directory_rows_recomputed","groups_checked","terrain_context_source_rows","terrain_boundary_normals","road_cache_hits","road_array_generations","cached_surface_bounds","scanned_surface_bounds","surface_bounds_us","definition_copies","definition_transfers","reads_started","handoff_records"]:
+	for field in ["preflight_us","preflight_ownership_us","selected_ownership_us","selected_uuid_lookup_us","map_authentications","directory_rows_recomputed","groups_checked","terrain_context_source_rows","terrain_boundary_normals","terrain_mask_generations","terrain_mask_bytes","terrain_mask_us","terrain_mask_on_main","road_cache_hits","road_array_generations","cached_surface_bounds","scanned_surface_bounds","surface_bounds_us","definition_copies","definition_transfers","reads_started","handoff_records"]:
 		profile["reference_"+field]=int(profile.get("reference_"+field,0))+int(reference_profile.get(field,0))
 	if not records.is_empty():
 		var key:String="reference_proof_jobs" if reference_profile.get("ownership_proof_used",false) else "reference_full_scan_jobs"
@@ -2500,7 +2515,8 @@ func _publication_dependencies_ready(item:Dictionary)->bool:
 func _main_thread_budget_usec()->int:
 	# White geometry has been measured through entry, walking and far returns.
 	# Keep ordinary textured play's existing allowance until its own evaluation.
-	var white:=preload("res://scripts/world3d/white_native_asset_cache.gd").active()
+	var controls=preload("res://scripts/world3d/runtime_probe_controls.gd")
+	var white:bool=controls.white_materials and controls.discard_map_textures
 	var base:=WHITE_INTERACTIVE_BUDGET_US if white else INTERACTIVE_BUDGET_US
 	var interactive:=clampi(interactive_budget_override_usec,1000,8000) if interactive_budget_override_usec>0 else base
 	if force_covered_loading_budget and _map.get_viewport().disable_3d:return covered_loading_budget_usec
@@ -2633,18 +2649,39 @@ func _publish_ready(began:int,budget_usec:int=INTERACTIVE_BUDGET_US)->Dictionary
 			continue
 		if not _publication_workspace_available(pixel_job,item.path,true):break
 		var prefab_parts:Variant={} if preload("res://scripts/world3d/load_trace.gd").enabled else null
+		var record_pixels:Dictionary=pixel_job.get("result",{}).get("prefab_texture_packet",{})
+		if (material_publication_slices_enabled and prepared_material_slicing_enabled
+			and not preload("res://scripts/world3d/runtime_probe_controls.gd").discard_map_textures
+			and (not item.record.has("house_prefab") or not item.record.get("surface_paint",[]).is_empty()) and not record_pixels.is_empty()):
+			if not pixel_job.has("streamed_texture_owners"):pixel_job.streamed_texture_owners={};pixel_job.streamed_texture_scope={}
+			var texture_phase:int=preload("res://scripts/world3d/material_publication.gd").step_record_prepared(item.record,_doc.load_paint_validation,pixel_job.streamed_texture_owners,record_pixels,pixel_job.streamed_texture_scope)
+			if texture_phase!=0:
+				if texture_phase<0:
+					_instance_failed(publication_id,"区块纹理准备失败："+publication_id)
+					if not str(item.get("group_id","")).is_empty():_stage_building(item,[])
+				else:
+					var queue:Dictionary=_publication_queues[item.path];queue.scan=queue.chosen
+				var elapsed:int=Time.get_ticks_usec()-unit_began
+				profile.record_texture_units=int(profile.get("record_texture_units",0))+1
+				profile.record_texture_us=int(profile.get("record_texture_us",0))+elapsed
+				profile.max_record_texture_unit_us=maxi(int(profile.get("max_record_texture_unit_us",0)),elapsed)
+				preload("res://scripts/world3d/load_trace.gd").elapsed("deferred.record_texture_step",unit_began,{"uuid":publication_id,"phase":texture_phase})
+				_account_work_unit(timing,unit_began);continue
 		if item.record.has("house_prefab"):
 			var prepared:Dictionary=_jobs.get(item.path,{}).get("result",{}).get("prefab_cpu",{}).get(item.record.house_prefab.sha256,{})
 			var textures:Dictionary=_jobs.get(item.path,{}).get("result",{}).get("prefab_texture_packet",{})
-			# Prepared image/ticket packets already have a separate scoped owner and
-			# invalidation protocol. Keep that route synchronous and unchanged.
-			if (material_publication_slices_enabled and textures.is_empty()
-				and not Prefab._meshes.has(item.record.house_prefab.sha256)
+			# CPU preparation does not pay the main-thread texture upload cost.
+			# Keep the admitted image owner while advancing the same material slices.
+			if (material_publication_slices_enabled
+				and ((textures.is_empty() and not Prefab._meshes.has(item.record.house_prefab.sha256))
+					or (not textures.is_empty() and prepared_material_slicing_enabled))
 				and prepared.get("sha256")==item.record.house_prefab.sha256 and prepared.get("data") is Dictionary
 				and prepared.get("geometry_keys",[]).size()==prepared.data.meshes.size()
 				and prepared.get("collision_faces",[]).size()==prepared.data.meshes.size()):
 				if not pixel_job.has("material_textures"):pixel_job.material_textures={}
-				var phase:=preload("res://scripts/world3d/material_publication.gd").step(prepared.data.materials,_doc.load_paint_validation,_doc.load_material_pool,pixel_job.material_textures)
+				if not textures.is_empty() and not pixel_job.has("material_scope"):pixel_job.material_scope={}
+				var publication=preload("res://scripts/world3d/material_publication.gd")
+				var phase:int=publication.step(prepared.data.materials,_doc.load_paint_validation,_doc.load_material_pool,pixel_job.material_textures) if textures.is_empty() else publication.step_prepared(item.record,prepared.data.materials,_doc.load_paint_validation,_doc.load_material_pool,pixel_job.material_textures,textures,pixel_job.material_scope)
 				if phase!=0:
 					if phase<0:
 						_instance_failed(publication_id,"预制件材质准备失败："+publication_id)
@@ -2659,7 +2696,7 @@ func _publish_ready(began:int,budget_usec:int=INTERACTIVE_BUDGET_US)->Dictionary
 					profile.max_material_preparation_unit_us=maxi(int(profile.get("max_material_preparation_unit_us",0)),elapsed)
 					preload("res://scripts/world3d/load_trace.gd").elapsed("deferred.material_step",unit_began,{"uuid":publication_id,"path":item.path,"phase":phase})
 					_account_work_unit(timing,unit_began);continue
-			if not preload("res://scripts/world3d/house_prefab.gd").publish_prepared(item.record,prepared,_doc.load_paint_validation,_doc.load_material_pool,prefab_parts,textures):
+			if not preload("res://scripts/world3d/house_prefab.gd").publish_prepared(item.record,prepared,_doc.load_paint_validation,_doc.load_material_pool,prefab_parts,textures,pixel_job.get("material_scope")):
 				textures={};prepared={}
 				_instance_failed(item.record.uuid,"后台预制件数据无法发布："+item.record.uuid);_stage_building(item,[])
 				_account_work_unit(timing,unit_began);continue
@@ -2683,7 +2720,13 @@ func _publish_ready(began:int,budget_usec:int=INTERACTIVE_BUDGET_US)->Dictionary
 				profile.direct_instances=int(profile.get("direct_instances",0))+1
 			else:
 				cursor=preload("res://scripts/world3d/asset_instance_preparation.gd").new()
+				var texture_scope:=_begin_record_texture_scope(item,pixel_job)
+				if not texture_scope.ok:
+					_instance_failed(publication_id,"区块纹理在实例化前改变："+publication_id)
+					if not str(item.get("group_id","")).is_empty():_stage_building(item,[])
+					_account_work_unit(timing,unit_began);continue
 				cursor.begin(_doc,item.record,pixel_job.publication_template_owner)
+				preload("res://scripts/world3d/material_publication.gd").end_record_scope(texture_scope)
 			pixel_job.get("result",{}).get("instance_specs",{}).erase(publication_id)
 			pixel_job.instance_preparation={"uuid":publication_id,"cursor":cursor,"phase":"spec" if direct else "asset","prefab_us":prefab_finished-unit_began,"instance_us":0,"prefab_parts_ms":prefab_parts,"instance_parts_ms":instance_parts,"worker_prepared":prepared_on_worker}
 		else:
@@ -2697,7 +2740,13 @@ func _publish_ready(began:int,budget_usec:int=INTERACTIVE_BUDGET_US)->Dictionary
 				profile.native_prefab_direct_instances=int(profile.get("native_prefab_direct_instances",0))+1
 				profile.instance_nodes_avoided=int(profile.get("instance_nodes_avoided",0))+1
 			else:
+				var texture_scope:=_begin_record_texture_scope(item,pixel_job)
+				if not texture_scope.ok:
+					_instance_failed(publication_id,"区块纹理在实例化前改变："+publication_id)
+					if not str(item.get("group_id","")).is_empty():_stage_building(item,[])
+					_account_work_unit(timing,unit_began);continue
 				var holder:Node3D=_doc._mesh(item.record,true,instance_parts)
+				preload("res://scripts/world3d/material_publication.gd").end_record_scope(texture_scope)
 				if _instance_error(holder,item):_account_work_unit(timing,unit_began);continue
 				cursor=preload("res://scripts/world3d/instance_spec_preparation.gd").new()
 				cursor.begin(holder,_local_collision_order(item),int(item.get("draw_order",0)))
@@ -2754,11 +2803,21 @@ func _record_instance_work(cursor:RefCounted,cancelled:bool=false,worker_prepare
 	var stage_key:="instance_work_cancelled_stages" if cancelled else "instance_work_completed_stages"
 	profile[stage_key]=int(profile.get(stage_key,0))+1
 
+func _begin_record_texture_scope(item:Dictionary,job:Dictionary)->Dictionary:
+	if not job.has("streamed_texture_owners"):return {"ok":true}
+	return preload("res://scripts/world3d/material_publication.gd").begin_record_scope(item.record,job.result.get("prefab_texture_packet",{}),job.streamed_texture_owners,job.streamed_texture_scope)
+
 func _advance_instance_specs(item:Dictionary,job:Dictionary,unit_began:int,budget_usec:int)->void:
 	var preparation:Dictionary=job.instance_preparation
 	if preparation.get("phase","")=="asset":
 		var asset:RefCounted=preparation.cursor;var began:=Time.get_ticks_usec()
+		var texture_scope:=_begin_record_texture_scope(item,job)
+		if not texture_scope.ok:
+			asset.dispose();job.erase("instance_preparation");_instance_failed(item.record.uuid,"区块纹理在实例化期间改变："+item.record.uuid)
+			if not str(item.get("group_id","")).is_empty():_stage_building(item,[])
+			return
 		var ready:bool=asset.advance(budget_usec)
+		preload("res://scripts/world3d/material_publication.gd").end_record_scope(texture_scope)
 		var elapsed:=Time.get_ticks_usec()-began
 		profile.asset_instance_units=int(profile.get("asset_instance_units",0))+1
 		profile.max_asset_instance_unit_us=maxi(int(profile.get("max_asset_instance_unit_us",0)),elapsed)
@@ -3436,7 +3495,7 @@ func _dispatch_jobs(tree:SceneTree,prefetch_only:bool=false)->void:
 					estimate.raw_model_bytes=raw_bytes
 					estimate.native_model_bound_bytes=offered.estimated_bytes
 		estimate.stage=stage
-		if not native and preload("res://scripts/world3d/asset_spec_template.gd").enabled and preload("res://scripts/world3d/asset_spec_template.gd").worker_enabled and preload("res://scripts/world3d/runtime_probe_controls.gd").white_materials:
+		if not native and preload("res://scripts/world3d/asset_spec_template.gd").enabled and preload("res://scripts/world3d/asset_spec_template.gd").worker_enabled and (preload("res://scripts/world3d/runtime_probe_controls.gd").white_materials or preload("res://scripts/world3d/runtime_probe_controls.gd").native_geometry_only):
 			estimate.spec_workspace_bytes=preload("res://scripts/world3d/asset_spec_template.gd").WORKSPACE_BYTES
 			estimate.estimated_bytes=int(estimate.estimated_bytes)+int(estimate.spec_workspace_bytes)
 		if CollisionGeometry.enabled and not native:
@@ -3448,11 +3507,15 @@ func _dispatch_jobs(tree:SceneTree,prefetch_only:bool=false)->void:
 		var pixel_offer:Dictionary={};var pixel_tickets:Dictionary={};var reserve_estimate:Dictionary=estimate
 		if (shared_prefab_texture_preparation_enabled or estimate.get("targeted_bridge_textures",false)) and not estimate.get("prefab_texture_plan",{}).is_empty():
 			var plan:Dictionary=estimate.prefab_texture_plan
+			var texture_started:=Time.get_ticks_usec() if preload("res://scripts/world3d/runtime_texture_cache.gd").profile_enabled else 0
 			if not _pixel_retries.has(path):pixel_tickets=Prefab.texture_tickets(plan.rows,_doc.load_material_pool)
+			_record_texture_dispatch("ticket_lookup",texture_started,path,plan.rows.size())
 			var cached:Dictionary={}
 			for key:String in pixel_tickets:cached[key]=pixel_tickets[key].source_sha
 			_shared_images.admission=_admission
+			texture_started=Time.get_ticks_usec() if preload("res://scripts/world3d/runtime_texture_cache.gd").profile_enabled else 0
 			pixel_offer=_shared_images.offer(plan,cached,_pixel_retries.get(path,{}).get("revisions",{}))
+			_record_texture_dispatch("shared_offer",texture_started,path,plan.rows.size())
 			estimate.pixel_retained_bytes=int(estimate.estimated_bytes)-int(plan.estimated_bytes)
 			estimate.estimated_bytes=int(estimate.pixel_retained_bytes)+int(pixel_offer.scratch_bytes)
 			reserve_estimate=estimate.duplicate();reserve_estimate.estimated_bytes=int(estimate.estimated_bytes)
@@ -3607,7 +3670,8 @@ func _discard_job(path:String)->void:
 		job.collision_staged.clear()
 	job.erase("publication_packets")
 	job.erase("reuse_face_snapshots");job.erase("reuse_face_owners");job.erase("reuse_template_owner");job.erase("publication_template_owner")
-	job.erase("pixel_tickets");job.erase("shared_pixels");job.erase("material_textures")
+	job.erase("pixel_tickets");job.erase("shared_pixels");job.erase("material_textures");job.erase("material_scope")
+	job.erase("streamed_texture_owners");job.erase("streamed_texture_scope")
 	Drainer.release_shared(job.token)
 	if job.token.has_meta("admission_release"):job.token.remove_meta("admission_release")
 	if CompletedTrace.enabled:
@@ -3704,14 +3768,15 @@ static func _resume_pixels(requested:Dictionary,plan:Dictionary,root:String,toke
 	return result
 
 static func _resume_pixels_inner(requested:Dictionary,plan:Dictionary,root:String,token:RefCounted,shared:Dictionary,map_path:String,map_sha:String,dependencies:Dictionary,model_path:String,model_sha:String)->Dictionary:
-	var packet:=PrefabTextures.prepare(requested,plan,root,token,false,shared)
+	var mounted_snapshot:bool=preload("res://scripts/world3d/runtime_package_policy.gd").trusted() and preload("res://scripts/world3d/chunk_reference_preparation.gd").trusted_directory_snapshot_enabled
+	var packet:=PrefabTextures.prepare(requested,plan,root,token,false,shared,mounted_snapshot)
 	if not packet.error.is_empty() or packet.get("waiting_pixels",false):return packet
 	var Paths=preload("res://scripts/world3d/map_paths.gd")
 	var Store=preload("res://scripts/world3d/map_resource_store.gd")
 	if token.is_cancelled():packet.error="Shared image continuation cancelled";packet.cancelled=true;return packet
-	if not Paths.allowed(map_path,root) or FileAccess.get_sha256(map_path)!=map_sha or not Paths.allowed(map_path,root) or (not preload("res://scripts/world3d/runtime_package_policy.gd").trusted() and not Store.verify_dependencies(dependencies,map_path,root,1)):packet.error="Reference identity changed while awaiting shared images";return packet
+	if not Paths.allowed(map_path,root) or (not mounted_snapshot and FileAccess.get_sha256(map_path)!=map_sha) or not Paths.allowed(map_path,root) or (not preload("res://scripts/world3d/runtime_package_policy.gd").trusted() and not Store.verify_dependencies(dependencies,map_path,root,1)):packet.error="Reference identity changed while awaiting shared images";return packet
 	if not model_path.is_empty() and not _verify_reused_source(model_path,model_sha,root,token).error.is_empty():packet.error="Model changed while awaiting shared images";return packet
-	if not PrefabTextures.verify(packet,root,token):packet.error="Shared image source changed before handoff";packet.cancelled=token.is_cancelled()
+	if not PrefabTextures.verify(packet,root,token,shared,mounted_snapshot):packet.error="Shared image source changed before handoff";packet.cancelled=token.is_cancelled()
 	return packet
 
 func _nearest_index()->int:

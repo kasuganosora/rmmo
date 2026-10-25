@@ -273,13 +273,19 @@ func native_prefetch_cases(index:Dictionary,entries:Array,map_path:String,image_
 	await queue.quiesce()
 	check(image_owner.get_ref()==null and alias.is_empty() and queue._admission.reserved_bytes==0,"cancel after handoff clears native image aliases before returning bytes")
 	job.clear();map.free()
-	# A source changed after the trusted directory must fail before acceptance.
+	# Diagnostic strict readers reject a changed file. Ordinary mounted package
+	# snapshots deliberately keep their already-mounted map revision instead.
+	var policy=preload("res://scripts/world3d/runtime_package_policy.gd")
+	var old_verify:bool=policy.verify_packages;policy.verify_packages=true
 	var source_bytes:=FileAccess.get_file_as_bytes(map_path);files.write_bytes(map_path,source_bytes+PackedByteArray([32]))
 	queue=native_queue(index,entries,map_path);queue.begin_entry_prefetch(self,clip,{});queue.pump_entry_prefetch()
 	deadline=Time.get_ticks_msec()+5000
 	while queue.path_errors.is_empty() and Time.get_ticks_msec()<deadline:queue.pump_entry_prefetch();await process_frame
-	check(not queue.path_errors.is_empty() and queue.accepted==0 and queue.publication_calls==0 and queue._admission.reserved_bytes==0,"native prefetch rejects changed map identity without publishing or leaking its reservation")
-	await queue.quiesce();queue.free();files.write_bytes(map_path,source_bytes)
+	check(not queue.path_errors.is_empty() and queue.accepted==0 and queue.publication_calls==0 and queue._admission.reserved_bytes==0,"strict native prefetch rejects changed map identity without publishing or leaking its reservation")
+	await queue.quiesce();queue.free();policy.verify_packages=old_verify
+	var mounted:Dictionary=Chunk.prepare(index,entries,map_path,files.content_root,null,null,{}, {},0,true)
+	check(FileAccess.get_sha256(map_path)!=index.source_sha256 and mounted.error.is_empty(),"trusted mounted preparation consumes its snapshot despite a different on-disk map revision")
+	Drainer.dispose_result(mounted);files.write_bytes(map_path,source_bytes)
 	queue=native_queue(index,entries,map_path);queue.hold_until_cancel=true
 	queue.begin_entry_prefetch(self,clip,{});queue.pump_entry_prefetch()
 	var worker:Thread=queue._jobs.values()[0].worker

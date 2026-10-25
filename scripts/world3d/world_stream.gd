@@ -1599,7 +1599,12 @@ static func _apply(map_root: Node, host: Node, spec: Dictionary, draw: Dictionar
 		pass
 	elif _draws(spec, draw):
 		if inst == null:
-			inst = _spawn(spec, bool(map_root.get_meta("defer_source_upload",false)), map_root.has_meta("profile_frame"))
+			var spawn_started:=Time.get_ticks_usec()
+			inst = _spawn(map_root, spec, bool(map_root.get_meta("defer_source_upload",false)), map_root.has_meta("profile_frame"))
+			var spawn_us:=Time.get_ticks_usec()-spawn_started
+			if map_root.has_meta("profile_frame") and spawn_us>20000:
+				var record:Dictionary=spec.get("ground_batch_record",{})
+				print("STREAM_SPAWN_SLOW ",uuid," ",spawn_us/1000.0," ms group=",spec.get("group_id","")," asset=",record.get("asset_path","")," prefab=",record.has("house_prefab")," surfaces=",spec.get("mesh",null).get_surface_count() if spec.get("mesh") is Mesh else -1," overrides=",spec.get("surface_overrides",[]).size())
 			map_root.add_child(inst)
 			inst.global_transform = spec["transform"]
 			meshes[uuid] = inst
@@ -1630,7 +1635,10 @@ static func _apply(map_root: Node, host: Node, spec: Dictionary, draw: Dictionar
 			fort_sources[uuid]=spec
 			map_root.set_meta("stream_fortification_collision_dirty",true)
 		elif body == null:
+			var body_started:=Time.get_ticks_usec()
 			body = _make_body(host, spec, map_root.has_meta("profile_frame"))
+			if map_root.has_meta("profile_frame") and Time.get_ticks_usec()-body_started>20000:
+				print("STREAM_BODY_SLOW ",uuid," ",(Time.get_ticks_usec()-body_started)/1000.0," ms")
 			if body != null:
 				body.set_meta("stream_physics_published_frame",Engine.get_physics_frames())
 				bodies[uuid] = body
@@ -1707,9 +1715,10 @@ static func _spec(visual: MeshInstance3D,final_pose:Variant=null) -> Dictionary:
 	return spec
 
 
-static func _spawn(spec: Dictionary, defer_upload:bool=false, profile:bool=false) -> MeshInstance3D:
+static func _spawn(map_root:Node, spec: Dictionary, defer_upload:bool=false, profile:bool=false) -> MeshInstance3D:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.world_stream._spawn") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	var started:=Time.get_ticks_usec() if profile else 0
+	var spawn_phase_started:=Time.get_ticks_usec()
 	var traced:=preload("res://scripts/world3d/load_trace.gd").methods_enabled
 	var stage_started:=Time.get_ticks_usec() if traced else 0
 	var visual := MeshInstance3D.new()
@@ -1738,6 +1747,8 @@ static func _spawn(spec: Dictionary, defer_upload:bool=false, profile:bool=false
 	if visual.mesh is CpuMesh:
 		if deferred_materials:visual.set_meta("deferred_gpu",true)
 		else:visual.mesh = preload("res://scripts/world3d/prepared_cpu_upload.gd").restore(visual.mesh,str(spec.uuid))
+	if profile and Time.get_ticks_usec()-spawn_phase_started>20000:print("SPAWN_PHASE_SLOW restore ",spec.get("uuid","")," ",(Time.get_ticks_usec()-spawn_phase_started)/1000.0)
+	spawn_phase_started=Time.get_ticks_usec()
 	if traced:preload("res://scripts/world3d/load_trace.gd").elapsed("stream.spawn_restore",stage_started,{"uuid":spec.uuid})
 	stage_started=Time.get_ticks_usec() if traced else 0
 	var restored:=Time.get_ticks_usec() if profile else 0
@@ -1746,6 +1757,8 @@ static func _spawn(spec: Dictionary, defer_upload:bool=false, profile:bool=false
 	visual.cast_shadow=spec.get("cast_shadow",GeometryInstance3D.SHADOW_CASTING_SETTING_ON)
 	for slot in spec.get("surface_overrides",[]).size():
 		if not deferred_materials and spec.surface_overrides[slot]!=null:visual.set_surface_override_material(slot,spec.surface_overrides[slot])
+	if profile and Time.get_ticks_usec()-spawn_phase_started>20000:print("SPAWN_PHASE_SLOW materials ",spec.get("uuid","")," ",(Time.get_ticks_usec()-spawn_phase_started)/1000.0," surfaces=",spec.get("surface_overrides",[]).size())
+	spawn_phase_started=Time.get_ticks_usec()
 	visual.set_meta("stream_instance", true)
 	visual.position = spec.get("position", Vector3.ZERO)
 	visual.rotation = spec.get("rotation", Vector3.ZERO)
@@ -1758,6 +1771,8 @@ static func _spawn(spec: Dictionary, defer_upload:bool=false, profile:bool=false
 	preload("res://scripts/world3d/asset_visibility_range.gd").register(visual)
 	preload("res://scripts/world3d/wind_response.gd").register(visual)
 	preload("res://scripts/world3d/streetlamp_lights.gd").register(visual)
+	if profile and Time.get_ticks_usec()-spawn_phase_started>20000:print("SPAWN_PHASE_SLOW registration ",spec.get("uuid","")," ",(Time.get_ticks_usec()-spawn_phase_started)/1000.0)
+	spawn_phase_started=Time.get_ticks_usec()
 	if traced:preload("res://scripts/world3d/load_trace.gd").elapsed("stream.spawn_registration",stage_started,{"uuid":spec.uuid})
 	stage_started=Time.get_ticks_usec() if traced else 0
 	if bool(extras.get("invisible", false)):

@@ -75,6 +75,10 @@ func _release_initial_cover_after_ready()->void:
 	# The full-ready anchor was recorded earlier and is unchanged.
 	await process_frame
 	report.initial_cover_observation_finished_at_ms=(Time.get_ticks_usec()-began)/1000.
+	if map_texture_stage:
+		phase="map_texture_stage_audit"
+		audit_map_texture_stage()
+		await process_frame # Keep the audit's observer interval outside traversal samples.
 	phase=previous_phase
 
 func sample_residency()->Dictionary:
@@ -169,13 +173,20 @@ func demands_ready()->bool:
 	var queue:Node=mesh_map.get_node("DeferredAssets")
 	if not queue._demanded_by_id.is_empty() or not queue._jobs.is_empty() or not mesh_map.get_meta("stream_jobs",[]).is_empty() or not mesh_map.has_meta("stream_chunk"):return false
 	var batches:Node=mesh_map.get_node_or_null("GroundRenderBatches")
-	return batches==null or (batches._preparation.is_empty() and batches.pending.is_empty() and batches._workers.is_empty())
+	if batches!=null and (not batches._preparation.is_empty() or not batches.pending.is_empty() or not batches._workers.is_empty()):return false
+	# Pixel continuations normally retain a queue job, but an orphaned/shared
+	# lease must not turn a geometry-only ready anchor into texture-ready proof.
+	# Take this small locked snapshot only after the existing queues are empty.
+	return not map_texture_stage or (queue.is_idle() and texture_pixels_settled(queue._shared_images.snapshot()))
 
 func observe_origin_readiness()->void:
 	if report.has("origin_first_ready"):return
 	origin_ready_frames=origin_ready_frames+1 if demands_ready() else 0
 	if origin_ready_frames==3:
 		report.origin_first_ready={"at_ms":(Time.get_ticks_usec()-began)/1000.,"phase":phase,"contract":"First three consecutive empty demand/job/render-batch frames after production geometry focus activation; independent of fixed observation windows"}
+		if map_texture_stage:
+			report.origin_first_ready.contract+="; current demand revision settled and shared pixel outputs/consumers/retained bytes all zero; includes texture preparation/publication but not first presentation"
+			report.origin_texture_ready=texture_stage_snapshot(mesh_map.get_node("DeferredAssets"))
 
 func leg(label:String,destination:Vector3,seconds:float)->void:
 	phase=label;var start:=Time.get_ticks_usec();var origin:=position
@@ -215,14 +226,16 @@ func steady_geometry(label:String,at:Vector3)->void:
 func on_publication(specs:Array)->void:
 	# Raw glTF material objects do not pass through the procedural material
 	# factory. Normalize every later arrival too, retaining surface cull modes.
-	var stage_began:=Trace.begin("probe.whiten_publication")
+	var stage_began:=0
 	var packet:RefCounted=mesh_map.get_node("DeferredAssets").publication_metadata
-	if packet==null or not packet.white_ready(specs):
-		for spec:Dictionary in specs:
-			var previous:Mesh=spec.mesh
-			whiten_spec(spec)
-			if not is_same(previous,spec.mesh):packet=null # Private packet assumes unchanged source identities.
-	Trace.elapsed("probe.whiten_publication",stage_began,{"specs":specs.size()})
+	if not map_texture_stage:
+		stage_began=Trace.begin("probe.whiten_publication")
+		if packet==null or not packet.white_ready(specs):
+			for spec:Dictionary in specs:
+				var previous:Mesh=spec.mesh
+				whiten_spec(spec)
+				if not is_same(previous,spec.mesh):packet=null # Private packet assumes unchanged source identities.
+		Trace.elapsed("probe.whiten_publication",stage_began,{"specs":specs.size()})
 	publication_events.append({"at_ms":(Time.get_ticks_usec()-began)/1000.,"phase":phase,"count":specs.size()})
 	stage_began=Trace.begin("probe.navigation_append")
 	var result:Dictionary=current_scene._navigation.append_specs(specs,packet)
@@ -239,8 +252,10 @@ func traverse()->void:
 		for label:String in ["world_document._asset","world_document._namespace_asset","model_components.apply","asset_library._instantiate"]:Trace.method_labels["method."+label]=true
 		for label:String in ["ground_batcher._process","ground_batcher._commit","ground_batcher._build_next","ground_batcher._prepare_step","ground_batch_geometry.upload","world_stream.sync"]:Trace.method_labels["method."+label]=true
 		for label:String in ["world_stream._sync_work","world_stream._apply","world_stream._spawn","world_stream._prepare_collision","world_stream._prepare_collision_impl","world_stream._finish_loading_sources"]:Trace.method_labels["method."+label]=true
-	check(mesh_only and white_material and not report.controls.map_textures,"traversal is strictly white geometry without map textures")
-	if not mesh_only or not white_material or report.controls.map_textures:return
+	var white_stage:bool=mesh_only and white_material and not report.controls.map_textures and not map_texture_stage
+	var texture_stage:bool=mesh_only and map_texture_stage and not white_material and report.controls.map_textures and report.controls.native_geometry_only
+	check(white_stage or texture_stage,"traversal uses the declared white or map-texture isolation stage")
+	if not white_stage and not texture_stage:return
 	var host:Node=current_scene;host.set_script(GeometryHost)
 	var queue:Node=mesh_map.get_node("DeferredAssets")
 	var nav:=preload("res://scripts/world3d/world_navigation.gd").new()
@@ -275,8 +290,10 @@ func traverse()->void:
 		destination=candidates[0]
 	report.traversal_contract={"navigation":"source catalogue and real retirement preflight only; no baking/query/actors","chunk_m":Stream.CHUNK_M,"asset_grace_msec":assets.grace_msec,"native_grace_msec":native.grace_msec,"exit_margin_m":assets.exit_margin,"candidate_districts":candidates.size(),"destination":[destination.x,destination.y,destination.z],"movement":"controlled geometry focus/camera sweep, no gameplay movement claim","runtime_demands":"production prioritize + player_collision, normal radii, budgets and workers"}
 	var origin_seconds:=30.
+	var post_ready_seconds:=0.
 	for arg:String in OS.get_cmdline_user_args():
 		if arg.begins_with("--origin-seconds="):origin_seconds=clampf(arg.trim_prefix("--origin-seconds=").to_float(),5.,120.)
+		elif arg.begins_with("--post-ready-seconds="):post_ready_seconds=clampf(arg.trim_prefix("--post-ready-seconds=").to_float(),0.,60.)
 	await leg("white_stream_origin",origin,origin_seconds)
 	if "--settle-demands" in OS.get_cmdline_user_args():await settle_demands("white_origin_demand_settle",origin,90.)
 	await steady_geometry("white_origin_steady",origin)
@@ -288,6 +305,13 @@ func traverse()->void:
 		report.failures.append("origin full-ready missing before unload/return")
 		if "--origin-only" in OS.get_cmdline_user_args():report.origin_after=sample_residency();return
 		return
+	if post_ready_seconds>0:
+		Engine.max_fps=0;DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED,root.get_window_id())
+		var draw_enabled:=not root.get_viewport().disable_3d and initial_cover==null
+		report.post_ready_steady={"seconds":post_ready_seconds,"disable_3d":root.get_viewport().disable_3d,"cover_present":initial_cover!=null,"max_fps":Engine.max_fps,"vsync":DisplayServer.window_get_vsync_mode(root.get_window_id()),"contract":"Uncapped real 3D frames after full-ready, initial-cover release and material audit; original frame rows retained with their phase labels."}
+		check(draw_enabled,"post-ready steady observation starts with real 3D drawing and no cover")
+		await leg("post_ready_steady",origin,post_ready_seconds)
+	if stage_screenshot:await capture_stage_screenshot()
 	if "--origin-only" in OS.get_cmdline_user_args():
 		report.origin_after=sample_residency();return
 	if "--walk-only" in OS.get_cmdline_user_args():

@@ -33,7 +33,7 @@ static func plan(records:Array,root:String,source_path:String,source_sha:String,
 		if not record.has("house_prefab"):
 			for path:String in [str(record.get("asset_path","")),str(record.get("fortification_art",{}).get("asset_path",""))]:
 				if not path.is_empty():models[path]=true
-		if not native_package:
+		if not preload("res://scripts/world3d/runtime_probe_controls.gd").discard_map_textures:
 			for definition:Dictionary in Paint.definitions(record):
 				for field:String in Paint.MAP_FIELDS:
 					var path:String=definition.get(field,"")

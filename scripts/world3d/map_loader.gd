@@ -346,6 +346,11 @@ func _parse_inner() -> void:
 		if preload("res://scripts/world3d/runtime_probe_controls.gd").white_materials:
 			_mesh_cache_selection=(_mesh_cache_selection+"|diagnostic-white-materials-v1").sha256_text()
 			_profile.mesh_cache_scope="diagnostic_white_materials"
+		if preload("res://scripts/world3d/runtime_probe_controls.gd").native_geometry_only:
+			# Partial texture restoration must not read/write a fully textured
+			# model product's derived meshes or the all-white control namespace.
+			_mesh_cache_selection=(_mesh_cache_selection+"|diagnostic-native-geometry-map-textures-v1").sha256_text()
+			_profile.mesh_cache_scope="diagnostic_native_geometry_map_textures"
 		if _mesh_cache_allowed:
 			_profile.mesh_cache_path=preload("res://scripts/world3d/runtime_mesh_cache.gd").cache_path(_path,_mesh_cache_selection)
 			_mesh_read_thread=Thread.new()

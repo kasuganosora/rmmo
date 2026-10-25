@@ -6,6 +6,7 @@ var next_collision_state:=0
 var collision_state_probe:=false
 var capacity_timeline_enabled:=false
 var capacity_timeline:Array=[]
+var texture_job_timeline:Array=[]
 var frame_split_probe:=false
 var frame_split:Array=[]
 var frame_split_previous:Dictionary={}
@@ -258,14 +259,22 @@ func tick_geometry()->void:
 	if capacity_timeline_enabled:
 		var queue:Node=mesh_map.get_node("DeferredAssets")
 		var live:=0;var finished:=0;var accepted:=0;var ready:=0
+		var waiting_pixels:=0;var pixel_consumers:=0;var material_owners:=0
 		for job:Dictionary in queue._jobs.values():
 			if job.has("worker"):
 				if job.worker.is_alive():live+=1
 				else:finished+=1
 			elif job.get("accepted",false):accepted+=1
 			else:ready+=1
+			if map_texture_stage:
+				if job.get("result",{}).get("waiting_pixels",false):waiting_pixels+=1
+				if job.has("pixel_consumer"):pixel_consumers+=1
+				if job.has("material_textures"):material_owners+=1
 		capacity_timeline.append([Time.get_ticks_usec()-began,queue._demanded_by_id.size(),live,finished,ready,accepted,queue._jobs.size(),queue._job_limit(),queue._admission.active_workers(),queue._admission.worker_limit,queue._admission.reserved_bytes,not queue._dispatch_fence.is_empty(),mesh_map.get_meta("stream_jobs",[]).size(),mesh_map.get_meta("stream_cursor",0)])
 		report.capacity_timeline={"columns":["at_us","demanded","live_workers","finished_unjoined","ready_unaccepted","accepted","jobs","job_limit","charged_workers","worker_limit","reserved_bytes","admission_fence","stream_jobs","stream_cursor"],"samples":capacity_timeline,"contract":"Once per geometry tick, after focus update. Interval occupancy is sampled, not exact task CPU or lock waiting time."}
+		if map_texture_stage:
+			texture_job_timeline.append([Time.get_ticks_usec()-began,waiting_pixels,pixel_consumers,material_owners])
+			report.texture_job_timeline={"columns":["at_us","waiting_pixels","pixel_consumers","material_texture_owners"],"samples":texture_job_timeline,"contract":"Counts existing deferred jobs during the capacity observer; shared pixel pool is separately checked at full-ready. No texture enumeration or GPU readback per tick."}
 	if publication_block_probe:sample_publication_blocks()
 	if completed_job_audit_enabled:
 		completed_job_audit_samples.append(completed_job_audit.sample(mesh_map.get_node("DeferredAssets"),Time.get_ticks_usec()-began,phase,preload("res://scripts/world3d/completed_job_trace.gd").events))

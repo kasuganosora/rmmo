@@ -3,6 +3,7 @@ extends RefCounted
 ## including normal-map orientation. Never change the authored image files.
 const Envelope=preload("res://scripts/world3d/map_metadata_cache.gd")
 const Trace=preload("res://scripts/world3d/load_trace.gd")
+const Policy=preload("res://scripts/world3d/runtime_package_policy.gd")
 const DIR:="user://world3d_textures"
 # Probe-only switch. Ordinary game/editor loads consume the same upload-ready
 # pixels. Keep legacy entries separate so an A/B never converts its own input.
@@ -38,7 +39,23 @@ static func _profile_elapsed(label:String,began:int,details:Dictionary={})->void
 	_profile_mutex.unlock()
 	Trace.elapsed(label,began,details)
 
-static func cache_path(path:String,flip:bool)->String:return DIR.path_join((path+str(flip)+("|upload_v3" if upload_preparation_enabled else "")).sha256_text()+".bin")
+static func cache_path(path:String,flip:bool)->String:
+	# Trusted packages use the immutable package path as their identity; strict
+	# diagnostics retain content-SHA namespaces so their validity checks remain
+	# meaningful. Never share a path-identity cache with a content-identity one.
+	var mode:="path" if Policy.trusted() else "content"
+	return DIR.path_join((path+str(flip)+("|upload_v4" if upload_preparation_enabled else "|v4")+"|"+mode).sha256_text()+".bin")
+
+static func cache_payload_valid(payload:PackedByteArray,expected:PackedByteArray)->bool:
+	# Ordinary loads trust our atomic derived product. Source identity, version,
+	# bounded metadata and pixel decoding are still checked by both readers.
+	# Strict diagnostics additionally detect payload bit changes, including
+	# otherwise valid compressed pixels; normal loads do not promise that audit.
+	if Policy.trusted():
+		if profile_enabled:_profile_count("texture.cache_payload_checksum_skips")
+		return true
+	if profile_enabled:_profile_count("texture.cache_payload_checksum_checks")
+	return Envelope.checksum(payload)==expected
 
 static func prepare_upload(image:Image)->Image:
 	# Own CPU Images only. Generate mips before this call: preserve their exact
@@ -71,10 +88,10 @@ static func store_pixels(path:String,flip:bool,image:Image,digest:String,limit:i
 	# proves its snapshot/source identity; a worker may veto publication after
 	# compression (cancellation or a source replacement). Keep RGB compact here.
 	if image==null or digest.length()!=64 or limit<=32:return false
-	var version:=3 if upload_preparation_enabled else 1
+	var version:=4 if upload_preparation_enabled else 2
 	var data:Dictionary={"version":version,"source":digest,"width":image.get_width(),"height":image.get_height(),"format":image.get_format(),"size":image.get_data_size()}
 	if not valid_pixels(data):return false
-	if version==3:
+	if version==4:
 		if not image.has_meta("runtime_upload_has_alpha"):image.set_meta("runtime_upload_has_alpha",image.detect_alpha()!=Image.ALPHA_NONE)
 		data.has_alpha=image.get_meta("runtime_upload_has_alpha")
 	data.pixels=image.get_data().compress(FileAccess.COMPRESSION_FASTLZ)
@@ -103,9 +120,12 @@ static func image(path:String,flip:bool)->Image:
 
 static func _image(path:String,flip:bool)->Image:
 	var began:=Time.get_ticks_usec() if profile_enabled else 0
-	var digest:=FileAccess.get_sha256(path)
-	if profile_enabled:_profile_elapsed("texture.image.source_sha",began,{"path":path,"flip":flip})
-	var version:=3 if upload_preparation_enabled else 1
+	# The mounted package is immutable during a trusted load. Its identity is the
+	# package path, not a repeated full-file SHA; strict diagnostics retain the
+	# content identity so their A/B validation still detects changed bytes.
+	var digest:String=path.sha256_text() if Policy.trusted() else FileAccess.get_sha256(path)
+	if profile_enabled and not Policy.trusted():_profile_elapsed("texture.image.source_sha",began,{"path":path,"flip":flip})
+	var version:=4 if upload_preparation_enabled else 2
 	var target:=cache_path(path,flip)
 	began=Time.get_ticks_usec() if profile_enabled else 0
 	var file:=FileAccess.open(target,FileAccess.READ)
@@ -113,8 +133,8 @@ static func _image(path:String,flip:bool)->Image:
 		var hash:=file.get_buffer(32);var payload:=file.get_buffer(file.get_length()-32)
 		if profile_enabled:_profile_elapsed("texture.image.cache_read",began,{"path":path,"flip":flip,"bytes":payload.size()})
 		began=Time.get_ticks_usec() if profile_enabled else 0
-		var checksum_valid:bool=Envelope.checksum(payload)==hash
-		if profile_enabled:_profile_elapsed("texture.image.cache_checksum",began,{"path":path,"flip":flip,"valid":checksum_valid})
+		var checksum_valid:bool=cache_payload_valid(payload,hash)
+		if profile_enabled:_profile_elapsed("texture.image.cache_checksum",began,{"path":path,"flip":flip,"valid":checksum_valid,"checked":not Policy.trusted()})
 		if checksum_valid:
 			began=Time.get_ticks_usec() if profile_enabled else 0
 			var data:Variant=bytes_to_var(payload)
@@ -128,7 +148,7 @@ static func _image(path:String,flip:bool)->Image:
 						var cached:=Image.create_from_data(data.width,data.height,true,data.format,pixels)
 						if profile_enabled:_profile_elapsed("texture.image.cache_image",began,{"path":path,"flip":flip,"format":data.format,"width":data.width,"height":data.height})
 						cached.set_meta("runtime_source_sha256",digest)
-						if version==3:
+						if version==4:
 							cached.set_meta("runtime_upload_has_alpha",data.has_alpha)
 							prepare_upload(cached)
 						if profile_enabled:_profile_count("texture.image.cache_hit")
@@ -154,12 +174,12 @@ static func _image(path:String,flip:bool)->Image:
 	# Keep the compact source channel layout in the pixel cache. Persisting
 	# expanded RGB as RGBA increased warm read/decompression time in the town
 	# probe. Convert only our private CPU Image, after cache I/O, before upload.
-	if version==3:
+	if version==4:
 		began=Time.get_ticks_usec() if profile_enabled else 0
 		result.set_meta("runtime_upload_has_alpha",result.detect_alpha()!=Image.ALPHA_NONE)
 		if profile_enabled:_profile_elapsed("texture.image.alpha",began,{"path":path,"flip":flip})
 	began=Time.get_ticks_usec() if profile_enabled else 0
 	store_pixels(path,flip,result,digest)
 	if profile_enabled:_profile_elapsed("texture.image.cache_store",began,{"path":path,"flip":flip})
-	if version==3:prepare_upload(result)
+	if version==4:prepare_upload(result)
 	return result

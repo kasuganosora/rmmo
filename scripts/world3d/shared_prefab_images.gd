@@ -10,7 +10,29 @@ var _mutex:=Mutex.new()
 var _entries:Dictionary={}
 var _consumers:Dictionary={}
 var _cancelled:Dictionary={}
+var _source_identities:Dictionary={} # Mounted operation only; String SHA values, no pixel/resource owners.
 var profile:Dictionary={"produced":0,"shared_hits":0,"waits":0,"peak_outputs":0,"retained_bytes":0,"peak_retained_bytes":0}
+
+func consumer_active(consumer:String)->bool:
+	_mutex.lock();var active:bool=_consumers.has(consumer) and not _cancelled.has(consumer);_mutex.unlock();return active
+
+func source_identity(consumer:String,path:String)->String:
+	_mutex.lock()
+	var digest:String=_source_identities.get(path,"") if _consumers.has(consumer) and not _cancelled.has(consumer) else ""
+	_mutex.unlock();return digest
+
+func remember_source_identity(consumer:String,path:String,digest:String)->bool:
+	if path.is_empty() or digest.length()!=64:return false
+	# Workers perform all filesystem reads and hashes BEFORE this lock. A racing
+	# first miss may read twice; it never waits for another worker's I/O, and the
+	# first accepted digest cannot be replaced by a conflicting later reader.
+	_mutex.lock()
+	var valid:bool=_consumers.has(consumer) and not _cancelled.has(consumer)
+	if valid:
+		var previous:String=_source_identities.get(path,"")
+		valid=previous.is_empty() or previous==digest
+		if previous.is_empty():_source_identities[path]=digest
+	_mutex.unlock();return valid
 
 func offer(plan:Dictionary,cached:Dictionary={},revisions:Dictionary={})->Dictionary:
 	var result:Dictionary={"rows":plan.get("rows",{}),"bindings":{},"leaders":{},"retained":{},"cached":cached.duplicate(),"scratch_bytes":HASH_SCRATCH}
@@ -95,4 +117,4 @@ func release(consumer:String)->void:
 	for binding:String in retired:admission.release(binding)
 
 func snapshot()->Dictionary:
-	_mutex.lock();var value:Dictionary=profile.duplicate();value.outputs=_entries.size();value.consumers=_consumers.size();_mutex.unlock();return value
+	_mutex.lock();var value:Dictionary=profile.duplicate();value.outputs=_entries.size();value.consumers=_consumers.size();value.source_identities=_source_identities.size();_mutex.unlock();return value

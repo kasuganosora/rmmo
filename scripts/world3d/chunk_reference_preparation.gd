@@ -10,6 +10,8 @@ const PrefabTextures = preload("res://scripts/world3d/prefab_texture_preparation
 const RoadPreparation = preload("res://scripts/world3d/native_road_preparation.gd")
 const OwnershipProof = preload("res://scripts/world3d/dependency_index_proof.gd")
 const CollisionProducts=preload("res://scripts/world3d/collision_product_cache.gd")
+const Regions=preload("res://scripts/world3d/terrain_regions.gd")
+const Controls=preload("res://scripts/world3d/runtime_probe_controls.gd")
 static var trusted_directory_snapshot_enabled:=true # Diagnostic control for the previous per-job authentication.
 
 static func _fail(reason: String, cancelled: bool = false, failed_uuid: String = "") -> Dictionary:
@@ -146,6 +148,7 @@ static func prepare(index: Dictionary, requested_entries: Array, path: String, c
 	var surface_arrays := {}; var road_array_us := 0; var road_array_bytes := 0; var road_estimated_bytes := 0
 	var terrain_contexts:Dictionary={};var terrain_rows:=Index.terrain_context_rows(index,terrain_positions)
 	var terrain_boundary_normals:=0
+	var terrain_masks:=0;var terrain_mask_bytes:=0;var terrain_mask_us:=0
 	if not terrain_rows.is_empty():
 		var terrain_compact:Array=[];var terrain_dependencies:Dictionary={}
 		for row:Dictionary in terrain_rows:
@@ -164,10 +167,21 @@ static func prepare(index: Dictionary, requested_entries: Array, path: String, c
 			context_data=context.data;terrain_boundary_normals=context.last_work.boundary_vertices
 		for record:Dictionary in restored.records:
 			if not record.has("terrain_mesh"):continue
+			if _cancelled(token):return _fail("区块引用准备已取消",true)
 			var current:Dictionary=context_data.get(record.uuid,{})
 			surface_arrays[record.uuid]=preload("res://scripts/world3d/terrain_surface.gd").arrays(record,current)
 			# Keep only the requested tile's rendered halo, never decoded neighbors.
-			current=current.duplicate();current.signature=[];terrain_contexts[record.uuid]=current
+			current=current.duplicate();current.signature=[]
+			if record.has("terrain_regions") and not Controls.white_materials and not Controls.discard_map_textures:
+				# Initial loading already prepares this CPU image off-thread. Streamed
+				# tiles need the same handoff or River.terrain rebuilds it at publication.
+				# Its fixed 257x257 RG8 payload fits the existing terrain 1 MiB reserve.
+				var mask_started:=Time.get_ticks_usec()
+				var mask:=Regions.mask(record)
+				terrain_mask_us+=Time.get_ticks_usec()-mask_started
+				if _cancelled(token):return _fail("区块引用准备已取消",true)
+				current.region_mask=mask;terrain_masks+=1;terrain_mask_bytes+=mask.get_data_size()
+			terrain_contexts[record.uuid]=current
 		dependencies.merge(terrain_dependencies,true)
 	var surface_bounds:Dictionary={};var cached_bounds:=0
 	var surface_uploads:Dictionary={};var upload_bytes:=0;var upload_us:=0
@@ -190,7 +204,7 @@ static func prepare(index: Dictionary, requested_entries: Array, path: String, c
 	var surface_bounds_us:=Time.get_ticks_usec()-bounds_started
 	var texture_packet:Dictionary={}
 	if not texture_plan.is_empty():
-		texture_packet=PrefabTextures.prepare(texture_sources,texture_plan,content_root,token,false,shared_pixels)
+		texture_packet=PrefabTextures.prepare(texture_sources,texture_plan,content_root,token,false,shared_pixels,mounted_snapshot)
 		if not texture_packet.error.is_empty():
 			var failure:=_fail(texture_packet.error,texture_packet.cancelled)
 			if texture_packet.get("retry_pixels",false):failure.retry_pixels=true;failure.source_revisions=texture_packet.get("source_revisions",{})
@@ -198,7 +212,7 @@ static func prepare(index: Dictionary, requested_entries: Array, path: String, c
 	var verify_started := Time.get_ticks_usec()
 	if (not trusted_package and not Store.verify_dependencies(dependencies, path, content_root, 1)) or not Paths.allowed(path, content_root) or (not mounted_snapshot and FileAccess.get_sha256(path) != index.source_sha256): return _fail("地图或区块引用资源在准备期间发生改变")
 	if _cancelled(token): return _fail("区块引用准备已取消", true)
-	if not texture_packet.is_empty() and not PrefabTextures.verify(texture_packet,content_root,token):return _fail("预制件贴图在区块准备结束前发生改变",_cancelled(token))
+	if not texture_packet.is_empty() and not PrefabTextures.verify(texture_packet,content_root,token,shared_pixels,mounted_snapshot):return _fail("预制件贴图在区块准备结束前发生改变",_cancelled(token))
 	# Only this successful existing final transaction grants the typed handoff.
 	# Stream never reads disk or accepts a source_unverified Dictionary.
 	var verified_sources:Dictionary={}
@@ -221,6 +235,8 @@ static func prepare(index: Dictionary, requested_entries: Array, path: String, c
 	profile.directory_rows_recomputed=recomputed.size();profile.groups_checked=checked_groups.size()
 	profile.terrain_context_source_rows=0 if terrain_positions.is_empty() else index.rows.size()
 	profile.terrain_boundary_normals=terrain_boundary_normals
+	profile.terrain_mask_generations=terrain_masks;profile.terrain_mask_bytes=terrain_mask_bytes;profile.terrain_mask_us=terrain_mask_us
+	profile.terrain_mask_on_main=terrain_masks if Thread.is_main_thread() else 0
 	profile.elapsed_us = Time.get_ticks_usec() - started; profile.prefab_instances = prefabs; profile.record_count = restored.records.size()
 	profile.road_cache_hits=road_cache_hits;profile.road_array_generations=roads.size()-road_cache_hits
 	profile.road_instances = roads.size(); profile.road_array_prepare_us = road_array_us; profile.road_array_upper_bytes = road_array_bytes; profile.road_estimated_bytes = road_estimated_bytes

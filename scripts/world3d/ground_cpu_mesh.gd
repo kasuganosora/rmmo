@@ -2,6 +2,8 @@ extends Mesh
 ## Authoring/collision geometry without a RenderingServer mesh allocation.
 var surfaces: Array = []
 var lods: Array = [] # Per-surface distance/error -> index buffer; collision uses base surfaces.
+static var profile_enabled:=false
+static var profile_rows:Array=[]
 var materials: Array[Material] = []
 var bounds := AABB()
 var box_size := Vector3.ZERO
@@ -170,8 +172,18 @@ func restore() -> Mesh:
 		return box
 	var result := ArrayMesh.new()
 	for slot in surfaces.size():
+		var geometry_started:=Time.get_ticks_usec()
 		result.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, surfaces[slot],[],_surface_get_lods(slot))
+		var geometry_us:=Time.get_ticks_usec()-geometry_started
+		var material_started:=Time.get_ticks_usec()
 		result.surface_set_material(slot, materials[slot])
+		var material_us:=Time.get_ticks_usec()-material_started
+		if profile_enabled and (geometry_us>=10000 or material_us>=10000):
+			var mat:Material=materials[slot]
+			var albedo_rid:String=""
+			if mat is BaseMaterial3D and mat.albedo_texture!=null:
+				albedo_rid=str(mat.albedo_texture.get_rid())
+			profile_rows.append({"surface":slot,"geometry_us":geometry_us,"material_us":material_us,"vertices":surfaces[slot][Mesh.ARRAY_VERTEX].size(),"indices":surfaces[slot][Mesh.ARRAY_INDEX].size() if surfaces[slot][Mesh.ARRAY_INDEX]!=null else 0,"material_id":mat.get_instance_id() if mat!=null else 0,"material_rid":str(mat.get_rid()) if mat!=null and mat.has_method("get_rid") else "","albedo_rid":albedo_rid,"albedo_path":str(mat.albedo_texture.resource_path) if mat is BaseMaterial3D and mat.albedo_texture!=null else ""})
 	var cached: Mesh=remember(result,surfaces,lods)
 	# Repeated instances share this CPU object after loading. Remember the first
 	# restored GPU mesh weakly so each instance does not upload the same buffers.
