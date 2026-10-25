@@ -4,6 +4,7 @@ extends RefCounted
 ## mutex. All keys for a job are claimed atomically before its thread starts;
 ## missing dependencies return to the scheduler; no worker blocks on a sibling.
 const Pixels=preload("res://scripts/world3d/runtime_texture_cache.gd")
+const Preparation=preload("res://scripts/world3d/prefab_texture_preparation.gd")
 const HASH_SCRATCH=8*1024*1024
 var admission:RefCounted
 var _mutex:=Mutex.new()
@@ -36,17 +37,22 @@ func remember_source_identity(consumer:String,path:String,digest:String)->bool:
 
 func offer(plan:Dictionary,cached:Dictionary={},revisions:Dictionary={})->Dictionary:
 	var result:Dictionary={"rows":plan.get("rows",{}),"bindings":{},"leaders":{},"retained":{},"cached":cached.duplicate(),"scratch_bytes":HASH_SCRATCH}
-	_mutex.lock()
+	var candidates:Array=[]
+	# Plans and identities are private immutable inputs. Resolve their fields,
+	# memory contract and serialized keys BEFORE taking the shared-state lock:
+	# a script error here must not leave producers blocked behind that mutex.
 	for key:String in result.rows:
 		if cached.has(key):continue
 		var row:Dictionary=result.rows[key]
 		var identity:Array=[key,row.width,row.height,row.source_bytes,row.output_bytes,Pixels.upload_preparation_enabled,revisions.get(row.path,"")]
 		var binding:String="prefab_pixels:"+var_to_bytes(identity).hex_encode().sha256_text()
 		result.bindings[key]=binding
-		if not _entries.has(binding):
-			result.leaders[key]=true;result.retained[binding]=int(row.output_bytes)*2
-			var scratch:int=int(row.cache_limit)*3+int(row.output_bytes)*4+int(row.source_bytes)*2+4*1024*1024
-			result.scratch_bytes=maxi(result.scratch_bytes,scratch)
+		candidates.append({"key":key,"binding":binding,"retained":int(row.output_bytes)*2,"scratch":Preparation.workspace_bytes(row)})
+	_mutex.lock()
+	for candidate:Dictionary in candidates:
+		if not _entries.has(candidate.binding):
+			result.leaders[candidate.key]=true;result.retained[candidate.binding]=candidate.retained
+			result.scratch_bytes=maxi(result.scratch_bytes,candidate.scratch)
 	_mutex.unlock()
 	return result
 

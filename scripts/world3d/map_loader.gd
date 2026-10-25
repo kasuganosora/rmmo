@@ -889,7 +889,6 @@ func _start_texture_prefetch(dependencies:Variant)->void:
 	for item in dependencies:
 		if not item is Array or item.size()!=3 or not item[0] is String or not item[1] is bool or not item[2] is bool:return
 		if item[0].get_extension().to_lower() not in ["png","jpg","jpeg","webp"] or not preload("res://scripts/world3d/map_paths.gd").allowed(item[0],_content_root) or not FileAccess.file_exists(item[0]):return
-		if not preload("res://scripts/world3d/surface_materials.gd").compressed_sidecar_path(item[0],item[1],item[2]).is_empty():continue
 		requested[preload("res://scripts/world3d/surface_materials.gd").texture_key(item[0],item[1],item[2])]=item
 	if requested.is_empty():return
 	_texture_thread=Thread.new()
@@ -905,7 +904,10 @@ func _decode_textures(requested:Dictionary)->Dictionary:
 	for bucket:Array in buckets:
 		var worker:=Thread.new()
 		var task:=func():
-			for entry:Dictionary in bucket:entry.image=preload("res://scripts/world3d/runtime_texture_cache.gd").image(entry.source[0],entry.source[1])
+			var requests:Dictionary={}
+			for entry:Dictionary in bucket:requests[entry.key]=entry.source
+			var prepared:Dictionary=preload("res://scripts/world_editor/terrain_texture_preparation.gd").decode(requests,_content_root)
+			for entry:Dictionary in bucket:entry.image=prepared.images.get(entry.key)
 		if not background_preload and worker.start(task)==OK:workers.append(worker)
 		else:task.call()
 	for worker:Thread in workers:worker.wait_to_finish()

@@ -291,3 +291,40 @@ MockHost 问题由根线程独立红绿修复，不能用跳过测试宿主来�
 共用的准备、续作、弱缓存、来源刷新和 white→texture 目录切换已有上述红绿证据。
 源码与派生 DDS 从此冻结，剩余最终地图性能/接入状态由根性能会话验证。本子任务没有
 commit 或 push；没有把局部画质/逻辑测试解释成已达到完整纹理加载时间目标。
+
+### 后续：DDS 也进入编辑器 CPU 准备 worker
+
+根性能会话随后用官方 profiler 复现返回阶段约 83ms 慢帧：一次发布在
+`WorldDocument._mesh → SurfaceMaterials._texture` 内同步读取/提交 12 张 DDS，
+纹理 span 合计 73.443ms。之前“DDS 已经压缩，所以不安排 PNG worker”的判断漏掉了
+DDS 自身的同步读取、Image 构造成本；编辑器 `TerrainTexturePreparation.requests`
+也有同样的跳过分支。此项不修改纹理内容、编码格式或已发布文件。
+
+新增共享 `compressed_texture_source.gd`，只负责 CPU 的 DDS 计划和读取：支持 2D
+BC1/BC3/BC5 的 legacy 128 字节和 DX10 148 字节头，按每级逻辑尺寸计算压缩块边界，
+准入完整 mip 链。尺寸、格式、长度和层数检查用于限制内存分配；不计算包 SHA，
+不扫描像素、不展开 RGBA、不重建 mip，也不读写主线程 `_sidecar_cache`。
+`read` 在同一打开文件上核对实际头与准入尺寸，直接把压缩块传入 Image；源身份仍由
+调用方沿用 trusted 路径身份或 strict 原始源身份，未新增 DDS 哈希认证。
+
+编辑器 requests 现在保留 DDS 请求，decode worker 先用共享 helper，失败/不支持时
+继续原 PNG 路径；缺少原始作者源仍保持原失败行为。同源 color/normal/DirectX 变体
+继续独立，BC5 不会作为颜色。根线程负责 Deferred/MapLoader/Prefab 准备与主线程
+发布接入；本轮 MapLoader 复用了编辑器 decode，避免再维护一份不同的解码合同。
+
+新增 `tools/test_compressed_texture_source.gd` 的独立证据在
+`material_submit_review_20261025/compressed_editor_worker_01/`：
+
+- `red.log`：269 项中 5 失败，复现编辑器 DDS 被跳过和主缓存被探测修改。
+- `green.log`：**271/271 通过**。24 组合覆盖三种 BC 格式、两种头、1×1、7×11、
+  16×8、1254×1254，Image 全 mip 压缩字节与文件 payload 完全一致。
+- 18 类不支持/坏头/截断/超界输入及准入后的同大小尺寸变化均拒绝；包括 cube、
+  volume、array、部分 mip、签名/头长和文件长度，不把这些拒绝当作资源质量诊断。
+- 同源颜色/法线/flip、白模零准备、严格/可信源身份、坏 DDS 回退 PNG、缺源失败、
+  编辑器 worker 不碰主缓存均覆盖。CPU 结果不是 GPU 上传或整图时间证据。
+
+旧 `test_sidecar_worker_lookup.gd` 的“DDS 不应建立 worker”断言也随真实合同改为
+“CPU worker 返回原压缩 mip、零 PNG lookup/cache、主线程刷新并发不污染缓存”。
+旧 2,000 次只查目录的循环改成 32 次实际读取循环，避免把功能并发回归变成无意义
+大文件 IO 压测；实测由根线程在整图 ABBA 完成后统一调度。生产代码已冻结，保持
+最终地图对照的 source snapshot 稳定。

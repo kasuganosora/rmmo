@@ -319,11 +319,7 @@ static func compressed_sidecar_path(path:String,flip:bool=false,normal:bool=fals
 	# Worker-safe filesystem selection. Never reads or writes the main-only cache.
 	if preload("res://scripts/world3d/runtime_probe_controls.gd").discard_map_textures:return ""
 	if not compressed_sidecars_enabled or path.is_empty():return ""
-	var suffixes:=([".flip.dxt5.dds",".flip.dxt1.dds"] if flip else [".dxt5.dds",".dxt1.dds"])
-	if normal or flip:suffixes.push_front(".flip.bc5.dds" if flip else ".bc5.dds")
-	for suffix:String in suffixes:
-		if FileAccess.file_exists(path+suffix):return path+suffix
-	return ""
+	return preload("res://scripts/world3d/compressed_texture_source.gd").sidecar_path(path,flip,normal)
 
 static func has_compressed_sidecar(path:String,flip:bool=false,normal:bool=false)->bool:
 	# Main-thread callers memoize the worker-safe selector for this generation.
@@ -335,6 +331,7 @@ static func has_compressed_sidecar(path:String,flip:bool=false,normal:bool=false
 
 static func _load_compressed_sidecar(path:String,flip:bool,normal:bool)->Dictionary:
 	if not has_compressed_sidecar(path,flip,normal):return {}
+	if texture_profile_enabled:TextureCache._profile_count("paint.texture.sidecar_main_reads")
 	var sidecar:=str(_sidecar_cache[texture_key(path,flip,normal)])
 	var bytes:=FileAccess.get_file_as_bytes(sidecar)
 	if bytes.is_empty():return {}
@@ -402,7 +399,9 @@ static func _texture(material:Dictionary,field:String,path_checks:Variant)->Text
 		if texture_profile_enabled:TextureCache._profile_count("paint.texture."+("prepared_image_hit" if image!=null else "runtime_image_lookup"))
 		if image==null:image = TextureCache.image(path,flip_normal)
 		if image==null:return null
-	if not image.has_mipmaps():
+	# Prepared DDS already owns its complete chain. A 1x1 chain has no mip flag,
+	# but still cannot be passed through the uncompressed mip generator.
+	if not image.has_mipmaps() and not image.is_compressed():
 		var mip_started:=Time.get_ticks_usec() if texture_profile_enabled else 0
 		image.generate_mipmaps()
 		if texture_profile_enabled:TextureCache._profile_elapsed("paint.texture.mipmaps",mip_started,{"path":path,"flip":flip_normal})
@@ -418,8 +417,13 @@ static func _texture(material:Dictionary,field:String,path_checks:Variant)->Text
 	if texture_profile_enabled:
 		TextureCache._profile_elapsed("paint.texture.upload",began,{"path":path,"flip":flip_normal,"format":image.get_format(),"width":image.get_width(),"height":image.get_height(),"bytes":image.get_data_size()})
 		TextureCache._profile_count("paint.texture.upload_bytes",image.get_data_size())
+		if image.has_meta("runtime_compressed_sidecar_path"):
+			TextureCache._profile_count("paint.texture.sidecar_uploads")
+			TextureCache._profile_count("paint.texture.sidecar_upload_bytes",image.get_data_size())
+			TextureCache._profile_count("paint.texture.prepared_sidecar_uploads")
 	result.set_meta("runtime_upload_bytes",image.get_data_size())
 	result.set_meta("surface_has_alpha",has_alpha)
+	result.set_meta("runtime_normal_xy",image.get_format()==Image.FORMAT_RGTC_RG)
 	result.set_meta("runtime_source_sha256",image.get_meta("runtime_source_sha256",""))
 	if _textures.size() >= 64:
 		var oldest:String=_textures.keys()[0];_textures.erase(oldest);_cache_use.erase("t:"+oldest)

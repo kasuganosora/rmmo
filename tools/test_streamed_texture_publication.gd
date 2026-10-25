@@ -163,6 +163,7 @@ func publication_case(record:Dictionary,zero_budget:bool)->void:
 	print("STREAMED_CASE ",JSON.stringify({"label":label,"forced_packet":forced,"turns":turns,"max_uploads":max_uploads,"counters":counters}))
 	check(doc.calls==1 and max_uploads<=1,label+" each publication turn uploads at most one texture before real WorldDocument construction")
 	check(counters.get("paint.texture.runtime_image_lookup",0)==0,label+" prepared publication never falls back to synchronous pixel loading")
+	check(counters.get("paint.texture.sidecar_main_reads",0)==0,label+" prepared publication never rereads DDS on the scene thread")
 	check(counters.get("paint.texture.gpu_cache_miss",0)==expected.size(),label+" all unique texture variants upload exactly once including height")
 	if not record.has("house_prefab"):check(doc.load_material_pool.is_empty(),label+" texture-only warmup does not create unused StandardMaterials")
 	if record.has("terrain_mesh"):
@@ -188,12 +189,13 @@ func material_fingerprints(materials:Array)->Array:
 		if material is StandardMaterial3D:fields=Paint.TEXTURE_PROPERTIES
 		elif material is ShaderMaterial:
 			for uniform:Dictionary in material.shader.get_shader_uniform_list():fields.append(str(uniform.name))
-		var row:Dictionary={"kind":material.get_class(),"textures":{}}
+		var row:Dictionary={"kind":material.get_class(),"textures":{},"flags":{}}
 		for field:String in fields:
 			var value:Variant=material.get_shader_parameter(field) if material is ShaderMaterial else material.get(field)
 			if value is Texture2D:
 				var image:Image=value.get_image()
-				row.textures[field]={"width":image.get_width(),"height":image.get_height(),"mips":image.has_mipmaps(),"sha":Pixels.Envelope.checksum(canonical(image)).hex_encode()}
+				row.textures[field]={"width":image.get_width(),"height":image.get_height(),"mips":image.has_mipmaps(),"sha":Pixels.Envelope.checksum(canonical(image)).hex_encode(),"normal_xy":value.get_meta("runtime_normal_xy",false)}
+			elif value is bool:row.flags[field]=value
 		result.append(row)
 	return result
 

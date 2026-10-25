@@ -11,7 +11,7 @@ func tick_geometry()->void:
 	if phase=="white_native_return" and not demand_trace_started:
 		demand_trace_started=true;Trace.minimum_event_us=2500;Trace.start()
 		report.demand_trace_start_us=Time.get_ticks_usec()
-	elif demand_trace_started and not demand_trace_finished and phase!="white_native_return":
+	elif demand_trace_started and not demand_trace_finished and phase!="white_native_return" and not (phase=="white_native_reload" and "--include-reload" in OS.get_cmdline_user_args()):
 		_stop_demand_trace()
 	super.tick_geometry()
 func _stop_demand_trace()->void:

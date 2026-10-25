@@ -3,6 +3,7 @@ extends RefCounted
 const Paint=preload("res://scripts/world3d/surface_materials.gd")
 const Paths=preload("res://scripts/world3d/map_paths.gd")
 const TextureCache=preload("res://scripts/world3d/runtime_texture_cache.gd")
+const Compressed=preload("res://scripts/world3d/compressed_texture_source.gd")
 const River=preload("res://scripts/world3d/river_materials.gd")
 const Prefab=preload("res://scripts/world3d/house_prefab.gd")
 
@@ -15,7 +16,6 @@ static func requests(record:Dictionary,checked:Dictionary)->Dictionary:
 			if path.is_empty():continue
 			var flip:bool=field=="normal_path" and definition.get("normal_format","opengl")=="directx"
 			var key:=Paint.texture_key(path,flip,field=="normal_path")
-			if Paint.has_compressed_sidecar(path,flip,field=="normal_path"):continue
 			if checked.has(key) and Paint._textures.has(key):continue
 			result[key]=[path,flip,field=="normal_path"]
 	return result
@@ -24,7 +24,16 @@ static func decode(requested:Dictionary,content_root:String)->Dictionary:
 	var started:=Time.get_ticks_usec();var images:Dictionary={};var failed:Array=[]
 	for key:String in requested:
 		var source:Array=requested[key];var image:Image
-		if Paths.allowed(source[0],content_root) and FileAccess.file_exists(source[0]):image=TextureCache.image(source[0],source[1])
+		if Paths.allowed(source[0],content_root) and FileAccess.file_exists(source[0]):
+			var normal:bool=source[2] if source.size()>2 else source[1]
+			var plan:=Compressed.plan(source[0],source[1],normal,content_root) if Paint.compressed_sidecars_enabled else {}
+			if not plan.is_empty():
+				image=Compressed.read(plan)
+				if image!=null:
+					# Match the existing PNG source identity policy. The derived DDS
+					# carries the same authored source, never a second content hash.
+					image.set_meta("runtime_source_sha256",source[0].sha256_text() if TextureCache.Policy.trusted() else FileAccess.get_sha256(source[0]))
+			if image==null:image=TextureCache.image(source[0],source[1])
 		if image==null:failed.append(key)
 		else:images[key]=image
 	return {"images":images,"failed":failed,"elapsed_us":Time.get_ticks_usec()-started}

@@ -501,6 +501,37 @@ F2/F3 均退休 504 单元 / 3677 specs；F1 为 503 / 3672，完整功能断言
 
 最终证据：`material_submit_review_20261025/editor_dds_final_{prime,F1,F2,F3,white}.*`、`editor_dds_final_summary.json`、`editor_dds_final_assets_verified.json`、`editor_dds_final_slow_frames.json`、F1 WebP SHA/quality 收据。
 
+## 2026-10-25 DDS 后台准备补齐
+
+上一节“返回 publication 约 71ms”的下一轮证据和修复已完成，详见
+`axel_dds_worker_publication_20261025.md`。官方 profiler 抓到真实 `_mesh → _texture`
+同步读取 12 个 DDS；原来三个准备入口主动跳过 DDS，既没有提前读取，也没有走已有
+逐张发布。现在游戏和编辑器复用 CPU-only BC1/BC3/BC5 完整 mip 读取，进入已有
+去重、预算、取消和发布流程。未修改源图、DDS、地图或引擎。
+
+固定同一 52f532 引擎和 88 个已发布 DDS，正常 ABBA 全部功能通过：
+
+- full-ready 旧组 14.655/17.923s，新组 15.232/13.400s；均值 16.289→14.316s。
+  两样本不足以证明稳定收益，B1 比相邻 A1 更慢的样本保留。
+- 返回最大帧 72.411/100.043ms→41.344/41.874ms，返回 publication
+  70.156/97.175ms→29.325/24.166ms；新组返回与卸载均零帧 >50ms。
+- 上传仍 170 次，已有 DDS 的采用范围补齐使累计字节
+  **995,359,496→721,332,072 B（-27.53%）**，主线程 DDS 重读为零。
+- 新组仍有一帧重载 **51.271ms**，没有标成 OS 空闲或已解决。material miss、
+  最终路径/来源身份检查次数反增，专项明确列出，后续需继续精简。
+
+接入时曾因 shared pool 假定 DDS 行存在 PNG cache_limit 而持锁报错、阻塞生产者；
+该失败整图、GDB 栈和独立红测均保留，修正共享预算合同和锁范围后重新跑完整 ABBA。
+独立压缩发布 115、共享压缩队列 27、原共享队列 32、CPU helper/editor 271、PNG
+发布 103、材质发布 64、texture tickets 18、原 prefab pixels 63 项通过。
+
+按用户提出的“网格加载同时把纹理准备在内存”的方向补了实际代码检查和独立测试：
+MapLoader 初始入口已有并行，本轮让 DDS 也真正参与；后续 ChunkReferencePreparation
+仍是几何后接纹理。两个真实完整建筑组各 8 次串行/并行对照，几何/像素指纹与工作量
+相同；四样本中位数分别 316.682→279.789ms、317.446→189.704ms。该工具验证 CPU
+重叠空间，**区块生产调度尚未拆分接入**，不能把单组收益换算为整图收益。下一实现
+仍必须受同一 worker/内存准入限制并沿用共享生产者，避免线程和工作量乘法。
+
 ## 证据目录
 
 外部目录：

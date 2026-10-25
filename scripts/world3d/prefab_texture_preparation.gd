@@ -6,6 +6,7 @@ const Paths=preload("res://scripts/world3d/map_paths.gd")
 const Pixels=preload("res://scripts/world3d/runtime_texture_cache.gd")
 const Headers=preload("res://scripts/world3d/asset_memory_estimate.gd")
 const Trace=preload("res://scripts/world3d/load_trace.gd")
+const Compressed=preload("res://scripts/world3d/compressed_texture_source.gd")
 const FIELDS=["texture_path","normal_path","roughness_path","metallic_path","ao_path","height_path"]
 const MAX_SOURCES=256
 const MAX_SOURCE_BYTES=128*1024*1024
@@ -51,23 +52,38 @@ static func _header(path:String,root:String)->Dictionary:
 	if header.is_empty() or header.pixel_bytes!=4 or header.width>4096 or header.height>4096:return {}
 	return {"width":header.width,"height":header.height,"source_bytes":length,"extension":extension}
 
+static func workspace_bytes(row:Dictionary)->int:
+	# One contract for standalone and shared-pool admission. DDS has no PNG
+	# cache envelope or decompression/normal-conversion pixel workspace.
+	if row.get("extension")=="dds":return int(row.source_bytes)*2+int(row.output_bytes)*2+4*1024*1024
+	return int(row.cache_limit)*3+int(row.output_bytes)*4+int(row.source_bytes)*2+4*1024*1024
+
 static func estimate(requested:Dictionary,root:String)->Dictionary:
 	if preload("res://scripts/world3d/runtime_probe_controls.gd").discard_map_textures:return {"rows":{},"estimated_bytes":0,"output_bytes":0}
 	var rows:Dictionary={};var output:=0;var scratch:=0
 	if not valid_sources(requested):return {"rows":{},"estimated_bytes":0,"output_bytes":0}
 	var keys:Array=requested.keys();keys.sort()
 	for key:String in keys:
-		var source:Array=requested[key];var row:=_header(source[0],root)
+		var source:Array=requested[key]
+		var row:Dictionary={}
+		if preload("res://scripts/world3d/surface_materials.gd").compressed_sidecars_enabled:row=Compressed.plan(source[0],source[1],source[2],root)
+		if row.is_empty():row=_header(source[0],root)
 		if row.is_empty():continue
-		var pixels:int=Headers._mip_bytes(row.width,row.height,4)
+		var pixels:int=int(row.output_bytes) if row.extension=="dds" else Headers._mip_bytes(row.width,row.height,4)
 		if output+pixels>MAX_OUTPUT_BYTES:continue
 		row.path=source[0];row.flip=source[1];row.normal=source[2];row.output_bytes=pixels
+		if row.extension=="dds":
+			# DDS is already the upload format. Charge the retained block image,
+			# staging and one bounded file/codec workspace, never an RGBA decode.
+			rows[key]=row;output+=pixels
+			scratch=maxi(scratch,workspace_bytes(row))
+			continue
 		# Cache reads reject larger envelopes BEFORE reading/Variant decoding.
 		# Three envelopes cover bytes_to_var/copies; four pixel buffers cover
 		# decompression, Image allocation, normal flip and RGB upload conversion.
 		row.cache_limit=mini(134217760,maxi(pixels*2+65536,row.source_bytes*2+65536))
 		rows[key]=row;output+=pixels
-		scratch=maxi(scratch,row.cache_limit*3+pixels*4+row.source_bytes*2+4*1024*1024)
+		scratch=maxi(scratch,workspace_bytes(row))
 	# Retained CPU pixels plus eventual upload/staging; sequential preparation
 	# uses only one decoder/cache workspace, not one workspace per texture.
 	return {"rows":rows,"estimated_bytes":output*2+scratch,"output_bytes":output}
@@ -222,6 +238,22 @@ static func prepare(requested:Dictionary,plan:Dictionary,root:String,token:RefCo
 			images[key]=fetched.image;output+=fetched.image.get_data_size();profile.shared_hits=int(profile.get("shared_hits",0))+1;continue
 		var digest:String=shared.pool.source_identity(shared.consumer,row.path) if reuse_sources else ""
 		var bytes:=PackedByteArray();var image:Image
+		if row.extension=="dds":
+			if digest.is_empty():digest=identities.get(row.path,"")
+			if digest.is_empty():digest=_source_sha(row.path,root,token,profile)
+			else:profile.source_identity_hits+=1
+			if digest.is_empty():return _fail("Unable to identify compressed prefab texture",_cancelled(token))
+			if reuse_sources and not shared.pool.remember_source_identity(shared.consumer,row.path,digest):return _fail("Mounted prefab texture identity changed or consumer cancelled",_cancelled(token))
+			mark=Time.get_ticks_usec();image=Compressed.read(row)
+			_stage(profile,"compressed_read",mark,{"path":row.path,"sidecar":row.sidecar,"bytes":row.source_bytes})
+			if image==null:return _retry("Compressed prefab texture changed after admission",identities) if not shared.is_empty() else _fail("Unable to prepare compressed prefab texture: "+row.path)
+			if _cancelled(token):return _fail("Prefab texture preparation cancelled",true)
+			image.set_meta("runtime_source_sha256",digest)
+			if not shared.is_empty() and not shared.pool.publish(shared.consumer,key,digest,image):return _fail("Shared prefab image producer cancelled",true)
+			images[key]=image;identities[row.path]=digest;output+=image.get_data_size()
+			profile.compressed_reads=int(profile.get("compressed_reads",0))+1
+			profile.compressed_read_bytes=int(profile.get("compressed_read_bytes",0))+int(row.source_bytes)
+			continue
 		var cache_checked:=not digest.is_empty()
 		if cache_checked:
 			# Retiring CPU pixels does not retire this mounted operation's identity.
