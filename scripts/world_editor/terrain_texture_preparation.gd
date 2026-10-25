@@ -44,6 +44,7 @@ static func install(prepared:Dictionary)->Dictionary:
 	var invalidated:Dictionary={}
 	for key in prepared.failed:
 		Paint._textures.erase(key);Paint._texture_refs.erase(key);invalidated[key]=true
+		TextureCache.discard_failed_source(Paint.texture_source_path(key),str(key).ends_with("|flip_y"))
 	for key in prepared.images:
 		var retained:Texture2D=Paint.retained_texture(key)
 		if retained==null or retained.get_meta("runtime_source_sha256","")!=prepared.images[key].get_meta("runtime_source_sha256",""):invalidated[key]=true
@@ -62,5 +63,6 @@ static func restore(previous:Dictionary,failed:Array=[])->void:
 		var invalidated:Dictionary={}
 		for key in failed:
 			Paint._textures.erase(key);Paint._texture_refs.erase(key);invalidated[key]=true
+			TextureCache.discard_failed_source(Paint.texture_source_path(key),str(key).ends_with("|flip_y"))
 		Prefab.invalidate_texture_materials(invalidated)
 	Paint.prepared_images=previous

@@ -25,7 +25,9 @@ func _initialize()->void:
 	budget.record(3,"batch",100)
 	check(budget.request(3,"collision",99999,true)==8000,"served protected turn restores covered loading reservations")
 	budget.record(3,"collision",8000)
-	check(budget.request(3,"publication",99999)==7000,"covered mode applies to later sibling callbacks in this frame")
+	# Current covered cap is 32 ms: the preceding batch/collision callbacks
+	# charged 0.1 + 8 ms. The old 7 ms expectation predated that policy.
+	check(budget.request(3,"publication",99999)==23900,"covered siblings receive only the remaining 32 ms allowance")
 	check(budget.request(4,"publication",99999)==1500,"covered budget does not leak into the next interactive frame")
 	var report:Dictionary=budget.snapshot()
 	check(report.over_budget_frames==1 and report.max_frame_us==20250,"overshoot is reported instead of pretending a hard time cap")

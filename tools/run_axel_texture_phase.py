@@ -44,6 +44,9 @@ def main():
     parser.add_argument("--legacy-source-reads", action="store_true")
     parser.add_argument("--traverse", action="store_true")
     parser.add_argument("--texture-profile", action="store_true")
+    parser.add_argument("--batch-timeline", action="store_true")
+    parser.add_argument("--without-covered-batch-borrow", action="store_true")
+    parser.add_argument("--without-uv-projection-elision", action="store_true")
     parser.add_argument("--serial-chunk-textures", action="store_true")
     parser.add_argument("--without-texture-plan-reuse", action="store_true")
     parser.add_argument("--screenshot", action="store_true")
@@ -74,6 +77,12 @@ def main():
         cmd.append("--without-mounted-texture-source-reuse")
     if args.texture_profile:
         cmd.append("--texture-stage-profile")
+    if args.batch_timeline:
+        cmd.append("--batch-timeline")
+    if args.without_covered_batch_borrow:
+        cmd.append("--without-covered-batch-borrow")
+    if args.without_uv_projection_elision:
+        cmd.append("--without-uv-projection-elision")
     if args.serial_chunk_textures:
         cmd.append("--serial-chunk-textures")
     if args.without_texture_plan_reuse:
@@ -87,6 +96,9 @@ def main():
               "stage": args.stage, "legacy_publication": args.legacy_publication,
               "legacy_source_reads": args.legacy_source_reads,
               "texture_profile": args.texture_profile,
+              "batch_timeline": args.batch_timeline,
+              "covered_batch_borrow": not args.without_covered_batch_borrow,
+              "uv_projection_elision": not args.without_uv_projection_elision,
               "parallel_chunk_textures": not args.serial_chunk_textures,
               "texture_plan_reuse": not args.without_texture_plan_reuse,
               "scope": "Map/prefab textures with imported-model materials still white" if args.stage == "map" else "All-white baseline",

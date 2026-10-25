@@ -57,6 +57,13 @@ static func cache_payload_valid(payload:PackedByteArray,expected:PackedByteArray
 	if profile_enabled:_profile_count("texture.cache_payload_checksum_checks")
 	return Envelope.checksum(payload)==expected
 
+static func discard_failed_source(path:String,flip:bool)->void:
+	# A failed preparation explicitly revokes this derived pixel variant. A
+	# repaired trusted source may retain its package path, so dropping only GPU
+	# aliases would reload the stale disk product. Ordinary loads do no new IO.
+	var target:=cache_path(path,flip)
+	if FileAccess.file_exists(target):DirAccess.remove_absolute(target)
+
 static func prepare_upload(image:Image)->Image:
 	# Own CPU Images only. Generate mips before this call: preserve their exact
 	# channels rather than regenerating them after a format change. RD converts

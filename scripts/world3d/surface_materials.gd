@@ -8,6 +8,7 @@ const MAX_OVERRIDES := 128
 const MAP_FIELDS := ["texture_path", "normal_path", "roughness_path", "metallic_path", "ao_path", "height_path"]
 static var preserve_complete_surfaces_enabled:=true
 static var white_face_mapping_elision_enabled:=true
+static var uv_projection_elision_enabled:=true
 static var _textures := {}
 static var prepared_images:Dictionary={}
 static var _materials := {}
@@ -506,6 +507,17 @@ static func _make_material(value:Dictionary,cull_mode:int)->StandardMaterial3D:
 
 static func _uvs(data: Dictionary, entry: Dictionary) -> PackedVector2Array:
 	var vertices: PackedVector3Array = data.arrays[Mesh.ARRAY_VERTEX]
+	var original: Variant = data.arrays[Mesh.ARRAY_TEX_UV]
+	if uv_projection_elision_enabled and entry.mapping=="uv" and original!=null and original.size()==vertices.size():
+		# Authored UV coordinates do not depend on the face plane or its bounds.
+		# Transform a private packed array; do not traverse every triangle only
+		# to discard the projection, or rebuild the same transform per vertex.
+		var result:PackedVector2Array=original.duplicate()
+		var angle:=deg_to_rad(entry.rotation)
+		var scale_:=Vector2(entry.scale[0],entry.scale[1])
+		var offset_:=Vector2(0.5+entry.offset[0],0.5+entry.offset[1])
+		for i:int in result.size():result[i]=(result[i]-Vector2(0.5,0.5)).rotated(angle)*scale_+offset_
+		return result
 	var uv := PackedVector2Array()
 	var face: Dictionary = data.faces[int(entry.face)]
 	var normal: Vector3 = face.normal
@@ -519,7 +531,6 @@ static func _uvs(data: Dictionary, entry: Dictionary) -> PackedVector2Array:
 			var point := Vector2(vertex.dot(u), vertex.dot(v))
 			low = low.min(point); high = high.max(point)
 	var dimensions := (high - low).max(Vector2(0.00001, 0.00001))
-	var original: Variant = data.arrays[Mesh.ARRAY_TEX_UV]
 	for i in vertices.size():
 		var point: Vector2 = original[i] if entry.mapping == "uv" and original != null and original.size() == vertices.size() else (Vector2(vertices[i].dot(u), vertices[i].dot(v)) - low) / dimensions
 		if entry.mapping == "meters":

@@ -2,6 +2,7 @@ extends Node3D
 ## Spatial render cache. The source nodes, UUIDs, physics and records remain independent.
 const Geometry = preload("res://scripts/world3d/ground_batch_geometry.gd")
 const FrameBudget = preload("res://scripts/world3d/frame_work_budget.gd")
+const Timeline = preload("res://scripts/world3d/ground_batch_timeline.gd")
 const WorkerRetirement=preload("res://scripts/world3d/cpu_worker_retirement.gd")
 static var canonical_buildings_enabled:=true
 static var inflight_building_sharing_enabled:=true
@@ -56,6 +57,7 @@ var worker_surface_prepare_us:=0
 const INTERACTIVE_WORK_BUDGET_USEC:=2000
 const SETTLED_WHITE_WORK_BUDGET_USEC:=6000
 static var settled_white_budget_enabled:=true
+static var covered_idle_budget_enabled:=true
 static var profile_preparation_units_enabled:=false
 const MAX_LOADING_WORK_BUDGET_USEC:=24000
 var work_budget_usec:=INTERACTIVE_WORK_BUDGET_USEC
@@ -101,7 +103,8 @@ func effective_work_budget_usec()->int:
 	return work_budget_usec
 
 func _can_use_settled_budget()->bool:
-	# Borrow unused publication/collision time only for the measured white stage.
+	# Borrow unused publication/collision time for white rendering or a covered
+	# textured tail. Interactive textured traversal keeps its original budget.
 	# Read live ownership state at consumption, not a latched "finished" flag:
 	# a new destination/publication must revoke the allowance in the same frame.
 	var map:=get_parent()
@@ -119,9 +122,11 @@ static func can_borrow_publication_budget(map:Node)->bool:
 	# The idle publication lane can also finish residency. Requiring residency
 	# itself to be finished left that allowance unused behind a pending queue.
 	var controls=preload("res://scripts/world3d/runtime_probe_controls.gd")
-	if map==null or not settled_white_budget_enabled or not controls.white_materials or not controls.discard_map_textures:return false
+	if map==null:return false
 	var queue:=map.get_node_or_null("DeferredAssets")
 	if queue==null or not queue.is_idle():return false
+	var white:bool=settled_white_budget_enabled and controls.white_materials and controls.discard_map_textures
+	if not white and (not covered_idle_budget_enabled or not queue._covered_loading_ready()):return false
 	if map.has_meta("retirement_schema_preparation") and not map.get_meta("retirement_schema_preparation").complete:return false
 	if map.has_meta("retirement_frame_budget"):
 		var ledger:RefCounted=map.get_meta("retirement_frame_budget")
@@ -255,6 +260,7 @@ func _invalidate_group(key:String,generation:int)->void:
 	_drop(group)
 
 func _watch_group(key:String,group:Dictionary)->void:
+	if Timeline.enabled:Timeline.record("queued",group.generation,Time.get_ticks_usec(),[key,group.category,group.members.size(),group.vertices,sync_count])
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.ground_batcher._watch_group") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	# Residency can free sources before the next sync. Invalidate the combined
 	# visual immediately, including when a non-leading member leaves the tree.
@@ -402,6 +408,7 @@ func _collect_named(state:Dictionary,node:Node)->void:
 	state.named[key]=node
 
 func request_sync(nodes:Array,excluded:Array=[])->void:
+	if Timeline.enabled:Timeline.record("request",sync_count+1,Time.get_ticks_usec(),[nodes.size(),_preparation.get("phase",""),pending.size(),_workers.size()])
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.ground_batcher.request_sync") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	# New residency supersedes unfinished preparation. No source has been hidden
 	# by preparation; lifetime signals immediately remove already-built stale draws.
@@ -581,9 +588,14 @@ func _prepare_step(budget_usec:int)->void:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.ground_batcher._prepare_step") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	if _preparation.is_empty():return
 	var started:=Time.get_ticks_usec()
+	var trace_stage_started:=started
+	var trace_stage:String=_preparation.phase if Timeline.enabled else ""
 	while not _preparation.is_empty():
 		var item_started:=Time.get_ticks_usec()
 		var stage:String=_preparation.phase
+		if Timeline.enabled and stage!=trace_stage:
+			Timeline.record("prepare",sync_count,trace_stage_started,[trace_stage])
+			trace_stage_started=Time.get_ticks_usec();trace_stage=stage
 		var state:Dictionary=_preparation
 		var desired:Dictionary=state.desired
 		if stage=="collect" and state.component_cursor<state.components.size():
@@ -692,6 +704,7 @@ func _prepare_step(budget_usec:int)->void:
 			preload("res://scripts/world3d/load_trace.gd").instant("batch.preparation_unit",{"stage":stage,"cursor":state.cursor,"elapsed_us":Time.get_ticks_usec()-item_started,"item":str(state.items[state.cursor-1]) if state.cursor>0 and state.cursor<=state.items.size() and state.items[state.cursor-1] is String else ""})
 		if budget_usec>0 and Time.get_ticks_usec()-started>=budget_usec:break
 	var elapsed:=Time.get_ticks_usec()-started
+	if Timeline.enabled:Timeline.record("prepare",sync_count,trace_stage_started,[trace_stage])
 	if not _preparation.is_empty():_preparation.cpu_us+=elapsed
 	last_prepare_slice_ms=elapsed/1000.0
 	max_prepare_slice_ms=maxf(max_prepare_slice_ms,last_prepare_slice_ms)
@@ -704,11 +717,19 @@ func _process(_delta: float) -> void:
 	if _retiring_workers:return
 	var wanted:=effective_work_budget_usec()
 	if residency_budget_frame==Engine.get_process_frames():wanted=mini(wanted,residency_budget_remaining_usec)
-	var allowed:=FrameBudget.allowance("batch",wanted,wanted>=24000)
-	if allowed<=0:return
+	var covered:=wanted>=24000
+	if not covered and wanted>INTERACTIVE_WORK_BUDGET_USEC and is_instance_valid(get_parent()):
+		var queue:=get_parent().get_node_or_null("DeferredAssets")
+		covered=queue!=null and queue._covered_loading_ready()
+	var allowed:=FrameBudget.allowance("batch",wanted,covered)
+	if allowed<=0:
+		if Timeline.enabled and (not _preparation.is_empty() or not pending.is_empty() or not _workers.is_empty()):Timeline.record("denied",sync_count,Time.get_ticks_usec(),[wanted,pending.size(),_workers.size(),_preparation.get("phase","")])
+		return
 	var began:=Time.get_ticks_usec()
+	var trace_busy:=Timeline.enabled and (not _preparation.is_empty() or not pending.is_empty() or not _workers.is_empty())
 	_process_work(allowed)
 	FrameBudget.charge("batch",began)
+	if trace_busy:Timeline.record("slice",sync_count,began,[wanted,allowed,pending.size(),_workers.size(),_preparation.get("phase",""),_loading_budgets.size()])
 
 func _process_work(allowed:int)->void:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.ground_batcher._process_work") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
@@ -771,6 +792,7 @@ func _build_next(background: bool = false) -> void:
 	var key: String = pending.pop_front()
 	if not groups.has(key): return
 	var group: Dictionary = groups[key]
+	if Timeline.enabled:Timeline.record("dispatch",group.generation,Time.get_ticks_usec(),[key,group.has("shared_result")])
 	if group.has("shared_result"):
 		var shared:Dictionary=group.shared_result;var prepared_at:int=group.shared_started
 		group.erase("shared_result");group.erase("shared_started")
@@ -835,7 +857,8 @@ func _build_next(background: bool = false) -> void:
 		# main-owned lease even if the entire source map is removed mid-build.
 		for source:Dictionary in snapshot:source.surfaces=WorkerRetirement.snapshot_surfaces(source.surfaces)
 		job.retirement=WorkerRetirement.watch(job.thread,get_tree(),[snapshot,group.cpu.duplicate()])
-		if not job.retirement.is_empty() and job.thread.start(Geometry.build.bind(snapshot,origin,true)) == OK: _workers.append(job); return
+		var build_call:Callable=Timeline.build.bind(snapshot,origin) if Timeline.enabled else Geometry.build.bind(snapshot,origin,true)
+		if not job.retirement.is_empty() and job.thread.start(build_call) == OK: _workers.append(job); return
 		WorkerRetirement.complete(job.retirement)
 	_commit(group,Geometry.build(snapshot,group.origin),started)
 
@@ -905,6 +928,7 @@ func _finish_worker(index: int) -> void:
 	var job: Dictionary=_workers[index]; _workers.remove_at(index)
 	var waiting:bool=job.thread.is_alive();var join_started:=Time.get_ticks_usec()
 	var data: Dictionary = job.thread.wait_to_finish()
+	if Timeline.enabled:Timeline.record("join",job.generation,join_started,[data.get("batch_worker_interval",[]),waiting,job.get("reusers",[]).size()])
 	if waiting:live_worker_joins+=1;live_worker_join_us+=Time.get_ticks_usec()-join_started
 	var targets:Array=[{"key":job.key,"generation":job.generation,"started":job.started}]
 	targets.append_array(job.get("reusers",[]))
@@ -978,6 +1002,7 @@ func _commit(group: Dictionary, data: Dictionary, started: int) -> void:
 	rebuild_count += 1
 	last_build_ms = (Time.get_ticks_usec()-started)/1000.; max_build_ms = maxf(max_build_ms,last_build_ms)
 	last_commit_ms = (Time.get_ticks_usec()-commit_started)/1000.
+	if Timeline.enabled:Timeline.record("commit",group.generation,commit_started,[group.category,group.members.size(),data.get("source_vertices",0),data.mesh.get_surface_count()])
 	max_commit_ms=maxf(max_commit_ms,last_commit_ms)
 
 func stats(category: String="") -> Dictionary:

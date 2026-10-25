@@ -1,0 +1,217 @@
+--- a/thirdparty/re-spirv/re-spirv.cpp
++++ b/thirdparty/re-spirv/re-spirv.cpp
+@@ -912,24 +912,43 @@
+             }
+         };
+ 
+-        thread_local std::vector<FunctionResult> functionResultMap;
+-        thread_local std::vector<ResultDecoration> resultDecorations;
+-        thread_local std::vector<uint32_t> loopMergeIdStack;
+-        thread_local std::vector<FunctionDefinition> functionDefinitions;
+-        thread_local std::vector<FunctionParameter> functionParameters;
+-        thread_local std::vector<FunctionCall> functionCalls;
+-        thread_local std::vector<FunctionItem> functionStack;
+-        thread_local std::vector<CallItem> callStack;
+-        thread_local std::vector<uint32_t> shaderResultMap;
+-        thread_local std::vector<uint32_t> storeMap;
+-        thread_local std::vector<uint32_t> storeMapChanges;
+-        thread_local std::vector<uint32_t> loadMap;
+-        thread_local std::vector<uint32_t> loadMapChanges;
+-        thread_local std::vector<uint32_t> phiMap;
+-        thread_local std::vector<uint32_t> opPhis;
+-        thread_local std::vector<uint32_t> remapsPending;
+-        thread_local std::vector<uint32_t> returnParameters;
+-        thread_local std::vector<uint32_t> sameBlockOperations;
++        thread_local std::vector<FunctionResult> rmmo_tls_functionResultMap;
++
++        auto &functionResultMap = rmmo_tls_functionResultMap;
++        thread_local std::vector<ResultDecoration> rmmo_tls_resultDecorations;
++        auto &resultDecorations = rmmo_tls_resultDecorations;
++        thread_local std::vector<uint32_t> rmmo_tls_loopMergeIdStack;
++        auto &loopMergeIdStack = rmmo_tls_loopMergeIdStack;
++        thread_local std::vector<FunctionDefinition> rmmo_tls_functionDefinitions;
++        auto &functionDefinitions = rmmo_tls_functionDefinitions;
++        thread_local std::vector<FunctionParameter> rmmo_tls_functionParameters;
++        auto &functionParameters = rmmo_tls_functionParameters;
++        thread_local std::vector<FunctionCall> rmmo_tls_functionCalls;
++        auto &functionCalls = rmmo_tls_functionCalls;
++        thread_local std::vector<FunctionItem> rmmo_tls_functionStack;
++        auto &functionStack = rmmo_tls_functionStack;
++        thread_local std::vector<CallItem> rmmo_tls_callStack;
++        auto &callStack = rmmo_tls_callStack;
++        thread_local std::vector<uint32_t> rmmo_tls_shaderResultMap;
++        auto &shaderResultMap = rmmo_tls_shaderResultMap;
++        thread_local std::vector<uint32_t> rmmo_tls_storeMap;
++        auto &storeMap = rmmo_tls_storeMap;
++        thread_local std::vector<uint32_t> rmmo_tls_storeMapChanges;
++        auto &storeMapChanges = rmmo_tls_storeMapChanges;
++        thread_local std::vector<uint32_t> rmmo_tls_loadMap;
++        auto &loadMap = rmmo_tls_loadMap;
++        thread_local std::vector<uint32_t> rmmo_tls_loadMapChanges;
++        auto &loadMapChanges = rmmo_tls_loadMapChanges;
++        thread_local std::vector<uint32_t> rmmo_tls_phiMap;
++        auto &phiMap = rmmo_tls_phiMap;
++        thread_local std::vector<uint32_t> rmmo_tls_opPhis;
++        auto &opPhis = rmmo_tls_opPhis;
++        thread_local std::vector<uint32_t> rmmo_tls_remapsPending;
++        auto &remapsPending = rmmo_tls_remapsPending;
++        thread_local std::vector<uint32_t> rmmo_tls_returnParameters;
++        auto &returnParameters = rmmo_tls_returnParameters;
++        thread_local std::vector<uint32_t> rmmo_tls_sameBlockOperations;
++        auto &sameBlockOperations = rmmo_tls_sameBlockOperations;
+         functionResultMap.clear();
+         resultDecorations.clear();
+         loopMergeIdStack.clear();
+@@ -1839,10 +1858,15 @@
+         // Greatly decreases the costs of adding nodes to the linked list.
+         listNodes.reserve(instructions.size() * 2);
+ 
+-        thread_local std::vector<uint32_t> loopMergeBlockStack;
+-        thread_local std::vector<uint32_t> loopMergeInstructionStack;
+-        thread_local std::vector<bool> preOrderVisitedBlocks;
+-        thread_local std::vector<bool> postOrderVisitedBlocks;
++        thread_local std::vector<uint32_t> rmmo_tls_loopMergeBlockStack;
++
++        auto &loopMergeBlockStack = rmmo_tls_loopMergeBlockStack;
++        thread_local std::vector<uint32_t> rmmo_tls_loopMergeInstructionStack;
++        auto &loopMergeInstructionStack = rmmo_tls_loopMergeInstructionStack;
++        thread_local std::vector<bool> rmmo_tls_preOrderVisitedBlocks;
++        auto &preOrderVisitedBlocks = rmmo_tls_preOrderVisitedBlocks;
++        thread_local std::vector<bool> rmmo_tls_postOrderVisitedBlocks;
++        auto &postOrderVisitedBlocks = rmmo_tls_postOrderVisitedBlocks;
+         loopMergeBlockStack.clear();
+         loopMergeInstructionStack.clear();
+         preOrderVisitedBlocks.clear();
+@@ -2041,8 +2065,10 @@
+         
+         // Do a pre-order and post-order traversal of the tree starting from each function. These indices are
+         // later used to figure out whether instructions dominate other instructions when doing optimizations.
+-        thread_local std::vector<uint32_t> blockIndexStack;
+-        thread_local std::vector<uint32_t> blockAdjacentStack;
++        thread_local std::vector<uint32_t> rmmo_tls_blockIndexStack;
++        auto &blockIndexStack = rmmo_tls_blockIndexStack;
++        thread_local std::vector<uint32_t> rmmo_tls_blockAdjacentStack;
++        auto &blockAdjacentStack = rmmo_tls_blockAdjacentStack;
+         uint32_t preOrderIndex = 0;
+         uint32_t postOrderIndex = 0;
+         blockPreOrderIndices.resize(blocks.size(), 0);
+@@ -2139,9 +2165,12 @@
+         }
+ 
+         // Sort degrees doesn't need to be cleared as its contents will be copied over.
+-        thread_local std::vector<uint32_t> sortDegrees;
+-        thread_local std::vector<uint32_t> instructionStack;
+-        thread_local std::vector<InstructionSort> instructionSortVector;
++        thread_local std::vector<uint32_t> rmmo_tls_sortDegrees;
++        auto &sortDegrees = rmmo_tls_sortDegrees;
++        thread_local std::vector<uint32_t> rmmo_tls_instructionStack;
++        auto &instructionStack = rmmo_tls_instructionStack;
++        thread_local std::vector<InstructionSort> rmmo_tls_instructionSortVector;
++        auto &instructionSortVector = rmmo_tls_instructionSortVector;
+         instructionStack.clear();
+         instructionSortVector.clear();
+ 
+@@ -2716,9 +2745,13 @@
+             return false;
+         }
+ 
+-        thread_local std::vector<uint32_t> labelStack;
+-        thread_local std::vector<uint32_t> resultStack;
+-        thread_local std::vector<uint32_t> degreeReductions;
++        thread_local std::vector<uint32_t> rmmo_tls_labelStack;
++
++        auto &labelStack = rmmo_tls_labelStack;
++        thread_local std::vector<uint32_t> rmmo_tls_resultStack;
++        auto &resultStack = rmmo_tls_resultStack;
++        thread_local std::vector<uint32_t> rmmo_tls_degreeReductions;
++        auto &degreeReductions = rmmo_tls_degreeReductions;
+         labelStack.emplace_back(pFirstLabelId);
+         resultStack.clear();
+         degreeReductions.clear();
+@@ -2846,7 +2879,8 @@
+             }
+         }
+         else if (opCode == SpvOpSwitch) {
+-            thread_local std::vector<uint32_t> remainingCaseWords;
++            thread_local std::vector<uint32_t> rmmo_tls_remainingCaseWords;
++            auto &remainingCaseWords = rmmo_tls_remainingCaseWords;
+             remainingCaseWords.clear();
+ 
+             // Switch must compare the integer result of the operator to all the possible labels.
+@@ -2899,7 +2933,8 @@
+ 
+         if (terminatorReduced) {
+             // The condition operator can be discarded.
+-            thread_local std::vector<uint32_t> resultStack;
++            thread_local std::vector<uint32_t> rmmo_tls_resultStack;
++            auto &resultStack = rmmo_tls_resultStack;
+             resultStack.clear();
+             resultStack.emplace_back(operatorId);
+             optimizerReduceResultDegrees(rContext, resultStack);
+@@ -2927,7 +2962,9 @@
+             return false;
+         }
+ 
+-        thread_local std::vector<uint32_t> resultStack;
++        thread_local std::vector<uint32_t> rmmo_tls_resultStack;
++
++        auto &resultStack = rmmo_tls_resultStack;
+         resultStack.clear();
+ 
+         uint32_t wordIndex = rContext.shader.instructions[pInstructionIndex].wordIndex;
+@@ -2998,7 +3035,9 @@
+             return true;
+         }
+ 
+-        thread_local std::vector<uint32_t> resultStack;
++        thread_local std::vector<uint32_t> rmmo_tls_resultStack;
++
++        auto &resultStack = rmmo_tls_resultStack;
+         resultStack.clear();
+ 
+         uint32_t *optimizedWords = reinterpret_cast<uint32_t *>(rContext.optimizedData.data());
+@@ -3123,11 +3162,17 @@
+                 continue;
+             }
+ 
+-            thread_local std::vector<uint32_t> resultStack;
+-            thread_local std::vector<uint32_t> accessStack;
+-            thread_local std::vector<uint32_t> storeInstructionIndices;
+-            thread_local std::vector<uint32_t> partialLoadInstructionIndices;
+-            thread_local std::vector<uint32_t> fullLoadInstructionIndices;
++            thread_local std::vector<uint32_t> rmmo_tls_resultStack;
++
++            auto &resultStack = rmmo_tls_resultStack;
++            thread_local std::vector<uint32_t> rmmo_tls_accessStack;
++            auto &accessStack = rmmo_tls_accessStack;
++            thread_local std::vector<uint32_t> rmmo_tls_storeInstructionIndices;
++            auto &storeInstructionIndices = rmmo_tls_storeInstructionIndices;
++            thread_local std::vector<uint32_t> rmmo_tls_partialLoadInstructionIndices;
++            auto &partialLoadInstructionIndices = rmmo_tls_partialLoadInstructionIndices;
++            thread_local std::vector<uint32_t> rmmo_tls_fullLoadInstructionIndices;
++            auto &fullLoadInstructionIndices = rmmo_tls_fullLoadInstructionIndices;
+             bool storeIsFull = true;
+             resultStack.clear();
+             accessStack.clear();
+@@ -3354,11 +3399,16 @@
+     }
+ 
+     bool Optimizer::run(const Shader &pShader, const SpecConstant *pNewSpecConstants, uint32_t pNewSpecConstantCount, std::vector<uint8_t> &pOptimizedData, Options pOptions) {
+-        thread_local std::vector<uint32_t> instructionAdjacentListIndices;
+-        thread_local std::vector<uint32_t> instructionInDegrees;
+-        thread_local std::vector<uint32_t> instructionOutDegrees;
+-        thread_local std::vector<ListNode> listNodes;
+-        thread_local std::vector<Resolution> resolutions;
++        thread_local std::vector<uint32_t> rmmo_tls_instructionAdjacentListIndices;
++        auto &instructionAdjacentListIndices = rmmo_tls_instructionAdjacentListIndices;
++        thread_local std::vector<uint32_t> rmmo_tls_instructionInDegrees;
++        auto &instructionInDegrees = rmmo_tls_instructionInDegrees;
++        thread_local std::vector<uint32_t> rmmo_tls_instructionOutDegrees;
++        auto &instructionOutDegrees = rmmo_tls_instructionOutDegrees;
++        thread_local std::vector<ListNode> rmmo_tls_listNodes;
++        auto &listNodes = rmmo_tls_listNodes;
++        thread_local std::vector<Resolution> rmmo_tls_resolutions;
++        auto &resolutions = rmmo_tls_resolutions;
+         OptimizerContext context = { pShader, instructionAdjacentListIndices, instructionInDegrees, instructionOutDegrees, listNodes, resolutions, pOptimizedData, pOptions };
+         if (!optimizerPrepareData(context)) {
+             return false;

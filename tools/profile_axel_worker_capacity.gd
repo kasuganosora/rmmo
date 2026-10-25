@@ -206,7 +206,12 @@ func _initialize()->void:
 		if arg=="--progressive-batches-probe":Stream.progressive_white_batches_enabled=true
 		if arg=="--legacy-stream-object-limit":Stream.white_time_slice_enabled=false
 		if arg=="--without-settled-batch-budget":preload("res://scripts/world3d/ground_batcher.gd").settled_white_budget_enabled=false
+		if arg=="--without-covered-batch-borrow":preload("res://scripts/world3d/ground_batcher.gd").covered_idle_budget_enabled=false
+		if arg=="--without-uv-projection-elision":preload("res://scripts/world3d/surface_materials.gd").uv_projection_elision_enabled=false
 		if arg=="--profile-batch-preparation":preload("res://scripts/world3d/ground_batcher.gd").profile_preparation_units_enabled=true
+		if arg=="--batch-timeline":
+			preload("res://scripts/world3d/ground_batch_timeline.gd").enabled=true
+			report.batch_timeline=preload("res://scripts/world3d/ground_batch_timeline.gd").report()
 		if arg=="--without-prepared-surfaces":preload("res://scripts/world3d/ground_batch_geometry.gd").prepared_surfaces_enabled=false
 		if arg=="--without-inflight-batch-sharing":preload("res://scripts/world3d/ground_batcher.gd").inflight_building_sharing_enabled=false
 		if arg.begins_with("--publication-budget-probe="):
@@ -220,6 +225,7 @@ func source_snapshot(folder:String="res://scripts")->Dictionary:
 	if folder=="res://scripts":result["res://tools/completed_job_audit_probe.gd"]=FileAccess.get_sha256("res://tools/completed_job_audit_probe.gd")
 	return result
 func save()->void:
+	if preload("res://scripts/world3d/ground_batch_timeline.gd").enabled:report.batch_timeline=preload("res://scripts/world3d/ground_batch_timeline.gd").report()
 	report.texture_invalidation_material_scans=preload("res://scripts/world3d/house_prefab.gd").texture_invalidation_material_scans
 	if completed_job_audit_enabled:
 		var trace:Dictionary=preload("res://scripts/world3d/completed_job_trace.gd").snapshot(began)
