@@ -57,8 +57,8 @@ func fixture()->Dictionary:
 	var gate:=Gate.new();gates.append(gate)
 	terrain._thread=Thread.new();terrain._retirement=Retirement.watch(terrain._thread,self,[cpu,vertices])
 	check(terrain._thread.start(gate.extract.bind(vertices))==OK,"fixture starts a genuinely blocked extraction worker")
-	var old_visual:=Stream._spawn(ground,false,false);map.add_child(old_visual)
-	var suspended_node:=Stream._spawn(suspended,false,false);map.add_child(suspended_node);suspended_node.set_meta(Stream.GroundBatcher.SUSPENDED_DRAW,true)
+	var old_visual:=Stream._spawn(map,ground,false,false);map.add_child(old_visual)
+	var suspended_node:=Stream._spawn(map,suspended,false,false);map.add_child(suspended_node);suspended_node.set_meta(Stream.GroundBatcher.SUSPENDED_DRAW,true)
 	map.set_meta("stream_meshes",{ground.uuid:old_visual,suspended.uuid:suspended_node});map.set_meta("stream_bodies",{})
 	map.set_meta("stream_jobs",specs.duplicate());map.set_meta("stream_cursor",0)
 	map.set_meta("stream_target",Vector2i.ZERO);map.set_meta("stream_collision_priority_origin",Vector3.ZERO)
@@ -119,7 +119,7 @@ func run()->void:
 		if meshes.has(distant.uuid):break
 	check(meshes.has(distant.uuid),"bounded scans continue beyond 64 blocked members without restarting their prefix")
 	var support:Dictionary=f.building.render_supports[0]
-	var support_node:=Stream._spawn(support,false,false);map.add_child(support_node);meshes[support.uuid]=support_node
+	var support_node:=Stream._spawn(map,support,false,false);map.add_child(support_node);meshes[support.uuid]=support_node
 	support_node.set_meta(Stream.GroundBatcher.SUSPENDED_DRAW,true)
 	map.set_meta("stream_children",map.get_child_count(true))
 	for i:int in 4:turn(f)
@@ -144,7 +144,7 @@ func run()->void:
 	map.free();await process_frame;await process_frame
 	f=fixture();map=f.map;terrain=f.preparer._terrain
 	f.head.ground_batch_record={"terrain_mesh":{}}
-	var held_ground:=Stream._spawn(f.head,true,false);map.add_child(held_ground);held_ground.set_meta(Stream.GroundBatcher.SUSPENDED_DRAW,true)
+	var held_ground:=Stream._spawn(map,f.head,true,false);map.add_child(held_ground);held_ground.set_meta(Stream.GroundBatcher.SUSPENDED_DRAW,true)
 	map.get_meta("stream_meshes")[f.head.uuid]=held_ground;map.set_meta("stream_children",map.get_child_count(true))
 	turn(f)
 	check(not map.get_meta("stream_meshes").has(f.ready.uuid) and held_ground.has_meta(Stream.GroundBatcher.SUSPENDED_DRAW),"a suspended ground head still blocks unbound new props")

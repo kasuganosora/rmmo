@@ -5,7 +5,7 @@ const Batch=preload("res://scripts/world3d/ground_batcher.gd")
 const Cpu=preload("res://scripts/world3d/ground_cpu_mesh.gd")
 var failures:=0
 class QuietBatch extends Batch:
-	func request_residency_sync(_nodes:Array,_excluded:Array=[])->void:pass
+	func request_residency_sync(_nodes:Array,_excluded:Array=[],_immutable_append:bool=false)->void:pass
 class CountedCpu extends Cpu:
 	var uploads:=0
 	func restore()->Mesh:

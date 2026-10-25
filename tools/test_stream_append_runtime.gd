@@ -23,7 +23,7 @@ class GateDeferred extends "res://scripts/world3d/deferred_asset_loader.gd":
 		return prepare.call()
 	func _start_worker(worker:RefCounted,prepare:Callable)->int:
 		if not hold_workers:return super._start_worker(worker,prepare)
-		var code:=worker.start(_gated_prepare.bind(prepare,gate))
+		var code:int=worker.start(_gated_prepare.bind(prepare,gate))
 		if code==OK:gate_started+=1
 		return code
 	func release_gates()->void:
@@ -256,6 +256,9 @@ func shared_near_far_model()->void:
 	var asset:=directory.path_join("crate.glb");var map_path:=directory.path_join("map.gltf")
 	check(preload("res://tools/test_transfer_loading_gpu.gd").ordinary_fixture(asset)==OK,"create standard self-contained shared near/far GLB")
 	check(preload("res://scripts/world3d/asset_bounds_manifest.gd").read(asset).known,"shared fixture is actually eligible for deferred manifest")
+	var compiled:Dictionary=preload("res://scripts/world3d/compiled_asset_cache.gd").build(asset)
+	check(compiled.ok,"prepare the imported model's native product before entering the game")
+	if not compiled.ok:print(compiled);return
 	var doc=preload("res://scripts/world3d/world_document.gd").new()
 	var near_id:String=doc.add_asset({"asset_path":asset,"label":"Shared near"},Vector3(4,.5,4))
 	var far_id:String=doc.add_asset({"asset_path":asset,"label":"Shared far"},Vector3(304,.5,4))
@@ -266,6 +269,7 @@ func shared_near_far_model()->void:
 	var loader=preload("res://scripts/world3d/map_loader.gd").new();loader.near_first=true;root.add_child(loader)
 	loader.start(map_path,Vector3(4,.9,4))
 	var loaded:Array=await loader.finished
+	if not loaded[0] is Node or not str(loaded[2]).is_empty():print("SHARED_MODEL_LOAD_ERROR ",loaded[2])
 	check(loaded[0] is Node and str(loaded[2]).is_empty(),"real near-first MapLoader finishes shared-model map")
 	if not loaded[0] is Node:return
 	var host:=Node3D.new();root.add_child(host)

@@ -35,6 +35,7 @@ static var ready_collision_bypass_enabled:=true # White runtime only; ready inde
 static var legacy_retirement_validation_enabled:=false # Same-code diagnostic of the previous scan order/repeated validation.
 static var sliced_retirement_schema_enabled:=true
 static var resident_retirement_catalog_enabled:=true # Runtime index owns membership; false retains the diagnostic full-directory proof.
+static var incremental_adoption_enabled:=true # A/B control for root-child adoption and empty-plan preservation.
 ## Opt-in diagnostics add per-candidate clocks; leave off for timing A/B runs.
 static var collision_readiness_profile_enabled:=false
 const COLLISION_CANDIDATE_RANGES:=8
@@ -119,6 +120,13 @@ static func _sync_work(map_root:Node,host:Node,origin:Vector3,budget:int,deadlin
 	# Total membership only. The default external-child count rebuilds and sorts
 	# the entire child cache after removals (Godot Node::_update_children_cache).
 	var child_count := map_root.get_child_count(true)
+	var adoption:RefCounted=null
+	if incremental_adoption_enabled and map_root.is_inside_tree():
+		adoption=map_root.get_meta("runtime_adoption_changes") if map_root.has_meta("runtime_adoption_changes") else null
+		if adoption==null:
+			adoption=preload("res://scripts/world3d/stream_adoption_changes.gd").new(map_root,not _child_count_is(map_root,child_count))
+			map_root.set_meta("runtime_adoption_changes",adoption)
+	var adoption_dirty:bool=not _child_count_is(map_root,child_count) or (adoption!=null and adoption.dirty())
 	var previous_chunk:Variant=map_root.get_meta(&"stream_chunk") if map_root.has_meta(&"stream_chunk") else null
 	var unfinished:Array=[]
 	var additions:Array=map_root.get_meta("stream_append_pending",[])
@@ -153,15 +161,29 @@ static func _sync_work(map_root:Node,host:Node,origin:Vector3,budget:int,deadlin
 		if map_root.has_meta(&"stream_candidates"):
 			unfinished.append_array(map_root.get_meta(&"stream_candidates").slice(int(map_root.get_meta(&"stream_plan_cursor",0))))
 		for bin:Array in map_root.get_meta(&"stream_plan_bins",[]):unfinished.append_array(bin)
-	if unfinished.is_empty() and jobs.is_empty() and _chunk_is(map_root, &"stream_chunk", target) and _child_count_is(map_root, child_count):
+	if unfinished.is_empty() and jobs.is_empty() and _chunk_is(map_root, &"stream_chunk", target) and not adoption_dirty:
 		return
-	if not _child_count_is(map_root, child_count):
-		previous_chunk=null
-		map_root.remove_meta("stream_candidate_work")
-		_adopt(map_root, library, known)
-		_index_buildings(map_root,library)
+	if adoption_dirty:
+		var previous_size:=library.size()
+		var explicit_rebuild:bool=int(map_root.get_meta("stream_children",-1))<0 or (adoption!=null and adoption.full_scan)
+		# A deletion may leave an invalid owner in a residency dictionary. Keep
+		# the existing repair plan without a per-child destruction callback.
+		var lost_owner:bool=child_count<int(map_root.get_meta("stream_children",-1))
+		var roots:Variant=adoption.take_roots(int(map_root.get_meta("stream_children",-1))<0) if adoption!=null else null
+		_adopt(map_root, library, known,roots)
+		var changed:bool=not incremental_adoption_enabled or explicit_rebuild or previous_size!=library.size() or lost_owner
+		if changed:
+			previous_chunk=null
+			map_root.remove_meta("stream_candidate_work")
+			_index_buildings(map_root,library)
+			map_root.remove_meta("stream_target")
+		else:
+			var profile:Dictionary=map_root.get_meta("stream_adoption_profile",{})
+			profile.avoided_replans=int(profile.get("avoided_replans",0))+1
+			map_root.set_meta("stream_adoption_profile",profile)
 		child_count = map_root.get_child_count(true)
-		map_root.remove_meta(&"stream_target")
+		map_root.set_meta("stream_children",child_count)
+		if not changed and unfinished.is_empty() and jobs.is_empty() and _chunk_is(map_root,&"stream_chunk",target):return
 	if not _chunk_is(map_root, &"stream_target", target):
 		var preparer=map_root.get_node_or_null("StreamCollisionPreparer")
 		if preparer!=null:preparer.cancel_pending()
@@ -1230,14 +1252,25 @@ static func _child_count_is(node: Node, count: int) -> bool:
 	return node.has_meta(&"stream_children") and int(node.get_meta(&"stream_children")) == count
 
 
-static func _adopt(map_root: Node, library: Array, known: Dictionary) -> void:
+static func _adopt(map_root: Node, library: Array, known: Dictionary,roots:Variant=null) -> void:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.world_stream._adopt") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	var started:=Time.get_ticks_usec();var spec_us:=0;var free_us:=0;var freed_count:=0
-	preload("res://scripts/world3d/scene_integrity.gd").prepare(map_root)
+	if roots==null or not roots.is_empty():preload("res://scripts/world3d/scene_integrity.gd").prepare(map_root)
 	var incoming: Array = []
 	var compiled_holders:Dictionary={}
 	var reused_count:=0
-	_collect_meshes(map_root, incoming)
+	if roots==null:_collect_meshes(map_root, incoming)
+	else:
+		for branch:Node in roots:
+			if branch.has_meta("stream_instance"):continue
+			if branch is MeshInstance3D:incoming.append(branch)
+			_collect_meshes(branch,incoming)
+	var profile:Dictionary=map_root.get_meta("stream_adoption_profile",{})
+	profile.calls=int(profile.get("calls",0))+1
+	profile.full_scans=int(profile.get("full_scans",0))+(1 if roots==null else 0)
+	profile.delta_roots=int(profile.get("delta_roots",0))+(0 if roots==null else roots.size())
+	profile.new_specs=int(profile.get("new_specs",0))+incoming.size()
+	map_root.set_meta("stream_adoption_profile",profile)
 	for mesh in incoming:
 		var ancestor:Node=mesh
 		while ancestor!=null and ancestor!=map_root:

@@ -189,6 +189,7 @@ func finish(code:int)->void:
 	check(report.map_sha_after==report.map_sha,"formal map unchanged")
 	report.cpu_restore_profile=preload("res://scripts/world3d/ground_cpu_mesh.gd").profile_rows.duplicate(true)
 	if is_instance_valid(mesh_map):
+		report.stream_adoption=mesh_map.get_meta("stream_adoption_profile",{}).duplicate()
 		report.stream_append_timing=mesh_map.get_meta("stream_append_timing",{})
 		report.stream_append_slow=mesh_map.get_meta("stream_append_slow",[])
 		var native_node:Node=mesh_map.get_node_or_null("NativeResidency")

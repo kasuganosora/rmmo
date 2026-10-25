@@ -51,6 +51,7 @@ def main():
     parser.add_argument("--without-texture-plan-reuse", action="store_true")
     parser.add_argument("--sync-texture-headers", action="store_true")
     parser.add_argument("--full-cache-trims", action="store_true")
+    parser.add_argument("--full-stream-adoption", action="store_true")
     parser.add_argument("--screenshot", action="store_true")
     parser.add_argument("--timeout", type=int, default=420)
     args = parser.parse_args()
@@ -93,6 +94,8 @@ def main():
         cmd.append("--sync-texture-headers")
     if args.full_cache_trims:
         cmd.append("--full-cache-trims")
+    if args.full_stream_adoption:
+        cmd.append("--full-stream-adoption")
     if args.screenshot:
         cmd.append("--stage-screenshot")
     before = sources()
@@ -109,6 +112,7 @@ def main():
               "texture_plan_reuse": not args.without_texture_plan_reuse,
               "async_texture_headers": not args.sync_texture_headers,
               "incremental_cache_budget": not args.full_cache_trims,
+              "incremental_stream_adoption": not args.full_stream_adoption,
               "scope": "Map/prefab textures with imported-model materials still white" if args.stage == "map" else "All-white baseline",
               "cache_scope": {"derived_index": "invalidated" if args.cold_index else "retained",
                               "geometry_cache": "disabled", "texture_disk_cache": "retained",
