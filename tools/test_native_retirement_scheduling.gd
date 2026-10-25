@@ -55,9 +55,13 @@ func run()->void:
 	held=null;unused=null
 	queue._jobs={"preparing":{"result":{"prefab_cpu":{"prepared":{"data":{"materials":[held_value]}}}}}}
 	var first_frame:=Engine.get_process_frames();service.poll(100)
+	# Cache disposal moved outside the atomic index/navigation transaction.
+	# This fixture disables _process, so advance its next-frame cleanup explicitly.
+	check(not service._cleanup_pending.is_empty(),"successful retirement schedules cache cleanup separately")
+	await process_frame;service._drain_cleanup()
 	check(queue._doc.load_surface_arrays.has("preparing") and is_same(queue._doc.load_surface_arrays.preparing,arrays) and not queue._doc.load_surface_arrays.has("0"),"unloading one unit preserves another admitted job's exact prepared arrays")
 	check(queue._doc.terrain_neighbors.data.has("preparing") and is_same(queue._doc.terrain_neighbors.data.preparing,context) and not queue._doc.terrain_neighbors.data.has("0"),"unloading one unit preserves unrelated prepared terrain seams")
-	check(queue._doc.load_material_pool.size()==1 and held_watch.get_ref()!=null,"retirement immediately removes unused cache membership and preserves admitted material preparation")
+	check(queue._doc.load_material_pool.size()==1 and held_watch.get_ref()!=null,"deferred retirement removes unused cache membership and preserves admitted material preparation")
 	var recycler:Node=root.get_node(preload("res://scripts/world3d/resource_retirement.gd").NODE_NAME)
 	var slices:=0
 	while not recycler.pending.is_empty() and slices<1000:
