@@ -51,6 +51,9 @@ def main():
     closed_building = parser.add_mutually_exclusive_group()
     closed_building.add_argument("--closed-building-preparation", action="store_true")
     closed_building.add_argument("--without-closed-building-preparation", action="store_true")
+    building_arrivals = parser.add_mutually_exclusive_group()
+    building_arrivals.add_argument("--closed-building-arrivals", action="store_true")
+    building_arrivals.add_argument("--without-closed-building-arrivals", action="store_true")
     parser.add_argument("--without-covered-source-coalescing", action="store_true")
     parser.add_argument("--without-prepared-road-paint", action="store_true")
     parser.add_argument("--without-covered-batch-borrow", action="store_true")
@@ -117,6 +120,10 @@ def main():
         cmd.append("--closed-building-preparation")
     if args.without_closed_building_preparation:
         cmd.append("--without-closed-building-preparation")
+    if args.closed_building_arrivals:
+        cmd.append("--closed-building-arrivals")
+    if args.without_closed_building_arrivals:
+        cmd.append("--without-closed-building-arrivals")
     if args.without_covered_source_coalescing:
         cmd.append("--without-covered-source-coalescing")
     if args.without_prepared_road_paint:
@@ -156,6 +163,7 @@ def main():
               "batch_timeline": args.batch_timeline,
               "profile_procedural_uploads": args.profile_procedural_uploads,
               "closed_building_preparation": not args.without_closed_building_preparation,
+              "closed_building_arrivals_override": True if args.closed_building_arrivals else (False if args.without_closed_building_arrivals else None),
               "covered_source_coalescing": not args.without_covered_source_coalescing,
               "prepared_road_paint": not args.without_prepared_road_paint,
               "covered_batch_borrow": not args.without_covered_batch_borrow,

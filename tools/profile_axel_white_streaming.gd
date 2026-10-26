@@ -188,6 +188,7 @@ func observe_origin_readiness()->void:
 		# batch turn. Snapshot settled work once, after preserving the time anchor.
 		var batches:Node=mesh_map.get_node_or_null("GroundRenderBatches")
 		report.origin_ready_work={"batches":batches.stats() if batches!=null else {},"snapshot_at_ms":(Time.get_ticks_usec()-began)/1000.,"contract":"Settled batch counters captured once immediately after the unchanged full-ready time anchor"}
+		if mesh_map.has_meta(Stream.BATCH_ARRIVALS):report.origin_ready_work.batch_arrivals=mesh_map.get_meta(Stream.BATCH_ARRIVALS).profile.duplicate()
 		if map_texture_stage:
 			report.origin_first_ready.contract+="; current demand revision settled and shared pixel outputs/consumers/retained bytes all zero; includes texture preparation/publication but not first presentation"
 			report.origin_texture_ready=texture_stage_snapshot(mesh_map.get_node("DeferredAssets"))
@@ -403,6 +404,7 @@ func traverse()->void:
 	if mesh_map.has_meta("retirement_schema_profile"):report.retirement_schema_profile=mesh_map.get_meta("retirement_schema_profile").duplicate(true)
 	report.traversal={"before":before_counts,"after":sample_residency(),"crossings":crossings,"sync_calls_over_5ms":sync_calls,"publications":publication_events,"residency_samples":residency_samples,"unique_specs_seen":seen.size(),"removed_specs":removed.keys(),"reloaded_specs":reloaded.keys()}
 	report.traversal.membership_probe={"efficient":efficient_membership_probe,"profile":membership_profile.duplicate()}
+	if mesh_map.has_meta(Stream.BATCH_ARRIVALS):report.traversal.batch_arrivals=mesh_map.get_meta(Stream.BATCH_ARRIVALS).profile.duplicate()
 	check(crossings.size()>=10,"actual focus crosses multiple 32 m cells and returns")
 	check(not publication_events.is_empty(),"crossing exercises actual deferred geometry publication")
 	check(not removed.is_empty(),"normal residency grace expires and removes geometry ownership")

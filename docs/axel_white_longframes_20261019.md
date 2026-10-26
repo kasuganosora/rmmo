@@ -3516,3 +3516,28 @@ map12 改为实际 upload 范围后返回/重载未达10ms触发，最大记录9
 回归49 PASS/0 FAIL。完整数据、暂停保护失败样本、scope修正及下一步来源通知合同见
 `docs/axel_reload_upload_attribution_20261027.md`。目标继续active，下一切片回到已证实的
 合批通知屏障，保留真实长调用诊断，不继续用扩大worker/队列代替根因修复。
+
+## §171 完整建筑到齐通知候选与返回纹理暂存分配现场
+
+新增main-only来源到齐账本，完整索引建筑无需等所有stream_jobs收尾即可进入既有
+GroundBatcher；原budget/worker/闭包/材质/ready合同不变，移除和编辑撤销证明。
+固定GPU用例首组合批4.971→0.518s，最终64组只构建64次、1024来源各prepare/pack
+一次。真正卸载再返回同UUID新Node的最终fixture19：15/0且errors=[]，返回增量仍64/
+1024/1024；另有11条账本测试和379条既有回归。fixture13测试helper的metadata错误
+及旧runner漏检被保留，修正后重跑，不记为生产修复。
+
+两组整图ABBA没有证明稳定收益。首组reload low A31.55/32.48、B35.68/33.61；
+第二组A31.36/24.64、B31.47/29.73 FPS，多个区间存在其他Blender CPU活动。
+未观测到相关竞争的第二组B2也未重复首组low提升。因此arrival候选默认仍false，
+不宣布新的load/low收益或p95；初始231builds/3923prepares/2724packs和最终内容
+229groups/2564sources/361surfaces均保持，移动期间总工作有时序差异，不能当稳定去重。
+
+GDB map15_service抓到另一个实际返回卡点，冻结RIP匹配、归还owned暂停计数、正常
+退出：主线程MaterialPublication→SurfaceMaterials→ImageTexture创建中，约21.33MiB
+texture transfer触发32MiB CPU staging buffer分配，现场在AMD/Vulkan CPU同步等待。
+不是已证实的后台mutex锁；pool当时状态及纹理路径/格式尚未取得，未改引擎或扩大缓存。
+诊断上传max17.795秒含GDB停顿，不能当真实性能。原55.678ms/bookkeeping45.679ms
+长帧仍无精确归因，不能被这个新的纹理栈替代。
+
+完整代码合同、两组数据、host分段观察、失败样本、GDB栈及下一轮纹理暂存/后台创建
+独立复现方向见 `docs/axel_closed_building_arrivals_20261027.md`。目标继续active。

@@ -28,6 +28,8 @@ static var bounded_collision_priority_enabled:=true
 static var incremental_collision_priority_enabled:=true
 static var reuse_job_classification_enabled:=true
 static var progressive_white_batches_enabled:=false # Diagnostic only: partial groups currently increase rebuild work.
+static var closed_building_arrivals_enabled:=false # Candidate: exact complete units before the global source barrier.
+const BATCH_ARRIVALS:=&"stream_batch_arrivals"
 static var sliced_loading_batches_enabled:=true # Diagnostic control; synchronous editor calls keep their existing contract.
 static var white_time_slice_enabled:=true # Same interactive time bound without the legacy twelve-object ceiling.
 static var white_collision_prefetch_enabled:=true # Same bounded face queue after the covered entry handoff.
@@ -76,13 +78,37 @@ static func sync(map_root: Node, host: Node, origin: Vector3, budget: int = 0) -
 	var slice_usec:=24000 if budget>=LOAD_BUDGET else interactive_work_budget_usec(map_root,origin,budget)
 	map_root.set_meta("stream_budget_origin",origin)
 	if budget<=0 or not FrameBudget.enabled:
+		if budget>0:_dispatch_batch_arrivals(map_root,budget)
+		else:_invalidate_batch_arrivals(map_root)
 		_sync_work(map_root,host,origin,budget,Time.get_ticks_usec()+slice_usec if slice_usec>3000 and budget==FRAME_BUDGET else 0,slice_usec)
 		return
 	var allowed:=FrameBudget.allowance("collision",slice_usec,budget>=LOAD_BUDGET)
 	if allowed<=0:return
 	var started:=Time.get_ticks_usec()
+	_dispatch_batch_arrivals(map_root,budget)
 	_sync_work(map_root,host,origin,budget,started+allowed,slice_usec)
 	FrameBudget.charge("collision",started)
+
+static func _batch_arrivals(map_root:Node,budget:int)->RefCounted:
+	if not closed_building_arrivals_enabled or budget<=0 or not preload("res://scripts/world3d/white_native_asset_cache.gd").active():return null
+	if not map_root.has_meta(BATCH_ARRIVALS):map_root.set_meta(BATCH_ARRIVALS,preload("res://scripts/world3d/stream_batch_arrivals.gd").new(_dict(map_root,&"stream_meshes")))
+	return map_root.get_meta(BATCH_ARRIVALS)
+
+static func _dispatch_batch_arrivals(map_root:Node,budget:int)->void:
+	var arrivals:=_batch_arrivals(map_root,budget)
+	if arrivals==null or arrivals.needs_full or arrivals.ready.is_empty():return
+	# Source edits/adoption must reconcile first; do not publish an old closure.
+	if map_root.get_meta("stream_source_revision",0)!=map_root.get_meta("stream_applied_source_revision",0):arrivals.invalidate();return
+	var adoption:Variant=map_root.get_meta("runtime_adoption_changes") if map_root.has_meta("runtime_adoption_changes") else null
+	# Let the existing adoption pass classify the change. A slow owned spawn
+	# may yield before updating the child count without changing any source.
+	if not _child_count_is(map_root,map_root.get_child_count(true)) or (adoption!=null and adoption.dirty()):return
+	var batcher:Node=map_root.get_node_or_null("GroundRenderBatches")
+	if batcher==null:return
+	arrivals.dispatch(batcher,_dict(map_root,&"stream_meshes"),_dict(map_root,&"stream_building_groups"),_dict(map_root,&"stream_by_id"))
+
+static func _invalidate_batch_arrivals(map_root:Node)->void:
+	if map_root.has_meta(BATCH_ARRIVALS):map_root.get_meta(BATCH_ARRIVALS).invalidate(not _dict(map_root,&"stream_meshes").is_empty())
 
 static func interactive_work_budget_usec(map_root:Node,origin:Vector3,budget:int=FRAME_BUDGET)->int:
 	# A stationary tail can reuse idle publication time. Moving focus, new
@@ -100,6 +126,7 @@ static func _sync_work(map_root:Node,host:Node,origin:Vector3,budget:int,deadlin
 	var face_lookahead:bool=budget>=LOAD_BUDGET or (budget==FRAME_BUDGET and white_collision_prefetch_enabled and preload("res://scripts/world3d/white_native_asset_cache.gd").active())
 	var source_revision:=int(map_root.get_meta("stream_source_revision",0))
 	if int(map_root.get_meta("stream_applied_source_revision",0))!=source_revision:
+		_invalidate_batch_arrivals(map_root)
 		# A source transaction changes residency independently of player position.
 		# Reconsider live + requested cells, never the rectangle between sources.
 		map_root.remove_meta("stream_target");map_root.remove_meta("stream_chunk")
@@ -174,6 +201,7 @@ static func _sync_work(map_root:Node,host:Node,origin:Vector3,budget:int,deadlin
 		_adopt(map_root, library, known,roots)
 		var changed:bool=not incremental_adoption_enabled or explicit_rebuild or previous_size!=library.size() or lost_owner
 		if changed:
+			_invalidate_batch_arrivals(map_root)
 			previous_chunk=null
 			map_root.remove_meta("stream_candidate_work")
 			_index_buildings(map_root,library)
@@ -363,9 +391,15 @@ static func _sync_work(map_root:Node,host:Node,origin:Vector3,budget:int,deadlin
 	if progressive_white_batches_enabled and budget>0 and budget<LOAD_BUDGET and cursor<jobs.size() and preload("res://scripts/world3d/white_native_asset_cache.gd").active():
 		var added:int=meshes.size()-int(map_root.get_meta("stream_batch_source_count",0))
 		checkpoint=added>=64 and Time.get_ticks_msec()-int(map_root.get_meta("stream_batch_checkpoint_msec",0))>=250
+	var arrivals:=_batch_arrivals(map_root,budget)
+	var batch_sources:Variant=null
+	# A departure can retire sources through the index owner without increasing
+	# the visual revision. Its completed plan still establishes the next prefix.
+	if cursor>=jobs.size() and arrivals!=null and arrivals.needs_full:batch_sources=arrivals.all_sources(meshes)
 	if (cursor>=jobs.size() or checkpoint) and int(map_root.get_meta("stream_batch_revision",-1))!=revision:
-		if (budget>0 and budget<LOAD_BUDGET) or sliced_loading:batcher.request_residency_sync(meshes.values(),[],preload("res://scripts/world3d/white_native_asset_cache.gd").active())
-		else:batcher.sync(meshes.values())
+		if batch_sources==null:batch_sources=arrivals.all_sources(meshes) if arrivals!=null else meshes.values()
+		if (budget>0 and budget<LOAD_BUDGET) or sliced_loading:batcher.request_residency_sync(batch_sources,[],preload("res://scripts/world3d/white_native_asset_cache.gd").active())
+		else:batcher.sync(batch_sources)
 		map_root.set_meta("stream_batch_revision",revision)
 		map_root.set_meta("stream_batch_source_count",meshes.size())
 		map_root.set_meta("stream_batch_checkpoint_msec",Time.get_ticks_msec())
@@ -422,6 +456,7 @@ static func prepare_map_disposal(map_root:Node,tree:SceneTree=null)->void:
 	# restores all surviving CPU sources just before the whole map is destroyed.
 	# Temporary tree detach and individual source removal keep their restore path.
 	map_root.remove_meta("stream_ready_bypass_scan")
+	map_root.remove_meta(BATCH_ARRIVALS)
 	for service:String in ["GroundRenderBatches","StreamCollisionPreparer"]:
 		var outgoing:Node=map_root.get_node_or_null(service)
 		if outgoing==null:continue
@@ -698,6 +733,7 @@ static func _retire_specs(map_root:Node,ids:Array,complete_unit:bool,navigation:
 	if legacy_retirement_validation_enabled:result=index.retire_owned(checked.data,checked.library,ids) if complete_unit else index.retire(checked.data,checked.library,ids)
 	else:result=index._commit_owned_retire(checked.data,checked.library,ids,checked.plan) if complete_unit else index._commit_retire(checked.data,checked.library,checked.plan)
 	if not result.ok:return result
+	_invalidate_batch_arrivals(map_root)
 	if checked.preparation!=null:
 		checked.preparation.retired(ids)
 		var profile:Dictionary=map_root.get_meta("retirement_schema_profile",{})
@@ -1642,6 +1678,7 @@ static func _apply(map_root: Node, host: Node, spec: Dictionary, draw: Dictionar
 			map_root.add_child(inst)
 			inst.global_transform = spec["transform"]
 			meshes[uuid] = inst
+			if closed_building_arrivals_enabled and map_root.has_meta(BATCH_ARRIVALS):map_root.get_meta(BATCH_ARRIVALS).arrived(spec,inst,_dict(map_root,&"stream_building_groups"))
 			_track_deferred_source(map_root,inst)
 			changed=true
 		elif inst.has_meta(GroundBatcher.SUSPENDED_DRAW):
@@ -1689,6 +1726,7 @@ static func _ring_at(chunk: Vector2i, radius: int) -> Dictionary:
 static func _drop(bag: Dictionary, uuid: String, node: Node, map_root:Node=null) -> void:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.world_stream._drop") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	if node != null and is_instance_valid(node):
+		if map_root!=null and node is MeshInstance3D:_invalidate_batch_arrivals(map_root)
 		if owned_removal_accounting_enabled and map_root!=null and node.get_parent()==map_root:
 			var count:=map_root.get_child_count(true)
 			# Only this residency transaction owns the removal. A slow _apply can
