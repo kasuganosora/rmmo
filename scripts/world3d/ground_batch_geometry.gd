@@ -56,10 +56,16 @@ static func material_key(material: Material) -> String:
 		if material.transparency != BaseMaterial3D.TRANSPARENCY_DISABLED or material.billboard_mode != BaseMaterial3D.BILLBOARD_DISABLED: return ""
 		# Object-local procedural coordinates, growing and fading need separate draws.
 		if material.uv1_triplanar or material.uv2_triplanar or material.grow or material.distance_fade_mode != BaseMaterial3D.DISTANCE_FADE_DISABLED: return ""
-		for property in material.get_property_list():
-			if property.usage & PROPERTY_USAGE_STORAGE and not str(property.name).begins_with("resource_") and property.name != "script":
-				var value: Variant = material.get(property.name)
-				values.append([property.name, value.get_instance_id() if value is Resource else value])
+		if not preload("res://scripts/world3d/standard_material_schema.gd").enabled:
+			for property in material.get_property_list():
+				if property.usage & PROPERTY_USAGE_STORAGE and not str(property.name).begins_with("resource_") and property.name != "script":
+					var value:Variant=material.get(property.name)
+					values.append([property.name,value.get_instance_id() if value is Resource else value])
+		else:
+			for name:Variant in preload("res://scripts/world3d/standard_material_schema.gd").storage_names(material,true):
+				if not str(name).begins_with("resource_") and name != "script":
+					var value: Variant = material.get(name)
+					values.append([name, value.get_instance_id() if value is Resource else value])
 	else: return ""
 	# Group keys repeat once per source object. Keep the full material comparison
 	# in this digest rather than repeatedly serializing kilobytes of properties.

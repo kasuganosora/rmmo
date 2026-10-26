@@ -11,6 +11,9 @@ func check(ok:bool,label_:String)->void:
 	if not ok:failed+=1
 func _initialize()->void:call_deferred("run")
 func run()->void:
+	# This fixture deliberately corrupts files and edits sources without a mount
+	# refresh. Exercise the explicit audit policy, not trusted package loading.
+	Pixels.Policy.verify_packages=true
 	fixture_validation()
 	var directory:=preload("res://scripts/world3d/map_paths.gd").cache_directory("load_cache_test_%d"%Time.get_ticks_usec())
 	DirAccess.make_dir_recursive_absolute(directory)
@@ -106,7 +109,7 @@ func run()->void:
 	check(not NavCache.restore(key,NavigationMesh.new()),"damaged navigation requests a fresh bake")
 	# The deferred initial upload must still restore singleton/transparent draws.
 	var host:=Node3D.new();root.add_child(host)
-	var source:MeshInstance3D=Stream._spawn(specs[0],true);host.add_child(source)
+	var source:MeshInstance3D=Stream._spawn(host,specs[0],true);host.add_child(source)
 	check(source.mesh is Cpu and source.has_meta("deferred_gpu"),"initial source can remain CPU-only under loading cover")
 	preload("res://scripts/world3d/ground_batcher.gd").restore(source)
 	check(not source.mesh is Cpu,"unbatched source restores a real render mesh")

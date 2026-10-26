@@ -194,11 +194,18 @@ static func material_data(material:Material)->Dictionary:
 		if material.vertex_color_use_as_albedo:result.vertex_color=true
 		return result
 	var values:Dictionary={}
-	for property in material.get_property_list():
-		if not property.usage & PROPERTY_USAGE_STORAGE or property.name in ["script","resource_path"] or str(property.name).begins_with("metadata/"):continue
-		var value:Variant=material.get(property.name)
+	if not preload("res://scripts/world3d/standard_material_schema.gd").enabled:
+		for property in material.get_property_list():
+			if not property.usage & PROPERTY_USAGE_STORAGE or property.name in ["script","resource_path"] or str(property.name).begins_with("metadata/"):continue
+			var value:Variant=material.get(property.name)
+			if value is Object:return {}
+			values[property.name]=value
+		return {"values":values}
+	for name:Variant in preload("res://scripts/world3d/standard_material_schema.gd").storage_names(material):
+		if name in ["script","resource_path"]:continue
+		var value:Variant=material.get(name)
 		if value is Object:return {} # Unsupported custom texture/material: regenerate it.
-		values[property.name]=value
+		values[name]=value
 	return {"values":values}
 
 static func pack(cache:Dictionary,digest:String,generator:String,library:Array=[])->Dictionary:

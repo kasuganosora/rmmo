@@ -188,6 +188,7 @@ func finish(code:int)->void:
 	report.map_sha_after=FileAccess.get_sha256(MAP)
 	check(report.map_sha_after==report.map_sha,"formal map unchanged")
 	report.cpu_restore_profile=preload("res://scripts/world3d/ground_cpu_mesh.gd").profile_rows.duplicate(true)
+	report.material_schema=preload("res://scripts/world3d/standard_material_schema.gd").snapshot()
 	if is_instance_valid(mesh_map):
 		report.stream_adoption=mesh_map.get_meta("stream_adoption_profile",{}).duplicate()
 		report.stream_append_timing=mesh_map.get_meta("stream_append_timing",{})
@@ -411,6 +412,8 @@ func run()->void:
 	# Native authored model products remain inputs, not runtime cache hits.
 	preload("res://scripts/world3d/map_resource_store.gd").resource_bundles_enabled=not ("--without-resource-bundle" in OS.get_cmdline_user_args() or "--without-derived-geometry-cache" in OS.get_cmdline_user_args())
 	report.controls.resource_bundles=preload("res://scripts/world3d/map_resource_store.gd").resource_bundles_enabled
+	preload("res://scripts/world3d/standard_material_schema.gd").enabled=not "--legacy-material-property-enumeration" in OS.get_cmdline_user_args()
+	report.controls.material_schema_reuse=preload("res://scripts/world3d/standard_material_schema.gd").enabled
 	# Hashing every source only identifies the measured code; it is not game work,
 	# so it runs beside the measurement and is joined before the final comparison.
 	report.startup.sources_begin_us=Time.get_ticks_usec()
