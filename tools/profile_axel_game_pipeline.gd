@@ -6,6 +6,7 @@ const MAP="D:/code/rmmo_runtime/packs/default/maps/axel_town/map.gltf"
 const MOCK_SERVER_BACKGROUND:=true
 const Trace=preload("res://scripts/world3d/load_trace.gd")
 const CpuMesh=preload("res://scripts/world3d/ground_cpu_mesh.gd")
+const DisplayState=preload("res://scripts/util/display_state.gd")
 var output:=""
 var report:Dictionary={"queues":[],"stages":[],"failures":[]}
 var began:=0
@@ -59,10 +60,20 @@ func save()->void:
 func check(ok:bool,label:String)->void:
 	print("PASS " if ok else "FAIL ",label)
 	if not ok:report.failures.append(label)
+func set_probe_vsync(mode:DisplayServer.VSyncMode)->void:
+	# Test-only legacy arm retains the old redundant submissions for paired runs.
+	var submitted:=true
+	if "--legacy-vsync-submission" in OS.get_cmdline_user_args():
+		DisplayServer.window_set_vsync_mode(mode,root.get_window_id())
+	else:
+		submitted=DisplayState.set_vsync_mode(mode,root.get_window_id())
+	if not report.has("vsync_submissions"):report.vsync_submissions={"requests":0,"submitted":0,"legacy":"--legacy-vsync-submission" in OS.get_cmdline_user_args()}
+	report.vsync_submissions.requests+=1
+	if submitted:report.vsync_submissions.submitted+=1
 func runtime_frame_policy()->void:
 	if uncapped_runtime:
 		Engine.max_fps=0
-		DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED,root.get_window_id())
+		set_probe_vsync(DisplayServer.VSYNC_DISABLED)
 	report.runtime_frame_policy={"max_fps":Engine.max_fps,"vsync":DisplayServer.window_get_vsync_mode(root.get_window_id()),"screen_refresh_hz":DisplayServer.screen_get_refresh_rate(root.current_screen),"physics_ticks_per_second":Engine.physics_ticks_per_second}
 func observe()->void:
 	if not sampling:return
@@ -431,7 +442,7 @@ func run()->void:
 	Engine.max_fps=60;root.size=Vector2i(1440,900);root.content_scale_size=root.size
 	if "--uncapped-loading" in OS.get_cmdline_user_args():
 		Engine.max_fps=0
-		DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED,root.get_window_id())
+		set_probe_vsync(DisplayServer.VSYNC_DISABLED)
 	report.loading_frame_policy={"max_fps":Engine.max_fps,"vsync":DisplayServer.window_get_vsync_mode(root.get_window_id())}
 	check(DisplayServer.get_name()!="headless","private desktop GPU game mode")
 	report.startup.session_begin_us=Time.get_ticks_usec()

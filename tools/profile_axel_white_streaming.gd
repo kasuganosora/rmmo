@@ -310,7 +310,7 @@ func traverse()->void:
 		if "--origin-only" in OS.get_cmdline_user_args():report.origin_after=sample_residency();return
 		return
 	if post_ready_seconds>0:
-		Engine.max_fps=0;DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED,root.get_window_id())
+		Engine.max_fps=0;set_probe_vsync(DisplayServer.VSYNC_DISABLED)
 		var draw_enabled:=not root.get_viewport().disable_3d and initial_cover==null
 		report.post_ready_steady={"seconds":post_ready_seconds,"disable_3d":root.get_viewport().disable_3d,"cover_present":initial_cover!=null,"max_fps":Engine.max_fps,"vsync":DisplayServer.window_get_vsync_mode(root.get_window_id()),"contract":"Uncapped real 3D frames after full-ready, initial-cover release and material audit; original frame rows retained with their phase labels."}
 		check(draw_enabled,"post-ready steady observation starts with real 3D drawing and no cover")

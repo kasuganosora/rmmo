@@ -6,4 +6,8 @@ func source_snapshot(folder:String="res://scripts")->Dictionary:
 	return result
 func observe()->void:
 	super.observe()
-	if sampling and not frames.is_empty():frames.back().engine_frame=Engine.get_process_frames()
+	if sampling and not frames.is_empty():
+		frames.back().engine_frame=Engine.get_process_frames()
+		# Visual profiler timestamps identify submitted render frames; process
+		# frames alone cannot align them when rendering trails the main thread.
+		frames.back().render_frame=Engine.get_frames_drawn()

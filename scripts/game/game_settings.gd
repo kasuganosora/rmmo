@@ -4,6 +4,7 @@ extends Node
 signal changed
 
 const PATH := "user://game_settings.cfg"
+const DisplayState = preload("res://scripts/util/display_state.gd")
 const BUS_BGM := "BGM"
 const BUS_SFX := "SFX"
 const BUS_AMBIENT := "Ambient"
@@ -203,14 +204,14 @@ func apply_display() -> void:
 		return
 	match window_mode:
 		"fullscreen":
-			DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_EXCLUSIVE_FULLSCREEN)
+			DisplayState.set_window_mode(DisplayServer.WINDOW_MODE_EXCLUSIVE_FULLSCREEN)
 		"borderless":
-			DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN)
+			DisplayState.set_window_mode(DisplayServer.WINDOW_MODE_FULLSCREEN)
 		_:
-			DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
+			DisplayState.set_window_mode(DisplayServer.WINDOW_MODE_WINDOWED)
 			var sz := _clamp_resolution(resolution)
-			DisplayServer.window_set_size(sz)
-	DisplayServer.window_set_vsync_mode(
+			DisplayState.set_window_size(sz)
+	DisplayState.set_vsync_mode(
 		DisplayServer.VSYNC_ENABLED if vsync else DisplayServer.VSYNC_DISABLED
 	)
 	Engine.max_fps = maxi(max_fps, 0)

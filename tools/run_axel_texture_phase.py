@@ -43,6 +43,7 @@ def main():
     parser.add_argument("--cold-index", action="store_true")
     parser.add_argument("--legacy-publication", action="store_true")
     parser.add_argument("--legacy-source-reads", action="store_true")
+    parser.add_argument("--legacy-vsync-submission", action="store_true")
     parser.add_argument("--traverse", action="store_true")
     parser.add_argument("--texture-profile", action="store_true")
     parser.add_argument("--batch-timeline", action="store_true")
@@ -100,6 +101,8 @@ def main():
         cmd.append("--legacy-prepared-material-publication")
     if args.legacy_source_reads:
         cmd.append("--without-mounted-texture-source-reuse")
+    if args.legacy_vsync_submission:
+        cmd.append("--legacy-vsync-submission")
     if args.texture_profile:
         cmd.append("--texture-stage-profile")
     if args.batch_timeline:
@@ -138,6 +141,7 @@ def main():
               "stage": args.stage, "legacy_publication": args.legacy_publication,
               "diagnostic": bool(fault_capture), "fault_capture": fault_capture,
               "legacy_source_reads": args.legacy_source_reads,
+              "legacy_vsync_submission": args.legacy_vsync_submission,
               "texture_profile": args.texture_profile,
               "batch_timeline": args.batch_timeline,
               "covered_source_coalescing": not args.without_covered_source_coalescing,
