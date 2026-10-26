@@ -15,7 +15,7 @@ static func active()->bool:
 	var controls=preload("res://scripts/world3d/runtime_probe_controls.gd")
 	return enabled and not controls.white_materials and not controls.discard_map_textures
 
-static func for_road(record:Dictionary,arrays:Array,budget:Dictionary,token:RefCounted=null)->Dictionary:
+static func for_road(record:Dictionary,arrays:Array,budget:Dictionary,token:RefCounted=null,cached_source_bounds:Variant=null)->Dictionary:
 	if not active() or record.get("surface_paint",[]).is_empty() or record.has("terrain_grade"):return {}
 	if not record.surface_paint.all(func(entry):return entry.mesh=="."):return {}
 	# Native road generators are unindexed. Each original vertex can therefore
@@ -23,17 +23,30 @@ static func for_road(record:Dictionary,arrays:Array,budget:Dictionary,token:RefC
 	# count. Indexed/custom inputs keep the generic publication route for now.
 	for surface:Array in arrays:
 		if surface[Mesh.ARRAY_INDEX]!=null and not surface[Mesh.ARRAY_INDEX].is_empty():return {}
-	var result:=prepare(arrays,record.surface_paint,token)
+		# Only complete triangle streams preserve every source position through
+		# grouping/compaction. Generic indexed or trailing-vertex inputs cannot
+		# grant this proof (their unused vertices may disappear from the output).
+		if surface[Mesh.ARRAY_VERTEX].size()%3!=0:return {}
+	if cancelled(token):return {}
+	var began:=Time.get_ticks_usec()
+	var box:AABB=cached_source_bounds if cached_source_bounds is AABB else Bounds.bounds(arrays)
+	var result:=_prepare(arrays,record.surface_paint,token,box)
 	if result.get("ok",false):
 		# A second conservative road envelope is reserved by the scheduler before
 		# dispatch. It covers private topology scratch, indices and retained paint
 		# fragments in addition to the unchanged original road-output charge.
 		assert(int(result.output_bytes)<=int(budget.output_bytes)*2)
+		result.source_bounds=box
+		result.source_bounds_scans=0 if cached_source_bounds is AABB else 1
+		result.elapsed_us=Time.get_ticks_usec()-began
 	return result
 
 static func cancelled(token:RefCounted)->bool:return token!=null and token.is_cancelled()
 
 static func prepare(surfaces:Array,entries:Array,token:RefCounted=null)->Dictionary:
+	return _prepare(surfaces,entries,token)
+
+static func _prepare(surfaces:Array,entries:Array,token:RefCounted=null,complete_source_bounds:Variant=null)->Dictionary:
 	var began:=Time.get_ticks_usec()
 	if cancelled(token):return {}
 	var first_only:bool=not entries.is_empty() and entries.all(func(entry):return int(entry.surface)==0)
@@ -88,7 +101,9 @@ static func prepare(surfaces:Array,entries:Array,token:RefCounted=null)->Diction
 			fragments.append({"arrays":compact,"source_slot":slot,"entry":entry,"normal":normal,"layout":layout})
 			output_arrays.append(compact)
 			output_bytes+=array_bytes(compact)
-	var box:=Bounds.bounds(output_arrays)
+	# for_road alone establishes that grouping and tangent generation retain
+	# all positions. Other callers still measure their actual compacted output.
+	var box:AABB=complete_source_bounds if complete_source_bounds is AABB else Bounds.bounds(output_arrays)
 	if cancelled(token):return {}
 	return {"ok":true,"source":surfaces,"entries":entries,"fragments":fragments,"bounds":box,"output_bytes":output_bytes,"elapsed_us":Time.get_ticks_usec()-began}
 

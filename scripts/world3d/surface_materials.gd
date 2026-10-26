@@ -346,14 +346,17 @@ static func geometry_arrays(source_arrays:Array,box_geometry:bool=false,first_su
 			if arrays[channel] != null and arrays[channel].size() > 0: return fail("含自定义顶点通道的模型暂不支持表面绘制")
 		var vertices: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
 		var indices: PackedInt32Array = arrays[Mesh.ARRAY_INDEX] if arrays[Mesh.ARRAY_INDEX] != null else PackedInt32Array()
-		if indices.is_empty():
-			for index in vertices.size(): indices.append(index)
-		var count := indices.size() / 3
+		var count := (vertices.size() if indices.is_empty() else indices.size()) / 3
 		if count > MAX_TRIANGLES or count < 1: return fail("单个材质槽需包含 1–50000 个三角面")
 		# Default road paint only uses the pavement slot. Still validate every
 		# slot above: an oversized kerb or unsupported channel must reject just
 		# as before, even though its face grouping/signature will not be used.
 		if first_surface_only and slot>0:continue
+		# Unpainted slots need only the count/channel checks above. Do not
+		# allocate and fill sequential indices that would immediately be dropped.
+		if indices.is_empty():
+			indices.resize(vertices.size())
+			for index:int in vertices.size():indices[index]=index
 		var parents := PackedInt32Array()
 		var normals := PackedVector3Array()
 		var origins := PackedVector3Array()

@@ -216,3 +216,10 @@ B1 全程未观察到其他相关进程。静止四条都没有相关进程重�
 4. 接入初始 entry surface 时先证明内存 admission；再处理剩余原生材质
    首次提交和后台 terrain mask。不增加 worker / 发布预算替代去重，也
    不将增加的后台工作说成免费。
+
+后续进展见
+[`axel_road_cleanup_and_native_capture_20261027.md`](axel_road_cleanup_and_native_capture_20261027.md)：
+已完成无用途顺序索引与重复边界扫描精简，新增 worker 异常取证并验证原生栈。
+普通新样本 9.293s，初始 311 次重复边界扫描消除，最终工作量相同；新 ABBA
+未完成，low 仍有尖峰，原异常未归因，候选门控继续保留。不要以单样本替换
+上文历史矩阵或宣告稳定性完成。

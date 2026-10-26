@@ -108,6 +108,8 @@ func production_handoff()->void:
 	var packet:Dictionary=worker.wait_to_finish()
 	check(packet.error.is_empty() and packet.get("surface_paints",{}).size()==1,"real chunk worker returns one prepared painted road")
 	if packet.error.is_empty():
+		check(packet.read_profile.reused_paint_source_bounds==1 and packet.read_profile.scanned_surface_bounds==0 and packet.read_profile.road_paint_bounds_scans==1,"chunk shares one road scan for original and painted bounds")
+		check(packet.surface_bounds[record.uuid]==packet.surface_paints[record.uuid].bounds,"publication and raw source consume the same proven extent")
 		queue._accept_prepared_records(packet)
 		var before:=Prep.publications;var node:=doc._mesh(record)
 		check(Prep.publications==before+1 and not node.has_meta("paint_error"),"WorldDocument consumes exact worker paint generation")

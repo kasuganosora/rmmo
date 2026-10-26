@@ -2139,7 +2139,7 @@ func _accept_prepared_records(result:Dictionary)->void:
 			_doc.load_surface_bounds.erase(uuid);_doc.load_surface_uploads.erase(uuid);_doc.load_surface_paints.erase(uuid)
 		_doc.load_surface_bounds.merge(result.get("surface_bounds",{}),true)
 		_doc.load_surface_paints.merge(result.get("surface_paints",{}),true)
-		for field:String in ["road_paint_us","road_paint_bytes","road_paint_records"]:profile[field]=int(profile.get(field,0))+int(result.get("read_profile",{}).get(field,0))
+		for field:String in ["road_paint_us","road_paint_bytes","road_paint_records","road_paint_bounds_scans","reused_paint_source_bounds"]:profile[field]=int(profile.get(field,0))+int(result.get("read_profile",{}).get(field,0))
 		_doc.load_surface_uploads.merge(result.get("surface_uploads",{}),true)
 		for field:String in ["surface_upload_bytes","surface_upload_us","surface_upload_records"]:profile[field]=int(profile.get(field,0))+int(result.get("read_profile",{}).get(field,0))
 		profile.worker_surface_bounds=int(profile.get("worker_surface_bounds",0))+result.get("surface_bounds",{}).size()

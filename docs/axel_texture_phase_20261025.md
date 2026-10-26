@@ -910,6 +910,14 @@ native / dependency index 和纹理磁盘缓存保留、OS 缓存不清，不能
 一次普通运行访问异常仍未归因，9 条 GDB 未复现；候选已保留但默认关闭，
 压测显式启用。不要将该候选收益写成正式游戏已生效，也不要漏掉失败样本。
 
+同日继续去重与普通异常取证：
+[`axel_road_cleanup_and_native_capture_20261027.md`](axel_road_cleanup_and_native_capture_20261027.md)。
+省去未绘制槽的索引创建与原始/paint 第二遍边界扫描；普通新样本完整就绪
+9.293s，311 次重复扫描消除，但仅一条普通新样本，low 未通过稳定性验收。
+51.9ms 静止尖峰对应约 48.1ms draw 信号跨度，需要继续抓渲染等待链。
+原生采集器已用 main/worker 受控异常验证；真实地图两条诊断未重现原崩溃，
+不等于修复，异步 paint 默认门控继续保留。
+
 外部目录：
 `D:/code/rmmo_runtime/review_artifacts/axel_pipeline_blind_20261017/texture_phase_20261025/`。
 

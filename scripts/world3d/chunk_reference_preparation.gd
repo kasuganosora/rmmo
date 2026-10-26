@@ -183,7 +183,7 @@ static func prepare(index: Dictionary, requested_entries: Array, path: String, c
 				current.region_mask=mask;terrain_masks+=1;terrain_mask_bytes+=mask.get_data_size()
 			terrain_contexts[record.uuid]=current
 		dependencies.merge(terrain_dependencies,true)
-	var surface_bounds:Dictionary={};var cached_bounds:=0
+	var surface_bounds:Dictionary={};var cached_bounds:=0;var paint_source_bounds:=0;var paint_bounds_scans:=0
 	var surface_paints:Dictionary={};var paint_us:=0;var paint_bytes:=0
 	var surface_uploads:Dictionary={};var upload_bytes:=0;var upload_us:=0
 	for item: Dictionary in roads:
@@ -195,15 +195,18 @@ static func prepare(index: Dictionary, requested_entries: Array, path: String, c
 		var paint:Dictionary={}
 		if paint_workspace>=int(item.budget.estimated_bytes):
 			paint_workspace-=int(item.budget.estimated_bytes)
-			paint=preload("res://scripts/world3d/surface_paint_preparation.gd").for_road(record,road.arrays,item.budget,token)
+			paint=preload("res://scripts/world3d/surface_paint_preparation.gd").for_road(record,road.arrays,item.budget,token,road.get("bounds"))
 		if _cancelled(token):return _fail("区块引用准备已取消",true)
 		if paint.get("ok",false):
 			surface_paints[record.uuid]=paint;paint_us+=int(paint.elapsed_us);paint_bytes+=int(paint.output_bytes)
+			paint_bounds_scans+=int(paint.source_bounds_scans)
 		if road.get("upload")!=null:
 			surface_uploads[record.uuid]=road.upload;upload_bytes+=road.upload.bytes
 		upload_us+=int(road.get("upload_us",0))
 		if preload("res://scripts/world3d/procedural_surface_bounds.gd").enabled and road.has("bounds"):
 			surface_bounds[record.uuid]=road.bounds;cached_bounds+=1
+		elif preload("res://scripts/world3d/procedural_surface_bounds.gd").enabled and paint.has("source_bounds"):
+			surface_bounds[record.uuid]=paint.source_bounds;paint_source_bounds+=1
 		road_array_us += int(road.elapsed_us); road_array_bytes += int(road.output_bytes); road_estimated_bytes += int(road.estimated_bytes)
 	var bounds_started:=Time.get_ticks_usec()
 	if preload("res://scripts/world3d/procedural_surface_bounds.gd").enabled:
@@ -250,7 +253,8 @@ static func prepare(index: Dictionary, requested_entries: Array, path: String, c
 	profile.road_instances = roads.size(); profile.road_array_prepare_us = road_array_us; profile.road_array_upper_bytes = road_array_bytes; profile.road_estimated_bytes = road_estimated_bytes
 	profile.surface_bounds_us=surface_bounds_us;profile.surface_bounds_count=surface_bounds.size()
 	profile.surface_upload_bytes=upload_bytes;profile.surface_upload_us=upload_us;profile.surface_upload_records=surface_uploads.size()
-	profile.cached_surface_bounds=cached_bounds;profile.scanned_surface_bounds=surface_bounds.size()-cached_bounds
+	profile.cached_surface_bounds=cached_bounds;profile.scanned_surface_bounds=surface_bounds.size()-cached_bounds-paint_source_bounds
+	profile.reused_paint_source_bounds=paint_source_bounds;profile.road_paint_bounds_scans=paint_bounds_scans
 	profile.road_paint_us=paint_us;profile.road_paint_bytes=paint_bytes;profile.road_paint_records=surface_paints.size()
 	profile.prefab_textures=texture_packet.get("profile",{})
 	for prepared:Dictionary in prefab_cpu.values():
