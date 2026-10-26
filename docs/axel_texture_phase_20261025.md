@@ -897,6 +897,12 @@ native / dependency index 和纹理磁盘缓存保留、OS 缓存不清，不能
   不是当前数秒尾部的主要解释。下一轮继续主线程发布 / 原生材质提交的实测
   累计成本及首次 header I/O，保持目标 active，不将工作量收益当作全部完成。
 
+随后已追加官方 profiler 定位，入口：
+[`axel_publication_profile_20261026.md`](axel_publication_profile_20261026.md)。
+普通样本 Deferred 发布单元累计 3.569s；诊断定位到道路 paint 的主线程几何
+处理和 `surface_set_material`。下一项先独立复现道路 paint 的纯 CPU 准备与
+主线程绑定拆分，再接原有后台预算，不扩大 worker 或恢复隐藏 mesh 预热。
+
 外部目录：
 `D:/code/rmmo_runtime/review_artifacts/axel_pipeline_blind_20261017/texture_phase_20261025/`。
 
