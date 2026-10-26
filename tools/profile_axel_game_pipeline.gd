@@ -292,6 +292,8 @@ func run()->void:
 		elif arg=="--single-asset-retirement":preload("res://scripts/world3d/asset_residency.gd").retirement_batching_enabled=false
 		elif arg=="--sync-loading-batches":preload("res://scripts/world3d/world_stream.gd").sliced_loading_batches_enabled=false
 		elif arg=="--legacy-progressive-batches":preload("res://scripts/world3d/world_stream.gd").progressive_white_batches_enabled=false
+		elif arg=="--closed-building-preparation":preload("res://scripts/world3d/ground_batcher.gd").closed_building_preparation_enabled=true
+		elif arg=="--without-closed-building-preparation":preload("res://scripts/world3d/ground_batcher.gd").closed_building_preparation_enabled=false
 		elif arg=="--legacy-priority-arrivals":preload("res://scripts/world3d/world_stream.gd").incremental_collision_priority_enabled=false
 		elif arg=="--join-loading-workers":preload("res://scripts/world3d/ground_batcher.gd").legacy_loading_worker_wait_enabled=true
 		elif arg=="--legacy-retirement-validation":preload("res://scripts/world3d/world_stream.gd").legacy_retirement_validation_enabled=true
@@ -407,6 +409,7 @@ func run()->void:
 	report.controls.startup_render_context=preload("res://scripts/world3d/map_loader.gd").startup_render_context_enabled
 	report.controls.startup_render_context_frames=preload("res://scripts/world3d/map_loader.gd").startup_render_context_frames
 	report.controls.progressive_white_batches=preload("res://scripts/world3d/world_stream.gd").progressive_white_batches_enabled
+	report.controls.closed_building_preparation=preload("res://scripts/world3d/ground_batcher.gd").closed_building_preparation_enabled
 	report.controls.incremental_collision_priority=preload("res://scripts/world3d/world_stream.gd").incremental_collision_priority_enabled
 	report.controls.sliced_loading_batches=preload("res://scripts/world3d/world_stream.gd").sliced_loading_batches_enabled
 	report.controls.join_loading_workers=preload("res://scripts/world3d/ground_batcher.gd").legacy_loading_worker_wait_enabled

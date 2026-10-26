@@ -47,6 +47,9 @@ def main():
     parser.add_argument("--traverse", action="store_true")
     parser.add_argument("--texture-profile", action="store_true")
     parser.add_argument("--batch-timeline", action="store_true")
+    closed_building = parser.add_mutually_exclusive_group()
+    closed_building.add_argument("--closed-building-preparation", action="store_true")
+    closed_building.add_argument("--without-closed-building-preparation", action="store_true")
     parser.add_argument("--without-covered-source-coalescing", action="store_true")
     parser.add_argument("--without-prepared-road-paint", action="store_true")
     parser.add_argument("--without-covered-batch-borrow", action="store_true")
@@ -107,6 +110,10 @@ def main():
         cmd.append("--texture-stage-profile")
     if args.batch_timeline:
         cmd.append("--batch-timeline")
+    if args.closed_building_preparation:
+        cmd.append("--closed-building-preparation")
+    if args.without_closed_building_preparation:
+        cmd.append("--without-closed-building-preparation")
     if args.without_covered_source_coalescing:
         cmd.append("--without-covered-source-coalescing")
     if args.without_prepared_road_paint:
@@ -139,11 +146,12 @@ def main():
               "map_sha256": digest(MAP), "source_before": before,
               "git_head": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip(),
               "stage": args.stage, "legacy_publication": args.legacy_publication,
-              "diagnostic": bool(fault_capture), "fault_capture": fault_capture,
+              "diagnostic": bool(fault_capture) or args.batch_timeline, "fault_capture": fault_capture,
               "legacy_source_reads": args.legacy_source_reads,
               "legacy_vsync_submission": args.legacy_vsync_submission,
               "texture_profile": args.texture_profile,
               "batch_timeline": args.batch_timeline,
+              "closed_building_preparation": not args.without_closed_building_preparation,
               "covered_source_coalescing": not args.without_covered_source_coalescing,
               "prepared_road_paint": not args.without_prepared_road_paint,
               "covered_batch_borrow": not args.without_covered_batch_borrow,
@@ -192,6 +200,7 @@ def main():
     errors = [line for line in log.decode("utf-8", errors="replace").splitlines()
               if "SCRIPT ERROR:" in line or line.startswith(("ERROR:", "FAIL "))]
     outcome = {"exit_code": code, "wall_seconds": time.monotonic() - began,
+               "diagnostic": launch["diagnostic"],
                "owned": owned, "source_unchanged": before == sources(),
                "map_unchanged": launch["map_sha256"] == digest(MAP),
                "errors": errors, "failures": report.get("failures"),

@@ -10,11 +10,14 @@ static var sliced_source_collection_enabled:=true
 static var resumable_bin_ledger_enabled:=true # Diagnostic old partial-bucket restart control.
 static var legacy_loading_worker_wait_enabled:=false # Diagnostic control; frame callbacks never wait on live workers.
 static var covered_source_coalescing_enabled:=true
+static var closed_building_preparation_enabled:=true # Complete index-owned units, unchanged budgets/workers.
 const Cpu = preload("res://scripts/world3d/ground_cpu_mesh.gd")
 const SUSPENDED_DRAW:="stream_suspended_draw"
 var suspended_source_uploads:=0
 var _production_turn:=false
 var production_turns_while_preparing:=0
+var closed_units_prepared:=0
+var closed_unit_groups_admitted:=0
 var covered_source_waits:=0
 var groups: Dictionary = {}
 var pending: Array[String] = []
@@ -349,6 +352,11 @@ func request_residency_sync(nodes:Array,excluded:Array=[],immutable_append:bool=
 	# while that exact root prefix survives; arbitrary editor requests still
 	# supersede preparation through request_sync. Native array comparison uses
 	# Node identities, including replacement/removal, without a script scan.
+	if _preparation.get("unit_plan_active",false) and _preparation.runtime_excluded==excluded and _preparation.runtime_enabled==enabled:
+		var previous:Array=_preparation.runtime_roots
+		if nodes.size()>=previous.size() and nodes.slice(0,previous.size())==previous:
+			if nodes.size()>previous.size():_next_residency={"nodes":nodes.duplicate(),"excluded":excluded.duplicate(),"immutable_append":immutable_append}
+			return
 	if sliced_source_collection_enabled and not _preparation.is_empty() and _preparation.phase in ["collect","prepare","bin"] and _preparation.has("runtime_roots") and _preparation.runtime_excluded==excluded and _preparation.runtime_enabled==enabled:
 		var previous:Array=_preparation.runtime_roots
 		if nodes.size()>=previous.size() and nodes.slice(0,previous.size())==previous:
@@ -388,6 +396,10 @@ func request_residency_sync(nodes:Array,excluded:Array=[],immutable_append:bool=
 	# Descriptor identity includes its source owner, geometry/material grouping
 	# and pose; edits/removal revoke the corresponding completed membership.
 	_preparation.bin_pending={};_preparation.bin_last_name={};_preparation.bin_rebuild={}
+	if closed_building_preparation_enabled and immutable_append and get_parent()!=null:
+		_preparation.unit_candidates={}
+		_preparation.unit_groups=get_parent().get_meta("stream_building_groups",{})
+		_preparation.unit_specs=get_parent().get_meta("stream_by_id",{})
 	if sliced_source_collection_enabled and not completed.is_empty():
 		# Transfer the private raw-bin state; no shared geometry or material copy.
 		# Collection remains complete so removals and changed eligibility are seen.
@@ -405,10 +417,45 @@ func request_residency_sync(nodes:Array,excluded:Array=[],immutable_append:bool=
 
 func _collect_named(state:Dictionary,node:Node)->void:
 	var key:=str(node.name)
+	if state.has("unit_candidates") and not state.named.has(key):
+		var spec:Dictionary=state.unit_specs.get(key,{})
+		var record:Dictionary=node.get_meta("ground_batch_record",{})
+		var owner:String=record.get("building",{}).get("id","")
+		# Both identities must come from the published index. Merely counting
+		# current stream jobs or similarly named imported components is unsafe.
+		if not owner.is_empty() and spec.get("render_building","")==owner and state.unit_groups.has(owner) and Geometry.category(record)=="building":
+			if not state.unit_candidates.has(owner):state.unit_candidates[owner]=[]
+			state.unit_candidates[owner].append(key)
 	if state.get("refresh_bins",false):state.prepare_names[key]=true
 	elif state.has("prepared_descriptors") and state.named.get(key)!=node:
 		_remove_prepared_descriptor(state,key);state.prepare_names[key]=true
 	state.named[key]=node
+
+func _closed_unit_valid(state:Dictionary,unit:Dictionary)->bool:
+	var current:Dictionary=get_parent().get_meta("stream_building_groups",{}) if get_parent()!=null else {}
+	return current.has(unit.owner) and is_same(current[unit.owner],unit.members) and current[unit.owner].size()==unit.names.size()
+
+func _next_closed_unit(state:Dictionary)->void:
+	state.cursor=0;state.phase="prepare";state.active_unit={}
+	if not state.unit_queue.is_empty():
+		state.active_unit=state.unit_queue.pop_front()
+		closed_units_prepared+=1
+		state.items=state.active_unit.names
+	else:
+		state.items=state.remaining_prepare
+		state.remaining_prepare=[]
+	state.items.sort()
+
+func _admit_group(key:String,group:Dictionary,state:Dictionary,copy_raw:bool=false)->void:
+	if groups.has(key):return
+	if not group.members.all(func(node):return is_instance_valid(node) and not node.is_queued_for_deletion()):
+		if resumable_bin_ledger_enabled:state.immutable_append=false
+		return
+	# Renderer data must never be written into the retained raw-bin dictionary.
+	if copy_raw:group=group.duplicate()
+	_generation+=1;group.generation=_generation
+	groups[key]=group;pending.append(key);_watch_group(key,group)
+	for node in group.members:_member_groups[str(node.name)]=key
 
 func request_sync(nodes:Array,excluded:Array=[])->void:
 	if Timeline.enabled:Timeline.record("request",sync_count+1,Time.get_ticks_usec(),[nodes.size(),_preparation.get("phase",""),pending.size(),_workers.size()])
@@ -634,16 +681,32 @@ func _prepare_step(budget_usec:int)->void:
 			match state.phase:
 				"collect":
 					if state.get("refresh_bins",false):state.items=state.prepared_descriptors.keys();state.phase="prune"
+					elif state.has("unit_candidates") and not state.unit_candidates.is_empty():
+						state.unit_plan_active=true;state.unit_queue=[];state.active_unit={}
+						state.remaining_names=state.prepare_names.duplicate()
+						state.items=state.unit_candidates.keys();state.phase="units"
 					else:
 						state.items=state.prepare_names.keys() if state.has("prepared_descriptors") else state.named.keys()
 						state.items.sort();state.phase="prepare"
 					state.components=[];state.root_excluded=[]
 				"prune":state.items=state.prepare_names.keys();state.items.sort();state.phase="prepare"
+				"units":
+					state.remaining_prepare=state.remaining_names.keys();state.erase("remaining_names")
+					_next_closed_unit(state)
 				"prepare":
 					if state.has("prepared_descriptors"):
 						_restart_dirty_bins(state)
 					else:state.items=desired.keys();state.named.clear();state.phase="unique"
 				"bin":
+					if not state.get("active_unit",{}).is_empty():
+						var bases:Dictionary={}
+						for name_:String in state.active_unit.names:
+							if state.prepared_descriptors.has(name_):bases[state.prepared_descriptors[name_].base]=true
+						state.items=[]
+						if _closed_unit_valid(state,state.active_unit):
+							for base:String in bases:state.items.append_array(state.bin_keys.get(base,[]))
+						state.phase="unit_add"
+						continue
 					state.raw_desired=desired
 					desired=_order_runtime_bins(state);state.desired=desired
 					if state.get("immutable_append",false):state.collected_named=state.named;state.named={}
@@ -652,6 +715,7 @@ func _prepare_step(budget_usec:int)->void:
 				"unique":state.items=desired.keys();state.phase="filter"
 				"filter":state.items=groups.keys();state.phase="drop"
 				"drop":state.items=desired.keys();state.phase="add"
+				"unit_add":_next_closed_unit(state)
 				"add":
 					_material_keys.clear()
 					_audit_keys=groups.keys();_audit_cursor=0
@@ -677,6 +741,15 @@ func _prepare_step(budget_usec:int)->void:
 						elif enabled:_collect_named(state,item)
 				"prune":
 					if not state.named.has(item):_remove_prepared_descriptor(state,item)
+				"units":
+					var names:Array=state.unit_candidates[item]
+					var members:Array=state.unit_groups.get(item,[])
+					# Existing drawings may have keys removed by an edit. They need
+					# the full drop/add reconciliation before replacement admission.
+					# Only previously unbatched complete units bypass that barrier.
+					if names.size()==members.size() and not names.any(func(name_:String)->bool:return _member_groups.has(name_)):
+						state.unit_queue.append({"owner":item,"members":members,"names":names})
+						for name_:String in names:state.remaining_names.erase(name_)
 				"prepare":
 					if state.has("prepared_descriptors"):state.prepare_names.erase(item);state.current_eligible=false
 					var node:Variant=state.named[item]
@@ -709,6 +782,17 @@ func _prepare_step(budget_usec:int)->void:
 							desired[target].members.append_array(source.members);desired[target].signature.append_array(source.signature);desired[target].vertices+=source.vertices
 				"filter":
 					if desired[item].members.size()<2:desired.erase(item)
+				"unit_add":
+					# Building ID is part of the base key: a complete building's
+					# bins cannot gain members from another independent building.
+					if _closed_unit_valid(state,state.active_unit):
+						var group:Dictionary=desired[item]
+						if group.members.size()>=2:
+							var already_admitted:=groups.has(item)
+							if groups.has(item) and groups[item].signature!=group.signature:
+								_drop(groups[item]);groups.erase(item);pending.erase(item)
+							_admit_group(item,group,state,true)
+							if not already_admitted and groups.has(item):closed_unit_groups_admitted+=1
 				"drop":
 					if groups.has(item) and (not desired.has(item) or desired[item].signature!=groups[item].signature):
 						if hold_ground and groups[item].category=="ground":state.held_ground=true
@@ -720,15 +804,7 @@ func _prepare_step(budget_usec:int)->void:
 						var group:Dictionary=desired[item]
 						# A source can leave residency between preparation slices.
 						if hold_ground and group.category=="ground":state.held_ground=true
-						elif group.members.all(func(node):return is_instance_valid(node) and not node.is_queued_for_deletion()):
-							_generation+=1;group.generation=_generation
-							groups[item]=group;pending.append(item);_watch_group(item,group)
-							for node in group.members:_member_groups[str(node.name)]=item
-						elif resumable_bin_ledger_enabled:
-							# Already-packed members may die before watchers are attached.
-							# Keep other raw bins, but revoke immutable-prefix reuse so
-							# collection prunes dead owners and rebuilds only their bins.
-							state.immutable_append=false
+						else:_admit_group(item,group,state)
 		if has_meta("profile_frame") and Time.get_ticks_usec()-item_started>10000:print("BATCH_SLOW ",stage," ",(Time.get_ticks_usec()-item_started)/1000.0," ms")
 		if profile_preparation_units_enabled and Time.get_ticks_usec()-item_started>=1000:
 			preload("res://scripts/world3d/load_trace.gd").instant("batch.preparation_unit",{"stage":stage,"cursor":state.cursor,"elapsed_us":Time.get_ticks_usec()-item_started,"item":str(state.items[state.cursor-1]) if state.cursor>0 and state.cursor<=state.items.size() and state.items[state.cursor-1] is String else ""})
@@ -1046,6 +1122,7 @@ func stats(category: String="") -> Dictionary:
 	result.completed_prefix_reuses=completed_prefix_reuses;result.completed_source_visits_avoided=completed_source_visits_avoided
 	result.suspended_source_uploads=suspended_source_uploads
 	result.production_turns_while_preparing=production_turns_while_preparing
+	result.closed_units_prepared=closed_units_prepared;result.closed_unit_groups_admitted=closed_unit_groups_admitted
 	result.covered_source_waits=covered_source_waits
 	result.building_mesh_hits=building_mesh_hits
 	result.building_worker_reuses=building_worker_reuses
