@@ -25,6 +25,17 @@ func source_identity(consumer:String,path:String)->String:
 	var digest:String=_source_identities.get(path,"") if _consumers.has(consumer) and not _cancelled.has(consumer) else ""
 	_mutex.unlock();return digest
 
+func source_identities_match(consumer:String,expected:Dictionary)->bool:
+	# Final handoff compares immutable scalar identities only. One snapshot,
+	# no filesystem/GPU work and no per-path unlock/relock cycle.
+	_mutex.lock()
+	var valid:bool=_consumers.has(consumer) and not _cancelled.has(consumer)
+	if valid:
+		for path:String in expected:
+			var digest:String=_source_identities.get(path,"")
+			if digest.is_empty() or digest!=expected[path]:valid=false;break
+	_mutex.unlock();return valid
+
 func remember_source_identity(consumer:String,path:String,digest:String)->bool:
 	if path.is_empty() or digest.length()!=64:return false
 	# Workers perform all filesystem reads and hashes BEFORE this lock. A racing

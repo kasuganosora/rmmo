@@ -130,6 +130,7 @@ func _initialize()->void:
 	for arg:String in OS.get_cmdline_user_args():
 		if arg=="--background-texture-upload":preload("res://scripts/world3d/shared_prefab_images.gd").background_upload_enabled=true
 		if arg=="--without-background-texture-upload":preload("res://scripts/world3d/shared_prefab_images.gd").background_upload_enabled=false
+		if arg=="--without-batched-texture-handoff":preload("res://scripts/world3d/prefab_texture_preparation.gd").batched_final_handoff_enabled=false
 		if arg=="--serial-chunk-textures":preload("res://scripts/world3d/deferred_asset_loader.gd").parallel_texture_preparation_enabled=false
 		if arg=="--without-texture-plan-reuse":preload("res://scripts/world3d/deferred_asset_loader.gd").texture_plan_reuse_enabled=false
 		if arg=="--sync-texture-headers":preload("res://scripts/world3d/deferred_asset_loader.gd").async_texture_headers_enabled=false

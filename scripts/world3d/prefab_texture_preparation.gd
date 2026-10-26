@@ -14,6 +14,9 @@ const MAX_OUTPUT_BYTES=512*1024*1024
 ## Diagnostic A/B: ordinary mounted loads share one source identity per pool.
 ## Standalone/strict callers retain the prior per-job read and final check.
 static var mounted_source_reuse_enabled:=true
+## Diagnostic A/B. Only memory-only final handoffs share ancestry observations;
+## strict file hashing retains its immediate pre/post-I/O boundaries.
+static var batched_final_handoff_enabled:=true
 
 static func sources(record:Dictionary)->Dictionary:
 	var result:Dictionary={}
@@ -312,6 +315,10 @@ static func verify(packet:Dictionary,root:String,token:RefCounted=null,shared:Di
 	var began:=Time.get_ticks_usec();var valid:=true
 	if not packet.has("profile"):packet.profile={}
 	var reuse_sources:=_reuse_mounted_sources(shared,mounted_snapshot)
+	if batched_final_handoff_enabled and (reuse_sources or Pixels.Policy.trusted()):
+		valid=_verify_memory_sources(packet,root,token,shared,reuse_sources)
+		_stage(packet.profile,"final_sha",began,{"sources":packet.get("sources",{}).size(),"valid":valid})
+		return valid
 	if reuse_sources and not shared.pool.consumer_active(shared.consumer):valid=false
 	for path:String in packet.get("sources",{}):
 		if not valid or _cancelled(token) or not Paths.allowed(path,root):valid=false;break
@@ -332,3 +339,24 @@ static func verify(packet:Dictionary,root:String,token:RefCounted=null,shared:Di
 	if reuse_sources:valid=valid and shared.pool.consumer_active(shared.consumer)
 	_stage(packet.profile,"final_sha",began,{"sources":packet.get("sources",{}).size(),"valid":valid})
 	return valid
+
+static func _verify_memory_sources(packet:Dictionary,root:String,token:RefCounted,shared:Dictionary,reuse_sources:bool)->bool:
+	if _cancelled(token):return false
+	var sources_:Dictionary=packet.get("sources",{})
+	if reuse_sources:
+		if not shared.pool.source_identities_match(shared.consumer,sources_):return false
+		packet.profile.final_identity_batches=int(packet.profile.get("final_identity_batches",0))+1
+	else:
+		for path:String in sources_:
+			if path.sha256_text()!=sources_[path]:return false
+	# Nothing above opens a source. Check each leaf and its shared ancestors
+	# afresh once at the handoff boundary, not twice per identity comparison.
+	# allowed_many retains no decisions across calls; changed links are rejected.
+	var access:Dictionary={}
+	if not Paths.allowed_many(sources_.keys(),root,access):return false
+	packet.profile.final_path_batches=int(packet.profile.get("final_path_batches",0))+1
+	packet.profile.final_path_link_checks=int(packet.profile.get("final_path_link_checks",0))+int(access.get("link_checks",0))
+	packet.profile.final_path_reused_ancestors=int(packet.profile.get("final_path_reused_ancestors",0))+int(access.get("reused_ancestors",0))
+	if _cancelled(token) or (reuse_sources and not shared.pool.consumer_active(shared.consumer)):return false
+	packet.profile.final_source_identity_hits=int(packet.profile.get("final_source_identity_hits",0))+sources_.size()
+	return true
