@@ -157,6 +157,14 @@ material publication（GPU，64 项）。GPU 使用不激活的私有桌面。
 139 / 110 / 117 / 135；这些阶段计数取就绪前最近采样，不是严格相等的
 固定工作量。不能将整图变化全部归给属性枚举或将嵌套累计时长相加。
 
+**后续时间线校正：** 上述就绪前采样漏掉了最后一轮提交，不能用其差异
+判断最终工作量。这四条就绪后首个采样全部为 **231 rebuild / 228 worker
+surfaces / 229 groups / 2564 sources**，packed source visits 全部为 2724。
+first01 / warm02 对应的就绪后 rebuild 是 **297 / 231**，worker surfaces
+为 **426 / 228**。原始采样保留，最终工作量以此修正；后续新增就绪边界
+快照避免继续使用“就绪前最近一次”计数。见
+`axel_covered_batch_arrivals_20261026.md` 和该轮 `ready_work06.json`。
+
 帧数据每格为 **最大 ms / >50ms 帧数 / 1% low FPS**：
 
 | 样本 | 静止 | 卸载 | 返回 | 重载 |

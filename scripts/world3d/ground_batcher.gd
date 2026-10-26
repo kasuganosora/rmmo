@@ -9,11 +9,13 @@ static var inflight_building_sharing_enabled:=true
 static var sliced_source_collection_enabled:=true
 static var resumable_bin_ledger_enabled:=true # Diagnostic old partial-bucket restart control.
 static var legacy_loading_worker_wait_enabled:=false # Diagnostic control; frame callbacks never wait on live workers.
+static var covered_source_coalescing_enabled:=true
 const Cpu = preload("res://scripts/world3d/ground_cpu_mesh.gd")
 const SUSPENDED_DRAW:="stream_suspended_draw"
 var suspended_source_uploads:=0
 var _production_turn:=false
 var production_turns_while_preparing:=0
+var covered_source_waits:=0
 var groups: Dictionary = {}
 var pending: Array[String] = []
 var enabled := true
@@ -254,6 +256,7 @@ func _drop(group: Dictionary, restore_sources: bool = true,retiring:Dictionary={
 func _invalidate_group(key:String,generation:int)->void:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.ground_batcher._invalidate_group") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	if not groups.has(key) or groups[key].generation!=generation:return
+	if Timeline.enabled:Timeline.record("source_exit",generation,Time.get_ticks_usec(),[key,groups[key].category,groups[key].members.size()])
 	if _residency_bins.get("immutable_append",false):_residency_bins={}
 	var group:Dictionary=groups[key]
 	groups.erase(key);pending.erase(key)
@@ -375,7 +378,7 @@ func request_residency_sync(nodes:Array,excluded:Array=[],immutable_append:bool=
 		reuse_completed=nodes.size()>=previous.size() and nodes.slice(0,previous.size())==previous
 		if reuse_completed:
 			completed_prefix_reuses+=1;completed_source_visits_avoided+=completed.named.size()
-			if nodes.size()==previous.size():return
+			if nodes.size()==previous.size() and _preparation.get("phase")!="await_sources":return
 	request_sync(nodes,excluded)
 	_preparation.runtime_roots=nodes.duplicate();_preparation.runtime_excluded=excluded.duplicate();_preparation.runtime_enabled=enabled
 	_preparation.immutable_append=immutable_append
@@ -584,9 +587,29 @@ func _order_runtime_bins(state:Dictionary)->Dictionary:
 	for row:Array in order:ordered[row[1]]=state.desired[row[1]].duplicate()
 	return ordered
 
+func _coalesce_covered_sources()->bool:
+	# Growing ground cells can omit intermediate membership behind a drawn
+	# opaque cover. Buildings/other groups continue production in parallel.
+	if not covered_source_coalescing_enabled or not _preparation.get("immutable_append",false):return false
+	var map:=get_parent()
+	if map==null:return false
+	var queue:=map.get_node_or_null("DeferredAssets")
+	return queue!=null and queue._covered_loading_ready() and not queue.is_idle()
+
 func _prepare_step(budget_usec:int)->void:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.ground_batcher._prepare_step") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	if _preparation.is_empty():return
+	if _preparation.phase=="await_sources":
+		if not _next_residency.is_empty():
+			var next:Dictionary=_next_residency;_next_residency={}
+			request_residency_sync(next.nodes,next.excluded,next.get("immutable_append",false))
+		elif budget_usec>0 and _coalesce_covered_sources():
+			covered_source_waits+=1;return
+		else:
+			# Reuse all captured descriptors, including skipped ground bins. The
+			# synchronous flush path also reaches this branch without waiting.
+			request_residency_sync(_preparation.runtime_roots,_preparation.runtime_excluded,true)
+	var hold_ground:bool=budget_usec>0 and _coalesce_covered_sources()
 	var started:=Time.get_ticks_usec()
 	var trace_stage_started:=started
 	var trace_stage:String=_preparation.phase if Timeline.enabled else ""
@@ -639,7 +662,10 @@ func _prepare_step(budget_usec:int)->void:
 						if state.get("immutable_append",false):
 							for field:String in ["runtime_roots","runtime_excluded","runtime_enabled","immutable_append"]:_residency_bins[field]=state[field]
 							_residency_bins.named=state.collected_named
-					_preparation={}
+					# Keep held ground work visible to every readiness consumer.
+					# Complete independent groups now; future arrivals reuse raw bins.
+					_preparation={"phase":"await_sources","immutable_append":true,"cpu_us":0,"runtime_roots":state.runtime_roots,"runtime_excluded":state.runtime_excluded} if state.get("held_ground",false) else {}
+					if not _preparation.is_empty():break
 		else:
 			var item:Variant=state.items[state.cursor];state.cursor+=1
 			match state.phase:
@@ -685,12 +711,16 @@ func _prepare_step(budget_usec:int)->void:
 					if desired[item].members.size()<2:desired.erase(item)
 				"drop":
 					if groups.has(item) and (not desired.has(item) or desired[item].signature!=groups[item].signature):
-						_drop(groups[item]);groups.erase(item);pending.erase(item)
+						if hold_ground and groups[item].category=="ground":state.held_ground=true
+						else:
+							if Timeline.enabled:Timeline.record("membership_replace",groups[item].generation,Time.get_ticks_usec(),[item,groups[item].category,groups[item].members.size(),desired.get(item,{}).get("members",[]).size(),sync_count])
+							_drop(groups[item]);groups.erase(item);pending.erase(item)
 				"add":
 					if not groups.has(item):
 						var group:Dictionary=desired[item]
 						# A source can leave residency between preparation slices.
-						if group.members.all(func(node):return is_instance_valid(node) and not node.is_queued_for_deletion()):
+						if hold_ground and group.category=="ground":state.held_ground=true
+						elif group.members.all(func(node):return is_instance_valid(node) and not node.is_queued_for_deletion()):
 							_generation+=1;group.generation=_generation
 							groups[item]=group;pending.append(item);_watch_group(item,group)
 							for node in group.members:_member_groups[str(node.name)]=item
@@ -1016,6 +1046,7 @@ func stats(category: String="") -> Dictionary:
 	result.completed_prefix_reuses=completed_prefix_reuses;result.completed_source_visits_avoided=completed_source_visits_avoided
 	result.suspended_source_uploads=suspended_source_uploads
 	result.production_turns_while_preparing=production_turns_while_preparing
+	result.covered_source_waits=covered_source_waits
 	result.building_mesh_hits=building_mesh_hits
 	result.building_worker_reuses=building_worker_reuses
 	result.work_budget_usec=effective_work_budget_usec();result.base_work_budget_usec=work_budget_usec

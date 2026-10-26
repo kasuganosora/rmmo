@@ -876,6 +876,27 @@ native / dependency index 和纹理磁盘缓存保留、OS 缓存不清，不能
 
 ## 证据目录
 
+### 2026-10-26 恢复目标模式：延迟到达的重复合批
+
+用户已恢复持续优化，上一节的停止状态不再适用。完整本轮记录：
+[`axel_covered_batch_arrivals_20261026.md`](axel_covered_batch_arrivals_20261026.md)。
+
+- 修正上一轮计数口径：286 / 217 来自就绪前的不完整采样；首次 / 后续
+  就绪后首条实际为 **297 / 231**。本轮在 full-ready 时间锚点之后立即
+  保存一次 `origin_ready_work`，不改变原就绪条件。
+- 独立复现后，只合并不透明加载遮罩内尚在增长的 ground 批次；建筑等
+  独立组继续生产，完成 worker 正常提交，不等待整个准备阶段。最终独立
+  GPU 测试 A 62 / B 76 项通过，6 组调度、生命周期和编辑回归全部通过。
+- 500ms 后台 header 延迟诊断 ABBA：构建 **249–250 → 231–239**，worker
+  surfaces **282–285 → 228–252**；最终几何相同、live joins 为 0。加载
+  **14.35–15.02s**，没有证明省时。这个诊断不是物理冷盘结果。
+- 普通完整遍历 **11.011s**，等待命中 0；静止最大 47.173ms、1% low
+  49.548 FPS。返回有 4 帧 >50ms，最大 64.696ms；遍历期间存在其他 Blender /
+  Godot 负载，保留样本，不能据其宣称 low 帧改善或回退。
+- 正常初始 header plan 185 次仅 13.647ms，header ready 206 次 31.241ms；
+  不是当前数秒尾部的主要解释。下一轮继续主线程发布 / 原生材质提交的实测
+  累计成本及首次 header I/O，保持目标 active，不将工作量收益当作全部完成。
+
 外部目录：
 `D:/code/rmmo_runtime/review_artifacts/axel_pipeline_blind_20261017/texture_phase_20261025/`。
 

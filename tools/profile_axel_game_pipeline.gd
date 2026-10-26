@@ -414,6 +414,8 @@ func run()->void:
 	report.controls.resource_bundles=preload("res://scripts/world3d/map_resource_store.gd").resource_bundles_enabled
 	preload("res://scripts/world3d/standard_material_schema.gd").enabled=not "--legacy-material-property-enumeration" in OS.get_cmdline_user_args()
 	report.controls.material_schema_reuse=preload("res://scripts/world3d/standard_material_schema.gd").enabled
+	preload("res://scripts/world3d/ground_batcher.gd").covered_source_coalescing_enabled=not "--without-covered-source-coalescing" in OS.get_cmdline_user_args()
+	report.controls.covered_source_coalescing=preload("res://scripts/world3d/ground_batcher.gd").covered_source_coalescing_enabled
 	# Hashing every source only identifies the measured code; it is not game work,
 	# so it runs beside the measurement and is joined before the final comparison.
 	report.startup.sources_begin_us=Time.get_ticks_usec()
@@ -519,6 +521,14 @@ func run_mesh_only(spawn:Vector3)->void:
 	check(result[0]!=null and str(result[2]).is_empty(),"pure geometry loader succeeds")
 	if result[0]==null:finish(1);return
 	mesh_map=result[0]
+	# Diagnostic only: reproduce delayed metadata arrivals without flushing OS
+	# caches, changing package bytes or blocking the scene-tree owner.
+	for arg:String in OS.get_cmdline_user_args():
+		if arg.begins_with("--prefab-header-delay-ms="):
+			var delay_ms:=clampi(arg.trim_prefix("--prefab-header-delay-ms=").to_int(),0,1000)
+			var deferred:=mesh_map.get_node_or_null("DeferredAssets")
+			if deferred!=null:deferred._texture_plan_catalog.header_reader=_delayed_prefab_header.bind(delay_ms)
+			report.controls.prefab_header_delay_ms=delay_ms
 	mesh_map.set_meta("profile_frame",true)
 	if white_material:
 		# Unshaded debug draw still runs custom spatial shaders. This separate
@@ -632,6 +642,10 @@ static func texture_material_info(material:Material)->Dictionary:
 				if texture is Texture:textures[texture.get_instance_id()]=true
 		material=material.next_pass
 	return {"nonwhite":nonwhite or not textures.is_empty(),"textures":textures}
+
+static func _delayed_prefab_header(key:String,source:Array,root_path:String,delay_ms:int)->Dictionary:
+	OS.delay_msec(delay_ms)
+	return preload("res://scripts/world3d/texture_plan_catalog.gd")._read_header(key,source,root_path)
 
 func audit_map_texture_stage()->void:
 	var started:=Time.get_ticks_usec()

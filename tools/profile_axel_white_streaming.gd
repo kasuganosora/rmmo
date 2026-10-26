@@ -184,6 +184,10 @@ func observe_origin_readiness()->void:
 	origin_ready_frames=origin_ready_frames+1 if demands_ready() else 0
 	if origin_ready_frames==3:
 		report.origin_first_ready={"at_ms":(Time.get_ticks_usec()-began)/1000.,"phase":phase,"contract":"First three consecutive empty demand/job/render-batch frames after production geometry focus activation; independent of fixed observation windows"}
+		# A 500 ms sample just before readiness can miss most of the final
+		# batch turn. Snapshot settled work once, after preserving the time anchor.
+		var batches:Node=mesh_map.get_node_or_null("GroundRenderBatches")
+		report.origin_ready_work={"batches":batches.stats() if batches!=null else {},"snapshot_at_ms":(Time.get_ticks_usec()-began)/1000.,"contract":"Settled batch counters captured once immediately after the unchanged full-ready time anchor"}
 		if map_texture_stage:
 			report.origin_first_ready.contract+="; current demand revision settled and shared pixel outputs/consumers/retained bytes all zero; includes texture preparation/publication but not first presentation"
 			report.origin_texture_ready=texture_stage_snapshot(mesh_map.get_node("DeferredAssets"))
