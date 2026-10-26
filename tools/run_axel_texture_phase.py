@@ -1,5 +1,6 @@
 """Run one owned, private-desktop map texture sample; preserve every outcome."""
 import argparse
+import configparser
 import ctypes
 import hashlib
 import json
@@ -24,7 +25,7 @@ def sources():
     files += list((ROOT / "scripts").rglob("*.gdshaderinc"))
     files += [ROOT / "tools" / name for name in (
         "profile_axel_game_pipeline.gd", "profile_axel_white_streaming.gd",
-        "profile_axel_worker_capacity.gd", "run_godot_background.py",
+        "profile_axel_worker_capacity.gd", "profile_axel_fault_capture.gd", "run_godot_background.py",
         "run_axel_texture_phase.py")]
     return {str(p.relative_to(ROOT)).replace("\\", "/"): digest(p) for p in files}
 
@@ -58,15 +59,32 @@ def main():
     parser.add_argument("--rebuild-demand-catalogues", action="store_true")
     parser.add_argument("--screenshot", action="store_true")
     parser.add_argument("--timeout", type=int, default=420)
+    parser.add_argument("--fault-capture-extension", type=Path,
+                        help="Opt-in native first-chance capture; marks this as a diagnostic sample")
     args = parser.parse_args()
     output = args.output.resolve()
     paths = {suffix: output.with_suffix("." + suffix) for suffix in
              ("json", "log", "launch.json", "result.json")}
     if any(p.exists() for p in paths.values()):
         raise FileExistsError("Use a new output stem; failed samples are retained")
+    fault_capture = None
+    if args.fault_capture_extension:
+        paths["fault.raw"] = output.with_suffix(".fault.raw")
+        if paths["fault.raw"].exists():
+            raise FileExistsError(paths["fault.raw"])
+        extension = args.fault_capture_extension.resolve()
+        config = configparser.ConfigParser(interpolation=None)
+        config.read(extension, encoding="utf-8")
+        library = Path(config["libraries"]["windows.x86_64"].strip('"'))
+        if not library.is_absolute():
+            library = extension.parent / library
+        fault_capture = {"extension": str(extension), "extension_sha256": digest(extension),
+                         "library": str(library), "library_sha256": digest(library),
+                         "raw": str(paths["fault.raw"]),
+                         "contract": "First-chance context only; original exception continues. No debugger, polling, or priority change."}
     output.parent.mkdir(parents=True, exist_ok=True)
     cmd = [str(args.engine.resolve()), "--path", str(ROOT), "--script",
-           "res://tools/profile_axel_worker_capacity.gd", "--",
+           "res://tools/profile_axel_fault_capture.gd" if fault_capture else "res://tools/profile_axel_worker_capacity.gd", "--",
            "--output=" + str(paths["json"]), "--mesh-only", "--without-mock-server",
            "--without-hud", "--uncapped-runtime", "--uncapped-loading",
            "--runtime-seconds=0", "--origin-seconds=8", "--steady-seconds=0",
@@ -110,11 +128,15 @@ def main():
         cmd.append("--rebuild-demand-catalogues")
     if args.screenshot:
         cmd.append("--stage-screenshot")
+    if fault_capture:
+        cmd += ["--fault-capture-extension=" + fault_capture["extension"],
+                "--fault-capture-file=" + fault_capture["raw"]]
     before = sources()
     launch = {"command": cmd, "engine_sha256": digest(args.engine),
               "map_sha256": digest(MAP), "source_before": before,
               "git_head": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip(),
               "stage": args.stage, "legacy_publication": args.legacy_publication,
+              "diagnostic": bool(fault_capture), "fault_capture": fault_capture,
               "legacy_source_reads": args.legacy_source_reads,
               "texture_profile": args.texture_profile,
               "batch_timeline": args.batch_timeline,
@@ -174,6 +196,12 @@ def main():
     outcome["functional_ok"] = (code == 0 and bool(report) and not errors and
                                 report.get("failures") == [] and outcome["source_unchanged"] and
                                 outcome["map_unchanged"] and bool(outcome["full_ready"]))
+    if fault_capture:
+        raw = paths["fault.raw"].read_text(encoding="utf-8", errors="replace") if paths["fault.raw"].exists() else ""
+        outcome["fault_capture_armed"] = "armed\t1" in raw
+        outcome["first_chance_fault"] = "fault\t" in raw
+        outcome["diagnostic_library_unchanged"] = digest(Path(fault_capture["library"])) == fault_capture["library_sha256"]
+        outcome["functional_ok"] &= outcome["fault_capture_armed"] and outcome["diagnostic_library_unchanged"]
     save(paths["result.json"], outcome)
     print(json.dumps(outcome, ensure_ascii=False), flush=True)
     return 0 if outcome["functional_ok"] else 1
