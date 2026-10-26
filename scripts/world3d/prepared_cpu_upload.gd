@@ -8,6 +8,7 @@ static var enabled:=true
 static var installed_surfaces:=0
 static var profile_enabled:=false
 static var profile_rows:Array=[]
+static var profile_scope_hook:Callable # Opt-in diagnostic heartbeat; never set by the game.
 
 class Payload extends RefCounted:
 	var surfaces:Array=[]
@@ -46,16 +47,14 @@ static func inherit(source:Mesh,target:Mesh)->void:
 
 static func restore(cpu:Mesh,label:String="")->Mesh:
 	assert(Thread.is_main_thread())
+	var started:=Time.get_ticks_usec() if profile_enabled else 0
+	if profile_enabled and profile_scope_hook.is_valid():profile_scope_hook.call(true)
 	# Original source generations and all later editor changes continue through
 	# Cpu.restore's existing invalidation/material compatibility checks.
 	if not enabled or not cpu.has_meta(META) or cpu.source_reference!=null:
-		var started:=Time.get_ticks_usec() if profile_enabled else 0
+		var route:=("ordinary_disabled" if not enabled else ("ordinary_existing_generation" if cpu.source_reference!=null else "ordinary_missing_packet")) if profile_enabled else ""
 		var result:Mesh=cpu.restore()
-		if profile_enabled and Time.get_ticks_usec()-started>=1000:
-			var elapsed:=Time.get_ticks_usec()-started
-			var counts:Array=[]
-			for surface:Array in cpu.surfaces:counts.append(surface[Mesh.ARRAY_VERTEX].size())
-			profile_rows.append({"uuid":label,"elapsed_us":elapsed,"vertices":counts,"frame":Engine.get_process_frames(),"bounds":str(cpu.bounds)})
+		if profile_enabled:_record_restore(cpu,label,started,route)
 		return result
 	var packet:Payload=cpu.get_meta(META)
 	var installed:Array=[]
@@ -68,4 +67,13 @@ static func restore(cpu:Mesh,label:String="")->Mesh:
 	if cpu.has_meta("static_batch_geometry_signature"):cached.set_geometry_key(cpu.geometry_key())
 	installed_surfaces+=packet.surfaces.size()
 	cpu.remove_meta(META)
+	if profile_enabled:_record_restore(cpu,label,started,"prepared")
 	return result
+
+static func _record_restore(cpu:Mesh,label:String,started:int,route:String)->void:
+	var ended:=Time.get_ticks_usec()
+	if profile_scope_hook.is_valid():profile_scope_hook.call(false)
+	if ended-started<1000:return
+	var counts:Array=[]
+	for surface:Array in cpu.surfaces:counts.append(surface[Mesh.ARRAY_VERTEX].size())
+	profile_rows.append({"uuid":label,"at_us":started,"end_us":ended,"cpu_id":cpu.get_instance_id(),"route":route,"elapsed_us":ended-started,"vertices":counts,"frame":Engine.get_process_frames(),"bounds":str(cpu.bounds)})

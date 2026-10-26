@@ -183,7 +183,7 @@ func restore() -> Mesh:
 			var albedo_rid:String=""
 			if mat is BaseMaterial3D and mat.albedo_texture!=null:
 				albedo_rid=str(mat.albedo_texture.get_rid())
-			profile_rows.append({"surface":slot,"geometry_us":geometry_us,"material_us":material_us,"vertices":surfaces[slot][Mesh.ARRAY_VERTEX].size(),"indices":surfaces[slot][Mesh.ARRAY_INDEX].size() if surfaces[slot][Mesh.ARRAY_INDEX]!=null else 0,"material_id":mat.get_instance_id() if mat!=null else 0,"material_rid":str(mat.get_rid()) if mat!=null and mat.has_method("get_rid") else "","albedo_rid":albedo_rid,"albedo_path":str(mat.albedo_texture.resource_path) if mat is BaseMaterial3D and mat.albedo_texture!=null else ""})
+			profile_rows.append({"at_us":geometry_started,"end_us":material_started+material_us,"cpu_id":get_instance_id(),"frame":Engine.get_process_frames(),"surface":slot,"geometry_us":geometry_us,"material_us":material_us,"vertices":surfaces[slot][Mesh.ARRAY_VERTEX].size(),"indices":surfaces[slot][Mesh.ARRAY_INDEX].size() if surfaces[slot][Mesh.ARRAY_INDEX]!=null else 0,"material_id":mat.get_instance_id() if mat!=null else 0,"material_rid":str(mat.get_rid()) if mat!=null and mat.has_method("get_rid") else "","albedo_rid":albedo_rid,"albedo_path":str(mat.albedo_texture.resource_path) if mat is BaseMaterial3D and mat.albedo_texture!=null else ""})
 	var cached: Mesh=remember(result,surfaces,lods)
 	# Repeated instances share this CPU object after loading. Remember the first
 	# restored GPU mesh weakly so each instance does not upload the same buffers.

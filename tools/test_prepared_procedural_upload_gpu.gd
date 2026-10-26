@@ -52,7 +52,7 @@ func run()->void:
 	var projection:Mesh=Bounds.make_cpu(road.arrays,materials,owner.bounds);projection.materials[0]=StandardMaterial3D.new();Upload.inherit(owner,projection)
 	check(Upload.restore(projection).surface_get_material(0)==projection.materials[0] and owner.source_reference==null,"private material projection shares CPU packing without changing the owner")
 	var stream=preload("res://scripts/world3d/world_stream.gd")
-	var visual:MeshInstance3D=stream._spawn({"uuid":"packed_road","mesh":owner,"surface_overrides":[]})
+	var visual:MeshInstance3D=stream._spawn(root,{"uuid":"packed_road","mesh":owner,"surface_overrides":[]})
 	check(visual.mesh is ArrayMesh and visual.mesh.get_surface_count()==arrays.size() and not owner.has_meta(Upload.META),"stream spawn consumes the prepared upload exactly once")
 	check(var_to_bytes(road.upload.surfaces)==native_packet_bytes,"two independent material installations never mutate or consume shared native buffers")
 	visual.free()

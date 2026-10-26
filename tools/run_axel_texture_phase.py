@@ -47,6 +47,7 @@ def main():
     parser.add_argument("--traverse", action="store_true")
     parser.add_argument("--texture-profile", action="store_true")
     parser.add_argument("--batch-timeline", action="store_true")
+    parser.add_argument("--profile-procedural-uploads", action="store_true")
     closed_building = parser.add_mutually_exclusive_group()
     closed_building.add_argument("--closed-building-preparation", action="store_true")
     closed_building.add_argument("--without-closed-building-preparation", action="store_true")
@@ -110,6 +111,8 @@ def main():
         cmd.append("--texture-stage-profile")
     if args.batch_timeline:
         cmd.append("--batch-timeline")
+    if args.profile_procedural_uploads:
+        cmd.append("--profile-procedural-uploads")
     if args.closed_building_preparation:
         cmd.append("--closed-building-preparation")
     if args.without_closed_building_preparation:
@@ -146,11 +149,12 @@ def main():
               "map_sha256": digest(MAP), "source_before": before,
               "git_head": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip(),
               "stage": args.stage, "legacy_publication": args.legacy_publication,
-              "diagnostic": bool(fault_capture) or args.batch_timeline, "fault_capture": fault_capture,
+              "diagnostic": bool(fault_capture) or args.batch_timeline or args.profile_procedural_uploads, "fault_capture": fault_capture,
               "legacy_source_reads": args.legacy_source_reads,
               "legacy_vsync_submission": args.legacy_vsync_submission,
               "texture_profile": args.texture_profile,
               "batch_timeline": args.batch_timeline,
+              "profile_procedural_uploads": args.profile_procedural_uploads,
               "closed_building_preparation": not args.without_closed_building_preparation,
               "covered_source_coalescing": not args.without_covered_source_coalescing,
               "prepared_road_paint": not args.without_prepared_road_paint,

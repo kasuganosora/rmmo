@@ -3493,3 +3493,26 @@ A8.674/6.808s，B3.574/2.635s；初始147组、返回累计294组提前进入既
 observer，不能归为OS空闲。道路恢复另见27.377ms日志，缺时间戳尚未证明同一调用。
 完整实现、普通数据、剩余问题与最终默认版本回归见
 `docs/axel_reload_batch_barrier_20261027.md`。目标保持active，来源通知和该长调用继续处理。
+
+## §170 返回网格提交归因：独立确认队列积压，地图尖峰尚未复现
+
+Cpu/Upload profile 已增加 UUID、CPU instance ID、绝对起止 ticks、帧号和路由；
+可选 heartbeat 8/9 将 GDB 触发范围缩到实际 Upload.restore。正常游戏不启用。
+独立固定 4096 次上传、3/12 worker、相同 authored road 数组压测及 GDB 证明：
+后台逐面上传进入 RenderingServer 队列，主线程小网格创建先执行 _flush，动态清空
+仍在追加的上传。此处不是单纯等锁，更不是眼前 168 顶点本身需要几百毫秒。
+
+独立 ABBA 使用相同 CPU packing/几何/native bytes 工作，原生整包路径对照：
+3 worker 主线程 max249.694–257.168→2.234–2.626ms，12 worker
+355.155–359.885→8.297–18.931ms。四次均完成4096、源码/地图未变、failures0。
+首个零 worker 绘制仍264.602–280.420ms，未隐藏，也未因此宣称全部长帧消失。
+
+真实地图 map08 的有效冻结栈在 probe.track_membership，不能证实生产上传积压；
+map12 改为实际 upload 范围后返回/重载未达10ms触发，最大记录9.338ms，无故障栈。
+这些均diagnostic，不进入普通加载/low统计。原52.691ms帧未算修复；当前native SCN
+已经走整包创建，不能把上述压测收益当整图收益。本轮没有修改引擎或生产调度。
+
+旧 prepared-upload GPU 测试的 _spawn 参数已过时，保留解析失败后修正测试，
+回归49 PASS/0 FAIL。完整数据、暂停保护失败样本、scope修正及下一步来源通知合同见
+`docs/axel_reload_upload_attribution_20261027.md`。目标继续active，下一切片回到已证实的
+合批通知屏障，保留真实长调用诊断，不继续用扩大worker/队列代替根因修复。
