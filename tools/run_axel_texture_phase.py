@@ -59,6 +59,9 @@ def main():
     parser.add_argument("--without-covered-batch-borrow", action="store_true")
     parser.add_argument("--without-uv-projection-elision", action="store_true")
     parser.add_argument("--serial-chunk-textures", action="store_true")
+    texture_upload = parser.add_mutually_exclusive_group()
+    texture_upload.add_argument("--background-texture-upload", action="store_true")
+    texture_upload.add_argument("--without-background-texture-upload", action="store_true")
     parser.add_argument("--without-texture-plan-reuse", action="store_true")
     parser.add_argument("--sync-texture-headers", action="store_true")
     parser.add_argument("--full-cache-trims", action="store_true")
@@ -134,6 +137,10 @@ def main():
         cmd.append("--without-uv-projection-elision")
     if args.serial_chunk_textures:
         cmd.append("--serial-chunk-textures")
+    if args.background_texture_upload:
+        cmd.append("--background-texture-upload")
+    if args.without_background_texture_upload:
+        cmd.append("--without-background-texture-upload")
     if args.without_texture_plan_reuse:
         cmd.append("--without-texture-plan-reuse")
     if args.sync_texture_headers:

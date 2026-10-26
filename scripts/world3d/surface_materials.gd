@@ -11,6 +11,8 @@ static var white_face_mapping_elision_enabled:=true
 static var uv_projection_elision_enabled:=true
 static var _textures := {}
 static var prepared_images:Dictionary={}
+## Main-only synchronous scope, borrowed from the admitted shared upload pool.
+static var prepared_textures:Dictionary={}
 static var _materials := {}
 # Strong hot caches have a byte ceiling; weak catalogues reuse resources still
 # owned by live maps after cache eviction, without extending their residency.
@@ -41,7 +43,7 @@ static func definition_texture_key(definition:Dictionary,field:String)->String:
 static func refresh_sources()->void:
 	# A source refresh starts a new identity generation. Live consumers keep
 	# their old resources; neither hot nor weak aliases may authorize new builds.
-	_materials.clear();_textures.clear();prepared_images.clear()
+	_materials.clear();_textures.clear();prepared_images.clear();prepared_textures={}
 	_material_refs.clear();_texture_refs.clear();_cache_use.clear()
 	_sidecar_cache.clear()
 	_cache_accounted.clear();_cache_upper_bytes=0;_cache_estimate_valid=false
@@ -500,11 +502,16 @@ static func _texture(material:Dictionary,field:String,path_checks:Variant)->Text
 	var has_alpha:bool=image.get_meta("runtime_upload_has_alpha") if alpha_prepared else image.detect_alpha()!=Image.ALPHA_NONE
 	if texture_profile_enabled:TextureCache._profile_elapsed("paint.texture.alpha",began,{"path":path,"flip":flip_normal,"prepared":alpha_prepared})
 	began=Time.get_ticks_usec() if texture_profile_enabled else 0
-	var result := ImageTexture.create_from_image(image)
+	var result:Texture2D=prepared_textures.get(cache_key)
+	# Use the exact prepared variant only while its source identity still matches.
+	if result!=null and result.get_meta("runtime_source_sha256","")!=image.get_meta("runtime_source_sha256",""):result=null
+	var uploaded:=result!=null
+	if not uploaded:result=ImageTexture.create_from_image(image)
 	if texture_profile_enabled:
-		TextureCache._profile_elapsed("paint.texture.upload",began,{"path":path,"flip":flip_normal,"format":image.get_format(),"width":image.get_width(),"height":image.get_height(),"bytes":image.get_data_size()})
-		TextureCache._profile_count("paint.texture.upload_bytes",image.get_data_size())
-		if image.has_meta("runtime_compressed_sidecar_path"):
+		TextureCache._profile_elapsed("paint.texture.background_handoff" if uploaded else "paint.texture.upload",began,{"path":path,"flip":flip_normal,"format":image.get_format(),"width":image.get_width(),"height":image.get_height(),"bytes":image.get_data_size()})
+		if uploaded:TextureCache._profile_count("paint.texture.background_handoffs")
+		else:TextureCache._profile_count("paint.texture.upload_bytes",image.get_data_size())
+		if not uploaded and image.has_meta("runtime_compressed_sidecar_path"):
 			TextureCache._profile_count("paint.texture.sidecar_uploads")
 			TextureCache._profile_count("paint.texture.sidecar_upload_bytes",image.get_data_size())
 			TextureCache._profile_count("paint.texture.prepared_sidecar_uploads")

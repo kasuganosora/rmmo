@@ -95,7 +95,9 @@ static func texture_tickets(sources:Dictionary,material_pool:Variant=null)->Dict
 	var result:Dictionary={};var seen:Dictionary={}
 	for key:Variant in sources:
 		if not key is String:continue
-		var texture:Variant=Cook.Paint._textures.get(key)
+		# Live scenes may be the only strong owners after hot-cache eviction.
+		# Capture the weak catalogue too, before admitting decode/upload work.
+		var texture:Texture2D=Cook.Paint.retained_texture(key)
 		var ticket:=_texture_ticket(texture)
 		if not ticket.is_empty():result[key]=ticket
 	if result.size()==sources.size():return result
@@ -491,6 +493,8 @@ static func begin_texture_publication(record:Dictionary,material_pool:Variant,te
 	var previous:Variant=null
 	var resident:Dictionary=texture_packet.get("resident_textures",{})
 	if not tickets_valid(resident,texture_packet.get("sources",{})):return {"ok":false}
+	var previous_uploaded:Dictionary=Cook.Paint.prepared_textures
+	Cook.Paint.prepared_textures=texture_packet.get("uploaded_textures",{})
 	if state!=null and _texture_scope_current(record,texture_packet,state,material_pool,materials):
 		# The first slice already invalidated older generations. Missing GPU
 		# entries mean this packet has work left, not another source replacement.
@@ -498,7 +502,7 @@ static func begin_texture_publication(record:Dictionary,material_pool:Variant,te
 		previous=Cook.Paint.prepared_images
 		Cook.Paint.prepared_images=texture_packet.get("images",{}).duplicate()
 		state.reuses=int(state.get("reuses",0))+1
-		return {"ok":true,"previous":previous}
+		return {"ok":true,"previous":previous,"previous_uploaded":previous_uploaded}
 	if not resident.is_empty():
 		var source_ids:Dictionary=texture_packet.sources
 		var stale:Dictionary=_stale_material_keys(Cook.Paint._materials.values(),source_ids)
@@ -525,7 +529,7 @@ static func begin_texture_publication(record:Dictionary,material_pool:Variant,te
 	if state!=null:
 		state.sources=texture_packet.get("sources",{}).duplicate()
 		state.initialized=true;state.initializations=int(state.get("initializations",0))+1
-	return {"ok":true,"previous":previous}
+	return {"ok":true,"previous":previous,"previous_uploaded":previous_uploaded}
 
 static func _texture_scope_current(record:Dictionary,packet:Dictionary,state:Dictionary,material_pool:Variant,materials:Array)->bool:
 	if not state.get("initialized",false) or state.get("sources",{})!=packet.get("sources",{}):return false
@@ -554,6 +558,7 @@ static func _texture_scope_current(record:Dictionary,packet:Dictionary,state:Dic
 
 static func end_texture_publication(scope:Dictionary)->void:
 	if scope.get("previous")!=null:load("res://scripts/world_editor/terrain_texture_preparation.gd").restore(scope.previous)
+	if scope.has("previous_uploaded"):Cook.Paint.prepared_textures=scope.previous_uploaded
 
 static func _publish_prepared(record:Dictionary,prepared:Dictionary,paint_validation:Variant=null,material_pool:Variant=null,timings:Variant=null)->bool:
 	# Main-thread resource/material publication only. Never place this packet in

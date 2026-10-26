@@ -34,6 +34,9 @@ func check(value:bool,label:String)->void:
 	if value:passed+=1
 	else:failed+=1
 func run()->void:
+	# This fixture edits source bytes in place; production mounted packages are
+	# intentionally trusted. Opt into the mutable-source contract being tested.
+	Prep.Pixels.Policy.verify_packages=true
 	var logger:=Base.Errors.new();OS.add_logger(logger)
 	ledger_test()
 	fixture=Base.new();fixture.files=Base.Files.new();fixture.files.content_root=Prep.Paths.external_root();fixture.files.folder=Prep.Paths.cache_directory("shared_prefab_%d"%Time.get_ticks_usec())

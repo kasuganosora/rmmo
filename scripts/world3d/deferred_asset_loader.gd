@@ -3249,6 +3249,7 @@ func _process(_delta:float)->void:
 			if not Prefab.tickets_valid(job.pixel_tickets,texture_packet.get("sources",{})):
 				_retry_pixel_job(path,{},"Resident texture changed before acceptance");_account_work_unit(acceptance,unit_began);continue
 			texture_packet.resident_textures=job.pixel_tickets.duplicate()
+			texture_packet.uploaded_textures=_shared_images.textures(job.pixel_consumer)
 		if result.has("scene") or result.has("packed"):
 			var cached:bool=Assets.cache_packed(path,result.packed,str(result.get("source_digest",""))) if result.has("packed") else Assets.cache_scene(path,result.scene,str(result.get("source_digest","")))
 			if not cached:
@@ -3457,8 +3458,9 @@ func _poll_jobs(required:Dictionary)->void:
 				if job.token.has_meta("prefab_continuation_result"):job.token.remove_meta("prefab_continuation_result")
 			else:job.result=result
 			var sync_started:=Time.get_ticks_usec()
-			# The native-reference branch returns only private CPU arrays/Images,
-			# never a renderer resource. Do not stall core rendering to join it.
+			# Native references return private arrays/Images. Optional pool textures
+			# are already created via RenderingServer's thread-safe direct path,
+			# with no queued scene/material setup to flush at this CPU join.
 			if not job.get("native",false):
 				var transfer_started:=Time.get_ticks_usec()
 				Drainer.synchronize_transfer()

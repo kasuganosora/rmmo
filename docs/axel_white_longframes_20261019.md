@@ -3541,3 +3541,34 @@ texture transfer触发32MiB CPU staging buffer分配，现场在AMD/Vulkan CPU�
 
 完整代码合同、两组数据、host分段观察、失败样本、GDB栈及下一轮纹理暂存/后台创建
 独立复现方向见 `docs/axel_closed_building_arrivals_20261027.md`。目标继续active。
+
+## §172 真实纹理上传独立复现、weak复用与后台候选
+
+接续§171的VMA/AMD等待栈，用已有LoadTrace取得实际上传变体：2048²翻转normal、
+RGBA8、完整mip22369620字节；其规模对应前轮21.33MiB transfer，不能证明同一次调用。
+trace地图完成但外部runner用GBK读UTF8报告失败，engine退出码未保留；该失败不纳入
+普通性能数据。资源及引擎未改，未用未翻转DDS替换正确法线。
+
+固定64次/1431655680字节的真实GPU绘制ABBA中，主线程上传累计273.685/310.093ms，
+一个后台worker的主线程接收绑定累计6.330/11.707ms；每次总上传、像素/mip和最终引用
+一致。回收仍有58–77ms帧，不算解决。共享池候选复用原producer/admission，不新增
+无界队列；显式Image/Texture所有权、锁外驱动调用/销毁、取消接管/晚结果拒绝与
+同步发布作用域已接通，默认false。
+
+另外独立复现Prefab.texture_tickets遗漏live weak纹理：零热缓存下已有场景仍持有
+纹理，却重复安排准备。改查retained_texture，默认保留该去重修复。新GPU合同31条
+通过，材质GPU回归46+64条、共享GPU39条、CPU准备/并行/共享回归通过；编辑器HTTP
+预制件29、地形26条通过，损坏PNG用例有明确预期codec错误，未称日志全空。
+测试错误、runner误识别和WeakRef临时引用污染断言的失败样本均保留并修正。
+
+实际地图map18 ABBA完整就绪A11.344/9.649s、B9.663/9.618s；全程工作均170次纹理
+上传/721332072字节，B后台146次，主线程累计上传296–313ms降至53–54ms。
+初始231builds/3923prepares/2724packs不变，最终229groups/2564sources/361surfaces。
+卸载/返回/重载四条均0帧>50ms，但reload low A37.491/32.540、B30.488/30.953FPS，
+未证明总加载/low收益，**后台上传仍默认关闭**。B2整段未观测其他相关任务，仍有low
+下降；其他时段的Blender观察不能作为全部波动的解释。也不宣称四条样本得到了p95。
+
+下一步抓后台候选reload的draw/transfer等待和几何就绪时序，保留独立回收长帧边界；
+另外记录final_sha名称下实际祖先路径检查/身份查询的累计工作，先复现再精简。
+完整合同、数据、源快照及下一切片见 `docs/axel_shared_texture_upload_20261027.md`。
+目标继续active，未宣称所有剩余耗时合理或已无优化空间。

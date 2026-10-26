@@ -1,18 +1,21 @@
 extends RefCounted
-## Operation-local CPU Images. The scheduler alone creates/releases leases and
+## Operation-local Images and optional completed GPU uploads. The scheduler creates/releases leases and
 ## writes the admission ledger. Workers publish/fetch immutable pixels under a
 ## mutex. All keys for a job are claimed atomically before its thread starts;
 ## missing dependencies return to the scheduler; no worker blocks on a sibling.
 const Pixels=preload("res://scripts/world3d/runtime_texture_cache.gd")
 const Preparation=preload("res://scripts/world3d/prefab_texture_preparation.gd")
 const HASH_SCRATCH=8*1024*1024
+## Candidate: preserve the CPU path until whole-map loading/return evidence passes.
+static var background_upload_enabled:=false
+var _upload_enabled:bool=background_upload_enabled and RenderingServer.get_rendering_device()!=null
 var admission:RefCounted
 var _mutex:=Mutex.new()
 var _entries:Dictionary={}
 var _consumers:Dictionary={}
 var _cancelled:Dictionary={}
 var _source_identities:Dictionary={} # Mounted operation only; String SHA values, no pixel/resource owners.
-var profile:Dictionary={"produced":0,"shared_hits":0,"waits":0,"peak_outputs":0,"retained_bytes":0,"peak_retained_bytes":0}
+var profile:Dictionary={"produced":0,"shared_hits":0,"waits":0,"peak_outputs":0,"retained_bytes":0,"peak_retained_bytes":0,"uploads":0,"upload_bytes":0,"upload_us":0,"upload_max_us":0,"discarded_uploads":0}
 
 func consumer_active(consumer:String)->bool:
 	_mutex.lock();var active:bool=_consumers.has(consumer) and not _cancelled.has(consumer);_mutex.unlock();return active
@@ -48,7 +51,7 @@ func offer(plan:Dictionary,cached:Dictionary={},revisions:Dictionary={})->Dictio
 		# A follower's observed digest must not create a second binding when the
 		# original producer is cancelled. Mutable diagnostic sources keep revisions.
 		var revision:String="" if Pixels.Policy.trusted() else str(revisions.get(row.path,""))
-		var identity:Array=[key,row.width,row.height,row.source_bytes,row.output_bytes,Pixels.upload_preparation_enabled,preload("res://scripts/world3d/surface_materials.gd").source_generation,revision]
+		var identity:Array=[key,row.width,row.height,row.source_bytes,row.output_bytes,Pixels.upload_preparation_enabled,preload("res://scripts/world3d/surface_materials.gd").source_generation,revision,_upload_enabled]
 		var binding:String="prefab_pixels:"+var_to_bytes(identity).hex_encode().sha256_text()
 		result.bindings[key]=binding
 		candidates.append({"key":key,"binding":binding,"retained":int(row.output_bytes)*2,"scratch":Preparation.workspace_bytes(row)})
@@ -73,7 +76,7 @@ func commit(consumer:String,offer_:Dictionary)->void:
 		var binding:String=bindings[key]
 		if not _entries.has(binding):
 			var bytes:int=offer_.retained[binding]
-			_entries[binding]={"owner":consumer,"consumers":{},"state":"pending","digest":"","image":null,"bytes":bytes,"output_bytes":int(offer_.rows[key].output_bytes)}
+			_entries[binding]={"owner":consumer,"consumers":{},"state":"pending","digest":"","image":null,"texture":null,"bytes":bytes,"output_bytes":int(offer_.rows[key].output_bytes)}
 			profile.retained_bytes+=bytes
 		elif offer_.leaders.has(key) and _entries[binding].state=="failed":
 			# offer -> reserve_bundle -> commit is one scheduler transaction. The
@@ -85,12 +88,47 @@ func commit(consumer:String,offer_:Dictionary)->void:
 	_mutex.unlock()
 
 func publish(consumer:String,key:String,digest:String,image:Image)->bool:
+	var texture:ImageTexture # Late/cancelled owner dies only AFTER unlocking below.
 	_mutex.lock()
 	var binding:String=_consumers.get(consumer,{}).get(key,"");var row:Dictionary=_entries.get(binding,{})
 	var valid:bool=not row.is_empty() and row.owner==consumer and row.state=="pending" and not _cancelled.has(consumer) and image!=null and image.get_data_size()<=int(row.output_bytes)
+	if valid and _upload_enabled:
+		# Claim before leaving the lock: duplicate callers cannot upload twice.
+		# The existing admitted producer owns decoder/staging scratch until join;
+		# the unique retained reservation covers Image + Texture payloads after join.
+		row.state="uploading";_mutex.unlock()
+		var began:=Time.get_ticks_usec();texture=_upload(image)
+		var elapsed:=Time.get_ticks_usec()-began
+		preload("res://scripts/world3d/load_trace.gd").elapsed("prefab_pixels.gpu_upload",began,{"key":key,"bytes":image.get_data_size()})
+		_mutex.lock()
+		profile.uploads+=1;profile.upload_bytes+=image.get_data_size();profile.upload_us+=elapsed;profile.upload_max_us=maxi(int(profile.upload_max_us),elapsed)
+		# Cancellation can transfer production to another admitted owner while the
+		# old driver call completes. Never publish its late result into that row.
+		valid=row.owner==consumer and row.state=="uploading" and not _cancelled.has(consumer) and texture!=null
+		if valid:row.texture=texture;row.state="pending"
+		else:
+			profile.discarded_uploads+=1
+			if row.owner==consumer and row.state=="uploading":row.state="failed"
 	if valid:
 		row.image=image;row.digest=digest;row.state="ready";profile.produced+=1
 	_mutex.unlock();return valid
+
+func _upload(image:Image)->ImageTexture:
+	# Private upload only. Never touch Paint's global caches or mutate the Image.
+	var texture:=ImageTexture.create_from_image(image)
+	if texture!=null:
+		texture.set_meta("runtime_source_sha256",image.get_meta("runtime_source_sha256",""))
+	return texture
+
+func textures(consumer:String)->Dictionary:
+	# Main after join. Explicit ownership, never hidden in Image metadata/arrays.
+	if not _upload_enabled:return {}
+	var result:Dictionary={};_mutex.lock()
+	if not _cancelled.has(consumer):
+		for key:String in _consumers.get(consumer,{}):
+			var row:Dictionary=_entries.get(_consumers[consumer][key],{})
+			if row.get("state")=="ready" and row.get("texture")!=null:result[key]=row.texture
+	_mutex.unlock();return result
 
 func fetch(consumer:String,key:String,digest:String,token:RefCounted)->Dictionary:
 	if token!=null and token.is_cancelled():return {"error":"Shared image consumer cancelled","cancelled":true}
@@ -108,7 +146,7 @@ func fetch(consumer:String,key:String,digest:String,token:RefCounted)->Dictionar
 func ready(consumer:String)->bool:
 	_mutex.lock();var result:bool=_consumers.has(consumer)
 	for binding:String in _consumers.get(consumer,{}).values():
-		if _entries.get(binding,{}).get("state","")=="pending":result=false;break
+		if _entries.get(binding,{}).get("state","") in ["pending","uploading"]:result=false;break
 	_mutex.unlock();return result
 
 func cancel(consumer:String)->void:
@@ -116,25 +154,27 @@ func cancel(consumer:String)->void:
 	for binding:String in _consumers.get(consumer,{}).values():
 		var row:Dictionary=_entries.get(binding,{})
 		if row.is_empty():continue
-		if row.owner==consumer and row.state=="pending":
+		if row.owner==consumer and row.state in ["pending","uploading"]:
 			row.state="failed"
 	_mutex.unlock()
 
 func release(consumer:String)->void:
 	# Main only, AFTER join and clearing this consumer's result/packet aliases.
 	# Other consumers retain the same Image and its complete unique reservation.
-	var retired:Array[String]=[]
+	var retired:Dictionary={}
 	_mutex.lock()
 	for binding:String in _consumers.get(consumer,{}).values():
 		var row:Dictionary=_entries.get(binding,{})
 		if row.is_empty():continue
 		row.consumers.erase(consumer)
-		if row.owner==consumer and row.state=="pending":
+		if row.owner==consumer and row.state in ["pending","uploading"]:
 			row.state="failed"
 		if row.consumers.is_empty():
-			profile.retained_bytes-=int(row.bytes);row.image=null;_entries.erase(binding);retired.append(binding)
+			profile.retained_bytes-=int(row.bytes);retired[binding]=row;_entries.erase(binding)
 	_consumers.erase(consumer);_cancelled.erase(consumer);_mutex.unlock()
-	for binding:String in retired:admission.release(binding)
+	# Image/GPU destruction must not hold the pool lock while siblings publish.
+	for binding:String in retired:
+		retired[binding].image=null;retired[binding].texture=null;admission.release(binding)
 
 func snapshot()->Dictionary:
 	_mutex.lock();var value:Dictionary=profile.duplicate();value.outputs=_entries.size();value.consumers=_consumers.size();value.source_identities=_source_identities.size();_mutex.unlock();return value
