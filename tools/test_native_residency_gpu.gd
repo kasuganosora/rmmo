@@ -33,6 +33,18 @@ func watches_native()->Dictionary:
 	var spec:Dictionary=map_root.get_meta("stream_by_id")["house_0_shell"];var mesh:Mesh=spec.mesh
 	var material:Material=mesh.surface_get_material(0)
 	return {"mesh":weakref(mesh),"material":weakref(material),"texture":weakref(material.albedo_texture)}
+func poll_retirement()->void:
+	# Automatic _process is disabled for deterministic grace-period control.
+	# Mirror its cleanup-before-observation order too: poll only unregisters;
+	# the next frame drops preparation owners and requeues compact references.
+	logical_msec=maxi(logical_msec+residency.grace_msec+1,Time.get_ticks_msec())
+	residency._drain_cleanup();residency.poll(logical_msec)
+	for i in 12:
+		logical_msec+=residency.grace_msec+1
+		residency._drain_cleanup();residency.poll(logical_msec)
+		await process_frame
+	residency._drain_cleanup()
+	check(residency._cleanup_pending.is_empty(),"native retirement drains deferred ownership and reconstruction queue")
 func run()->void:
 	create_timer(180).timeout.connect(func():print("NATIVE_RESIDENCY_TIMEOUT");quit(2))
 	folder=Paths.cache_directory("native_resident_%d"%Time.get_ticks_usec());DirAccess.make_dir_recursive_absolute(folder)
