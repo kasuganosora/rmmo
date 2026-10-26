@@ -3600,3 +3600,40 @@ reload low A28.656/31.719、B29.713/32.380FPS，未证明稳定改善；B2卸载
 
 完整边界、ABBA/主机观察、独立失败样本和下一轮方向见
 `docs/axel_texture_handoff_20261027.md`。目标继续active。
+
+## §174 来源退出保留完成记录、prune 追加时序及整图对照
+
+用 batch timeline 定位 §173 同类额外准备：trace02 的 obj_82__arch_C_LOD0 退出，
+使 914 个来源的完成记录整体清空，随后 911 个幸存来源重新准备。实际调用来自
+WorldStream._apply；该诊断比常见工作量多 914 次 prepare。不能据此声称已取得
+§173 额外 3810 次访问那个样本的精确栈。
+
+默认保留已完成 immutable 记录，只删除确切退休 Node 的描述、重建受影响桶；空退出
+不再取消游标。下一请求继续在原预算中收集和 prune，同 UUID 新 Node 仍重新准备，
+编辑失效/未完成准备中真正退出仍安全重整。另在固定测试复现 prune 期间追加来源
+再次丢掉准备记录，改复用原 _next_residency 完成游标后追加。没有新增worker或队列。
+
+固定 4096 来源 ABBA，退出重整 A231.603/201.511ms、B74.358/74.366ms，prepare/pack
+均从 4096 降为 0，成员完全相同。这是独立完整游标墙时，不是生产单帧或加载收益。
+最终新回归 CPU81、GPU71条通过，比较 fresh oracle 的实际GPU网格/材质；既有
+completed102、partial148、covered62、closed19、owned-removal20、GPUdeparture10
+也通过。旧性能断言失败、测试解析失败和runner误报成功的样本均保留。
+
+map07 ABBA 完整就绪 A11.302/9.819s、B9.650/10.176s，reload low A31.682/33.479、
+B30.806/34.219FPS；没有稳定总体加载/low提升。B2卸载54.718ms一帧>50，附近draw/
+stream/pending为空、无queue observer，previous_process_wall53.170ms但无栈，仍未
+归因；其他所列卸载/返回/重载区间0帧>50ms。相关时段有其他Godot/Blender进程观察，
+不以进程存在直接归因，也不排除慢样本算漂亮数字。四条不能当加载p95。
+
+初始工作均231builds/3923prepares/2724packs。全程prepare A1/B1/B2为7851、A2为
+11802，额外3951主要在departure23.6–24.6s；B两条避免准备计数仍0，未撞上相同
+幸存退出重整时序，不能把这个差额直接当实测修复收益。补trace16实际观察到保留
+记录，但直到整批退出才有下次需求请求，亦无幸存来源重整，边界照实保留。
+
+最终内容仍229groups/2564sources/361surfaces、170次纹理上传/721332072字节；GPU
+审计3943surfaces/3202nonwhite/1502textured/145textures，所有资源/配额归零。
+后台GPU上传和建筑提前通知候选继续false。没有引擎/资产修改。
+
+完整合同、测试/时序证据、源码快照和下一步见
+`docs/axel_batch_retirement_reconciliation_20261027.md`。下一轮继续抓空卸载process
+间隔及入口后5.7–6.0s的发布/合批关键路径；目标active，不宣称所有工作已精简。

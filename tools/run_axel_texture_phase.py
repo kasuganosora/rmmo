@@ -63,6 +63,7 @@ def main():
     texture_upload.add_argument("--background-texture-upload", action="store_true")
     texture_upload.add_argument("--without-background-texture-upload", action="store_true")
     parser.add_argument("--without-batched-texture-handoff", action="store_true")
+    parser.add_argument("--without-incremental-source-retirement", action="store_true")
     parser.add_argument("--without-texture-plan-reuse", action="store_true")
     parser.add_argument("--sync-texture-headers", action="store_true")
     parser.add_argument("--full-cache-trims", action="store_true")
@@ -144,6 +145,8 @@ def main():
         cmd.append("--without-background-texture-upload")
     if args.without_batched_texture_handoff:
         cmd.append("--without-batched-texture-handoff")
+    if args.without_incremental_source_retirement:
+        cmd.append("--without-incremental-source-retirement")
     if args.without_texture_plan_reuse:
         cmd.append("--without-texture-plan-reuse")
     if args.sync_texture_headers:
@@ -180,6 +183,7 @@ def main():
               "uv_projection_elision": not args.without_uv_projection_elision,
               "parallel_chunk_textures": not args.serial_chunk_textures,
               "batched_texture_handoff": not args.without_batched_texture_handoff,
+              "incremental_source_retirement": not args.without_incremental_source_retirement,
               "texture_plan_reuse": not args.without_texture_plan_reuse,
               "async_texture_headers": not args.sync_texture_headers,
               "incremental_cache_budget": not args.full_cache_trims,

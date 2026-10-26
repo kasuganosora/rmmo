@@ -80,6 +80,10 @@ var _residency_descriptors:Dictionary={}
 # completed source prefix until identity, edit or lifetime invalidation.
 var _residency_bins:Dictionary={}
 var _next_residency:Dictionary={}
+static var incremental_source_retirement_enabled:=true
+var retirement_reconciliations:=0
+var retirement_prepares_avoided:=0
+var empty_retirements_skipped:=0
 var last_prepare_slice_ms:=0.0
 var max_prepare_slice_ms:=0.0
 
@@ -183,6 +187,7 @@ static func restore(node: MeshInstance3D) -> void:
 	if node.has_meta(SUSPENDED_DRAW):node.remove_meta(SUSPENDED_DRAW)
 
 func clear(restore_sources: bool = true) -> void:
+	if Timeline.enabled:_trace_bin_reset("clear")
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.ground_batcher.clear") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	if get_parent()!=null:
 		var proxy:=get_parent().get_node_or_null("DistantBuildingProxy")
@@ -193,11 +198,13 @@ func clear(restore_sources: bool = true) -> void:
 	_audit_keys.clear();_audit_cursor=0
 
 func release(ids: Array) -> void:
+	if Timeline.enabled:_trace_bin_reset("release",ids)
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.ground_batcher.release") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	_preparation.clear();_residency_descriptors.clear();_residency_bins.clear();_next_residency.clear() # Editor mutations invalidate captured descriptors.
 	_release_groups(ids)
 
 func release_sources(nodes: Array) -> void:
+	if Timeline.enabled:_trace_bin_reset("release_sources",nodes)
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.ground_batcher.release_sources") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	# A local editor replacement knows exactly which sources are dirty. Keep
 	# immutable descriptors for every other source; regroup on the frame budget.
@@ -213,12 +220,26 @@ func retire_sources(nodes:Array,suspended:Dictionary={})->void:
 	# A retiring source is about to be destroyed, so rebuilding its GPU buffers
 	# just before free is wasted work. Surviving members still need their exact
 	# standalone draw until a replacement batch is published.
-	_preparation.clear();_residency_bins.clear();_next_residency.clear()
+	if incremental_source_retirement_enabled and nodes.is_empty():
+		empty_retirements_skipped+=1;return
+	# An announced departure from a completed immutable snapshot only changes
+	# its own raw buckets. Keep the other owners for bounded reconciliation.
+	# In-flight cursors and editor/generic snapshots retain their restart path.
+	var retain:bool=incremental_source_retirement_enabled and _preparation.is_empty() and _next_residency.is_empty() and _residency_bins.get("immutable_append",false)
+	if not retain:
+		if Timeline.enabled:_trace_bin_reset("retire_sources",nodes)
+		_preparation.clear();_residency_bins.clear();_next_residency.clear()
 	var ids:Array=[];var retiring:Dictionary={}
 	for node in _expanded_sources(nodes):
 		if not is_instance_valid(node):continue
 		ids.append(str(node.name));retiring[node.get_instance_id()]=true
 		_residency_descriptors.erase(node.get_instance_id())
+		if retain and _residency_bins.named.get(str(node.name))==node:
+			if not _residency_bins.has("retirement_pending"):
+				_residency_bins.retirement_pending=true;_residency_bins.dirty_bins={};_residency_bins.bin_rebuild={}
+			_remove_prepared_descriptor(_residency_bins,str(node.name))
+			_residency_bins.named.erase(str(node.name))
+	if retain and Timeline.enabled:Timeline.record("retire_preserved",sync_count,Time.get_ticks_usec(),[nodes.size(),_residency_bins.named.size()])
 	_release_groups(ids,retiring,suspended)
 
 func _release_groups(ids: Array,retiring:Dictionary={},suspended:Dictionary={}) -> void:
@@ -260,7 +281,9 @@ func _invalidate_group(key:String,generation:int)->void:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.ground_batcher._invalidate_group") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	if not groups.has(key) or groups[key].generation!=generation:return
 	if Timeline.enabled:Timeline.record("source_exit",generation,Time.get_ticks_usec(),[key,groups[key].category,groups[key].members.size()])
-	if _residency_bins.get("immutable_append",false):_residency_bins={}
+	if _residency_bins.get("immutable_append",false):
+		if Timeline.enabled:_trace_bin_reset("source_exit",groups[key].members)
+		_residency_bins={}
 	var group:Dictionary=groups[key]
 	groups.erase(key);pending.erase(key)
 	_drop(group)
@@ -311,6 +334,7 @@ func sync_selection(nodes: Array, excluded: Array) -> void:
 	request_sync(nodes,excluded)
 
 func invalidate_source(node: MeshInstance3D) -> void:
+	if Timeline.enabled:_trace_bin_reset("invalidate_source",[node])
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.ground_batcher.invalidate_source") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	# An excluded source may change size/materials without changing its pose.
 	# Its next selection release must recapture its own descriptor only.
@@ -348,6 +372,8 @@ static func _expanded_exclusions(nodes:Array,excluded:Array)->Array:
 	return result
 
 func request_residency_sync(nodes:Array,excluded:Array=[],immutable_append:bool=false)->void:
+	if Timeline.enabled:
+		Timeline.record("residency_request",sync_count,Time.get_ticks_usec(),[nodes.size(),excluded.size(),immutable_append,_preparation.get("phase",""),_trace_prefix(_preparation.get("runtime_roots",[]),nodes),_trace_prefix(_residency_bins.get("runtime_roots",[]),nodes),_residency_bins.get("immutable_append",false),get_stack()])
 	# Streaming appends immutable sources. Keep the already collected names
 	# while that exact root prefix survives; arbitrary editor requests still
 	# supersede preparation through request_sync. Native array comparison uses
@@ -371,22 +397,23 @@ func request_residency_sync(nodes:Array,excluded:Array=[],immutable_append:bool=
 			else:_preparation.items.append_array(additions)
 			_preparation.runtime_roots=nodes.duplicate()
 			return
-	# Once grouping is complete, finish its bounded drop/add pass. Appending a
-	# source cannot invalidate that subset. Restarting here threw away the raw
-	# bins just before they became reusable, on nearly every publication burst.
-	if sliced_source_collection_enabled and _preparation.has("runtime_roots") and _preparation.phase in ["unique","filter","drop","add"] and _preparation.runtime_excluded==excluded and _preparation.runtime_enabled==enabled:
+	# Finish a bounded prune or final drop/add pass before taking its append.
+	# The existing prefix remains valid; restarting here discards prepared owners
+	# just before their raw bins become reusable.
+	if sliced_source_collection_enabled and _preparation.has("runtime_roots") and _preparation.phase in ["prune","unique","filter","drop","add"] and _preparation.runtime_excluded==excluded and _preparation.runtime_enabled==enabled:
 		var previous:Array=_preparation.runtime_roots
 		if nodes.size()>=previous.size() and nodes.slice(0,previous.size())==previous:
 			if nodes.size()>previous.size():_next_residency={"nodes":nodes.duplicate(),"excluded":excluded.duplicate(),"immutable_append":immutable_append}
 			return
 	var completed:Dictionary=_residency_bins
 	var reuse_completed:=false
+	var reuse_retired:bool=incremental_source_retirement_enabled and immutable_append and completed.get("immutable_append",false) and completed.get("retirement_pending",false) and completed.runtime_excluded==excluded and completed.runtime_enabled==enabled
 	if sliced_source_collection_enabled and immutable_append and completed.get("immutable_append",false) and completed.runtime_excluded==excluded and completed.runtime_enabled==enabled:
 		var previous:Array=completed.runtime_roots
 		reuse_completed=nodes.size()>=previous.size() and nodes.slice(0,previous.size())==previous
 		if reuse_completed:
 			completed_prefix_reuses+=1;completed_source_visits_avoided+=completed.named.size()
-			if nodes.size()==previous.size() and _preparation.get("phase")!="await_sources":return
+			if nodes.size()==previous.size() and _preparation.get("phase")!="await_sources" and not reuse_retired:return
 	request_sync(nodes,excluded)
 	_preparation.runtime_roots=nodes.duplicate();_preparation.runtime_excluded=excluded.duplicate();_preparation.runtime_enabled=enabled
 	_preparation.immutable_append=immutable_append
@@ -405,7 +432,16 @@ func request_residency_sync(nodes:Array,excluded:Array=[],immutable_append:bool=
 		# Collection remains complete so removals and changed eligibility are seen.
 		for field:String in ["prepared_descriptors","bin_names","bin_keys","desired"]:_preparation[field]=completed[field]
 		for field:String in ["bin_pending","bin_last_name"]:_preparation[field]=completed.get(field,{})
-		if reuse_completed:
+		for field:String in ["dirty_bins","bin_rebuild"]:
+			if completed.has(field):_preparation[field]=completed[field]
+		if reuse_retired:
+			# Recollect/prune on the existing cursor, so unknown omissions, duplicate
+			# names and replacements still reconcile against the authoritative list.
+			# Only exact surviving immutable Node owners bypass preparation; a
+			# replacement under the same UUID is still a new source.
+			_preparation.refresh_bins=true;_preparation.retirement_names=completed.named
+			retirement_reconciliations+=1
+		elif reuse_completed:
 			# The streaming owner explicitly promises unchanged prefix sources.
 			# Retain collected names and prepared bins across a completed round,
 			# exactly as during an unfinished round. Generic/editor callers still
@@ -414,6 +450,21 @@ func request_residency_sync(nodes:Array,excluded:Array=[],immutable_append:bool=
 			_preparation.named=completed.named
 			_preparation.items=nodes.slice(completed.runtime_roots.size())
 		else:_preparation.refresh_bins=true
+
+func _trace_bin_reset(reason:String,nodes:Array=[])->void:
+	var owners:Array=[]
+	for node:Variant in nodes.slice(0,4):owners.append(_trace_owner(node))
+	Timeline.record("bin_reset",sync_count,Time.get_ticks_usec(),[reason,_preparation.get("phase",""),_preparation.get("named",{}).size(),_residency_bins.get("named",{}).size(),nodes.size(),owners,get_stack()])
+
+static func _trace_owner(value:Variant)->Variant:
+	if value is String or value is StringName:return str(value)
+	return [str(value.name),value.get_instance_id()] if value is Node and is_instance_valid(value) else ["invalid",0]
+
+static func _trace_prefix(previous:Array,current:Array)->Array:
+	var first:=-1
+	for i:int in mini(previous.size(),current.size()):
+		if previous[i]!=current[i]:first=i;break
+	return [previous.size(),first,_trace_owner(previous[first]) if first>=0 else null,_trace_owner(current[first]) if first>=0 else null]
 
 func _collect_named(state:Dictionary,node:Node)->void:
 	var key:=str(node.name)
@@ -426,7 +477,9 @@ func _collect_named(state:Dictionary,node:Node)->void:
 		if not owner.is_empty() and spec.get("render_building","")==owner and state.unit_groups.has(owner) and Geometry.category(record)=="building":
 			if not state.unit_candidates.has(owner):state.unit_candidates[owner]=[]
 			state.unit_candidates[owner].append(key)
-	if state.get("refresh_bins",false):state.prepare_names[key]=true
+	if state.get("refresh_bins",false):
+		if state.has("retirement_names") and state.retirement_names.get(key)==node:retirement_prepares_avoided+=1
+		else:state.prepare_names[key]=true
 	elif state.has("prepared_descriptors") and state.named.get(key)!=node:
 		_remove_prepared_descriptor(state,key);state.prepare_names[key]=true
 	state.named[key]=node
@@ -1121,6 +1174,7 @@ func stats(category: String="") -> Dictionary:
 	result.bin_ledger_reused_rows=bin_ledger_reused_rows;result.bin_ledger_invalidated_buckets=bin_ledger_invalidated_buckets;result.bin_ledger_invalidated_rows=bin_ledger_invalidated_rows
 	result.completed_prefix_reuses=completed_prefix_reuses;result.completed_source_visits_avoided=completed_source_visits_avoided
 	result.suspended_source_uploads=suspended_source_uploads
+	result.retirement_reconciliations=retirement_reconciliations;result.retirement_prepares_avoided=retirement_prepares_avoided;result.empty_retirements_skipped=empty_retirements_skipped
 	result.production_turns_while_preparing=production_turns_while_preparing
 	result.closed_units_prepared=closed_units_prepared;result.closed_unit_groups_admitted=closed_unit_groups_admitted
 	result.covered_source_waits=covered_source_waits
