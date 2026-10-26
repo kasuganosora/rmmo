@@ -1,0 +1,41 @@
+--- a/scene/resources/3d/shape_3d.cpp
++++ b/scene/resources/3d/shape_3d.cpp
+@@ -30,6 +30,8 @@
+ 
+ #include "core/object/rmmo_release169.h"
+ #include "shape_3d.h"
++
++#include "core/os/os.h"
+ 
+ #include "core/object/class_db.h"
+ #include "scene/main/scene_tree.h"
+@@ -76,7 +78,13 @@
+ #ifdef DEBUG_ENABLED
+ 	debug_properties_edited = true;
+ #endif // DEBUG_ENABLED
+-	_update_shape();
++	// Presentation changes invalidate the debug mesh, not the physics geometry.
++	static const bool debug_refresh_only = OS::get_singleton()->get_environment("RMMO_SHAPE_DEBUG_REFRESH_ONLY") != "0";
++	if (debug_refresh_only) {
++		Shape3D::_update_shape();
++	} else {
++		_update_shape();
++	}
+ }
+ 
+ Color Shape3D::get_debug_color() const {
+@@ -92,7 +100,13 @@
+ #ifdef DEBUG_ENABLED
+ 	debug_properties_edited = true;
+ #endif // DEBUG_ENABLED
+-	_update_shape();
++	// Presentation changes invalidate the debug mesh, not the physics geometry.
++	static const bool debug_refresh_only = OS::get_singleton()->get_environment("RMMO_SHAPE_DEBUG_REFRESH_ONLY") != "0";
++	if (debug_refresh_only) {
++		Shape3D::_update_shape();
++	} else {
++		_update_shape();
++	}
+ }
+ 
+ bool Shape3D::get_debug_fill() const {

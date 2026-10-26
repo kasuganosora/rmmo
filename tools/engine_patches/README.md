@@ -321,3 +321,71 @@ It is **not installed** in `D:/tools/godot`. Real-map timings
 and unresolved long frames, including concurrent host-load evidence, are
 recorded in `docs/axel_shader_transfer_20261026.md`. Do not install this candidate
 based only on the independent transfer benchmark.
+
+## Vulkan shader CPU preparation candidate (2026-10-26)
+
+Apply `godot-4.7.2-shader-cpu-prepare.patch` after the compact transfer patch.
+It moves per-call container decoding, reflection and re-spirv preparation out
+of the RenderingDevice mutex. Sampler lookup, GPU creation and RID publication
+remain locked. Reflection is built once; no shared parsed-shader cache is added.
+Other backends retain their existing driver entrypoint and are not validated here.
+
+`RMMO_SHADER_PREPARE_UNLOCKED=0/1` compares lock scopes in the same binary.
+The final patch defaults to locked preparation; explicitly set `=1` to opt in.
+Earlier engine03 experiment artifacts defaulted to unlocked preparation, with
+their original source preserved separately. Their explicit 0/1 comparisons
+remain valid for those recorded binary identities.
+`RMMO_RESPV_PROFILE=1` adds prepare/commit and decoded-buffer fields to the
+existing native record. Diagnostic total is prepare + commit, excluding the
+intervening lock wait; it is not main-thread CPU or complete API wall time.
+
+Run `res://tools/stress_shader_creation_lock.gd` through
+`tools/run_godot_background.py`, with `--inputs-dir=<external captured .spv dir>`,
+`--output=<new external JSON>` and `--rounds=32`. Two workers partition the same
+16 largest inputs, creating/freeing 512 RIDs. Normal mode has no per-frame file
+writes. `--gate-file` and `--progress-prefix` are debugger-only controls and
+must not be enabled in normal timing comparisons.
+
+`res://tools/test_shader_preparation_failure.gd -- --output=<external JSON>`
+corrupts only a local copy's second stage, then retries into the same placeholder.
+Expect exactly four malformed-SMOL-V errors and four preparation-return errors;
+all other errors are failures. The old driver instead reports four `!shader_id`
+return errors. Do not suppress arbitrary native errors in a runner.
+
+The isolated engine03 passes GPU publication/batching, 36 residency checks,
+failure/retry checks and an actual two-worker debugger suspension comparison.
+The Windows debugger is still all-stop; the owned fixture uses balanced Win32
+thread suspension to isolate one worker. See `docs/axel_shader_cpu_prepare_20261026.md`
+for hashes, normal map comparison, retained failures and memory boundaries.
+Cached variants are still created sequentially within each ShaderRD group.
+
+The normal-map `map12` repeat had no observed competing Godot/Blender/compiler
+processes. It still did not establish overall benefit: mean full-ready was
+10.896s locked versus 11.242s unlocked, and reload 1% low was 26.931 versus
+24.657 FPS. Preserve this candidate and its independent lock-decoupling proof,
+but do not install it on the basis of the microbenchmark alone.
+
+## Collision debug appearance must not rebuild physics (2026-10-26)
+
+`godot-4.7.2-shape-debug-refresh.patch` makes Shape3D debug color/fill setters
+explicitly call the base debug-cache invalidation, retaining change signals.
+Virtual dispatch previously reached ConcavePolygonShape3D's full physics update.
+In DEBUG_ENABLED node binding, this rebuilt an already prepared BVH on the main
+thread merely to propagate the default collision debug color.
+
+`RMMO_SHAPE_DEBUG_REFRESH_ONLY=0/1` controls the old/new path in one binary.
+`tools/test_collision_debug_refresh.gd` runs headless in an empty external project
+with `--output=<external JSON>` and optional `--cells=96`. It checks shared shape
+notifications, no-op edits, RID identity, ray queries and actual geometry/backface
+changes. The independent GDB fixture counts 40 to 3 native BVH builds while all
+40 debug refreshes remain; four stress runs each pass 49 assertions. Real GPU
+collision/product/material regressions add 149 passing assertions.
+
+See `docs/axel_collision_debug_refresh_20261026.md` for compiled identities,
+the failed winding fixture retained before correction, and real-map evidence.
+The full-map comparison fixes shader CPU preparation to its locked control so
+that only collision debug invalidation changes. All four map07 samples overlapped
+other Blender/Godot work; they are retained, not a stable performance claim.
+The final default-config engine09 passes another 198 checks, but its first map
+smoke test took 22.334s without sufficient attribution. Default installation is
+therefore pending; the ordinary D:/tools/godot installation remains unchanged.

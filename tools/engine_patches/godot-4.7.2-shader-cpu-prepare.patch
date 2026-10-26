@@ -1,0 +1,332 @@
+--- a/servers/rendering/rendering_device_driver.h
++++ b/servers/rendering/rendering_device_driver.h
+@@ -516,4 +516,12 @@
+ 	// specified when creating uniform sets PSO resource for binding.
+ 	virtual ShaderID shader_create_from_container(const Ref<RenderingShaderContainer> &p_shader_container, const Vector<ImmutableSampler> &p_immutable_samplers) = 0;
++	// Preparation owns only this call's container data and must not access GPU objects,
++	// RID owners or mutable driver state. Commit remains under the RenderingDevice lock.
++	virtual bool supports_shader_cpu_preparation() const { return false; }
++	virtual bool shader_prepare_from_container(const Ref<RenderingShaderContainer> &p_shader_container, const ShaderReflection &p_reflection) { return true; }
++	virtual ShaderID shader_create_from_prepared_container(const Ref<RenderingShaderContainer> &p_shader_container, const ShaderReflection &p_reflection, const Vector<ImmutableSampler> &p_immutable_samplers) {
++		return shader_create_from_container(p_shader_container, p_immutable_samplers);
++	}
++
+ 	// Only meaningful if API_TRAIT_SHADER_CHANGE_INVALIDATION is SHADER_CHANGE_INVALIDATION_ALL_OR_NONE_ACCORDING_TO_LAYOUT_HASH.
+ 	virtual uint32_t shader_get_layout_hash(ShaderID p_shader) { return 0; }
+--- a/servers/rendering/rendering_device.cpp
++++ b/servers/rendering/rendering_device.cpp
+@@ -4171,11 +4171,25 @@
+ 
+ RID RenderingDevice::shader_create_from_bytecode_with_samplers(const Vector<uint8_t> &p_shader_binary, RID p_placeholder, const Vector<PipelineImmutableSampler> &p_immutable_samplers) {
++	static const bool unlocked = OS::get_singleton()->get_environment("RMMO_SHADER_PREPARE_UNLOCKED") == "1";
++	const bool prepare_outside_lock = unlocked && driver->supports_shader_cpu_preparation();
++	// Declare owned CPU data before the final lock so its destruction is also unlocked.
++	Ref<RenderingShaderContainer> shader_container;
++	{
++		_THREAD_SAFE_METHOD_
++		shader_container = driver->get_shader_container_format().create_container();
++	}
++	ERR_FAIL_COND_V(shader_container.is_null(), RID());
++	ShaderReflection shader_reflection;
++	if (prepare_outside_lock) {
++		ERR_FAIL_COND_V_MSG(!shader_container->from_bytes(p_shader_binary), RID(), "Failed to parse shader container from binary.");
++		shader_reflection = shader_container->get_shader_reflection();
++		ERR_FAIL_COND_V(!driver->shader_prepare_from_container(shader_container, shader_reflection), RID());
++	}
+ 	_THREAD_SAFE_METHOD_
+-
+-	Ref<RenderingShaderContainer> shader_container = driver->get_shader_container_format().create_container();
+-	ERR_FAIL_COND_V(shader_container.is_null(), RID());
+-
+-	bool parsed_container = shader_container->from_bytes(p_shader_binary);
+-	ERR_FAIL_COND_V_MSG(!parsed_container, RID(), "Failed to parse shader container from binary.");
++	if (!prepare_outside_lock) {
++		ERR_FAIL_COND_V_MSG(!shader_container->from_bytes(p_shader_binary), RID(), "Failed to parse shader container from binary.");
++		shader_reflection = shader_container->get_shader_reflection();
++		ERR_FAIL_COND_V(!driver->shader_prepare_from_container(shader_container, shader_reflection), RID());
++	}
+ 
+ 	Vector<RDD::ImmutableSampler> driver_immutable_samplers;
+@@ -4193,5 +4207,5 @@
+ 	}
+ 
+-	RDD::ShaderID shader_id = driver->shader_create_from_container(shader_container, driver_immutable_samplers);
++	RDD::ShaderID shader_id = driver->shader_create_from_prepared_container(shader_container, shader_reflection, driver_immutable_samplers);
+ 	ERR_FAIL_COND_V(!shader_id, RID());
+ 
+@@ -4208,5 +4222,5 @@
+ 	ERR_FAIL_NULL_V(shader, RID());
+ 
+-	*((ShaderReflection *)shader) = shader_container->get_shader_reflection();
++	*((ShaderReflection *)shader) = std::move(shader_reflection);
+ 	shader->name.clear();
+ 	shader->name.append_utf8(shader_container->shader_name);
+--- a/drivers/vulkan/rendering_device_driver_vulkan.h
++++ b/drivers/vulkan/rendering_device_driver_vulkan.h
+@@ -496,4 +496,8 @@
+ public:
+ 	virtual ShaderID shader_create_from_container(const Ref<RenderingShaderContainer> &p_shader_container, const Vector<ImmutableSampler> &p_immutable_samplers) override final;
++	virtual bool supports_shader_cpu_preparation() const override final { return true; }
++	virtual bool shader_prepare_from_container(const Ref<RenderingShaderContainer> &p_shader_container, const ShaderReflection &p_reflection) override final;
++	virtual ShaderID shader_create_from_prepared_container(const Ref<RenderingShaderContainer> &p_shader_container, const ShaderReflection &p_reflection, const Vector<ImmutableSampler> &p_immutable_samplers) override final;
++
+ 	virtual void shader_free(ShaderID p_shader) override final;
+ 
+--- a/drivers/vulkan/rendering_device_driver_vulkan.cpp
++++ b/drivers/vulkan/rendering_device_driver_vulkan.cpp
+@@ -4267,10 +4267,119 @@
+ };
+ 
++bool RenderingDeviceDriverVulkan::shader_prepare_from_container(const Ref<RenderingShaderContainer> &p_shader_container, const ShaderReflection &shader_refl) {
++	auto *container = static_cast<RenderingShaderContainerVulkan *>(p_shader_container.ptr());
++	if (container->prepared.ready) {
++		return true;
++	}
++	static const bool profile_respv = OS::get_singleton()->get_environment("RMMO_RESPV_PROFILE") == "1";
++	static const bool move_shader_data = OS::get_singleton()->get_environment("RMMO_SHADER_TRANSFER_MOVE") != "0";
++	const uint64_t began = profile_respv ? OS::get_singleton()->get_ticks_usec() : 0;
++	uint64_t decode_us = 0, parse_us = 0, transfer_us = 0;
++	const bool use_respv = (RESPV_ENABLED == 1) && !shader_container_format.get_debug_info_enabled();
++	const bool store_respv = use_respv && !shader_refl.specialization_constants.is_empty();
++	const int64_t stage_count = shader_refl.stages_vector.size();
++	String error_text;
++	Vector<uint8_t> decompressed_code;
++	container->prepared.stages.resize(stage_count);
++	for (int i = 0; i < stage_count; i++) {
++		auto &stage = container->prepared.stages[i];
++		PackedByteArray &decoded_spirv = stage.spirv;
++		const uint64_t decode_begin = profile_respv ? OS::get_singleton()->get_ticks_usec() : 0;
++		const RenderingShaderContainer::Shader &shader = p_shader_container->shaders[i];
++		bool requires_decompression = (shader.code_decompressed_size > 0);
++		if (requires_decompression) {
++			decompressed_code.resize(shader.code_decompressed_size);
++			bool decompressed = p_shader_container->decompress_code(shader.code_compressed_bytes.ptr(), shader.code_compressed_bytes.size(), shader.code_compression_flags, decompressed_code.ptrw(), decompressed_code.size());
++			if (!decompressed) {
++				error_text = vformat("Failed to decompress code on shader stage %s.", String(SHADER_STAGE_NAMES[shader_refl.stages_vector[i]]));
++				break;
++			}
++		}
++
++		const uint8_t *smolv_input = requires_decompression ? decompressed_code.ptr() : shader.code_compressed_bytes.ptr();
++		uint32_t smolv_input_size = requires_decompression ? decompressed_code.size() : shader.code_compressed_bytes.size();
++		if (shader.code_compression_flags & RenderingShaderContainerVulkan::COMPRESSION_FLAG_SMOLV) {
++			decoded_spirv.resize(smolv::GetDecodedBufferSize(smolv_input, smolv_input_size));
++			if (decoded_spirv.is_empty()) {
++				error_text = vformat("Malformed smolv input on shader stage %s.", String(SHADER_STAGE_NAMES[shader_refl.stages_vector[i]]));
++				break;
++			}
++
++			if (!smolv::Decode(smolv_input, smolv_input_size, decoded_spirv.ptrw(), decoded_spirv.size())) {
++				error_text = vformat("Malformed smolv input on shader stage %s.", String(SHADER_STAGE_NAMES[shader_refl.stages_vector[i]]));
++				break;
++			}
++		} else {
++			decoded_spirv.resize(smolv_input_size);
++			memcpy(decoded_spirv.ptrw(), smolv_input, decoded_spirv.size());
++		}
++
++		if (profile_respv) { decode_us += OS::get_singleton()->get_ticks_usec() - decode_begin; }
++		stage.original_size = decoded_spirv.size();
++
++		if (use_respv) {
++			const bool inline_data = store_respv || (RESPV_ONLY_INLINE_SHADERS_WITH_SPEC_CONSTANTS == 0);
++			const uint64_t parse_begin = profile_respv ? OS::get_singleton()->get_ticks_usec() : 0;
++			respv::Shader respv_shader(decoded_spirv.ptr(), decoded_spirv.size(), inline_data);
++			if (profile_respv) { parse_us += OS::get_singleton()->get_ticks_usec() - parse_begin; }
++			if (respv_shader.empty()) {
++#if RESPV_VERBOSE
++				print_line("re-spirv failed to parse the shader, skipping optimization.");
++#endif
++			} else if (store_respv) {
++				const uint64_t transfer_begin = profile_respv ? OS::get_singleton()->get_ticks_usec() : 0;
++				if (move_shader_data) {
++					rmmo_compact_shader_data(respv_shader);
++				}
++				stage.parsed = std::move(respv_shader);
++				if (profile_respv) { transfer_us += OS::get_singleton()->get_ticks_usec() - transfer_begin; }
++			} else {
++				std::vector<uint8_t> respv_optimized_data;
++				if (respv::Optimizer::run(respv_shader, nullptr, 0, respv_optimized_data)) {
++#if RESPV_VERBOSE
++					print_line(vformat("re-spirv transformed the shader from %d bytes to %d bytes.", decoded_spirv.size(), respv_optimized_data.size()));
++#endif
++					decoded_spirv.resize(respv_optimized_data.size());
++					memcpy(decoded_spirv.ptrw(), respv_optimized_data.data(), respv_optimized_data.size());
++				} else {
++#if RESPV_VERBOSE
++					print_line("re-spirv failed to optimize the shader.");
++#endif
++				}
++			}
++		}
++
++		if (profile_respv) {
++			container->prepared.buffered_bytes += decoded_spirv.size();
++			container->prepared.largest_stage_bytes = MAX(container->prepared.largest_stage_bytes, uint64_t(decoded_spirv.size()));
++		}
++	}
++	ERR_FAIL_COND_V_MSG(!error_text.is_empty(), false, error_text);
++	container->prepared.store_respv = store_respv;
++	container->prepared.ready = true;
++	if (profile_respv) {
++		container->prepared.total_us = OS::get_singleton()->get_ticks_usec() - began;
++		container->prepared.decode_us = decode_us;
++		container->prepared.parse_us = parse_us;
++		container->prepared.transfer_us = transfer_us;
++	}
++	return true;
++}
++
+ RDD::ShaderID RenderingDeviceDriverVulkan::shader_create_from_container(const Ref<RenderingShaderContainer> &p_shader_container, const Vector<ImmutableSampler> &p_immutable_samplers) {
++	const ShaderReflection reflection = p_shader_container->get_shader_reflection();
++	ERR_FAIL_COND_V(!shader_prepare_from_container(p_shader_container, reflection), ShaderID());
++	return shader_create_from_prepared_container(p_shader_container, reflection, p_immutable_samplers);
++}
++
++RDD::ShaderID RenderingDeviceDriverVulkan::shader_create_from_prepared_container(const Ref<RenderingShaderContainer> &p_shader_container, const ShaderReflection &shader_refl, const Vector<ImmutableSampler> &p_immutable_samplers) {
+ 	static const bool profile_respv = OS::get_singleton()->get_environment("RMMO_RESPV_PROFILE") == "1";
+ 	static const bool move_shader_data = OS::get_singleton()->get_environment("RMMO_SHADER_TRANSFER_MOVE") != "0";
+ 	const uint64_t profile_begin = profile_respv ? OS::get_singleton()->get_ticks_usec() : 0;
+-	uint64_t decode_us = 0, parse_us = 0, transfer_us = 0, module_us = 0;
+-	ShaderReflection shader_refl = p_shader_container->get_shader_reflection();
++	auto *container = static_cast<RenderingShaderContainerVulkan *>(p_shader_container.ptr());
++	DEV_ASSERT(container->prepared.ready);
++	const auto &prepared = container->prepared;
++	const uint64_t decode_us = prepared.decode_us, parse_us = prepared.parse_us;
++	uint64_t transfer_us = prepared.transfer_us, module_us = 0;
+ 	ShaderInfo shader_info;
+ 	shader_info.name = p_shader_container->shader_name.get_data();
+@@ -4364,9 +4473,6 @@
+ 	VkResult res;
+ 	String error_text;
+-	Vector<uint8_t> decompressed_code;
+ 	VkShaderModule vk_module;
+-	PackedByteArray decoded_spirv;
+-	const bool use_respv = (RESPV_ENABLED == 1) && !shader_container_format.get_debug_info_enabled();
+-	const bool store_respv = use_respv && !shader_refl.specialization_constants.is_empty();
++	const bool store_respv = prepared.store_respv;
+ 	const int64_t stage_count = shader_refl.stages_vector.size();
+ 	shader_info.vk_stages_create_info.reserve(stage_count);
+@@ -4382,72 +4488,15 @@
+ 
+ 	for (int i = 0; i < stage_count; i++) {
+-		const uint64_t decode_begin = profile_respv ? OS::get_singleton()->get_ticks_usec() : 0;
+-		const RenderingShaderContainer::Shader &shader = p_shader_container->shaders[i];
+-		bool requires_decompression = (shader.code_decompressed_size > 0);
+-		if (requires_decompression) {
+-			decompressed_code.resize(shader.code_decompressed_size);
+-			bool decompressed = p_shader_container->decompress_code(shader.code_compressed_bytes.ptr(), shader.code_compressed_bytes.size(), shader.code_compression_flags, decompressed_code.ptrw(), decompressed_code.size());
+-			if (!decompressed) {
+-				error_text = vformat("Failed to decompress code on shader stage %s.", String(SHADER_STAGE_NAMES[shader_refl.stages_vector[i]]));
+-				break;
++		auto &stage = container->prepared.stages[i];
++		const PackedByteArray &decoded_spirv = stage.spirv;
++		shader_info.original_stage_size.push_back(stage.original_size);
++		if (store_respv) {
++			const uint64_t transfer_begin = profile_respv ? OS::get_singleton()->get_ticks_usec() : 0;
++			if (move_shader_data) {
++				shader_info.respv_stage_shaders.push_back(std::move(stage.parsed));
++			} else {
++				shader_info.respv_stage_shaders.push_back(stage.parsed);
+ 			}
+-		}
+-
+-		const uint8_t *smolv_input = requires_decompression ? decompressed_code.ptr() : shader.code_compressed_bytes.ptr();
+-		uint32_t smolv_input_size = requires_decompression ? decompressed_code.size() : shader.code_compressed_bytes.size();
+-		if (shader.code_compression_flags & RenderingShaderContainerVulkan::COMPRESSION_FLAG_SMOLV) {
+-			decoded_spirv.resize(smolv::GetDecodedBufferSize(smolv_input, smolv_input_size));
+-			if (decoded_spirv.is_empty()) {
+-				error_text = vformat("Malformed smolv input on shader stage %s.", String(SHADER_STAGE_NAMES[shader_refl.stages_vector[i]]));
+-				break;
+-			}
+-
+-			if (!smolv::Decode(smolv_input, smolv_input_size, decoded_spirv.ptrw(), decoded_spirv.size())) {
+-				error_text = vformat("Malformed smolv input on shader stage %s.", String(SHADER_STAGE_NAMES[shader_refl.stages_vector[i]]));
+-				break;
+-			}
+-		} else {
+-			decoded_spirv.resize(smolv_input_size);
+-			memcpy(decoded_spirv.ptrw(), smolv_input, decoded_spirv.size());
+-		}
+-
+-		if (profile_respv) { decode_us += OS::get_singleton()->get_ticks_usec() - decode_begin; }
+-		shader_info.original_stage_size.push_back(decoded_spirv.size());
+-
+-		if (use_respv) {
+-			const bool inline_data = store_respv || (RESPV_ONLY_INLINE_SHADERS_WITH_SPEC_CONSTANTS == 0);
+-			const uint64_t parse_begin = profile_respv ? OS::get_singleton()->get_ticks_usec() : 0;
+-			respv::Shader respv_shader(decoded_spirv.ptr(), decoded_spirv.size(), inline_data);
+-			if (profile_respv) { parse_us += OS::get_singleton()->get_ticks_usec() - parse_begin; }
+-			if (respv_shader.empty()) {
+-#if RESPV_VERBOSE
+-				print_line("re-spirv failed to parse the shader, skipping optimization.");
+-#endif
+-				if (store_respv) {
+-					shader_info.respv_stage_shaders.push_back(respv::Shader());
+-				}
+-			} else if (store_respv) {
+-				const uint64_t transfer_begin = profile_respv ? OS::get_singleton()->get_ticks_usec() : 0;
+-				if (move_shader_data) {
+-					rmmo_compact_shader_data(respv_shader);
+-					shader_info.respv_stage_shaders.push_back(std::move(respv_shader));
+-				} else {
+-					shader_info.respv_stage_shaders.push_back(respv_shader);
+-				}
+-				if (profile_respv) { transfer_us += OS::get_singleton()->get_ticks_usec() - transfer_begin; }
+-			} else {
+-				std::vector<uint8_t> respv_optimized_data;
+-				if (respv::Optimizer::run(respv_shader, nullptr, 0, respv_optimized_data)) {
+-#if RESPV_VERBOSE
+-					print_line(vformat("re-spirv transformed the shader from %d bytes to %d bytes.", decoded_spirv.size(), respv_optimized_data.size()));
+-#endif
+-					decoded_spirv.resize(respv_optimized_data.size());
+-					memcpy(decoded_spirv.ptrw(), respv_optimized_data.data(), respv_optimized_data.size());
+-				} else {
+-#if RESPV_VERBOSE
+-					print_line("re-spirv failed to optimize the shader.");
+-#endif
+-				}
+-			}
++			if (profile_respv) { transfer_us += OS::get_singleton()->get_ticks_usec() - transfer_begin; }
+ 		}
+ 
+@@ -4554,5 +4603,6 @@
+ 	if (profile_respv) {
+ 		transfer_us += OS::get_singleton()->get_ticks_usec() - transfer_begin;
+-		print_line(vformat("RMMO_SHADER_BUILD name=%s total_us=%d stages=%d decode_us=%d parse_us=%d transfer_us=%d module_us=%d move=%d", shader_info_ptr->name, OS::get_singleton()->get_ticks_usec() - profile_begin, stage_count, decode_us, parse_us, transfer_us, module_us, int(move_shader_data)));
++		const uint64_t commit_us = OS::get_singleton()->get_ticks_usec() - profile_begin;
++		print_line(vformat("RMMO_SHADER_BUILD name=%s total_us=%d stages=%d decode_us=%d parse_us=%d transfer_us=%d module_us=%d move=%d prepare_us=%d commit_us=%d buffered_bytes=%d largest_stage_bytes=%d", shader_info_ptr->name, prepared.total_us + commit_us, stage_count, decode_us, parse_us, transfer_us, module_us, int(move_shader_data), prepared.total_us, commit_us, prepared.buffered_bytes, prepared.largest_stage_bytes));
+ 	}
+ 	return ShaderID(shader_info_ptr);
+--- a/drivers/vulkan/rendering_shader_container_vulkan.h
++++ b/drivers/vulkan/rendering_shader_container_vulkan.h
+@@ -33,4 +33,6 @@
+ #include "servers/rendering/rendering_shader_container.h"
+ 
++#include <thirdparty/re-spirv/re-spirv.h>
++
+ class RenderingShaderContainerVulkan : public RenderingShaderContainer {
+ 	GDSOFTCLASS(RenderingShaderContainerVulkan, RenderingShaderContainer);
+@@ -44,4 +46,22 @@
+ 
+ 	bool debug_info_enabled = false;
++	// Transient, single-call CPU data. Not serialized, shared, or stored in a cache.
++	struct PreparedStage {
++		PackedByteArray spirv;
++		respv::Shader parsed;
++		uint64_t original_size = 0;
++	};
++	struct PreparedData {
++		LocalVector<PreparedStage> stages;
++		bool ready = false;
++		bool store_respv = false;
++		uint64_t total_us = 0;
++		uint64_t decode_us = 0;
++		uint64_t parse_us = 0;
++		uint64_t transfer_us = 0;
++		uint64_t buffered_bytes = 0;
++		uint64_t largest_stage_bytes = 0;
++	} prepared;
++
+ 
+ protected:
