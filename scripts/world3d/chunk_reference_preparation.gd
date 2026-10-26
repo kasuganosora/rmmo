@@ -20,7 +20,7 @@ static func _fail(reason: String, cancelled: bool = false, failed_uuid: String =
 static func _cancelled(token: RefCounted) -> bool:
 	return token != null and token.is_cancelled()
 
-static func prepare(index: Dictionary, requested_entries: Array, path: String, content_root: String, token: RefCounted = null, ownership_proof: OwnershipProof = null, texture_plan: Dictionary = {}, shared_pixels:Dictionary={},collision_workspace:int=0,trusted_package:bool=false,hydrated_records:Dictionary={},parallel_pixels:bool=false) -> Dictionary:
+static func prepare(index: Dictionary, requested_entries: Array, path: String, content_root: String, token: RefCounted = null, ownership_proof: OwnershipProof = null, texture_plan: Dictionary = {}, shared_pixels:Dictionary={},collision_workspace:int=0,trusted_package:bool=false,hydrated_records:Dictionary={},parallel_pixels:bool=false,paint_workspace:int=0) -> Dictionary:
 	var started := Time.get_ticks_usec()
 	var mounted_snapshot:=trusted_package and trusted_directory_snapshot_enabled
 	if _cancelled(token): return _fail("区块引用准备已取消", true)
@@ -184,6 +184,7 @@ static func prepare(index: Dictionary, requested_entries: Array, path: String, c
 			terrain_contexts[record.uuid]=current
 		dependencies.merge(terrain_dependencies,true)
 	var surface_bounds:Dictionary={};var cached_bounds:=0
+	var surface_paints:Dictionary={};var paint_us:=0;var paint_bytes:=0
 	var surface_uploads:Dictionary={};var upload_bytes:=0;var upload_us:=0
 	for item: Dictionary in roads:
 		var record:Dictionary=item.record
@@ -191,6 +192,13 @@ static func prepare(index: Dictionary, requested_entries: Array, path: String, c
 		if not road.error.is_empty(): return _fail(str(road.error), bool(road.cancelled), str(record.uuid))
 		if road.get("cache_hit",false):road_cache_hits+=1
 		surface_arrays[record.uuid] = road.arrays
+		var paint:Dictionary={}
+		if paint_workspace>=int(item.budget.estimated_bytes):
+			paint_workspace-=int(item.budget.estimated_bytes)
+			paint=preload("res://scripts/world3d/surface_paint_preparation.gd").for_road(record,road.arrays,item.budget,token)
+		if _cancelled(token):return _fail("区块引用准备已取消",true)
+		if paint.get("ok",false):
+			surface_paints[record.uuid]=paint;paint_us+=int(paint.elapsed_us);paint_bytes+=int(paint.output_bytes)
 		if road.get("upload")!=null:
 			surface_uploads[record.uuid]=road.upload;upload_bytes+=road.upload.bytes
 		upload_us+=int(road.get("upload_us",0))
@@ -243,11 +251,12 @@ static func prepare(index: Dictionary, requested_entries: Array, path: String, c
 	profile.surface_bounds_us=surface_bounds_us;profile.surface_bounds_count=surface_bounds.size()
 	profile.surface_upload_bytes=upload_bytes;profile.surface_upload_us=upload_us;profile.surface_upload_records=surface_uploads.size()
 	profile.cached_surface_bounds=cached_bounds;profile.scanned_surface_bounds=surface_bounds.size()-cached_bounds
+	profile.road_paint_us=paint_us;profile.road_paint_bytes=paint_bytes;profile.road_paint_records=surface_paints.size()
 	profile.prefab_textures=texture_packet.get("profile",{})
 	for prepared:Dictionary in prefab_cpu.values():
 		for field:String in prepared.get("face_work",{}):profile["prefab_faces_"+field]=int(profile.get("prefab_faces_"+field,0))+int(prepared.face_work[field])
 	profile.collision_products=collision_metrics
-	return {"error": "", "cancelled": false, "records": restored.records, "record_indices": positions, "dependencies": dependencies, "prefab_cpu":prefab_cpu, "prefab_texture_packet":texture_packet, "waiting_pixels":texture_packet.get("waiting_pixels",false), "surface_arrays":surface_arrays,"surface_bounds":surface_bounds,"surface_uploads":surface_uploads,"terrain_contexts":terrain_contexts, "read_profile": profile, "selected_closure_verified": true, "closure_complete": false}
+	return {"error": "", "cancelled": false, "records": restored.records, "record_indices": positions, "dependencies": dependencies, "prefab_cpu":prefab_cpu, "prefab_texture_packet":texture_packet, "waiting_pixels":texture_packet.get("waiting_pixels",false), "surface_arrays":surface_arrays,"surface_bounds":surface_bounds,"surface_paints":surface_paints,"surface_uploads":surface_uploads,"terrain_contexts":terrain_contexts, "read_profile": profile, "selected_closure_verified": true, "closure_complete": false}
 
 static func _restore_records(compact:Array,path:String,root:String,dependencies:Dictionary,trusted:bool,hydrated:Dictionary)->Dictionary:
 	if not trusted or hydrated.is_empty():return Store.read_records(compact,path,root,dependencies,1,trusted)

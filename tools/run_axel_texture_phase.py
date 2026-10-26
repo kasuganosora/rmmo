@@ -46,6 +46,7 @@ def main():
     parser.add_argument("--texture-profile", action="store_true")
     parser.add_argument("--batch-timeline", action="store_true")
     parser.add_argument("--without-covered-source-coalescing", action="store_true")
+    parser.add_argument("--without-prepared-road-paint", action="store_true")
     parser.add_argument("--without-covered-batch-borrow", action="store_true")
     parser.add_argument("--without-uv-projection-elision", action="store_true")
     parser.add_argument("--serial-chunk-textures", action="store_true")
@@ -87,6 +88,8 @@ def main():
         cmd.append("--batch-timeline")
     if args.without_covered_source_coalescing:
         cmd.append("--without-covered-source-coalescing")
+    if args.without_prepared_road_paint:
+        cmd.append("--without-prepared-road-paint")
     if args.without_covered_batch_borrow:
         cmd.append("--without-covered-batch-borrow")
     if args.without_uv_projection_elision:
@@ -116,6 +119,7 @@ def main():
               "texture_profile": args.texture_profile,
               "batch_timeline": args.batch_timeline,
               "covered_source_coalescing": not args.without_covered_source_coalescing,
+              "prepared_road_paint": not args.without_prepared_road_paint,
               "covered_batch_borrow": not args.without_covered_batch_borrow,
               "uv_projection_elision": not args.without_uv_projection_elision,
               "parallel_chunk_textures": not args.serial_chunk_textures,

@@ -28,6 +28,7 @@ var load_immutable_records:=false
 var load_require_native_products:=false # Game-owned documents prohibit raw imports; editor documents can import.
 var load_surface_arrays:Dictionary={}
 var load_surface_bounds:Dictionary={}
+var load_surface_paints:Dictionary={}
 var load_surface_uploads:Dictionary={}
 var last_save_metrics: Dictionary = {}
 
@@ -612,7 +613,7 @@ func _mesh(record: Dictionary, effects: bool=true, timings: Variant=null) -> Mes
 	if record.get("building_shape") in ["joined_box","timber_door","interior_door"]:mesh_node.set_meta("collision_solid",box)
 	if cached == null:
 		if timings!=null:timings.metadata_ms=(Time.get_ticks_usec()-profile_mark)/1000.;profile_mark=Time.get_ticks_usec()
-		SurfaceMaterials.apply(mesh_node, record, load_paint_validation, load_texture_checks,cpu_index)
+		SurfaceMaterials.apply(mesh_node, record, load_paint_validation, load_texture_checks,cpu_index,load_surface_paints.get(str(record.uuid),{}) if load_immutable_records else {})
 		if timings!=null:timings.surface_paint_ms=(Time.get_ticks_usec()-profile_mark)/1000.;profile_mark=Time.get_ticks_usec()
 		if not box_key.is_empty() and load_box_meshes.size()<4096 and not mesh_node.has_meta("paint_error"):
 			load_box_meshes[box_key]={"mesh":mesh_node.mesh,"source":mesh_node.get_meta("paint_source",mesh_node.mesh)}

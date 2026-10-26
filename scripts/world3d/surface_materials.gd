@@ -326,10 +326,21 @@ static func geometry(node: MeshInstance3D, first_surface_only:bool=false) -> Dic
 	var mesh := source(node)
 	if mesh == null or (mesh is ArrayMesh and mesh.get_blend_shape_count() > 0) or node.skin != null: return fail("蒙皮或变形模型暂不支持表面绘制")
 	if mesh.get_surface_count() > 128: return fail("模型材质槽超过 128 个")
-	var surfaces: Array = []
-	for slot in mesh.get_surface_count():
-		if mesh is ArrayMesh and mesh.surface_get_primitive_type(slot) != Mesh.PRIMITIVE_TRIANGLES: return fail("仅支持三角网格表面")
-		var arrays: Array = mesh.get_meta("ground_cpu_cache").surfaces[slot] if mesh.has_meta("ground_cpu_cache") else CpuMesh.primitive_arrays(mesh,slot)
+	var source_arrays:Array=[]
+	for slot:int in mesh.get_surface_count():
+		if mesh is ArrayMesh and mesh.surface_get_primitive_type(slot)!=Mesh.PRIMITIVE_TRIANGLES:return fail("仅支持三角网格表面")
+		source_arrays.append(mesh.get_meta("ground_cpu_cache").surfaces[slot] if mesh.has_meta("ground_cpu_cache") else CpuMesh.primitive_arrays(mesh,slot))
+	var result:=geometry_arrays(source_arrays,mesh is BoxMesh or (mesh is CpuMesh and mesh.box_size!=Vector3.ZERO),first_surface_only)
+	# A partial result must never hide faces from later manual painting.
+	if result.ok and not first_surface_only:node.set_meta("paint_geometry",result)
+	return result
+
+static func geometry_arrays(source_arrays:Array,box_geometry:bool=false,first_surface_only:bool=false)->Dictionary:
+	# Shared pure topology kernel: no Nodes, Materials, render caches or RIDs.
+	if source_arrays.size()>128:return fail("模型材质槽超过 128 个")
+	var surfaces:Array=[]
+	for slot:int in source_arrays.size():
+		var arrays:Array=source_arrays[slot]
 		if arrays[Mesh.ARRAY_BONES] != null and arrays[Mesh.ARRAY_BONES].size() > 0: return fail("蒙皮模型暂不支持表面绘制")
 		for channel in range(Mesh.ARRAY_CUSTOM0, Mesh.ARRAY_CUSTOM3 + 1):
 			if arrays[channel] != null and arrays[channel].size() > 0: return fail("含自定义顶点通道的模型暂不支持表面绘制")
@@ -376,12 +387,9 @@ static func geometry(node: MeshInstance3D, first_surface_only:bool=false) -> Dic
 		for face in faces.values(): face.center /= float(face.triangles.size() * 3)
 		var hasher := HashingContext.new()
 		hasher.start(HashingContext.HASH_SHA256); hasher.update(var_to_bytes([vertices, indices]))
-		var signature := "box-v1" if mesh is BoxMesh or (mesh is CpuMesh and mesh.box_size != Vector3.ZERO) else hasher.finish().hex_encode()
+		var signature := "box-v1" if box_geometry else hasher.finish().hex_encode()
 		surfaces.append({"arrays": arrays, "indices": indices, "face_for_triangle": parents, "faces": faces, "signature": signature})
-	var result := {"ok": true, "surfaces": surfaces}
-	# A partial result must never hide faces from later manual painting.
-	if not first_surface_only:node.set_meta("paint_geometry", result)
-	return result
+	return {"ok":true,"surfaces":surfaces}
 
 static func texture(material: Dictionary, field: String = "texture_path",path_checks:Variant=null) -> Texture2D:
 	var began:=Time.get_ticks_usec() if texture_profile_enabled else 0
@@ -645,8 +653,23 @@ static func source_material(node: MeshInstance3D, slot: int) -> Material:
 		return node.mesh.surface_get_material(slot)
 	return node.get_active_material(slot)
 
-static func painted_mesh(node: MeshInstance3D, entries: Array, keep_cpu: bool=false, texture_checks: Variant=null, defer_upload:bool=false) -> Dictionary:
+static func paint_texture_error(entries:Array,texture_checks:Variant=null)->String:
+	var checked:Array=[]
+	for entry:Dictionary in entries:
+		if entry.material in checked:continue
+		checked.append(entry.material)
+		var key:=var_to_str(entry.material)
+		if texture_checks!=null and texture_checks.has(key):continue
+		for field:String in MAP_FIELDS:
+			if not preload("res://scripts/world3d/runtime_probe_controls.gd").discard_map_textures and not str(entry.material.get(field,"")).is_empty() and texture(entry.material,field)==null:return "表面贴图缺失或损坏："+field
+		if texture_checks!=null:texture_checks[key]=true
+	return ""
+
+static func painted_mesh(node: MeshInstance3D, entries: Array, keep_cpu: bool=false, texture_checks: Variant=null, defer_upload:bool=false, prepared_paint:Dictionary={}) -> Dictionary:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.surface_materials.painted_mesh") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
+	if defer_upload and not prepared_paint.is_empty():
+		var prepared:Dictionary=load("res://scripts/world3d/surface_paint_preparation.gd").publish(node,entries,prepared_paint,texture_checks)
+		if not prepared.is_empty():return prepared
 	if keep_cpu: CpuMesh.capture(source(node))
 	var first_only:bool=not entries.is_empty() and entries.all(func(entry):return int(entry.surface)==0)
 	var geo := geometry(node,first_only)
@@ -660,11 +683,8 @@ static func painted_mesh(node: MeshInstance3D, entries: Array, keep_cpu: bool=fa
 		# The optional cache belongs to one immutable runtime load. Ordinary
 		# editor paint operations still check paths/textures afresh every time.
 		if not entry.material in checked_materials:
-			var material_key:=var_to_str(entry.material)
-			if texture_checks==null or not texture_checks.has(material_key):
-				for field in MAP_FIELDS:
-					if not preload("res://scripts/world3d/runtime_probe_controls.gd").discard_map_textures and not str(entry.material.get(field, "")).is_empty() and texture(entry.material, field) == null: return fail("表面贴图缺失或损坏：" + field)
-				if texture_checks!=null: texture_checks[material_key]=true
+			var texture_issue:=paint_texture_error([entry],texture_checks)
+			if not texture_issue.is_empty():return fail(texture_issue)
 			checked_materials.append(entry.material)
 		var source_uv: Variant = geo.surfaces[slot].arrays[Mesh.ARRAY_TEX_UV]
 		if entry.mapping == "uv" and (source_uv == null or source_uv.size() != geo.surfaces[slot].arrays[Mesh.ARRAY_VERTEX].size()): return fail("这个模型没有原始 UV，请选择平面投影")
@@ -762,7 +782,7 @@ static func painted_mesh(node: MeshInstance3D, entries: Array, keep_cpu: bool=fa
 		if keep_cpu:CpuMesh.remember(output,cpu_arrays)
 	return {"ok": true, "mesh": output}
 
-static func apply(root: Node3D, record: Dictionary, validation_cache: Variant=null, texture_checks: Variant=null, defer_upload:bool=false) -> void:
+static func apply(root: Node3D, record: Dictionary, validation_cache: Variant=null, texture_checks: Variant=null, defer_upload:bool=false, prepared_paint:Dictionary={}) -> void:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.surface_materials.apply") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	if not record.has("surface_paint"): return
 	# White isolation has no visible face color/UV/tangent differences. Keep
@@ -776,7 +796,7 @@ static func apply(root: Node3D, record: Dictionary, validation_cache: Variant=nu
 		var entries: Array = record.surface_paint.filter(func(entry): return entry.mesh == path)
 		if entries.is_empty(): continue
 		for entry in entries: unresolved.erase(entry)
-		var result := painted_mesh(node, entries, true, texture_checks,defer_upload)
+		var result := painted_mesh(node, entries, true, texture_checks,defer_upload,prepared_paint if path=="." else {})
 		if not result.ok: root.set_meta("paint_error", result.error); continue
 		var originals: Array = []
 		for slot in node.mesh.get_surface_count(): originals.append(source_material(node,slot))

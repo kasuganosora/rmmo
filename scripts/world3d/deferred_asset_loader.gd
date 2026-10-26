@@ -1905,10 +1905,16 @@ func _record_texture_dispatch(label:String,started:int,path:String,keys:int)->vo
 
 func _estimate_job(item:Dictionary,requests:Array,need_model:bool=true)->Dictionary:
 	var reference_bytes:=0
+	var paint_workspace:=0
 	for request:Dictionary in requests:reference_bytes+=int(request.get("memory_bytes",65536))
 	var positions:Array=[]
 	for request:Dictionary in requests:
-		if request.has("record_index"):positions.append(int(request.record_index))
+		if request.has("record_index"):
+			var at:=int(request.record_index);positions.append(at)
+			if preload("res://scripts/world3d/surface_paint_preparation.gd").active() and at>=0 and at<_reference_index.get("rows",[]).size() and _reference_index.rows[at].get("reason")=="native_road":
+				# Same byte lease as the road; no extra worker or unaccounted cache.
+				paint_workspace+=int(_reference_index.rows[at].memory_bytes)
+	reference_bytes+=paint_workspace
 	for row:Dictionary in preload("res://scripts/world3d/map_dependency_index.gd").terrain_context_rows(_reference_index,positions):reference_bytes+=int(row.memory_bytes)
 	var texture_plan:Dictionary=_prefab_texture_plan(item,requests)
 	var texture_bytes:int=int(texture_plan.get("estimated_bytes",0))
@@ -1918,7 +1924,7 @@ func _estimate_job(item:Dictionary,requests:Array,need_model:bool=true)->Diction
 			for request:Dictionary in requests:
 				var at:int=int(request.get("record_index",-1))
 				if at>=0 and at<_reference_index.get("rows",[]).size() and _reference_index.rows[at].get("prefab_locked",false):collision_workspace=CollisionProducts.WORKSPACE_BYTES;break
-		return {"estimated_bytes":maxi(65536,reference_bytes)+texture_bytes+collision_workspace,"exclusive":false,"known":true,"prefab_texture_plan":texture_plan,"collision_workspace_bytes":collision_workspace,"targeted_bridge_textures":_targeted_bridge_textures(item)}
+		return {"estimated_bytes":maxi(65536,reference_bytes)+texture_bytes+collision_workspace,"exclusive":false,"known":true,"prefab_texture_plan":texture_plan,"collision_workspace_bytes":collision_workspace,"road_paint_workspace_bytes":paint_workspace,"targeted_bridge_textures":_targeted_bridge_textures(item)}
 	if not need_model:
 		# The verified template is already owned by the resident asset cache.
 		# This job cannot decode/import a model: it only hydrates references and
@@ -1956,7 +1962,7 @@ static func _prepare_job_inner(path:String,digest:String,token:RefCounted,manife
 		if not before.error.is_empty():return before
 	var prepared:Dictionary={"error":"","records":[],"dependencies":{},"read_profile":{}}
 	if not requests.is_empty():
-		prepared=preload("res://scripts/world3d/chunk_reference_preparation.gd").prepare(index,requests,map_path,root,token,ownership_proof,model_route.get("prefab_texture_plan",{}),model_route.get("shared_pixels",{}),int(model_route.get("collision_workspace_bytes",0)),preload("res://scripts/world3d/runtime_package_policy.gd").trusted(),model_route.get("hydrated_records",{}),model_route.get("parallel_pixels",false))
+		prepared=preload("res://scripts/world3d/chunk_reference_preparation.gd").prepare(index,requests,map_path,root,token,ownership_proof,model_route.get("prefab_texture_plan",{}),model_route.get("shared_pixels",{}),int(model_route.get("collision_workspace_bytes",0)),preload("res://scripts/world3d/runtime_package_policy.gd").trusted(),model_route.get("hydrated_records",{}),model_route.get("parallel_pixels",false),int(model_route.get("road_paint_workspace_bytes",0)))
 		if not prepared.error.is_empty():prepared.reference_failure=true;return prepared
 	var geometry:Dictionary={"mode":CollisionGeometry.ALL,"definitions":{}}
 	if model_route.get("filter_collision_geometry",false) and not native:
@@ -1995,7 +2001,7 @@ static func _prepare_job_inner(path:String,digest:String,token:RefCounted,manife
 	if model_route.get("filter_collision_geometry",false) and str(result.get("error","")).is_empty() and not result.get("native_packet",{}).get("fallback_required",false):
 		result.collision_geometry_mode=int(geometry.mode);result.collision_definitions=geometry.definitions
 	result.records=prepared.records;result.dependencies=prepared.dependencies;result.read_profile=prepared.read_profile
-	for field:String in ["prefab_cpu","prefab_texture_packet","surface_arrays","surface_bounds","surface_uploads","waiting_pixels","terrain_contexts"]:
+	for field:String in ["prefab_cpu","prefab_texture_packet","surface_arrays","surface_bounds","surface_paints","surface_uploads","waiting_pixels","terrain_contexts"]:
 		if prepared.has(field):result[field]=prepared[field]
 	return result
 
@@ -2130,8 +2136,10 @@ func _accept_prepared_records(result:Dictionary)->void:
 		# without a product revokes an older one for the same UUID as well.
 		for uuid:String in surfaces:
 			_doc.load_surface_arrays[uuid]=surfaces[uuid]
-			_doc.load_surface_bounds.erase(uuid);_doc.load_surface_uploads.erase(uuid)
+			_doc.load_surface_bounds.erase(uuid);_doc.load_surface_uploads.erase(uuid);_doc.load_surface_paints.erase(uuid)
 		_doc.load_surface_bounds.merge(result.get("surface_bounds",{}),true)
+		_doc.load_surface_paints.merge(result.get("surface_paints",{}),true)
+		for field:String in ["road_paint_us","road_paint_bytes","road_paint_records"]:profile[field]=int(profile.get(field,0))+int(result.get("read_profile",{}).get(field,0))
 		_doc.load_surface_uploads.merge(result.get("surface_uploads",{}),true)
 		for field:String in ["surface_upload_bytes","surface_upload_us","surface_upload_records"]:profile[field]=int(profile.get(field,0))+int(result.get("read_profile",{}).get(field,0))
 		profile.worker_surface_bounds=int(profile.get("worker_surface_bounds",0))+result.get("surface_bounds",{}).size()
@@ -3744,6 +3752,7 @@ func _make_prepare_task(path:String,digest:String,token:RefCounted,item:Dictiona
 	route.prefab_texture_plan=job.get("estimate",{}).get("prefab_texture_plan",{}).duplicate(true)
 	route.parallel_pixels=job.get("parallel_pixels",false)
 	route.collision_workspace_bytes=int(job.get("estimate",{}).get("collision_workspace_bytes",0))
+	route.road_paint_workspace_bytes=int(job.get("estimate",{}).get("road_paint_workspace_bytes",0))
 	route.reuse_face_snapshots=job.get("reuse_face_snapshots",[])
 	if int(job.get("estimate",{}).get("spec_workspace_bytes",0))>0:
 		route.spec_template=job.get("reuse_template_owner")
@@ -3779,7 +3788,7 @@ func _discard_job(path:String)->void:
 	# Published Mesh/CPU-mesh resources retain their own array references.
 	var output:Dictionary=job.get("result",{}) if job.get("result",{}) is Dictionary else {}
 	for uuid:String in output.get("surface_arrays",{}):
-		_doc.load_surface_arrays.erase(uuid);_doc.load_surface_bounds.erase(uuid);_doc.load_surface_uploads.erase(uuid)
+		_doc.load_surface_arrays.erase(uuid);_doc.load_surface_bounds.erase(uuid);_doc.load_surface_uploads.erase(uuid);_doc.load_surface_paints.erase(uuid)
 	for uuid:String in output.get("terrain_contexts",{}):_doc.terrain_neighbors.data.erase(uuid)
 	# Large importer states retain thousands of GPU/CPU owners. Keep this same
 	# byte reservation until the tree-owned retirement cursor drops every alias.

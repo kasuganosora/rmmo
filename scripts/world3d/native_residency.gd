@@ -305,8 +305,9 @@ func _release_preparation_cache(entries:Array)->void:
 	for entry:Dictionary in entries:
 		var uuid:String=entry.compact_record.uuid
 		if document.load_surface_arrays.has(uuid):retired.append(document.load_surface_arrays[uuid])
+		if document.load_surface_paints.has(uuid):retired.append(document.load_surface_paints[uuid])
 		if document.terrain_neighbors.data.has(uuid):retired.append(document.terrain_neighbors.data[uuid])
-		document.load_surface_arrays.erase(uuid);document.load_surface_bounds.erase(uuid);document.load_surface_uploads.erase(uuid);document.terrain_neighbors.data.erase(uuid)
+		document.load_surface_arrays.erase(uuid);document.load_surface_bounds.erase(uuid);document.load_surface_uploads.erase(uuid);document.load_surface_paints.erase(uuid);document.terrain_neighbors.data.erase(uuid)
 	# Material publication advances across frames. Keep its complete entries
 	# until their owning jobs consume/discard them; release other hot owners.
 	var protected:Dictionary={}

@@ -903,6 +903,13 @@ native / dependency index 和纹理磁盘缓存保留、OS 缓存不清，不能
 处理和 `surface_set_material`。下一项先独立复现道路 paint 的纯 CPU 准备与
 主线程绑定拆分，再接原有后台预算，不扩大 worker 或恢复隐藏 mesh 预热。
 
+2026-10-27 续作见
+[`axel_road_paint_preparation_20261027.md`](axel_road_paint_preparation_20261027.md)：
+道路 paint 后台候选已完成 149 项独立检查及普通全遍历 ABBA，完整加载均值
+10.161s → 9.517s，原始道路生成和最终几何工作量相同。low 尚未证明改善。
+一次普通运行访问异常仍未归因，9 条 GDB 未复现；候选已保留但默认关闭，
+压测显式启用。不要将该候选收益写成正式游戏已生效，也不要漏掉失败样本。
+
 外部目录：
 `D:/code/rmmo_runtime/review_artifacts/axel_pipeline_blind_20261017/texture_phase_20261025/`。
 

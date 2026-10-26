@@ -188,6 +188,7 @@ func finish(code:int)->void:
 	report.map_sha_after=FileAccess.get_sha256(MAP)
 	check(report.map_sha_after==report.map_sha,"formal map unchanged")
 	report.cpu_restore_profile=preload("res://scripts/world3d/ground_cpu_mesh.gd").profile_rows.duplicate(true)
+	report.prepared_road_paint=preload("res://scripts/world3d/surface_paint_preparation.gd").snapshot()
 	report.material_schema=preload("res://scripts/world3d/standard_material_schema.gd").snapshot()
 	if is_instance_valid(mesh_map):
 		report.stream_adoption=mesh_map.get_meta("stream_adoption_profile",{}).duplicate()
@@ -416,6 +417,8 @@ func run()->void:
 	report.controls.material_schema_reuse=preload("res://scripts/world3d/standard_material_schema.gd").enabled
 	preload("res://scripts/world3d/ground_batcher.gd").covered_source_coalescing_enabled=not "--without-covered-source-coalescing" in OS.get_cmdline_user_args()
 	report.controls.covered_source_coalescing=preload("res://scripts/world3d/ground_batcher.gd").covered_source_coalescing_enabled
+	preload("res://scripts/world3d/surface_paint_preparation.gd").enabled=not "--without-prepared-road-paint" in OS.get_cmdline_user_args()
+	report.controls.prepared_road_paint=preload("res://scripts/world3d/surface_paint_preparation.gd").enabled
 	# Hashing every source only identifies the measured code; it is not game work,
 	# so it runs beside the measurement and is joined before the final comparison.
 	report.startup.sources_begin_us=Time.get_ticks_usec()
