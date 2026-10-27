@@ -425,6 +425,7 @@ func run()->void:
 	report.controls.shared_prefab_textures=preload("res://scripts/world3d/deferred_asset_loader.gd").shared_prefab_texture_preparation_enabled
 	report.controls.background_texture_upload=preload("res://scripts/world3d/shared_prefab_images.gd").background_upload_enabled
 	report.controls.incremental_source_retirement=preload("res://scripts/world3d/ground_batcher.gd").incremental_source_retirement_enabled
+	report.controls.raw_face_reuse=preload("res://scripts/world3d/house_prefab.gd").raw_face_reuse_active()
 	report.controls.collision_prefetch=preload("res://scripts/world3d/stream_collision_preparer.gd").prefetch_enabled
 	preload("res://scripts/world3d/imported_building.gd").single_read_sources_enabled=not "--legacy-imported-source-checks" in OS.get_cmdline_user_args()
 	report.controls.single_read_imported_sources=preload("res://scripts/world3d/imported_building.gd").single_read_sources_enabled

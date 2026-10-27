@@ -3637,3 +3637,46 @@ stream/pending为空、无queue observer，previous_process_wall53.170ms但无�
 完整合同、测试/时序证据、源码快照和下一步见
 `docs/axel_batch_retirement_reconciliation_20261027.md`。下一轮继续抓空卸载process
 间隔及入口后5.7–6.0s的发布/合批关键路径；目标active，不宣称所有工作已精简。
+
+## 175. 纹理模式复用几何面；卸载捕获到实际 Vulkan 呈现栈（2026-10-27）
+
+继续按调用量定位。官方 origin_official02 的入口后阶段，face build1442次、
+累计2417.942ms（后台），发布链累计4083.685ms（含下游）。不能把后台累计时间
+加到主线程时间或直接换算加载收益。另见tickets_valid4391次、scope_current2932次。
+
+几何面共享原来仅在白模启用；现在可信纹理消费者也使用同一个512MiB有界缓存与
+每digest并发合并，保留完整slots/材质、输出私有数组及准入预留，元数据查询仍懒加载。
+新测试先复现白模部分coverage被纹理消费者误当完整的问题，关闭复用也会缺面；
+现按slot补齐。没有放宽白模source-only或binary cache的限制。
+
+新用例CPU26/GPU29、既有raw14/selected24/shadow34/prepared67/identity36/lock9/
+work8条全通过，旧18通过8失败证据保留。固定12次×240000面顶点，CPU ABBA旧
+200.861/161.500ms，新13.728/15.416ms；GPU channels和有色材质一致。官方修改后
+相同阶段face build **1442→758（少684次，47.4%）**，decode仍382次，说明实际
+重复工作减少；不是只以“从cache取出1442个slot”误称省掉1442次构建。
+
+普通map10 ABBA：完整就绪A9.943/12.725s，B10.955/10.212s；返回low
+A42.984/29.467、B37.446/40.231，reload low A32.415/34.209、B36.367/36.103FPS。
+四条卸载/返回/重载均0帧>50ms，最大49.700ms；仍未证明加载及low稳定改善，
+新样本也仍>10秒。保留A2超出固定origin窗口的收尾，不删除慢样本或用四条冒充p95。
+初始化工作仍231builds/3923prepare/2724pack/1442slots/9731922面顶点；B1命中上轮
+退出重整避免816次prepare，这归属于§174，不冒充本轮收益。796个测量源文件保存SHA。
+GPU审计3943/3202nonwhite/1502textured/145textures，地图和共享配额均完成回收。
+
+卸载诊断unload08成功匹配冻结context与GDB的RIP，最后post-draw标记无遗漏或被新包
+替代；接收至冻结32.3307ms，线程CPU15.625ms（粗粒度）。原生栈在
+QueuePresentKHR→外部we-graphics-hook64→AMD/DXGI→RtlCaptureStackBackTrace，
+引擎源行证实已持有submit_mutex进入present，并非该时刻在等后台上传锁或释放资源。
+这只解释新捕获的现场，不能解释所有旧50–100ms长帧，更不代表捕获DLL已被证明为根因。
+GDB介入的帧不计普通时间，owned suspend计数全部归还，引擎/GDB退出均0。
+
+独立捕获层对照的首个禁用尝试失效：Godot启动时主动清空DISABLE_VULKAN_OBS_CAPTURE。
+empty14保留为无效隔离，改用loader的指定层过滤后再核对实际模块/层链，未改系统设置。
+有效empty18 ABBA空场景，A max16.999/18.056ms、B16.942/7.716ms，四条均无>50ms；
+没有复现地图尖峰、没有一致low收益，不能归咎于capture层或把禁用它当作已交付修复。
+完整数据与后续隔离结论见`docs/axel_textured_face_reuse_20261027.md`；证据在
+`texture_phase_20261025/origin_critical_path_20261027/`。
+
+下一优先项是同步发布中MaterialPublication返回READY后再次开启同一texture scope
+的重复工作，以及约2.8–3.0s累计主线程发布；跨帧代际和回调失效仍需测试保留。
+目标active，首次材质/3D呈现、独立纹理释放、旧AV等边界仍未清零。

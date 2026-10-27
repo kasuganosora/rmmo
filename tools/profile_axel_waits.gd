@@ -7,6 +7,7 @@ func _initialize()->void:
 	for arg:String in OS.get_cmdline_user_args():
 		if arg.begins_with("--frame-heartbeat-port="):
 			heartbeat=Heartbeat.new()
+			heartbeat.trace_empty_unload="--frame-heartbeat-empty-unload" in OS.get_cmdline_user_args()
 			var result:Error=heartbeat.start(arg.trim_prefix("--frame-heartbeat-port=").to_int())
 			if result!=OK:push_error("Frame heartbeat startup failed: "+str(result))
 			preload("res://scripts/world3d/prepared_cpu_upload.gd").profile_scope_hook=_upload_heartbeat
@@ -41,7 +42,7 @@ func tick_geometry()->void:
 
 func save()->void:
 	if heartbeat!=null:
-		report.frame_heartbeat={"profile":heartbeat.profile.duplicate(),"transport":"64 byte loopback UDP; no disk writes; sender cost included in diagnostic frames","stages":{"1":"observe_begin","2":"observe_end","3":"geometry_begin","4":"geometry_end","5":"pre_draw_signal","6":"post_draw_signal","7":"stop","8":"cpu_upload_begin","9":"cpu_upload_end"},"phases":{"0":"unarmed","1":"white_origin_steady","2":"white_native_reload","3":"white_native_return","4":"white_return_steady","5":"white_stream_origin"}}
+		report.frame_heartbeat={"profile":heartbeat.profile.duplicate(),"empty_unload_watch":heartbeat.trace_empty_unload,"transport":"64 byte loopback UDP; no disk writes; sender cost included in diagnostic frames","stages":{"1":"observe_begin","2":"observe_end","3":"geometry_begin","4":"geometry_end","5":"pre_draw_signal","6":"post_draw_signal","7":"stop","8":"cpu_upload_begin","9":"cpu_upload_end"},"phases":{"0":"unarmed","1":"white_origin_steady","2":"white_native_reload","3":"white_native_return","4":"white_return_steady","5":"white_stream_origin","6":"white_native_unload_post_draw_only"}}
 	super.save()
 
 func finish(code:int)->void:

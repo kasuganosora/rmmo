@@ -2161,7 +2161,7 @@ func _accept_prepared_records(result:Dictionary)->void:
 	for field:String in result.get("read_profile",{}).get("collision_products",{}):
 		profile["collision_product_"+field]=int(profile.get("collision_product_"+field,0))+int(result.read_profile.collision_products[field])
 	var reference_profile:Dictionary=result.get("read_profile",{})
-	for field:String in ["prefab_faces_prepared_slots","prefab_faces_skipped_slots","prefab_faces_prepared_vertices"]:
+	for field:String in ["prefab_faces_prepared_slots","prefab_faces_skipped_slots","prefab_faces_canonical_slots","prefab_faces_prepared_vertices"]:
 		profile["reference_"+field]=int(profile.get("reference_"+field,0))+int(reference_profile.get(field,0))
 	for field in ["preflight_us","preflight_ownership_us","selected_ownership_us","selected_uuid_lookup_us","map_authentications","directory_rows_recomputed","groups_checked","terrain_context_source_rows","terrain_boundary_normals","terrain_mask_generations","terrain_mask_bytes","terrain_mask_us","terrain_mask_on_main","road_cache_hits","road_array_generations","cached_surface_bounds","scanned_surface_bounds","surface_bounds_us","definition_copies","definition_transfers","reads_started","handoff_records"]:
 		profile["reference_"+field]=int(profile.get("reference_"+field,0))+int(reference_profile.get(field,0))

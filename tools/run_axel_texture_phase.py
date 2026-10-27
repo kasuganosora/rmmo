@@ -64,6 +64,7 @@ def main():
     texture_upload.add_argument("--without-background-texture-upload", action="store_true")
     parser.add_argument("--without-batched-texture-handoff", action="store_true")
     parser.add_argument("--without-incremental-source-retirement", action="store_true")
+    parser.add_argument("--without-raw-face-reuse", action="store_true")
     parser.add_argument("--without-texture-plan-reuse", action="store_true")
     parser.add_argument("--sync-texture-headers", action="store_true")
     parser.add_argument("--full-cache-trims", action="store_true")
@@ -147,6 +148,8 @@ def main():
         cmd.append("--without-batched-texture-handoff")
     if args.without_incremental_source_retirement:
         cmd.append("--without-incremental-source-retirement")
+    if args.without_raw_face_reuse:
+        cmd.append("--without-raw-face-reuse")
     if args.without_texture_plan_reuse:
         cmd.append("--without-texture-plan-reuse")
     if args.sync_texture_headers:
@@ -184,6 +187,7 @@ def main():
               "parallel_chunk_textures": not args.serial_chunk_textures,
               "batched_texture_handoff": not args.without_batched_texture_handoff,
               "incremental_source_retirement": not args.without_incremental_source_retirement,
+              "raw_face_reuse": not args.without_raw_face_reuse,
               "texture_plan_reuse": not args.without_texture_plan_reuse,
               "async_texture_headers": not args.sync_texture_headers,
               "incremental_cache_budget": not args.full_cache_trims,

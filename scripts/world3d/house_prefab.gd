@@ -278,8 +278,10 @@ static func retained_decode_bytes(packet:Dictionary)->int:
 	return int(packet.get("retained_bytes",packet.get("length",0)))
 
 static func raw_face_reuse_active()->bool:
-	var controls=preload("res://scripts/world3d/runtime_probe_controls.gd")
-	return raw_face_reuse_enabled and controls.white_materials and controls.discard_map_textures and preload("res://scripts/world3d/runtime_package_policy.gd").trusted()
+	# Ordered collision triangles depend on geometry, not on the selected material
+	# projection. Textured consumers retain all required slots under the same
+	# bounded cache/flight and private-output ownership as white consumers.
+	return raw_face_reuse_enabled and preload("res://scripts/world3d/runtime_package_policy.gd").trusted()
 
 static func _decode_packet(value:Dictionary,with_faces:bool=false,bounds_only:bool=false,source_faces_only:bool=false,shadow_render_faces:bool=false)->Dictionary:
 	if value.get("version")!=1 or not value.get("data") is String or not value.get("sha256") is String:return {}
@@ -454,7 +456,7 @@ static func prepare_cpu(record:Dictionary,collision_candidates:Dictionary={},sou
 	if packet.is_empty():return {}
 	var data:Dictionary=packet.data
 	var faces:Array=[];var keys:Array=packet.geometry_keys
-	var required:=ShadowFaces.selected_slots(data,source_faces_only,shadow_render);var skipped_slots:=0
+	var required:=ShadowFaces.selected_slots(data,source_faces_only,shadow_render);var skipped_slots:=0;var canonical_slots:=0
 	for mesh_id:int in data.meshes.size():
 		if not required.has(mesh_id):
 			faces.append(PackedVector3Array());skipped_slots+=1;continue
@@ -463,8 +465,11 @@ static func prepare_cpu(record:Dictionary,collision_candidates:Dictionary={},sou
 			# must still pass its final source/closure gate before this packet can
 			# reach publish_prepared and receive a typed sealed collision product.
 			faces.append(collision_candidates[mesh_id].faces);continue
-		if packet.has("collision_faces"):
-			faces.append(packet.collision_faces[mesh_id].duplicate());continue
+		# A former white consumer may have populated only the collider. Presence
+		# of the array alone does not prove coverage of a later render/aux slot,
+		# including when shared face reuse is disabled for this request.
+		if packet.has("collision_faces") and (not packet.has("collision_face_slots") or packet.collision_face_slots.has(mesh_id)):
+			faces.append(packet.collision_faces[mesh_id].duplicate());canonical_slots+=1;continue
 		faces.append(preload("res://scripts/world3d/prefab_face_arrays.gd").build(data.meshes[mesh_id],native_unindexed_faces_enabled))
 	# A worker result is owned by its admitted job. Its packed arrays must not
 	# alias the canonical cache even though no production consumer edits them.
@@ -473,7 +478,7 @@ static func prepare_cpu(record:Dictionary,collision_candidates:Dictionary={},sou
 	elif not _seal_decoded(owned_data,0,[],[DECODE_MAX_VALUES]):return {}
 	var vertices:=0
 	for triangles:PackedVector3Array in faces:vertices+=triangles.size()
-	return {"sha256":packet.sha256,"data":owned_data,"geometry_keys":keys,"collision_faces":faces,"face_work":{"prepared_slots":faces.size()-skipped_slots,"skipped_slots":skipped_slots,"prepared_vertices":vertices,"shadow_render_slots":int(shadow_render and ShadowFaces.white_render_slot(data)>=0)}}
+	return {"sha256":packet.sha256,"data":owned_data,"geometry_keys":keys,"collision_faces":faces,"face_work":{"prepared_slots":faces.size()-skipped_slots,"skipped_slots":skipped_slots,"canonical_slots":canonical_slots,"prepared_vertices":vertices,"shadow_render_slots":int(shadow_render and ShadowFaces.white_render_slot(data)>=0)}}
 
 static func publish_prepared(record:Dictionary,prepared:Dictionary,paint_validation:Variant=null,material_pool:Variant=null,timings:Variant=null,texture_packet:Dictionary={},scope_state:Variant=null)->bool:
 	var publication_started:=Time.get_ticks_usec()

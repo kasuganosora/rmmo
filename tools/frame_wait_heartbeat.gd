@@ -15,6 +15,7 @@ var udp:=PacketPeerUDP.new()
 var packet:=PackedByteArray()
 var sequence:=0
 var active:=false
+var trace_empty_unload:=false # Explicit diagnostic: one post-draw packet per empty-map frame.
 var owner_thread:=0
 var previous_phase:=-1
 var previous_send:=0
@@ -42,6 +43,11 @@ func mark(stage:int,phase_name:String,origin:int)->void:
 	elif phase_name=="white_native_return":phase_id=3
 	elif phase_name=="white_return_steady":phase_id=4
 	elif phase_name=="white_stream_origin":phase_id=5
+	elif trace_empty_unload and phase_name=="white_native_unload":phase_id=6
+	# Empty travel can run at thousands of FPS. For this opt-in watch, a single
+	# frame boundary is enough; the native frozen stack supplies attribution.
+	if phase_id==6 and previous_phase==6 and stage!=POST_DRAW and stage!=STOP:
+		profile.unarmed_skipped+=1;return
 	# High-FPS empty-map travel is not armed. Preserve every phase transition
 	# but send only a 10 Hz liveness marker there instead of six packets/frame.
 	if phase_id==0 and previous_phase==0 and stage!=STOP and started-previous_send<100000:
