@@ -96,3 +96,45 @@ textures，仅证明审计范围内绑定正常，不能覆盖全部外部模型
 用户于 2026-10-27 补充：完成游戏材质加载优化并验证后，需要适配、优化内容编辑器
 的对应资源导入与材质流程，验证 3D MCP、编辑/撤销/保存语义和性能；游戏侧的当前
 结果不能代替该编辑器交付。首次呈现、需求刷新、回收和旧无栈 AV 仍分别追踪。
+
+
+## 重载峰值的新 GDB 诊断
+
+`reload11` 在 observer-end 后观察重载阶段 25ms，完整路线退出0但未触发；复核
+探针顺序发现几何更新还会产生新的 heartbeat，前一标记不足以覆盖其后的节点处理。
+`reload12` 改在 geometry-end 后观察20ms：自身 PID/出生时间/主线程均核对，
+冻结前的最后一个标记未被新包取代、sequence gaps=0；接收到冻结的墙时21.887ms，
+主线程CPU计数15.625ms（计时粒度粗），冻结context与 GDB 主线程 RIP 匹配，归还
+唯一增加的 suspend count，engine/GDB 均退出0，地图及源码不变。
+
+该时刻主线程栈为 `Deferred._process → _discard_job → Drainer.dispose_result →
+Variant.get_named → ClassDB.get_property`。这是一次**不同的插桩诊断样本**，只
+表明它在这次重载处理区间走到了结果清理入口，不证明整个21.887ms都用于该方法，
+也无法将其直接对应 map05_B1 的两个 >50ms 帧；更不能仅凭此栈移除 renderer fence。
+先前实验单独取消 join 的 `force_sync` 会破坏生命周期，且不能消除所有长帧，见
+`axel_initial_loading_cover_20261024.md`。随后用有界wall span为清理与同步分段，
+并保持慢样本和非生产路径标记。
+
+`reload_trace13` 是同一真实路线上的单次插桩诊断，引擎退出0、无错误，源码与
+地图不变，trace dropped=0；不纳入普通 ABBA。重载期 `asset.transfer_sync` 191次
+总487µs、最大10µs；`dispose_result` 169次最大1.752ms；其外层 `_discard_job`
+169次最大15.621ms。最慢回收事件出现在一帧34.069ms中，但 GDScript method wall
+span 包含嵌套调用、等待与探针开销，且这不是 map05_B1 的52–54ms样本。
+证据不能证明 renderer fence 是瓶颈，不能据此移除。下一步以官方 profiler 在
+重载期按调用链及帧对应关系继续拆分 `_discard_job` 的其余工作。完整 trace 和
+`reload_trace14_analysis.json` 保留。
+
+`reload_official15` 用官方 profiler 在重载开始后采样：engine、接收、解码退出0，
+无 errors/failures、源地图未变，3459帧；插桩会放大脚本耗时，不用于普通帧率。
+`_discard_job` 157次、单次frame聚合最大12.102ms，其中 `release_shared` 最大
+10.851ms、`SharedPrefabImages.release` 最大10.596ms；`dispose_result` 最大
+1.568ms、force_sync 最大0.005ms。最大值来自各自记录，不能仅凭聚合断言同一帧
+的完整包含关系，也不能当作 `reload_trace13` 那次15.621ms事件的直接归因。
+
+另一个 profiler 慢帧（frame 39901，68.267ms 插桩墙时）执行8次
+`trim_cached_resources`，累计30.171ms，嵌套 `_trim_after_insert` 13次累计
+32.267ms；其中 4753 次排序比较、750 次材质属性读取。普通地图累计计数显示，
+全图 `full_insert_budget` 34–35次而 `full_insert_dirty` 1次；这是跨全程的计数，
+不能直接断定该插桩帧8次的每次触发原因。保留素材质量、hot缓存精确预算和已有
+资源代际/修改失效规则，先用固定输入重现并核对实际触发，再考虑合并或增量淘汰；
+不可直接推迟超过预算或取消同步。见 `reload_official16_analysis.json`。

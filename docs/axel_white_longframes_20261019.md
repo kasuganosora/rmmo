@@ -3741,3 +3741,22 @@ B1慢帧无 observer、缺栈，不能断言原因。B1重载高draw数量持续
 合同、失败样本、统计和下一步见 `docs/axel_textured_direct_specs_20261027.md`。
 下一步继续验证与现有预算/任务融合的后台纯字段投影、重载低帧和需求刷新；
 材质优化完成后还需按用户补充完成内容编辑器与3D MCP的对应适配及性能回归。
+
+
+## 178. 重载回收抓栈与材质缓存复查（2026-10-27）
+
+在 map05 B1 的两帧 >50ms 后续定位：GDB reload11 未触发，reload12 在重载阶段
+geometry-end 后20ms阈值成功捕获，冻结前接收至冻结墙时21.887ms、主线程CPU
+15.625ms（粗粒度）；RIP匹配且无心跳丢包、suspend归还。瞬时栈为 Deferred
+`_process → _discard_job → dispose_result` 的属性读取；不证明全部窗口都在这个
+方法，更不对应此前普通样本的具体帧。
+
+有界reload_trace13中 `_discard_job` 最大15.621ms、`dispose_result` 最大1.752ms、
+`asset.transfer_sync` 最大0.010ms；官方 reload_official15 另见 `_discard_job`
+单帧最大12.102ms、`release_shared` 10.851ms、共享图片release 10.596ms；独立
+插桩样本及嵌套值不能相加或声称同帧。原有生命周期约束下不能直接删 force_sync。
+另一官方慢帧8次材质cache trim累计30.171ms，触发来源及是否能安全增量淘汰仍需
+固定输入验证；正常整图计数 `full_insert_budget` 34–35、dirty1为跨全程而非该帧
+归因。证据、源哈希和非性能样本边界记在 `docs/axel_textured_direct_specs_20261027.md`。
+此轮无新的生产修复；下一步优先复现并减少超预算时的重复cache扫描，同时追踪共享
+图片最后owner释放，保留预算、代际和编辑语义。
