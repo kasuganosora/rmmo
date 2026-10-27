@@ -379,7 +379,7 @@ static func cache_prepared_native_scene(path:String,scene:Node,packed:PackedScen
 static func cache_direct_native_scene(path:String,scene:Node,native_owner:PackedScene,verified_digest:String)->bool:
 	if scene==null or native_owner==null or not native_owner.get_meta("compiled_asset_validated",false):return false
 	var began:=Time.get_ticks_usec()
-	preload("res://scripts/world3d/model_texture_cache.gd").apply(scene)
+	preload("res://scripts/world3d/model_texture_direct_seen.gd").apply(scene)
 	preload("res://scripts/world3d/load_trace.gd").elapsed("asset_library.cache_materials",began,{"path":path})
 	began=Time.get_ticks_usec();preload("res://scripts/world3d/asset_worker_drainer.gd").dispose_scene(scene)
 	preload("res://scripts/world3d/load_trace.gd").elapsed("asset_library.cache_dispose",began,{"path":path})
