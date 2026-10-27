@@ -40,3 +40,11 @@
 `analysis25_peaks.json` 中 B2 返回52.921ms附近，publication相邻采样增量48.659ms、process墙时51.208ms、无同区间测试observer；两者是包含/相邻区间，不可相加或断定它们占满整帧，且缺同帧函数栈。A1重载51.197ms有12.171ms observer；A2卸载54.106ms附近process墙时51.989ms而该区间采样draw为0调用，仍缺细分归因。下一步对返回发布独立运行官方profiler与owned GDB，不能把另一条诊断路线的栈冒称map24的原帧证据。
 
 实图后只读审查发现 DeferredAssets.active_workers 只计队列jobs和纹理头catalog，漏掉使用同一账本槽位的像素退休线程；调度使用ledger.active_workers而非该诊断接口，未发现因此超额调度。后续仅按退休stage补计，不双计catalog、不改变idle；`worker_visibility_before2.log`有4个预期失败、`worker_visibility_after.log` 26/0。同期通过真实旧queue退出、drainer持有旧worker和账本、新queue在独立账本重复申请同binding的交错：两账本各遵循自身限制、旧回调不释放新账本，最后均归零；这不证明两地图有全局共享上限。该监控修正发生在map24后，故不包含在map24源快照内，不冒称用map24验证其性能。
+
+## 返回阶段的后续独立诊断
+
+`material_publication_scope_20261027/map24_return27` GDB运行正常退出，主线程冻结RIP匹配、唯一suspend增量归还；但监视geometry-end后20ms时，冻结前已收到新的pre-draw标记，`marker_current=false`。主线程栈在诊断心跳UDP sendto，触发区间已过期，不能归因先前发布长帧；GDB暂停干扰该路线，不能作性能样本。
+
+官方 `textured_direct_specs_20261027/return_official27` 调试客户端、接收器和解码均exit0，主地图及被测脚本未变；返回阶段采4551 profiler帧（engine_frame 29806–34356）。采集起点由日志标记触发，可能漏掉最初部分返回帧，且带profiler开销，不能冒称map24_B2原始帧的栈。frame 34343为50.103ms，Deferred._process包含43.000ms、_refresh_demanded包含40.225ms/自身23.284ms；同engine frame的测试宿主记录45.085ms、bookkeeping35.040ms，附近publication增量0且无queue observer。各边界不同、数值有包含关系不可相加。附近三个profiler帧的需求刷新各38–39ms；500ms观察快照区间记录11次刷新、29751输入行、16074距离计算、6541空间脚本扫描行及12次typed扫描21948行，这些是区间总工作量，并非单帧，也未记录需求clip不能说明每次刷新的原因。该返回阶段_publish_ready单帧最大包含19.026ms、shared图片release最大包含0.507ms，未复现map24_B2附近48.659ms发布增量。
+
+证据路径 `return_official27.summary.json`/原始bin、phase report及receiver/decode日志在上述目录；另有在采集中记录的扩展脚本SHA：worker official `7a47eb102b4f8aff262ba4ce9561f00993aafe27c9316bdad118d413c4554f3d`，receiver `22f4b7ce54004120bf515bfbc9e5574117bb708b439f461f0cac88ce23f8d6a2`，decoder `e17a508f85dbf8fdf8fe995a49ffa93f363493af8131f8f489ac630199da5bd4`。它们不在runner默认的796文件散列清单内，该记录不表示已经核对其采集前后的独立快照。
