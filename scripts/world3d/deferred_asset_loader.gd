@@ -100,6 +100,7 @@ var _demands:Dictionary={}
 var _demand_scope:Dictionary={}
 var _demand_revision:=0
 var _candidates_revision:=-1
+var _demand_revision_trace:RefCounted # Opt-in only; normal loads allocate nothing.
 var _demand_membership:Dictionary={} # Per live ticket; spatial candidates only, never readiness/leases.
 var _typed_pending:Dictionary={}
 var _typed_pending_buildings:=-1
@@ -310,9 +311,11 @@ func finish_entry_prefetch()->void:
 	# Restore the real previous scope, not the temporary entry_safety scope.
 	# Keep its ticket and jobs for begin_entry_loading; do not cancel retained
 	# work while the map is still between its loader and destination parent.
+	var old_scope:Variant=_demand_scope.duplicate() if _demand_revision_trace!=null else null
 	_demand_scope.clear()
 	for id:String in _entry_prefetch.previous_scope:_demand_scope[id]=true
 	_demand_revision+=1
+	if _demand_revision_trace!=null:_demand_revision_trace.scope_change("finish_entry_prefetch",old_scope,_demand_scope,_demand_revision)
 	_entry_prefetch.clear()
 	_update_loading_worker_capacity(INTERACTIVE_BUDGET_US)
 	profile.entry_prefetch_finished_us=Time.get_ticks_usec()
@@ -610,6 +613,7 @@ func requeue_references(entries:Array)->int:
 		_indexed=false;_pending_index.clear();_large_pending.clear();_pending_native_index.clear();_large_native_pending.clear()
 	_demand_membership.clear();_typed_pending.clear();_typed_pending_buildings=-1
 	_demand_revision+=1
+	if _demand_revision_trace!=null:_demand_revision_trace.change("requeue","",0,accepted.size(),_demand_revision)
 	_invalidate_collision_queries()
 	if not retired_records.is_empty() and preload("res://scripts/world3d/resource_retirement.gd").defer_cpu_values(retired_records,0):
 		# No recursive byte scan solely for disposal statistics. Zero here is
@@ -745,19 +749,32 @@ func is_idle()->bool:
 	# process refresh, an outdated demand snapshot is conservatively not idle.
 	return _candidates_revision==_demand_revision and _demanded_count()==0 and _jobs.is_empty() and _texture_plan_catalog.pending_count()==0
 
+func start_demand_revision_trace(capacity:int=4096)->void:
+	_demand_revision_trace=preload("res://scripts/world3d/demand_revision_trace.gd").new(capacity)
+
+func demand_revision_trace_snapshot()->Dictionary:
+	return _demand_revision_trace.snapshot() if _demand_revision_trace!=null else {}
+
+func stop_demand_revision_trace()->Dictionary:
+	var value:Dictionary=demand_revision_trace_snapshot();_demand_revision_trace=null;return value
+
 func set_demand(id:String,clip:AABB,priority:int=0,kind:String="all",rank_from_player:bool=false)->void:
 	if id.is_empty() or not clip.position.is_finite() or not clip.size.is_finite() or clip.size.x<0 or clip.size.z<0:return
 	if kind not in ["all","building","road","structure","terrain"]:return
 	var value:={"clip":clip,"priority":priority,"kind":kind}
 	if rank_from_player:value.rank_from_player=true
-	if _demands.get(id)==value:return
+	var previous:Variant=_demands.get(id)
+	if previous==value:return
 	_demands[id]=value;_demand_revision+=1;set_process(_active)
+	if _demand_revision_trace!=null:_demand_revision_trace.change("set_demand",id,previous,value,_demand_revision)
 
 func release_demand(id:String)->void:
 	_release_collision_request(id)
 	_demand_membership.erase(id)
+	var previous:Variant=_demands.get(id) if _demand_revision_trace!=null else null
 	if _demands.erase(id):
 		_demand_revision+=1
+		if _demand_revision_trace!=null:_demand_revision_trace.change("release_demand",id,previous,null,_demand_revision)
 		set_process(_active)
 
 func set_group_demand(id:String,group_id:String,priority:int=-2)->bool:
@@ -767,7 +784,10 @@ func set_group_demand(id:String,group_id:String,priority:int=-2)->bool:
 	var group:Dictionary=_reference_index.get("groups",{}).get(group_id,{})
 	if id.is_empty() or group.is_empty() or not group.get("bounds") is AABB:return false
 	var value:Dictionary={"clip":group.bounds,"priority":priority,"kind":"all","group_id":group_id}
-	if _demands.get(id)!=value:_demands[id]=value;_demand_revision+=1;set_process(_active)
+	var previous:Variant=_demands.get(id)
+	if previous!=value:
+		_demands[id]=value;_demand_revision+=1;set_process(_active)
+		if _demand_revision_trace!=null:_demand_revision_trace.change("group_demand",id,previous,value,_demand_revision)
 	return true
 
 func group_is_published(group_id:String)->bool:
@@ -791,7 +811,9 @@ func set_demand_scope(ids:Array,retained_collision_tickets:Array=[])->bool:
 		allowed[id]=true
 	if allowed==_demand_scope:
 		_restore_uncovered_worker_capacity();return true
+	var old_scope:Variant=_demand_scope if _demand_revision_trace!=null else null
 	_demand_scope=allowed;_demand_revision+=1
+	if _demand_revision_trace!=null:_demand_revision_trace.scope_change("set_scope",old_scope,allowed,_demand_revision)
 	for id:String in _collision_request_ids.keys():
 		if not _demand_scope.is_empty() and not _demand_scope.has(id) and id not in retained_collision_tickets:_release_collision_request(id)
 	_refresh_demanded()
@@ -812,6 +834,7 @@ func allow_demand_in_scope(id:String)->bool:
 	# Unrestricted operation must not accidentally become a one-ticket scope.
 	if _demand_scope.is_empty() or _demand_scope.has(id):return true
 	_demand_scope[id]=true;_demand_revision+=1;set_process(_active)
+	if _demand_revision_trace!=null:_demand_revision_trace.change("allow_scope",id,null,_demand_scope.size(),_demand_revision)
 	return true
 
 func error_for_clip(clip:AABB)->String:
@@ -832,6 +855,7 @@ func retry_failed(clip:AABB)->void:
 		path_errors.erase(item.path);instance_errors.erase(item.record.uuid)
 	profile.failed_paths=path_errors.size();profile.failed_instances=instance_errors.size()
 	_demand_revision+=1 # Reopen path cursors and admission fences after repair.
+	if _demand_revision_trace!=null:_demand_revision_trace.change("retry_failed","",null,clip,_demand_revision)
 	set_process(_active)
 
 func _path_failed(path:String,reason:String)->void:
@@ -1137,6 +1161,9 @@ func _demanded_count()->int:
 func _refresh_demanded()->void:
 	if _candidates_revision==_demand_revision:return
 	var began:=Time.get_ticks_usec()
+	var trace_session:RefCounted=_demand_revision_trace
+	var trace_ticket:Variant=null
+	if trace_session!=null:trace_ticket=trace_session.begin_refresh(_demand_revision,_candidates_revision,_priority,_priority_rank_anchor,began,_demands.size(),_demand_scope.size())
 	# Scores/owners are still recomputed from live inputs. The epoch only marks
 	# first membership in this refresh so stable UUIDs retain their hash slots.
 	var reuse_catalogue:=reuse_demand_candidate_catalogue_enabled and reuse_demand_candidate_rows_enabled
@@ -1334,7 +1361,7 @@ func _refresh_demanded()->void:
 		_dispatch_revision=_demand_revision;_candidates_revision=_demand_revision
 		profile.demand_dispatch_catalogue_rows_reused=int(profile.get("demand_dispatch_catalogue_rows_reused",0))+ordered.size()
 		if trace.enabled:trace.elapsed("demand.rebuild_dispatch_catalog",commit_started,{"candidates":ordered.size(),"reused":true})
-		_record_demand_refresh(began)
+		_record_demand_refresh(began,trace_session,trace_ticket)
 		return
 	_demanded=[]
 	_demanded_by_id.clear()
@@ -1381,7 +1408,7 @@ func _refresh_demanded()->void:
 	_demand_dispatch_catalogue_had_errors=not instance_errors.is_empty() or not path_errors.is_empty()
 	profile.demand_dispatch_catalogue_rows_written=int(profile.get("demand_dispatch_catalogue_rows_written",0))+ordered.size()
 	if trace.enabled:trace.elapsed("demand.rebuild_dispatch_catalog",commit_started,{"candidates":ordered.size()})
-	_record_demand_refresh(began)
+	_record_demand_refresh(began,trace_session,trace_ticket)
 
 func _can_reuse_demand_dispatch(ordered:Array)->bool:
 	if not reuse_demand_dispatch_catalogue_enabled or not _demand_dispatch_catalogue_valid or _demand_dispatch_catalogue_had_errors or not instance_errors.is_empty() or not path_errors.is_empty():return false
@@ -1395,11 +1422,12 @@ func _can_reuse_demand_dispatch(ordered:Array)->bool:
 	profile.demand_dispatch_catalogue_guard_rows=int(profile.get("demand_dispatch_catalogue_guard_rows",0))+checked
 	return same
 
-func _record_demand_refresh(began:int)->void:
+func _record_demand_refresh(began:int,trace_session:RefCounted=null,trace_ticket:Variant=null)->void:
 	var elapsed:=Time.get_ticks_usec()-began
 	profile.demand_refresh_us=int(profile.get("demand_refresh_us",0))+elapsed
 	profile.max_demand_refresh_us=maxi(int(profile.get("max_demand_refresh_us",0)),elapsed)
 	profile.demand_refreshes=int(profile.get("demand_refreshes",0))+1
+	if trace_session!=null:trace_session.end_refresh(trace_ticket,_demand_revision,pending_count(),_demanded_count(),profile)
 
 func _typed_full_scan_inputs(cached:Dictionary={})->Dictionary:
 	# Kind and source bounds do not change as the player moves. Partition at a
@@ -1552,6 +1580,7 @@ func register_runtime_building(uuid:String,bounds:AABB,supports:Dictionary)->voi
 		profile.runtime_registration_refresh_skips=int(profile.get("runtime_registration_refresh_skips",0))+1
 		return
 	_demand_revision+=1;set_process(_active)
+	if _demand_revision_trace!=null:_demand_revision_trace.change("register_building",uuid,null,bounds,_demand_revision)
 
 func _runtime_supports_ready(uuid:String)->bool:
 	var supports:Dictionary=_runtime_building_supports.get(uuid,EMPTY_DEMAND)
@@ -1735,8 +1764,10 @@ func prioritize(position:Vector3)->void:
 	# demand cell cadence and caps whole-town refreshes without changing
 	# demand membership; nearest local work remains chunk-driven.
 	if not _priority_rank_anchor is Vector3 or _priority_rank_anchor.distance_squared_to(flat_position)>=1024.:
+		var previous:Variant=_priority_rank_anchor if _demand_revision_trace!=null else null
 		_priority_rank_anchor=flat_position
 		_demand_revision+=1
+		if _demand_revision_trace!=null:_demand_revision_trace.change("priority_anchor","",previous,flat_position,_demand_revision)
 		set_process(_active)
 	_priority=position
 	# A chunk-aligned ticket is stable while walking inside one cell. Nothing
