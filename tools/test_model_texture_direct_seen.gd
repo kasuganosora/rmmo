@@ -36,7 +36,7 @@ func fixture()->Dictionary:
 		if i%5==0:part.material_overlay=materials[(i+2)%materials.size()]
 		scene.add_child(part)
 	return {"scene":scene,"mesh":mesh,"materials":materials,"source":source,"seed":seed,"bad":bad,"extra":extra,"local":local}
-func apply_trial(scene:Node,fast:bool)->Dictionary:
+func apply_trial(scene:Node,fast:bool,filter_types:bool=false)->Dictionary:
 	var stats:Dictionary={"materials":0,"properties":0,"storage_gets":0,"nontexture_gets":0,"known_nonobject_gets":0,"plain_calls":0,"key_calls":0,"seen_hits":0,"remember_calls":0,"sets":0,"sync_calls":0}
 	var started:=Time.get_ticks_usec();var materials:Array=Cache._materials(scene);stats.gather_us=Time.get_ticks_usec()-started
 	var seen:Dictionary={};var retired:Array[Texture2D]=[];started=Time.get_ticks_usec()
@@ -46,7 +46,11 @@ func apply_trial(scene:Node,fast:bool)->Dictionary:
 			stats.properties+=1
 			if not (int(info.usage)&PROPERTY_USAGE_STORAGE):continue
 			stats.storage_gets+=1
-			if int(info.type) not in [TYPE_OBJECT,TYPE_NIL]:stats.known_nonobject_gets+=1
+			if int(info.type) not in [TYPE_OBJECT,TYPE_NIL]:
+				stats.known_nonobject_gets+=1
+				if filter_types:
+					stats.storage_gets-=1
+					continue
 			var value:Variant=material.get(info.name)
 			if not value is Texture2D:stats.nontexture_gets+=1;continue
 			var id:int=value.get_instance_id()
@@ -77,12 +81,45 @@ func snapshot(graph:Dictionary)->Array:
 func release_graph(graph:Dictionary)->Dictionary:
 	var refs:Dictionary={"scene":weakref(graph.scene),"mesh":weakref(graph.mesh),"source":weakref(graph.source),"seed":weakref(graph.seed),"bad":weakref(graph.bad),"extra":weakref(graph.extra),"local":weakref(graph.local),"material":weakref(graph.materials[0])}
 	Drainer.dispose_scene(graph.scene);graph.clear();Cache._textures.clear();Drainer.synchronize_transfer();return refs
-func execute(mode:int)->Dictionary:
+func instrumented_direct()->GDScript:
+	# Test-only source copy counts actual property reads; production has no counter.
+	var source:=FileAccess.get_file_as_string("res://scripts/world3d/model_texture_direct_seen.gd")
+	var marker:="var value:Variant=material.get(info.name)"
+	expect(source.count(marker)==1,"instrumentation must match exactly one production get")
+	source=source.replace("extends RefCounted", "extends RefCounted\nstatic var diagnostic_gets:int=0\nstatic var diagnostic_retire_weak:WeakRef\nstatic var diagnostic_retire_alive:bool=false\nstatic var diagnostic_sync_calls:int=0")
+	source=source.replace(marker,"diagnostic_gets+=1\n\t\t\t"+marker)
+	var sync_marker:="\tif changed:preload(\"res://scripts/world3d/asset_worker_drainer.gd\").synchronize_transfer()"
+	if not source.contains(sync_marker):sync_marker="\tif not retired.is_empty():preload(\"res://scripts/world3d/asset_worker_drainer.gd\").synchronize_transfer()"
+	expect(source.count(sync_marker)==1,"instrumentation must match exactly one sync gate")
+	var conditional:="if changed:" if sync_marker.contains("if changed:") else "if not retired.is_empty():"
+	source=source.replace(sync_marker,"\t"+conditional+"\n\t\tdiagnostic_sync_calls+=1\n\t\tif diagnostic_retire_weak!=null:diagnostic_retire_alive=diagnostic_retire_weak.get_ref()!=null\n\t\tpreload(\"res://scripts/world3d/asset_worker_drainer.gd\").synchronize_transfer()")
+	var script:=GDScript.new();script.source_code=source
+	var err:=script.reload();expect(err==OK,"instrumented production helper parses")
+	return script
+func retirement_test(script:GDScript)->Dictionary:
+	var scene:=Node3D.new();var mesh:=ArrayMesh.new()
+	var arrays:Array=[];arrays.resize(Mesh.ARRAY_MAX);arrays[Mesh.ARRAY_VERTEX]=PackedVector3Array([Vector3.ZERO,Vector3.RIGHT,Vector3.UP])
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES,arrays)
+	var mat:=StandardMaterial3D.new();var original:=textured(Color(.8,.4,.3,1),"valid");var seed:=textured(Color(.8,.4,.3,1),"valid")
+	var prior:WeakRef=weakref(original);mat.albedo_texture=original;original=null
+	mesh.surface_set_material(0,mat);var part:=MeshInstance3D.new();part.mesh=mesh;scene.add_child(part)
+	Cache._textures.clear();Cache._remember(seed.get_meta(Cache.PIXEL_KEY),seed)
+	script.set("diagnostic_retire_weak",prior);script.set("diagnostic_sync_calls",0);script.call("apply",scene)
+	var alive_before_sync:bool=script.get("diagnostic_retire_alive")
+	var replaced:=mat.albedo_texture==seed
+	var alive_after_call:=prior.get_ref()!=null
+	Drainer.dispose_scene(scene);mat=null;mesh=null;seed=null;Cache._textures.clear();Drainer.synchronize_transfer()
+	script.set("diagnostic_retire_weak",null)
+	return {"sync_calls":script.get("diagnostic_sync_calls"),"alive_before_sync":alive_before_sync,"alive_after_call":alive_after_call,"replaced":replaced,"alive_after_dispose":prior.get_ref()!=null}
+func execute(mode:int,script:GDScript=null)->Dictionary:
 	var graph:=fixture();Cache._textures.clear()
 	var key:String=graph.seed.get_meta(Cache.PIXEL_KEY);Cache._remember(key,graph.seed)
 	var stats:Dictionary={}
 	if mode==2:Cache.apply(graph.scene)
 	elif mode==3:Direct.apply(graph.scene)
+	elif mode==4:stats=apply_trial(graph.scene,true,true)
+	elif mode==5:
+		script.set("diagnostic_gets",0);script.call("apply",graph.scene);stats.storage_gets=script.get("diagnostic_gets")
 	else:stats=apply_trial(graph.scene,mode==1)
 	var state:=snapshot(graph)
 	var refs:=release_graph(graph)
@@ -92,17 +129,22 @@ func run()->void:
 	for arg:String in OS.get_cmdline_user_args():
 		if arg.begins_with("--report="):report_path=arg.trim_prefix("--report=").replace("\\","/").simplify_path()
 	if not report_path.begins_with(STUDY+"/") or FileAccess.file_exists(report_path):printerr("new private report path required");quit(2);return
+	var instrumented:=instrumented_direct()
 	var baseline:=execute(0);var candidate:=execute(1);var production:=execute(2);var direct:=execute(3)
-	expect(baseline.snapshot==candidate.snapshot and baseline.snapshot==production.snapshot and baseline.snapshot==direct.snapshot,"material fields and metadata differ from real production apply/direct helper")
+	var filtered:=execute(4);var actual_instrumented:=execute(5,instrumented);var retirement:=retirement_test(instrumented)
+	expect(baseline.snapshot==candidate.snapshot and baseline.snapshot==production.snapshot and baseline.snapshot==direct.snapshot and baseline.snapshot==filtered.snapshot and baseline.snapshot==actual_instrumented.snapshot,"material fields and metadata differ from real production apply/direct helper")
 	for row:Dictionary in baseline.snapshot:
 		expect(row.albedo_seed and row.normal_seed and row.meta_seed and row.bad_unchanged and row.extra_unchanged and row.local_unchanged,"expected texture and metadata semantics")
 	expect(baseline.stats.materials==120 and candidate.stats.materials==120,"material dedup/nextpass coverage")
 	expect(candidate.stats.plain_calls<baseline.stats.plain_calls and candidate.stats.key_calls<baseline.stats.key_calls,"seen-first reduces repeated identity checks")
+	expect(baseline.stats.known_nonobject_gets>0 and filtered.stats.storage_gets==candidate.stats.storage_gets-baseline.stats.known_nonobject_gets,"type filter removes known nonobject property gets")
+	expect(actual_instrumented.stats.storage_gets==filtered.stats.storage_gets,"actual direct helper must skip same known nonobject gets")
+	expect(retirement.sync_calls==1 and retirement.alive_before_sync and retirement.replaced and not retirement.alive_after_call and not retirement.alive_after_dispose,"original kept alive through sync then released")
 	expect(candidate.stats.remember_calls==baseline.stats.remember_calls and candidate.stats.sets==baseline.stats.sets and candidate.stats.sync_calls==baseline.stats.sync_calls,"intern/set/synchronization work and order unchanged")
 	for key:String in baseline.weakrefs:
-		expect(baseline.weakrefs[key].get_ref()==null and candidate.weakrefs[key].get_ref()==null and production.weakrefs[key].get_ref()==null and direct.weakrefs[key].get_ref()==null,"resource retained after cancellation-style disposal: "+key)
+		expect(baseline.weakrefs[key].get_ref()==null and candidate.weakrefs[key].get_ref()==null and production.weakrefs[key].get_ref()==null and direct.weakrefs[key].get_ref()==null and filtered.weakrefs[key].get_ref()==null and actual_instrumented.weakrefs[key].get_ref()==null,"resource retained after cancellation-style disposal: "+key)
 	baseline.erase("weakrefs");candidate.erase("weakrefs");production.erase("weakrefs");direct.erase("weakrefs")
-	var result={"baseline":baseline.stats,"candidate":candidate.stats,"errors":errors,"scope":"synthetic graph: original production apply and direct helper plus separately instrumented baseline/candidate; timing includes counters and is not production or map performance; disposal is after synchronous apply, not Deferred scheduling"}
+	var result={"baseline":baseline.stats,"candidate":candidate.stats,"filtered_instrumented_trial":filtered.stats,"direct_instrumented":actual_instrumented.stats,"retirement":retirement,"errors":errors,"scope":"synthetic graph: original production apply and direct helper plus separately instrumented baseline/candidate; instrumented copy counts real direct source get calls; timings include counters and are not production or map performance; disposal is after synchronous apply, not Deferred scheduling"}
 	var file:=FileAccess.open(report_path,FileAccess.WRITE)
 	if file==null:printerr("report write failed");quit(2);return
 	file.store_string(JSON.stringify(result,"\t"));file.close()

@@ -1,0 +1,7 @@
+config_version=5
+
+[application]
+config/name="CPU Shader Decode Contract"
+
+[rendering]
+renderer/rendering_method="gl_compatibility"

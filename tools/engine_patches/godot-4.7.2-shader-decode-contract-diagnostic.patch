@@ -1,0 +1,144 @@
+--- a/servers/rendering/rendering_device.cpp
++++ b/servers/rendering/rendering_device.cpp
+@@ -41,6 +41,10 @@
+ #include "core/templates/fixed_vector.h"
+ #include "servers/rendering/rendering_device_binds.h"
+ #include "servers/rendering/rendering_shader_container.h"
++
++#if defined(TOOLS_ENABLED) && defined(VULKAN_ENABLED)
++#include "servers/rendering/rmmo_shader_decode_contract_test.h"
++#endif
+ #include "servers/rendering/shader_include_db.h"
+ 
+ #include "modules/modules_enabled.gen.h"
+@@ -9064,6 +9068,11 @@
+ }
+ 
+ void RenderingDevice::_bind_methods() {
++#if defined(TOOLS_ENABLED) && defined(VULKAN_ENABLED)
++	if (OS::get_singleton()->get_environment("RMMO_SHADER_DECODE_TEST_API") == "1") {
++		ClassDB::bind_static_method("RenderingDevice", D_METHOD("rmmo_test_shader_decode_contract"), &RMMOShaderDecodeContractTest::run);
++	}
++#endif
+ 	ClassDB::bind_method(D_METHOD("texture_create", "format", "view", "data"), &RenderingDevice::_texture_create, DEFVAL(Array()));
+ 	ClassDB::bind_method(D_METHOD("texture_create_shared", "view", "with_texture"), &RenderingDevice::_texture_create_shared);
+ 	ClassDB::bind_method(D_METHOD("texture_create_shared_from_slice", "view", "with_texture", "layer", "mipmap", "mipmaps", "slice_type"), &RenderingDevice::_texture_create_shared_from_slice, DEFVAL(1), DEFVAL(TEXTURE_SLICE_2D));
+--- /dev/null
++++ b/servers/rendering/rmmo_shader_decode_contract_test.h
+@@ -0,0 +1,116 @@
++// Diagnostic-only bridge. Its binding is absent unless explicitly enabled.
++// Uses the production container and inherited production decoder, with CPU
++// bytes only. No RenderingDevice instance, SPIR-V parser or GPU call is made.
++#pragma once
++
++#include "core/io/compression.h"
++#include "core/variant/array.h"
++#include "core/variant/dictionary.h"
++#include "drivers/vulkan/rendering_shader_container_vulkan.h"
++
++namespace RMMOShaderDecodeContractTest {
++
++static PackedByteArray make_bytes(int p_size, uint8_t p_seed) {
++	PackedByteArray result;
++	result.resize(p_size);
++	for (int i = 0; i < p_size; i++) {
++		result.ptrw()[i] = p_seed + (i % 7);
++	}
++	return result;
++}
++
++static PackedByteArray compress(const PackedByteArray &p_bytes) {
++	PackedByteArray result;
++	result.resize(Compression::get_max_compressed_buffer_size(p_bytes.size(), Compression::MODE_ZSTD));
++	const int64_t size = Compression::compress(result.ptrw(), p_bytes.ptr(), p_bytes.size(), Compression::MODE_ZSTD);
++	ERR_FAIL_COND_V(size <= 0 || size > result.size(), PackedByteArray());
++	result.resize(size);
++	return result;
++}
++
++static Dictionary run() {
++	RenderingShaderContainerFormatVulkan format;
++	Ref<RenderingShaderContainer> container = format.create_container();
++	const PackedByteArray seed = make_bytes(64, 0xa0);
++	const PackedByteArray seed_compressed = compress(seed);
++	const PackedByteArray same = make_bytes(64, 0x20);
++	const PackedByteArray small = make_bytes(24, 0x40);
++	const PackedByteArray large = make_bytes(80, 0x60);
++	const PackedByteArray same_compressed = compress(same);
++	const PackedByteArray small_compressed = compress(small);
++	PackedByteArray truncated = same_compressed;
++	truncated.resize(truncated.size() - 2);
++	const PackedByteArray invalid = make_bytes(16, 0x10);
++	const uint32_t zstd = RenderingShaderContainer::COMPRESSION_FLAG_ZSTD;
++	const uint32_t smolv = RenderingShaderContainerVulkan::COMPRESSION_FLAG_SMOLV;
++	Vector<uint8_t> scratch;
++	scratch.resize(seed.size());
++	Array cases;
++	int passed = 0;
++	int failed = 0;
++	int seed_decode_calls = 0;
++	int probe_decode_calls = 0;
++	auto test = [&](const String &p_name, const PackedByteArray &p_input, uint32_t p_flags, uint32_t p_output_size, bool p_expected_ok, const PackedByteArray &p_expected_bytes) {
++		// A successful preceding stage fills this exact scratch allocation. The
++		// second call deliberately reuses it, including a shrink-size case.
++		scratch.resize(seed.size());
++		const bool seed_ok = container->decompress_code(seed_compressed.ptr(), seed_compressed.size(), zstd, scratch.ptrw(), scratch.size());
++		seed_decode_calls++;
++		const bool seed_bytes_match = memcmp(scratch.ptr(), seed.ptr(), seed.size()) == 0;
++		const uint8_t *seed_ptr = scratch.ptr();
++		scratch.resize(p_output_size);
++		const bool same_allocation = seed_ptr == scratch.ptr();
++		const bool ok = container->decompress_code(p_input.ptr(), p_input.size(), p_flags, scratch.ptrw(), scratch.size());
++		probe_decode_calls++;
++		const bool bytes_match = p_expected_ok && p_expected_bytes.size() == scratch.size() && memcmp(scratch.ptr(), p_expected_bytes.ptr(), scratch.size()) == 0;
++		bool prior_stage_tail_visible = p_output_size > (uint32_t)small.size();
++		for (uint32_t i = small.size(); i < p_output_size; i++) {
++			prior_stage_tail_visible = prior_stage_tail_visible && scratch[i] == seed[i];
++		}
++		const bool pass = seed_ok && seed_bytes_match && same_allocation && ok == p_expected_ok && (!p_expected_ok || bytes_match);
++		Dictionary row;
++		row["case"] = p_name;
++		row["seed_ok"] = seed_ok;
++		row["seed_bytes_match"] = seed_bytes_match;
++		row["same_scratch_allocation"] = same_allocation;
++		row["actual_ok"] = ok;
++		row["expected_ok"] = p_expected_ok;
++		row["valid_output_bytes_match"] = bytes_match;
++		row["prior_stage_tail_visible"] = prior_stage_tail_visible;
++		row["pass"] = pass;
++		cases.push_back(row);
++		if (pass) {
++			passed++;
++		} else {
++			failed++;
++		}
++	};
++
++	test("valid_zstd_exact", same_compressed, zstd, 64, true, same);
++	test("valid_raw_exact", same, 0, 64, true, same);
++	test("valid_zstd_with_smolv_flag", same_compressed, zstd | smolv, 64, true, same);
++	test("valid_raw_with_smolv_flag", same, smolv, 64, true, same);
++	test("positive_short_zstd_reuses_scratch", small_compressed, zstd, 64, false, PackedByteArray());
++	test("negative_invalid_zstd_reuses_scratch", invalid, zstd, 64, false, PackedByteArray());
++	test("negative_truncated_zstd_reuses_scratch", truncated, zstd, 64, false, PackedByteArray());
++	test("negative_destination_small_zstd", same_compressed, zstd, 48, false, PackedByteArray());
++	test("short_raw_reuses_scratch", small, 0, 64, false, PackedByteArray());
++	test("long_raw_was_silently_truncated", large, 0, 64, false, PackedByteArray());
++	test("positive_short_zstd_after_scratch_shrink", small_compressed, zstd, 48, false, PackedByteArray());
++	test("short_raw_after_scratch_shrink", small, 0, 48, false, PackedByteArray());
++	test("valid_zstd_after_failures", same_compressed, zstd, 64, true, same);
++	test("valid_raw_after_failures", same, 0, 64, true, same);
++
++	Dictionary result;
++	result["production_function"] = "RenderingShaderContainer::decompress_code";
++	result["cpu_only"] = true;
++	result["gpu_calls"] = 0;
++	result["passed"] = passed;
++	result["failed"] = failed;
++	result["seed_decode_calls"] = seed_decode_calls;
++	result["probe_decode_calls"] = probe_decode_calls;
++	result["cases"] = cases;
++	return result;
++}
++
++} // namespace RMMOShaderDecodeContractTest

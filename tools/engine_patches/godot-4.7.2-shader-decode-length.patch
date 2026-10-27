@@ -1,0 +1,19 @@
+--- a/servers/rendering/rendering_shader_container.cpp
++++ b/servers/rendering/rendering_shader_container.cpp
+@@ -999,11 +999,13 @@
+ 
+ 	bool uses_zstd = p_compressed_flags & COMPRESSION_FLAG_ZSTD;
+ 	if (uses_zstd) {
+-		if (!Compression::decompress(p_decompressed_bytes, p_decompressed_size, p_compressed_bytes, p_compressed_size, Compression::MODE_ZSTD)) {
+-			ERR_FAIL_V_MSG(false, "Malformed zstd input for decompressing shader code.");
++		const int64_t decompressed_size = Compression::decompress(p_decompressed_bytes, p_decompressed_size, p_compressed_bytes, p_compressed_size, Compression::MODE_ZSTD);
++		if (decompressed_size != p_decompressed_size) {
++			ERR_FAIL_V_MSG(false, "Malformed zstd input or mismatched decompressed size for shader code.");
+ 		}
+ 	} else {
+-		memcpy(p_decompressed_bytes, p_compressed_bytes, MIN(p_compressed_size, p_decompressed_size));
++		ERR_FAIL_COND_V_MSG(p_compressed_size != p_decompressed_size, false, "Mismatched uncompressed shader code size.");
++		memcpy(p_decompressed_bytes, p_compressed_bytes, p_decompressed_size);
+ 	}
+ 
+ 	return true;

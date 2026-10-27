@@ -34,3 +34,6 @@
 /review_artifacts/terrain_incremental_20261017/** -text whitespace=-blank-at-eof,-blank-at-eol,cr-at-eol
 /review_artifacts/editor_runtime_followup_20261017/** -text whitespace=-blank-at-eof,-blank-at-eol,cr-at-eol
 /review_artifacts/runtime_completion_20261017/** -text whitespace=-blank-at-eof,-blank-at-eol,cr-at-eol
+
+# Unified patches must keep LF context lines for git apply on engine LF sources.
+/tools/engine_patches/*.patch text eol=lf whitespace=-blank-at-eol,-blank-at-eof

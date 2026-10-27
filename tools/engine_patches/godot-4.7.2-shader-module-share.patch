@@ -1,0 +1,233 @@
+--- a/drivers/vulkan/rendering_device_driver_vulkan.cpp
++++ b/drivers/vulkan/rendering_device_driver_vulkan.cpp
+@@ -32,6 +32,7 @@
+ 
+ #include "core/config/engine.h"
+ #include "core/config/project_settings.h"
++#include "core/io/file_access.h"
+ #include "core/os/os.h"
+ #include "core/templates/fixed_vector.h"
+ #include "drivers/vulkan/vulkan_hooks.h"
+@@ -47,6 +48,8 @@
+ #endif
+ 
+ #define ARRAY_SIZE(a) std_size(a)
++
++static std::atomic<uint64_t> rmmo_module_device_sequence{0};
+ 
+ // Disable raytracing support on macOS and iOS due to MoltenVK limitations.
+ #if !(defined(MACOS_ENABLED) || defined(IOS_ENABLED))
+@@ -4475,6 +4478,15 @@
+ 	VkShaderModule vk_module;
+ 	const bool store_respv = prepared.store_respv;
+ 	const int64_t stage_count = shader_refl.stages_vector.size();
++	static const bool rmmo_sharing_enabled = OS::get_singleton()->get_environment("RMMO_SHADER_MODULE_SHARE") == "1";
++	static const bool rmmo_test_api = OS::get_singleton()->get_environment("RMMO_SHADER_MODULE_TEST_API") == "1";
++	static const bool rmmo_force_hash_collision = rmmo_test_api && OS::get_singleton()->get_environment("RMMO_SHADER_MODULE_TEST_COLLISION") == "1";
++	static const String rmmo_only_name = rmmo_test_api ? OS::get_singleton()->get_environment("RMMO_SHADER_MODULE_TEST_ONLY_PREFIX") : String();
++	static const String rmmo_fail_name = rmmo_test_api ? OS::get_singleton()->get_environment("RMMO_SHADER_MODULE_TEST_FAIL_NAME") : String();
++	const bool rmmo_test_scope = rmmo_only_name.is_empty() || shader_info.name.begins_with(rmmo_only_name);
++	const bool rmmo_share_this = rmmo_sharing_enabled && rmmo_test_scope;
++	static const bool rmmo_stats_enabled = !OS::get_singleton()->get_environment("RMMO_SHADER_MODULE_STATS_PATH").is_empty();
++	if (rmmo_share_this) shader_info.rmmo_shared_modules.reserve(stage_count);
+ 	shader_info.vk_stages_create_info.reserve(stage_count);
+ 	shader_info.original_stage_size.reserve(stage_count);
+ 
+@@ -4510,7 +4522,23 @@
+ 		shader_module_create_info.pCode = (const uint32_t *)(decoded_spirv.ptr());
+ 
+ 		const uint64_t module_begin = profile_respv ? OS::get_singleton()->get_ticks_usec() : 0;
+-		res = vkCreateShaderModule(vk_device, &shader_module_create_info, VKC::get_allocation_callbacks(VK_OBJECT_TYPE_SHADER_MODULE), &vk_module);
++		RmmoModuleRegistry::Entry *rmmo_entry = nullptr;
++		if (!rmmo_fail_name.is_empty() && shader_info.name == rmmo_fail_name && i == 1) {
++			res = VK_ERROR_UNKNOWN;
++		} else if (rmmo_share_this && shader_module_create_info.flags == 0 && shader_module_create_info.pNext == nullptr) {
++			const uint64_t hash = rmmo_force_hash_collision ? 0 : hash_murmur3_buffer(decoded_spirv.ptr(), decoded_spirv.size());
++			auto create_module = [&](VkShaderModule &out) -> bool {
++				if (rmmo_stats_enabled && rmmo_test_scope) rmmo_vk_module_calls.fetch_add(1, std::memory_order_relaxed);
++				res = vkCreateShaderModule(vk_device, &shader_module_create_info, VKC::get_allocation_callbacks(VK_OBJECT_TYPE_SHADER_MODULE), &out);
++				return res == VK_SUCCESS;
++			};
++			if (rmmo_module_registry.acquire(decoded_spirv.ptr(), decoded_spirv.size(), hash, create_module, vk_module, rmmo_entry)) {
++				res = VK_SUCCESS;
++			}
++		} else {
++			if (rmmo_stats_enabled && rmmo_test_scope) rmmo_vk_module_calls.fetch_add(1, std::memory_order_relaxed);
++			res = vkCreateShaderModule(vk_device, &shader_module_create_info, VKC::get_allocation_callbacks(VK_OBJECT_TYPE_SHADER_MODULE), &vk_module);
++		}
+ 		if (profile_respv) { module_us += OS::get_singleton()->get_ticks_usec() - module_begin; }
+ 		if (res != VK_SUCCESS) {
+ 			error_text = vformat("Error (%d) creating module for shader stage %s.", res, String(SHADER_STAGE_NAMES[shader_refl.stages_vector[i]]));
+@@ -4523,6 +4551,7 @@
+ 		create_info.module = vk_module;
+ 		create_info.pName = "main";
+ 		shader_info.vk_stages_create_info.push_back(create_info);
++		if (rmmo_share_this) shader_info.rmmo_shared_modules.push_back(rmmo_entry);
+ 	}
+ 
+ 	// Descriptor sets.
+@@ -4583,7 +4612,7 @@
+ 	if (!error_text.is_empty()) {
+ 		// Clean up if failed.
+ 		for (uint32_t i = 0; i < shader_info.vk_stages_create_info.size(); i++) {
+-			vkDestroyShaderModule(vk_device, shader_info.vk_stages_create_info[i].module, VKC::get_allocation_callbacks(VK_OBJECT_TYPE_SHADER_MODULE));
++			rmmo_release_module(shader_info, i);
+ 		}
+ 		for (uint32_t i = 0; i < shader_info.vk_descriptor_set_layouts.size(); i++) {
+ 			vkDestroyDescriptorSetLayout(vk_device, shader_info.vk_descriptor_set_layouts[i], VKC::get_allocation_callbacks(VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT));
+@@ -4622,17 +4651,27 @@
+ 	VersatileResource::free(resources_allocator, shader_info);
+ }
+ 
++void RenderingDeviceDriverVulkan::rmmo_release_module(ShaderInfo &p_shader, uint32_t p_index) {
++	VkShaderModule module = p_shader.vk_stages_create_info[p_index].module;
++	if (module == VK_NULL_HANDLE) return;
++	auto destroy = [&](VkShaderModule m) { vkDestroyShaderModule(vk_device, m, VKC::get_allocation_callbacks(VK_OBJECT_TYPE_SHADER_MODULE)); };
++	if (p_index < p_shader.rmmo_shared_modules.size()) {
++		rmmo_module_registry.release(p_shader.rmmo_shared_modules[p_index], module, destroy);
++		p_shader.rmmo_shared_modules[p_index] = nullptr;
++	} else {
++		destroy(module);
++	}
++	p_shader.vk_stages_create_info[p_index].module = VK_NULL_HANDLE;
++}
++
+ void RenderingDeviceDriverVulkan::shader_destroy_modules(ShaderID p_shader) {
+ 	ShaderInfo *si = (ShaderInfo *)p_shader.id;
+ 
+ 	for (uint32_t i = 0; i < si->vk_stages_create_info.size(); i++) {
+-		if (si->vk_stages_create_info[i].module) {
+-			vkDestroyShaderModule(vk_device, si->vk_stages_create_info[i].module,
+-					VKC::get_allocation_callbacks(VK_OBJECT_TYPE_SHADER_MODULE));
+-			si->vk_stages_create_info[i].module = VK_NULL_HANDLE;
+-		}
++		rmmo_release_module(*si, i);
+ 	}
+ 	si->vk_stages_create_info.clear();
++	si->rmmo_shared_modules.clear();
+ }
+ 
+ /*********************/
+@@ -7582,10 +7621,25 @@
+ 	DEV_ASSERT(p_context_driver != nullptr);
+ 
+ 	context_driver = p_context_driver;
++	rmmo_module_device_id = rmmo_module_device_sequence.fetch_add(1, std::memory_order_relaxed) + 1;
++	if (OS::get_singleton()->get_environment("RMMO_SHADER_MODULE_TEST_API") == "1") {
++		const String test_cap = OS::get_singleton()->get_environment("RMMO_SHADER_MODULE_TEST_LIMIT_BYTES");
++		if (!test_cap.is_empty()) rmmo_module_registry.set_test_limits(uint64_t(MAX(int64_t(0), test_cap.to_int())), 8192);
++	}
+ 	max_descriptor_sets_per_pool = GLOBAL_GET("rendering/rendering_device/vulkan/max_descriptors_per_pool");
+ }
+ 
+ RenderingDeviceDriverVulkan::~RenderingDeviceDriverVulkan() {
++	const String rmmo_stats_path = OS::get_singleton()->get_environment("RMMO_SHADER_MODULE_STATS_PATH");
++	if (!rmmo_stats_path.is_empty()) {
++		const auto stats = rmmo_module_registry.stats();
++		Ref<FileAccess> f = FileAccess::open(rmmo_stats_path + ".device-" + itos(rmmo_module_device_id) + ".txt", FileAccess::WRITE);
++		if (f.is_valid()) {
++			f->store_line(vformat("schema=1 device_id=%d vk_calls=%d hits=%d misses=%d shared_created=%d registry_create_failures=%d private_fallbacks=%d releases=%d retained_capacity=%d peak_capacity=%d live=%d peak_live=%d entry_metadata_min=%d peak_entry_metadata_min=%d sizeof_entry=%d cap_bytes=%d cap_entries=%d", rmmo_module_device_id, rmmo_vk_module_calls.load(std::memory_order_relaxed), stats.hits, stats.misses, stats.created, stats.failures, stats.over_cap, stats.releases, stats.retained, stats.peak, stats.live, stats.peak_live, stats.entry_metadata, stats.peak_entry_metadata, stats.entry_size, stats.cap_bytes, stats.cap_entries));
++			f->flush();
++		}
++	}
++
+ #if defined(DEBUG_ENABLED) || defined(DEV_ENABLED)
+ 	if (breadcrumb_buffer != BufferID()) {
+ 		buffer_free(breadcrumb_buffer);
+--- a/drivers/vulkan/rendering_device_driver_vulkan.h
++++ b/drivers/vulkan/rendering_device_driver_vulkan.h
+@@ -30,6 +30,8 @@
+ 
+ #pragma once
+ 
++#include "drivers/vulkan/rmmo_module_registry.h"
++#include <atomic>
+ #include "core/templates/hash_map.h"
+ #include "core/templates/paged_allocator.h"
+ #include "core/templates/rb_map.h"
+@@ -482,10 +484,15 @@
+ 	/**** SHADER ****/
+ 	/****************/
+ private:
++	using RmmoModuleRegistry = ModuleRegistry<VkShaderModule>;
++	RmmoModuleRegistry rmmo_module_registry{67108864, 8192};
++	std::atomic<uint64_t> rmmo_vk_module_calls{0};
++	uint64_t rmmo_module_device_id = 0;
+ 	struct ShaderInfo {
+ 		String name;
+ 		VkShaderStageFlags vk_push_constant_stages = 0;
+ 		TightLocalVector<VkPipelineShaderStageCreateInfo> vk_stages_create_info;
++		TightLocalVector<RmmoModuleRegistry::Entry *> rmmo_shared_modules;
+ 		TightLocalVector<VkDescriptorSetLayout> vk_descriptor_set_layouts;
+ 		TightLocalVector<respv::Shader> respv_stage_shaders;
+ 		TightLocalVector<Vector<uint8_t>> spirv_stage_bytes;
+@@ -494,6 +501,7 @@
+ 	};
+ 
+ public:
++	void rmmo_release_module(ShaderInfo &p_shader, uint32_t p_index);
+ 	virtual ShaderID shader_create_from_container(const Ref<RenderingShaderContainer> &p_shader_container, const Vector<ImmutableSampler> &p_immutable_samplers) override final;
+ 	virtual bool supports_shader_cpu_preparation() const override final { return true; }
+ 	virtual bool shader_prepare_from_container(const Ref<RenderingShaderContainer> &p_shader_container, const ShaderReflection &p_reflection) override final;
+--- a/drivers/vulkan/rmmo_module_registry.h
++++ b/drivers/vulkan/rmmo_module_registry.h
+@@ -0,0 +1,48 @@
++#pragma once
++#include <atomic>
++#include <cstdint>
++#include <cstddef>
++#include <cstring>
++#include <mutex>
++#include <unordered_map>
++#include <vector>
++
++// Driver-local active-owner cache. Hash is only a bucket hint; bytes decide.
++template<class Handle> class ModuleRegistry {
++public:
++ struct Entry { std::vector<uint8_t> bytes; Handle handle{}; uint64_t hash=0; uint32_t refs=0; };
++ struct Stats { uint64_t hits,misses,created,failures,over_cap,releases,retained,peak,live,peak_live,entry_metadata,peak_entry_metadata,entry_size,cap_bytes,cap_entries; };
++private:
++ std::mutex mutex;
++ std::unordered_map<uint64_t,std::vector<Entry*>> buckets;
++ uint64_t max_bytes,max_entries;
++ uint64_t hits=0,misses=0,created=0,failures=0,over_cap=0,releases=0,retained=0,peak=0,live=0,peak_live=0;
++public:
++ ModuleRegistry(uint64_t byte_cap,uint64_t entry_cap):max_bytes(byte_cap),max_entries(entry_cap){}
++ bool set_test_limits(uint64_t bytes,uint64_t entries){std::lock_guard<std::mutex> lock(mutex);if(live)return false;max_bytes=bytes;max_entries=entries;return true;}
++ // create is invoked under this independent registry lock; never acquire the RD lock inside it.
++ template<class Create> bool acquire(const uint8_t *data,size_t len,uint64_t hash,Create create,Handle &handle,Entry *&entry) {
++  std::unique_lock<std::mutex> lock(mutex);entry=nullptr;
++  auto it=buckets.find(hash);
++  if(it!=buckets.end())for(Entry *e:it->second)if(e->bytes.size()==len && !std::memcmp(e->bytes.data(),data,len)) { e->refs++;handle=e->handle;entry=e;hits++;return true; }
++  misses++;
++  if(len>max_bytes-retained || live>=max_entries) { over_cap++;lock.unlock();return create(handle); }
++  Entry *e=new Entry;e->bytes.assign(data,data+len);
++  const uint64_t alloc=e->bytes.capacity();
++  if(alloc>max_bytes-retained) { delete e;over_cap++;lock.unlock();return create(handle); }
++  if(!create(handle)) { delete e;failures++;return false; }
++  e->handle=handle;e->hash=hash;e->refs=1;entry=e;buckets[hash].push_back(e);
++  retained+=alloc;live++;created++;if(retained>peak)peak=retained;if(live>peak_live)peak_live=live;
++  return true;
++ }
++ template<class Destroy> void release(Entry *entry,Handle handle,Destroy destroy) {
++  if(!entry){ destroy(handle);return; }
++  std::unique_lock<std::mutex> lock(mutex);releases++;
++  if(--entry->refs)return;
++  auto it=buckets.find(entry->hash);auto &v=it->second;
++  for(auto i=v.begin();i!=v.end();++i)if(*i==entry){v.erase(i);break;}
++  if(v.empty())buckets.erase(it);const uint64_t bytes=entry->bytes.capacity();Handle last=entry->handle;delete entry;retained-=bytes;live--;lock.unlock();
++  destroy(last);
++ }
++ Stats stats(){std::lock_guard<std::mutex> lock(mutex);return {hits,misses,created,failures,over_cap,releases,retained,peak,live,peak_live,live*sizeof(Entry),peak_live*sizeof(Entry),sizeof(Entry),max_bytes,max_entries};}
++};
+--- a/servers/rendering/rendering_device.cpp
++++ b/servers/rendering/rendering_device.cpp
+@@ -9115,5 +9115,8 @@
+ 	ClassDB::bind_method(D_METHOD("shader_create_from_spirv", "spirv_data", "name"), &RenderingDevice::_shader_create_from_spirv, DEFVAL(""));
+ 	ClassDB::bind_method(D_METHOD("shader_create_from_bytecode", "binary_data", "placeholder_rid"), &RenderingDevice::shader_create_from_bytecode, DEFVAL(RID()));
+ 	ClassDB::bind_method(D_METHOD("shader_create_placeholder"), &RenderingDevice::shader_create_placeholder);
++	if (OS::get_singleton()->get_environment("RMMO_SHADER_MODULE_TEST_API") == "1") {
++		ClassDB::bind_method(D_METHOD("rmmo_test_shader_destroy_modules", "shader"), &RenderingDevice::shader_destroy_modules);
++	}
+ 
+ 	ClassDB::bind_method(D_METHOD("shader_get_vertex_input_attribute_mask", "shader"), &RenderingDevice::shader_get_vertex_input_attribute_mask);

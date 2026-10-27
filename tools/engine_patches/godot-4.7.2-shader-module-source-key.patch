@@ -1,0 +1,106 @@
+--- a/drivers/vulkan/rendering_device_driver_vulkan.cpp
++++ b/drivers/vulkan/rendering_device_driver_vulkan.cpp
+@@ -4479,6 +4479,7 @@
+ 	const bool store_respv = prepared.store_respv;
+ 	const int64_t stage_count = shader_refl.stages_vector.size();
+ 	static const bool rmmo_sharing_enabled = OS::get_singleton()->get_environment("RMMO_SHADER_MODULE_SHARE") == "1";
++	static const bool rmmo_source_key_enabled = OS::get_singleton()->get_environment("RMMO_SHADER_MODULE_SOURCE_KEY") == "1";
+ 	static const bool rmmo_test_api = OS::get_singleton()->get_environment("RMMO_SHADER_MODULE_TEST_API") == "1";
+ 	static const bool rmmo_force_hash_collision = rmmo_test_api && OS::get_singleton()->get_environment("RMMO_SHADER_MODULE_TEST_COLLISION") == "1";
+ 	static const String rmmo_only_name = rmmo_test_api ? OS::get_singleton()->get_environment("RMMO_SHADER_MODULE_TEST_ONLY_PREFIX") : String();
+@@ -4532,7 +4533,14 @@
+ 				res = vkCreateShaderModule(vk_device, &shader_module_create_info, VKC::get_allocation_callbacks(VK_OBJECT_TYPE_SHADER_MODULE), &out);
+ 				return res == VK_SUCCESS;
+ 			};
+-			if (rmmo_module_registry.acquire(decoded_spirv.ptr(), decoded_spirv.size(), hash, create_module, vk_module, rmmo_entry)) {
++			// store_respv is the no-optimizer-rewrite branch. The container is a
++			// private from_bytes copy, and prepare has completely decoded it.
++			const auto &rmmo_input = p_shader_container->shaders[i];
++			const bool rmmo_source_key = rmmo_source_key_enabled && store_respv &&
++					!rmmo_input.code_compressed_bytes.is_empty() &&
++					rmmo_input.code_compressed_bytes.size() < decoded_spirv.size();
++			const RmmoModuleRegistry::SourceKey rmmo_key{rmmo_input.code_compressed_bytes.ptr(), size_t(rmmo_input.code_compressed_bytes.size()), rmmo_input.code_compression_flags, rmmo_input.code_decompressed_size, 1, uint32_t(rmmo_input.shader_stage)};
++			if (rmmo_module_registry.acquire(decoded_spirv.ptr(), decoded_spirv.size(), hash, create_module, vk_module, rmmo_entry, rmmo_source_key ? &rmmo_key : nullptr)) {
+ 				res = VK_SUCCESS;
+ 			}
+ 		} else {
+@@ -7635,7 +7643,7 @@
+ 		const auto stats = rmmo_module_registry.stats();
+ 		Ref<FileAccess> f = FileAccess::open(rmmo_stats_path + ".device-" + itos(rmmo_module_device_id) + ".txt", FileAccess::WRITE);
+ 		if (f.is_valid()) {
+-			f->store_line(vformat("schema=1 device_id=%d vk_calls=%d hits=%d misses=%d shared_created=%d registry_create_failures=%d private_fallbacks=%d releases=%d retained_capacity=%d peak_capacity=%d live=%d peak_live=%d entry_metadata_min=%d peak_entry_metadata_min=%d sizeof_entry=%d cap_bytes=%d cap_entries=%d", rmmo_module_device_id, rmmo_vk_module_calls.load(std::memory_order_relaxed), stats.hits, stats.misses, stats.created, stats.failures, stats.over_cap, stats.releases, stats.retained, stats.peak, stats.live, stats.peak_live, stats.entry_metadata, stats.peak_entry_metadata, stats.entry_size, stats.cap_bytes, stats.cap_entries));
++			f->store_line(vformat("schema=1 device_id=%d vk_calls=%d hits=%d misses=%d shared_created=%d registry_create_failures=%d private_fallbacks=%d releases=%d retained_capacity=%d peak_capacity=%d live=%d peak_live=%d entry_metadata_min=%d peak_entry_metadata_min=%d sizeof_entry=%d cap_bytes=%d cap_entries=%d raw_hits=%d source_hits=%d raw_misses=%d source_misses=%d raw_fallbacks=%d source_fallbacks=%d raw_retained=%d source_retained=%d raw_peak=%d source_peak=%d", rmmo_module_device_id, rmmo_vk_module_calls.load(std::memory_order_relaxed), stats.hits, stats.misses, stats.created, stats.failures, stats.over_cap, stats.releases, stats.retained, stats.peak, stats.live, stats.peak_live, stats.entry_metadata, stats.peak_entry_metadata, stats.entry_size, stats.cap_bytes, stats.cap_entries, stats.raw_hits, stats.source_hits, stats.raw_misses, stats.source_misses, stats.raw_fallbacks, stats.source_fallbacks, stats.raw_retained, stats.source_retained, stats.raw_peak, stats.source_peak));
+ 			f->flush();
+ 		}
+ 	}
+--- a/drivers/vulkan/rmmo_module_registry.h
++++ b/drivers/vulkan/rmmo_module_registry.h
+@@ -7,33 +7,43 @@
+ #include <unordered_map>
+ #include <vector>
+ 
+-// Driver-local active-owner cache. Hash is only a bucket hint; bytes decide.
++// Driver-local active-owner cache. No digest alone establishes identity.
+ template<class Handle> class ModuleRegistry {
+ public:
+- struct Entry { std::vector<uint8_t> bytes; Handle handle{}; uint64_t hash=0; uint32_t refs=0; };
+- struct Stats { uint64_t hits,misses,created,failures,over_cap,releases,retained,peak,live,peak_live,entry_metadata,peak_entry_metadata,entry_size,cap_bytes,cap_entries; };
++ struct SourceKey { const uint8_t *data=nullptr;size_t size=0;uint32_t codec_flags=0;uint32_t decoded_size=0;uint32_t mode=0;uint32_t stage=0; };
++ struct Entry { std::vector<uint8_t> bytes; Handle handle{}; uint64_t hash=0,final_size=0; uint32_t refs=0,codec_flags=0,decoded_size=0,mode=0,stage=0;bool source=false; };
++ struct Stats { uint64_t hits,misses,created,failures,over_cap,releases,retained,peak,live,peak_live,entry_metadata,peak_entry_metadata,entry_size,cap_bytes,cap_entries;uint64_t raw_hits,source_hits,raw_misses,source_misses,raw_fallbacks,source_fallbacks,raw_retained,source_retained,raw_peak,source_peak; };
+ private:
+  std::mutex mutex;
+  std::unordered_map<uint64_t,std::vector<Entry*>> buckets;
+  uint64_t max_bytes,max_entries;
+  uint64_t hits=0,misses=0,created=0,failures=0,over_cap=0,releases=0,retained=0,peak=0,live=0,peak_live=0;
++ uint64_t raw_hits=0,source_hits=0,raw_misses=0,source_misses=0,raw_fallbacks=0,source_fallbacks=0,raw_retained=0,source_retained=0,raw_peak=0,source_peak=0;
+ public:
+  ModuleRegistry(uint64_t byte_cap,uint64_t entry_cap):max_bytes(byte_cap),max_entries(entry_cap){}
+  bool set_test_limits(uint64_t bytes,uint64_t entries){std::lock_guard<std::mutex> lock(mutex);if(live)return false;max_bytes=bytes;max_entries=entries;return true;}
+- // create is invoked under this independent registry lock; never acquire the RD lock inside it.
+- template<class Create> bool acquire(const uint8_t *data,size_t len,uint64_t hash,Create create,Handle &handle,Entry *&entry) {
++ template<class Create> bool acquire(const uint8_t *final_data,size_t final_len,uint64_t hash,Create create,Handle &handle,Entry *&entry,const SourceKey *key=nullptr) {
++  const bool source=key!=nullptr;
++  const uint8_t *data=source?key->data:final_data;const size_t len=source?key->size:final_len;
+   std::unique_lock<std::mutex> lock(mutex);entry=nullptr;
+   auto it=buckets.find(hash);
+-  if(it!=buckets.end())for(Entry *e:it->second)if(e->bytes.size()==len && !std::memcmp(e->bytes.data(),data,len)) { e->refs++;handle=e->handle;entry=e;hits++;return true; }
+-  misses++;
+-  if(len>max_bytes-retained || live>=max_entries) { over_cap++;lock.unlock();return create(handle); }
++  if(it!=buckets.end())for(Entry *e:it->second) {
++   if(e->source!=source || e->final_size!=final_len || e->bytes.size()!=len)continue;
++   if(source && (e->codec_flags!=key->codec_flags || e->decoded_size!=key->decoded_size || e->mode!=key->mode || e->stage!=key->stage))continue;
++   if(!std::memcmp(e->bytes.data(),data,len)) {e->refs++;handle=e->handle;entry=e;hits++;if(source)source_hits++;else raw_hits++;return true;}
++  }
++  misses++;if(source)source_misses++;else raw_misses++;
++  if(len>max_bytes-retained || live>=max_entries) { over_cap++;if(source)source_fallbacks++;else raw_fallbacks++;lock.unlock();return create(handle); }
+   Entry *e=new Entry;e->bytes.assign(data,data+len);
+   const uint64_t alloc=e->bytes.capacity();
+-  if(alloc>max_bytes-retained) { delete e;over_cap++;lock.unlock();return create(handle); }
++  if(alloc>max_bytes-retained) { delete e;over_cap++;if(source)source_fallbacks++;else raw_fallbacks++;lock.unlock();return create(handle); }
+   if(!create(handle)) { delete e;failures++;return false; }
+-  e->handle=handle;e->hash=hash;e->refs=1;entry=e;buckets[hash].push_back(e);
+-  retained+=alloc;live++;created++;if(retained>peak)peak=retained;if(live>peak_live)peak_live=live;
+-  return true;
++  e->handle=handle;e->hash=hash;e->final_size=final_len;e->refs=1;e->source=source;
++  if(source){e->codec_flags=key->codec_flags;e->decoded_size=key->decoded_size;e->mode=key->mode;e->stage=key->stage;}
++  entry=e;buckets[hash].push_back(e);retained+=alloc;live++;created++;
++  if(source){source_retained+=alloc;if(source_retained>source_peak)source_peak=source_retained;}
++  else {raw_retained+=alloc;if(raw_retained>raw_peak)raw_peak=raw_retained;}
++  if(retained>peak)peak=retained;if(live>peak_live)peak_live=live;return true;
+  }
+  template<class Destroy> void release(Entry *entry,Handle handle,Destroy destroy) {
+   if(!entry){ destroy(handle);return; }
+@@ -41,8 +51,9 @@
+   if(--entry->refs)return;
+   auto it=buckets.find(entry->hash);auto &v=it->second;
+   for(auto i=v.begin();i!=v.end();++i)if(*i==entry){v.erase(i);break;}
+-  if(v.empty())buckets.erase(it);const uint64_t bytes=entry->bytes.capacity();Handle last=entry->handle;delete entry;retained-=bytes;live--;lock.unlock();
+-  destroy(last);
++  if(v.empty())buckets.erase(it);const uint64_t bytes=entry->bytes.capacity();Handle last=entry->handle;
++  if(entry->source)source_retained-=bytes;else raw_retained-=bytes;
++  delete entry;retained-=bytes;live--;lock.unlock();destroy(last);
+  }
+- Stats stats(){std::lock_guard<std::mutex> lock(mutex);return {hits,misses,created,failures,over_cap,releases,retained,peak,live,peak_live,live*sizeof(Entry),peak_live*sizeof(Entry),sizeof(Entry),max_bytes,max_entries};}
++ Stats stats(){std::lock_guard<std::mutex> lock(mutex);return {hits,misses,created,failures,over_cap,releases,retained,peak,live,peak_live,live*sizeof(Entry),peak_live*sizeof(Entry),sizeof(Entry),max_bytes,max_entries,raw_hits,source_hits,raw_misses,source_misses,raw_fallbacks,source_fallbacks,raw_retained,source_retained,raw_peak,source_peak};}
+ };

@@ -389,3 +389,52 @@ other Blender/Godot work; they are retained, not a stable performance claim.
 The final default-config engine09 passes another 198 checks, but its first map
 smoke test took 22.334s without sufficient attribution. Default installation is
 therefore pending; the ordinary D:/tools/godot installation remains unchanged.
+
+## Active Vulkan module sharing and complete shader decode (2026-10-28)
+
+On the existing build09 patched source, apply in this order:
+
+1. `godot-4.7.2-shader-module-share.patch`
+2. `godot-4.7.2-shader-decode-length.patch`
+3. `godot-4.7.2-shader-module-source-key.patch`
+
+The first patch shares identical source VkShaderModules within one device while
+owners are alive. `RMMO_SHADER_MODULE_SHARE=1` opts in; the default is off.
+The third uses exact original compressed bytes and complete codec parameters
+only for successfully decoded, unmodified `store_respv` stages. Opt in with
+`RMMO_SHADER_MODULE_SOURCE_KEY=1` as well. All other cases retain the raw-key
+path. Both representations share the same per-device 64 MiB key-vector-capacity
+and 8192-entry limits. This is not an RSS/VRAM ceiling. Last-owner release drops
+the entry; RID, reflection, layout and per-pipeline specialization remain private.
+Do not enable source-key without the complete-decode fix.
+
+The decode fix uses the length returned by the existing single Zstd call and
+rejects short/error results; raw input must match the declared output length.
+It adds no second decode, scan or hash. This fixes the shared CPU function used
+by Vulkan, Metal and D3D12, but the latter two GPU backends were not tested here.
+
+For the CPU regression only, additionally apply
+`godot-4.7.2-shader-decode-contract-diagnostic.patch`. Copy the
+`shader_decode_contract` fixture to an external directory and run its script
+headless with `RMMO_SHADER_DECODE_TEST_API=1`. The original decoder with the
+same bridge expects `RMMO_EXPECT_DECODE_RED=1` (6 passes, 8 expected failures);
+the fixed decoder without that flag expects 14 passes. Without the API flag the
+fixture exits 2. The bridge is not required for the production optimization.
+
+`test_shader_module_registry.cpp` compiles against the patched engine include
+root with `-std=c++17 -pthread -UNDEBUG`; its compile-time guard prevents silent
+removal of assert-based workload. It checks collisions, limits, failure rollback,
+and concurrent raw/source owners. The `shader_module_contract` GPU fixture must
+also be copied outside the project and run with `tools/run_godot_background.py`.
+Its explicit test controls and exact expected native errors are recorded in the
+report below; never enable test injection in normal map samples.
+
+The isolated GREEN binary passed four 43-check GPU ownership modes, 97 material
+publication checks and 18 preparation-failure/retry checks. Full-map raw-key
+workload comparisons reduced source module calls 2559 to 1681, but did not prove
+a stable loading or low-frame benefit. Source-key full-map results are separate.
+Neither candidate is installed. Patches are delivered as LF; applying them
+reproduces the candidate code modulo CRLF normalization, not byte-identical
+original source hashes. See [module report](../../docs/axel_shader_module_share_20261028.md)
+and [decode report](../../docs/axel_shader_decode_contract_20261028.md) for exact
+binaries, evidence, retained failures, test controls and limits.

@@ -4,10 +4,12 @@ extends RefCounted
 const Cache=preload("res://scripts/world3d/model_texture_cache.gd")
 static func apply(root:Node)->void:
 	if not Cache.enabled or OS.get_thread_caller_id()!=OS.get_main_thread_id():return
-	var seen:Dictionary={};var retired:Array[Texture2D]=[]
+	var seen:Dictionary={};var changed:=false
 	for material:StandardMaterial3D in Cache._materials(root):
 		for info:Dictionary in material.get_property_list():
 			if not (int(info.usage)&PROPERTY_USAGE_STORAGE):continue
+			# TYPE_NIL can denote a Variant property, so keep it on the read path.
+			if int(info.type)!=TYPE_OBJECT and int(info.type)!=TYPE_NIL:continue
 			var value:Variant=material.get(info.name)
 			if not value is Texture2D:continue
 			var id:int=value.get_instance_id()
@@ -18,6 +20,6 @@ static func apply(root:Node)->void:
 				var shared:=Cache._remember(key,value)
 				seen[id]={"original":value,"shared":shared}
 			var shared:Texture2D=seen[id].shared
-			if shared!=value:retired.append(value);material.set(info.name,shared)
-	if not retired.is_empty():preload("res://scripts/world3d/asset_worker_drainer.gd").synchronize_transfer()
-	seen.clear();retired.clear()
+			if shared!=value:changed=true;material.set(info.name,shared)
+	if changed:preload("res://scripts/world3d/asset_worker_drainer.gd").synchronize_transfer()
+	seen.clear()
