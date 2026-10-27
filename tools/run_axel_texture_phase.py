@@ -12,6 +12,7 @@ from run_godot_background import run_background
 
 ROOT = Path(__file__).resolve().parents[1]
 MAP = Path("D:/code/rmmo_runtime/packs/default/maps/axel_town/map.gltf")
+REVIEW_ROOT = Path("D:/code/rmmo_runtime/review_artifacts")
 
 
 def digest(path):
@@ -35,10 +36,27 @@ def save(path, value):
         json.dump(value, handle, ensure_ascii=False, indent=2)
 
 
+def test_fixture_paths(map_path, content_root):
+    if map_path is None and content_root is None:
+        return None
+    if map_path is None or content_root is None:
+        raise ValueError("--map-path and --content-root must be supplied together")
+    review = REVIEW_ROOT.resolve(strict=True)
+    root = content_root.resolve(strict=True)
+    map_file = map_path.resolve(strict=True)
+    if (root == review or not root.is_relative_to(review) or not root.is_dir() or
+            not map_file.is_relative_to(root) or not map_file.is_file() or
+            not (root / "fixture_manifest.json").is_file()):
+        raise ValueError("test map and content root must be an owned review-artifact fixture")
+    return map_file, root
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--engine", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--map-path", type=Path, help="Explicit isolated test map; requires --content-root")
+    parser.add_argument("--content-root", type=Path, help="Owned isolated fixture root; requires --map-path")
     parser.add_argument("--stage", choices=("white", "map"), default="map")
     parser.add_argument("--cold-index", action="store_true")
     parser.add_argument("--legacy-publication", action="store_true")
@@ -82,6 +100,8 @@ def main():
     parser.add_argument("--fault-capture-extension", type=Path,
                         help="Opt-in native first-chance capture; marks this as a diagnostic sample")
     args = parser.parse_args()
+    fixture = test_fixture_paths(args.map_path, args.content_root)
+    map_path = fixture[0] if fixture else MAP
     output = args.output.resolve()
     paths = {suffix: output.with_suffix("." + suffix) for suffix in
              ("json", "log", "launch.json", "result.json")}
@@ -113,6 +133,8 @@ def main():
            "--without-derived-geometry-cache", "--without-prefab-bounds-cache",
            "--without-model-metadata-cache"]
     cmd += ["--white-material", "--without-map-textures"] if args.stage == "white" else ["--map-texture-stage"]
+    if fixture:
+        cmd += ["--test-map=" + str(map_path), "--test-content-root=" + str(fixture[1])]
     cmd += ["--native-departure", "--frame-split-probe"] if args.traverse else ["--origin-only"]
     if args.cold_index:
         cmd.append("--cold-index")
@@ -187,10 +209,11 @@ def main():
                 "--fault-capture-file=" + fault_capture["raw"]]
     before = sources()
     launch = {"command": cmd, "engine_sha256": digest(args.engine),
-              "map_sha256": digest(MAP), "source_before": before,
+              "map_sha256": digest(map_path), "map_path": str(map_path),
+              "content_root": str(fixture[1]) if fixture else "D:/code/rmmo_runtime", "source_before": before,
               "git_head": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip(),
               "stage": args.stage, "legacy_publication": args.legacy_publication,
-              "diagnostic": bool(fault_capture) or args.batch_timeline or args.profile_procedural_uploads, "fault_capture": fault_capture,
+              "diagnostic": bool(fault_capture) or args.batch_timeline or args.profile_procedural_uploads or args.texture_profile, "fault_capture": fault_capture,
               "legacy_source_reads": args.legacy_source_reads,
               "legacy_vsync_submission": args.legacy_vsync_submission,
               "texture_profile": args.texture_profile,
@@ -257,7 +280,7 @@ def main():
     outcome = {"exit_code": code, "wall_seconds": time.monotonic() - began,
                "diagnostic": launch["diagnostic"],
                "owned": owned, "source_unchanged": before == sources(),
-               "map_unchanged": launch["map_sha256"] == digest(MAP),
+               "map_unchanged": launch["map_sha256"] == digest(map_path),
                "errors": errors, "failures": report.get("failures"),
                "entry_ms": report.get("entry_ms"), "full_ready": report.get("origin_first_ready"),
                "not_p95": "Single sample; do not infer stability or treat diagnostics as ordinary samples."}

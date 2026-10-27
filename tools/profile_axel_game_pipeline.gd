@@ -3,6 +3,11 @@ extends SceneTree
 ## Never edits maps/assets or forces whole-map residency. GPU runs use the
 ## private-desktop runner. Timed work includes the ordinary avatar and HUD.
 const MAP="D:/code/rmmo_runtime/packs/default/maps/axel_town/map.gltf"
+const DEFAULT_CONTENT_ROOT="D:/code/rmmo_runtime"
+const TEST_ROOT="D:/code/rmmo_runtime/review_artifacts"
+var selected_map:=MAP
+var selected_content_root:=DEFAULT_CONTENT_ROOT
+var isolated_fixture:=false
 const MOCK_SERVER_BACKGROUND:=true
 const Trace=preload("res://scripts/world3d/load_trace.gd")
 const CpuMesh=preload("res://scripts/world3d/ground_cpu_mesh.gd")
@@ -39,6 +44,21 @@ var queue_observer_max_us:=0
 func _initialize()->void:
 	report.startup={"initialize_us":Time.get_ticks_usec()}
 	report.frame_metric_contract={"ms":"Wall time between consecutive observer callbacks; phase is sampled at the ending callback.","process_ms":"Performance.TIME_PROCESS: engine process wall-time maximum published about once per second, not this frame's OS thread CPU time.","physics_ms":"Performance.TIME_PHYSICS_PROCESS: engine physics wall-time maximum published about once per second, not this frame's OS thread CPU time.","deferred_stages":"Last observed stage counters; use the timestamped stage ring to associate work with a frame. Zero alone does not prove OS or GPU idle."}
+	var test_map:="";var test_root:=""
+	for arg:String in OS.get_cmdline_user_args():
+		if arg.begins_with("--test-map="):test_map=arg.trim_prefix("--test-map=").replace("\\","/").simplify_path()
+		if arg.begins_with("--test-content-root="):test_root=arg.trim_prefix("--test-content-root=").replace("\\","/").simplify_path().trim_suffix("/")
+	if not test_map.is_empty() or not test_root.is_empty():
+		var paths=preload("res://scripts/world3d/map_paths.gd")
+		if test_map.is_empty() or test_root.is_empty() or test_root.to_lower()==TEST_ROOT.to_lower() or not paths.allowed(test_root,TEST_ROOT) or not DirAccess.dir_exists_absolute(test_root) or not paths.allowed(test_map,test_root) or not FileAccess.file_exists(test_map) or not FileAccess.file_exists(test_root.path_join("fixture_manifest.json")):
+			printerr("isolated fixture requires a map and owned review-artifact root");quit(2);return
+		var user:=ProjectSettings.globalize_path("user://").replace("\\","/").simplify_path()
+		if not paths.allowed(user,TEST_ROOT) or not paths.allowed(OS.get_data_dir(),TEST_ROOT) or not paths.allowed(OS.get_cache_dir(),TEST_ROOT):
+			printerr("isolated fixture requires private APPDATA and LOCALAPPDATA before process start");quit(2);return
+		var manager:=root.get_node_or_null("AssetManager")
+		if manager==null or manager.is_node_ready():printerr("AssetManager override was not installed before ready");quit(2);return
+		manager.content_root_override=test_root;selected_map=test_map;selected_content_root=test_root;isolated_fixture=true
+		report.isolated_fixture={"map":test_map,"content_root":test_root,"user_dir":user,"data_dir":OS.get_data_dir(),"cache_dir":OS.get_cache_dir()}
 	run.call_deferred()
 func source_snapshot(folder:String="res://scripts")->Dictionary:
 	var result:Dictionary={}
@@ -187,7 +207,7 @@ func finish(code:int)->void:
 			if not unknown.is_empty():
 				# Post-measurement, read-only diagnostic: never part of timed load
 				# or runtime samples, and never reused to prime another process.
-				var restored:Dictionary=preload("res://scripts/world3d/map_resource_store.gd").read_records(unknown,MAP,"D:/code/rmmo_runtime")
+				var restored:Dictionary=preload("res://scripts/world3d/map_resource_store.gd").read_records(unknown,selected_map,selected_content_root)
 				report.unknown_records={"read_ok":restored.ok,"kinds":{},"road_extra_fields":{}}
 				if restored.ok:
 					for record:Dictionary in restored.records:
@@ -196,7 +216,7 @@ func finish(code:int)->void:
 						if kind!="road":continue
 						for field:String in record:
 							if field not in preload("res://scripts/world3d/map_dependency_index.gd").COMMON_FIELDS+preload("res://scripts/world3d/map_dependency_index.gd").ROAD_FIELDS:report.unknown_records.road_extra_fields[field]=int(report.unknown_records.road_extra_fields.get(field,0))+1
-	report.map_sha_after=FileAccess.get_sha256(MAP)
+	report.map_sha_after=FileAccess.get_sha256(selected_map)
 	check(report.map_sha_after==report.map_sha,"formal map unchanged")
 	report.cpu_restore_profile=preload("res://scripts/world3d/ground_cpu_mesh.gd").profile_rows.duplicate(true)
 	report.prepared_road_paint=preload("res://scripts/world3d/surface_paint_preparation.gd").snapshot()
@@ -365,12 +385,12 @@ func run()->void:
 		# control or its separately keyed procedural cache.
 		preload("res://scripts/world3d/compiled_asset_cache.gd").enabled=false
 	if cold_index:
-		var cache:String=preload("res://scripts/world3d/map_dependency_index.gd").cache_path(MAP,"D:/code/rmmo_runtime")
+		var cache:String=preload("res://scripts/world3d/map_dependency_index.gd").cache_path(selected_map,selected_content_root)
 		var backup:String=output+".previous_dependency_index.bin"
-		if not preload("res://scripts/world3d/map_paths.gd").allowed(cache,"D:/code/rmmo_runtime/cache/world3d/dependency_indexes") or FileAccess.file_exists(backup):quit(2);return
+		if not preload("res://scripts/world3d/map_paths.gd").allowed(cache,selected_content_root.path_join("cache/world3d/dependency_indexes")) or FileAccess.file_exists(backup):quit(2);return
 		if FileAccess.file_exists(cache) and DirAccess.rename_absolute(cache,backup)!=OK:quit(2);return
 		report.cache_control="Only this map's derived dependency index moved aside, bytes preserved beside this report. Other derived caches and OS caches retained."
-	report.map=MAP;report.map_sha=FileAccess.get_sha256(MAP);report.engine=Engine.get_version_info();report.pid=OS.get_process_id()
+	report.map=selected_map;report.map_sha=FileAccess.get_sha256(selected_map);report.engine=Engine.get_version_info();report.pid=OS.get_process_id()
 	report.controls={"hud":preload("res://scripts/world3d/runtime_probe_controls.gd").hud_enabled,"map_textures":not preload("res://scripts/world3d/runtime_probe_controls.gd").discard_map_textures,"compiled":preload("res://scripts/world3d/compiled_asset_cache.gd").enabled}
 	report.controls.white_native=report.controls.compiled and preload("res://scripts/world3d/white_native_asset_cache.gd").active() and preload("res://scripts/world3d/white_native_asset_cache.gd").enabled
 	report.controls.map_texture_stage=map_texture_stage
@@ -465,8 +485,8 @@ func run()->void:
 	var session=root.get_node("GameSession")
 	preload("res://tools/world3d_test_character.gd").ensure(self)
 	session.spawn_data={"character":session.selected_character.duplicate(true),"equipment":[],"world_mode":"world3d"}
-	session.world3d_map_path=MAP
-	var data:Dictionary=JSON.parse_string(FileAccess.get_file_as_string(MAP))
+	session.world3d_map_path=selected_map
+	var data:Dictionary=JSON.parse_string(FileAccess.get_file_as_string(selected_map))
 	for node:Dictionary in data.nodes:
 		if node.get("extras",{}).has("spawn"):
 			var spawn:Array=node.extras.spawn;session.world3d_spawn=Vector3(spawn[0],spawn[1],spawn[2]);report.requested_spawn=spawn;break
@@ -540,7 +560,7 @@ func run_mesh_only(spawn:Vector3)->void:
 	if cancel_during_capture:
 		loader.progress.connect(func(stage:String,_done:int,_total:int):
 			if stage=="准备模型 CPU 几何":report.cancelled_during_capture=true;loader.cancel())
-	root.add_child(loader);loader.start(MAP,spawn)
+	root.add_child(loader);loader.start(selected_map,spawn)
 	if cancel_during_capture:
 		while is_instance_valid(loader):await process_frame
 		var drainer:Node=root.get_node_or_null("AssetWorkerDrainer")
