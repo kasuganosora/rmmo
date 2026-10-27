@@ -75,6 +75,12 @@ class FullFixtureTest(unittest.TestCase):
             child=json.loads((args.sample_dir/'isolation.runner.log').read_text())
             self.assertIn('--full-native-template-reuse',child);self.assertNotIn('--full-native-worker-prepack',child)
             launch=json.loads((args.sample_dir/'isolation.launch.json').read_text());self.assertIs(launch['full_native_template_reuse_requested'],True)
+            args.sample_dir=aux/'sample_plan_baseline';args.without_full_native_material_plan=True
+            self.assertEqual(run_sample(args,runner=fake,artifacts=self.root.parent)['exit_code'],0)
+            child=json.loads((args.sample_dir/'isolation.runner.log').read_text())
+            self.assertIn('--without-full-native-material-plan',child)
+            launch=json.loads((args.sample_dir/'isolation.launch.json').read_text());self.assertIs(launch['full_native_material_plan_requested'],False)
+            args.without_full_native_material_plan=False
             args.sample_dir=aux/'mixed_experiments';args.full_native_worker_prepack=True
             with self.assertRaisesRegex(ValueError,'separate experiments'):run_sample(args,runner=fake,artifacts=self.root.parent)
             self.assertFalse((args.sample_dir/'isolation.runner.log').exists());args.full_native_worker_prepack=False
@@ -107,18 +113,21 @@ class FullStageTest(unittest.TestCase):
         self.assertEqual(stage_arguments('white'),['--white-material','--without-map-textures']);self.assertEqual(stage_arguments('map'),['--map-texture-stage']);self.assertEqual(stage_arguments('full'),['--full-material-stage'])
         self.assertEqual(stage_arguments('full',True),['--full-material-stage','--full-native-worker-prepack'])
         self.assertEqual(stage_arguments('full',False,True),['--full-material-stage','--full-native-template-reuse'])
+        self.assertEqual(stage_arguments('full',False,True,True),['--full-material-stage','--full-native-template-reuse','--without-full-native-material-plan'])
+        with self.assertRaises(ValueError):stage_arguments('full',False,False,True)
         with self.assertRaises(ValueError):stage_arguments('map',True)
         with self.assertRaises(ValueError):stage_arguments('map',False,True)
         with self.assertRaises(ValueError):stage_arguments('full',True,True)
         with self.assertRaises(ValueError):stage_arguments('unsupported')
     def test_full_controls_and_actual_model_texture_evidence_required(self):
-        c={'full_native_worker_prepack':False,'full_native_template_reuse':False,'full_material_stage':True,'map_texture_stage':False,'map_textures':True,'white_material':False,'white_native':False,'native_geometry_only':False,'compiled':True}
+        c={'full_native_worker_prepack':False,'full_native_template_reuse':False,'full_native_material_plan':True,'full_material_stage':True,'map_texture_stage':False,'map_textures':True,'white_material':False,'white_native':False,'native_geometry_only':False,'compiled':True}
         report={'controls':c,'full_model_material_audit':{'after_real_draw':True,'visible_model_meshes':1,'base_textured_surfaces':1}}
         self.assertTrue(full_stage_controls_match(report))
         for k in c:
             old=c[k];c[k]=not old;self.assertFalse(full_stage_controls_match(report));c[k]=old
         c['full_native_worker_prepack']=True;self.assertTrue(full_stage_controls_match(report,True));self.assertFalse(full_stage_controls_match(report,False));c['full_native_worker_prepack']=False
         c['full_native_template_reuse']=True;self.assertTrue(full_stage_controls_match(report,False,True));self.assertFalse(full_stage_controls_match(report));c['full_native_template_reuse']=False
+        c['full_native_material_plan']=False;self.assertTrue(full_stage_controls_match(report,False,False,False));self.assertFalse(full_stage_controls_match(report));c['full_native_material_plan']=True
         report['full_model_material_audit']['base_textured_surfaces']=0;self.assertFalse(full_stage_controls_match(report))
 
 if __name__=='__main__':unittest.main()

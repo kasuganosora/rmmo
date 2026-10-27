@@ -376,10 +376,13 @@ static func cache_prepared_native_scene(path:String,scene:Node,packed:PackedScen
 
 ## Offline classification guarantees that the private scene made no node-local
 ## changes that must be repacked. Keep the original owner until after disposal.
-static func cache_direct_native_scene(path:String,scene:Node,native_owner:PackedScene,verified_digest:String)->bool:
+static func cache_direct_native_scene(path:String,scene:Node,native_owner:PackedScene,verified_digest:String,material_plan:Dictionary={})->bool:
 	if scene==null or native_owner==null or not native_owner.get_meta("compiled_asset_validated",false):return false
 	var began:=Time.get_ticks_usec()
-	preload("res://scripts/world3d/model_texture_direct_seen.gd").apply(scene)
+	if not preload("res://scripts/world3d/model_texture_direct_plan.gd").apply_prepared(material_plan):
+		# The scene and native owner still retain all partial-plan resources.
+		# Clear the private aliases on main, then use the established fallback.
+		material_plan.clear();preload("res://scripts/world3d/model_texture_direct_seen.gd").apply(scene)
 	preload("res://scripts/world3d/load_trace.gd").elapsed("asset_library.cache_materials",began,{"path":path})
 	began=Time.get_ticks_usec();preload("res://scripts/world3d/asset_worker_drainer.gd").dispose_scene(scene)
 	preload("res://scripts/world3d/load_trace.gd").elapsed("asset_library.cache_dispose",began,{"path":path})

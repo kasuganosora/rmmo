@@ -83,10 +83,13 @@ def _run_sample_locked(args, *, runner, artifacts):
         raise ValueError("expected state or candidate count invalid")
     prepack = getattr(args, "full_native_worker_prepack", False)
     template_reuse = getattr(args, "full_native_template_reuse", False)
+    without_material_plan = getattr(args, "without_full_native_material_plan", False)
     if (prepack or template_reuse) and args.stage != "full":
         raise ValueError("full native template experiment requires full stage")
     if prepack and template_reuse:
         raise ValueError("native template reuse and worker prepack are separate experiments")
+    if without_material_plan and not template_reuse:
+        raise ValueError("material plan baseline requires full native template reuse")
     if args.stage == "full" and (args.expected_state is not None or getattr(args, "expected_full_models", 49) <= 0):
         raise ValueError("full stage requires full model coverage and no sidecar A/B state")
     engine = Path(args.engine).resolve(strict=True)
@@ -141,6 +144,8 @@ def _run_sample_locked(args, *, runner, artifacts):
             cmd.append("--full-native-worker-prepack")
         if template_reuse:
             cmd.append("--full-native-template-reuse")
+        if without_material_plan:
+            cmd.append("--without-full-native-material-plan")
         if args.traverse:
             cmd.append("--traverse")
         if args.cold_index:
@@ -158,6 +163,7 @@ def _run_sample_locked(args, *, runner, artifacts):
                   "expected_state": args.expected_state, "expected_candidates": args.expected_candidates,
                   "full_native_worker_prepack_requested": getattr(args, "full_native_worker_prepack", False),
                   "full_native_template_reuse_requested": template_reuse,
+                  "full_native_material_plan_requested": not without_material_plan,
                   "legacy_requeue": getattr(args, "legacy_requeue", False),
                   "suppress_sync_slow_logs": getattr(args, "suppress_sync_slow_logs", False),
                   "cache_note": "Verification hashes warm OS caches; not physical cold disk. User directory may be reused; record cache state separately."}
@@ -207,6 +213,7 @@ def main():
     parser.add_argument("--expected-full-models", type=int, default=49)
     parser.add_argument("--full-native-worker-prepack", action="store_true")
     parser.add_argument("--full-native-template-reuse", action="store_true")
+    parser.add_argument("--without-full-native-material-plan", action="store_true")
     parser.add_argument("--timeout", type=int, default=420)
     parser.add_argument("--traverse", action="store_true")
     parser.add_argument("--cold-index", action="store_true")

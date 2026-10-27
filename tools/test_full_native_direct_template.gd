@@ -4,13 +4,15 @@ extends "res://tools/test_full_native_without_source.gd"
 class DirectQueue extends Deferred:
 	var dispatches:Array=[]
 	var original_owners:Dictionary={}
+	var completed_plans:Dictionary={}
 	var flip_after_second:=false
 	var reject_start:=false
 	func _start_worker(worker:RefCounted,task:Callable)->Error:
 		for path:String in _jobs:
 			if _jobs[path].worker==worker:
-				dispatches.append({"path":path,"direct":_jobs[path].get("direct_template_reuse",false),"prepack":_jobs[path].get("worker_prepack",false),"estimate":int(_jobs[path].estimate.estimated_bytes),"total":_admission.reserved_bytes,"stage":_jobs[path].stage})
-				if flip_after_second and dispatches.size()==2:Deferred.full_native_template_reuse_enabled=false
+				dispatches.append({"path":path,"direct":_jobs[path].get("direct_template_reuse",false),"plan":_jobs[path].get("direct_material_plan",false),"prepack":_jobs[path].get("worker_prepack",false),"estimate":int(_jobs[path].estimate.estimated_bytes),"total":_admission.reserved_bytes,"active_workers":_admission.active_workers(),"plan_bytes":int(_jobs[path].estimate.get("texture_plan_workspace_bytes",0)),"stage":_jobs[path].stage})
+				if flip_after_second and dispatches.size()==2:
+					Deferred.full_native_template_reuse_enabled=false;Deferred.full_native_material_plan_enabled=not bool(_jobs[path].get("direct_material_plan",false))
 		if reject_start:return ERR_CANT_CREATE
 		return super._start_worker(worker,task)
 	func _poll_jobs(required:Dictionary)->void:
@@ -20,6 +22,7 @@ class DirectQueue extends Deferred:
 			if not job.has("worker") and job.has("result"):
 				var owner:Variant=job.result.get("native_packet",{}).get("packed")
 				if owner is PackedScene and not original_owners.has(path):original_owners[path]=weakref(owner)
+				if job.result.get("native_texture_plan",{}).get("state")=="ready":completed_plans[path]=true
 
 func classifier_fixture(local_mesh:bool,local_material:bool,local_texture:bool,grass:bool,scripted:bool=false)->Dictionary:
 	var scene:=Node3D.new();var part:=MeshInstance3D.new();scene.add_child(part);part.owner=scene
@@ -110,7 +113,8 @@ func check_direct_intern(sample:Dictionary)->void:
 
 func check_ready_cancellation(sample:Dictionary)->void:
 	Library.evict_cached_scene(sample.path);Drainer.synchronize_transfer()
-	Deferred.full_native_template_reuse_enabled=true;Deferred.full_native_worker_prepack_enabled=false
+	var texture_cache=preload("res://scripts/world3d/model_texture_cache.gd");texture_cache._textures.clear()
+	Deferred.full_native_template_reuse_enabled=true;Deferred.full_native_worker_prepack_enabled=false;Deferred.full_native_material_plan_enabled=true
 	var holder:=make_queue([sample]);var queue:DirectQueue=holder.queue;queue.set_process(false)
 	queue._refresh_demanded();queue._dispatch_deadline=Time.get_ticks_usec()+100000;queue._dispatch_jobs(self);queue._dispatch_deadline=0
 	var until:=Time.get_ticks_msec()+30000
@@ -123,18 +127,61 @@ func check_ready_cancellation(sample:Dictionary)->void:
 	if job.has("result"):
 		var node:Variant=job.result.get("scene");var original:Variant=job.result.get("native_packet",{}).get("packed")
 		if node is Node and original is PackedScene:
+			var plan:Variant=job.result.get("native_texture_plan",{})
+			var meshes:Array=preload("res://scripts/world3d/surface_materials.gd").meshes(node)
+			var mat:StandardMaterial3D=meshes[0].get_active_material(0) if not meshes.is_empty() else null
+			var prepared_ok:bool=plan is Dictionary and plan.get("state")=="ready" and not plan.get("originals",[]).is_empty() and mat!=null and mat.albedo_texture==plan.originals[0] and texture_cache._textures.is_empty()
+			check(prepared_ok,"ready direct job has complete worker texture plan without pool or material mutation")
+			var plan_alias:Dictionary=plan if plan is Dictionary else {}
+			var material_ref:WeakRef=weakref(mat) if mat!=null else null
+			var texture_ref:WeakRef=weakref(mat.albedo_texture) if mat!=null and mat.albedo_texture!=null else null
+			meshes.clear();mat=null;plan=null
 			var node_ref:WeakRef=weakref(node);var owner_ref:WeakRef=weakref(original);node=null;original=null
-			check(queue._admission.reserved_bytes>=sample.footprint_bytes,"ready direct owner remains fully charged")
+			check(queue._admission.reserved_bytes>=sample.footprint_bytes+12*1024*1024,"ready direct owner and plan remain fully charged")
 			queue._poll_jobs({});job={}
 			for frame:int in 30:await process_frame
 			check(node_ref.get_ref()==null and owner_ref.get_ref()==null and queue._admission.reserved_bytes==0,"real ready cancellation clears owners and full lease")
+			check(plan_alias.is_empty() and material_ref!=null and material_ref.get_ref()==null and texture_ref!=null and texture_ref.get_ref()==null,"ready cancellation clears held plan alias and material/texture references")
 		else:check(false,"ready direct fixture retains private scene and original owner")
 	var ledger:RefCounted=queue._admission;queue.shutdown();holder.map.queue_free();Drainer.synchronize_transfer()
 	check(ledger.reserved_bytes==0,"cancelled queue leaves no reservation")
 
-func check_two_jobs(values:Array,direct:bool)->void:
+func check_ready_fallback(sample:Dictionary,enabled:bool)->void:
+	Library.evict_cached_scene(sample.path);Drainer.synchronize_transfer()
+	var cache=preload("res://scripts/world3d/model_texture_cache.gd");cache._textures.clear();cache.enabled=true
+	Deferred.full_native_template_reuse_enabled=true;Deferred.full_native_material_plan_enabled=true;Deferred.full_native_worker_prepack_enabled=false
+	var holder:=make_queue([sample]);var queue:DirectQueue=holder.queue;queue.set_process(false)
+	queue._refresh_demanded();queue._dispatch_deadline=Time.get_ticks_usec()+100000;queue._dispatch_jobs(self);queue._dispatch_deadline=0
+	var until:=Time.get_ticks_msec()+30000
+	while Time.get_ticks_msec()<until:
+		queue._poll_jobs(queue._demanded_by_path)
+		if queue._jobs.has(sample.path) and queue._jobs[sample.path].has("result") and not queue._jobs[sample.path].has("worker"):break
+		await process_frame
+	var job:Dictionary=queue._jobs.get(sample.path,{})
+	if not job.has("result"):
+		check(false,"fallback fixture reached ready");queue.shutdown();holder.map.queue_free();return
+	var plan:Dictionary=job.result.get("native_texture_plan",{})
+	var scene:Node=job.result.get("scene");var meshes:Array=preload("res://scripts/world3d/surface_materials.gd").meshes(scene)
+	var mat:StandardMaterial3D=meshes[0].get_active_material(0) if not meshes.is_empty() else null
+	if plan.get("state")!="ready" or mat==null or mat.albedo_texture==null:
+		check(false,"fallback fixture contains ready plan and texture");queue.shutdown();holder.map.queue_free();return
+	var old:Texture2D=mat.albedo_texture;var pixels:=old.get_image();var seed:=ImageTexture.create_from_image(pixels)
+	seed.set_meta(cache.PIXEL_KEY,cache.pixel_key(pixels));cache._remember(seed.get_meta(cache.PIXEL_KEY),seed)
+	var pool_before:Dictionary=cache._textures.duplicate()
+	plan.state="fallback";cache.enabled=enabled
+	until=Time.get_ticks_msec()+30000
+	while Time.get_ticks_msec()<until and int(queue.profile.get("models",0))<1:
+		queue._process(0);await process_frame
+	check(int(queue.profile.get("models",0))==1 and int(queue.profile.get("native_texture_plan_fallbacks",0))==1 and plan.is_empty(),"fallback is accepted and its plan aliases are cleared")
+	check((mat.albedo_texture==seed if enabled else mat.albedo_texture==old) and cache._textures==pool_before,"fallback preserves enabled/disabled material and pool semantics")
+	cache.enabled=true;var ledger:RefCounted=queue._admission;queue.shutdown();holder.map.queue_free()
+	meshes.clear();mat=null;old=null;seed=null;plan={};Library.evict_cached_scene(sample.path);cache._textures.clear();Drainer.synchronize_transfer()
+	for frame:int in 30:await process_frame
+	check(ledger.reserved_bytes==0,"fallback releases unified lease")
+
+func check_two_jobs(values:Array,direct:bool,with_plan:bool=true)->void:
 	for sample:Dictionary in values:Library.evict_cached_scene(sample.path)
-	Drainer.synchronize_transfer();Deferred.full_native_template_reuse_enabled=direct;Deferred.full_native_worker_prepack_enabled=direct
+	Drainer.synchronize_transfer();Deferred.full_native_template_reuse_enabled=direct;Deferred.full_native_worker_prepack_enabled=direct;Deferred.full_native_material_plan_enabled=with_plan
 	var holder:=make_queue(values);var queue:DirectQueue=holder.queue;queue.flip_after_second=direct
 	var trace=preload("res://scripts/world3d/load_trace.gd");trace.start()
 	var deadline:=Time.get_ticks_msec()+30000
@@ -144,13 +191,15 @@ func check_two_jobs(values:Array,direct:bool)->void:
 	var observed:Dictionary=trace.stop()
 	check(queue.dispatches.size()==2 and int(queue.profile.get("models",0))>=2,"two real source-free model jobs accepted")
 	var dispatched:=queue.dispatches.size()==2
-	for d:Dictionary in queue.dispatches:dispatched=dispatched and d.direct==direct and not d.prepack and d.stage=="fixed_native"
+	for d:Dictionary in queue.dispatches:dispatched=dispatched and d.direct==direct and d.plan==(direct and with_plan) and not d.prepack and d.stage=="fixed_native" and d.plan_bytes==(12*1024*1024 if direct and with_plan else 0)
 	check(dispatched,"dispatch freezes direct selection and excludes worker pack")
 	check(count_trace(observed,"asset_library.cache_pack")== (0 if direct else 2),"main pack count matches direct selection")
 	check(count_trace(observed,"deferred.worker_native_pack")==0,"direct and off baseline never use worker prepack")
 	check(int(queue.profile.get("full_native_reused_templates",0))==(2 if direct else 0),"direct acceptance counter matches")
 	if direct:
-		check(not Deferred.full_native_template_reuse_enabled,"global flag flip does not change in-flight decisions")
+		check(queue.dispatches.size()==2 and queue.dispatches[1].active_workers>=2 and queue.completed_plans.size()==(2 if with_plan else 0),"two concurrent workers honor frozen plan selection")
+		check(not Deferred.full_native_template_reuse_enabled and Deferred.full_native_material_plan_enabled!=with_plan,"global flag flip does not change in-flight decisions")
+		check(int(queue.profile.get("native_texture_plans",0))==(2 if with_plan else 0) and int(queue.profile.get("native_texture_plan_uses",0))>0 if with_plan else int(queue.profile.get("native_texture_plans",0))==0,"accepted plan counters match frozen selection")
 		for sample:Dictionary in values:
 			var owner:WeakRef=queue.original_owners.get(sample.path)
 			check(owner!=null and Library._scenes.get(sample.path)==owner.get_ref(),"published template is same fixed native owner")
@@ -196,12 +245,15 @@ func run()->void:
 		await check_direct_intern(samples[0])
 		await check_two_jobs(samples,false)
 		await check_ready_cancellation(samples[0])
+		await check_ready_fallback(samples[0],true)
+		await check_ready_fallback(samples[0],false)
 		await check_two_jobs(samples,true)
+		await check_two_jobs(samples,true,false)
 		check_negative_dispatch(samples[0],true,false)
 		check_negative_dispatch(samples[0],false,false,true)
 		check_negative_dispatch(samples[0],false,true)
 	for sample:Dictionary in samples:Library.evict_cached_scene(sample.path)
-	Drainer.synchronize_transfer();manager.content_root_override=previous_root;Deferred.full_native_template_reuse_enabled=false;Deferred.full_native_worker_prepack_enabled=false
+	Drainer.synchronize_transfer();manager.content_root_override=previous_root;Deferred.full_native_template_reuse_enabled=false;Deferred.full_native_worker_prepack_enabled=false;Deferred.full_native_material_plan_enabled=true
 	for item:String in created:
 		if FileAccess.file_exists(item):DirAccess.remove_absolute(item)
 	print("DIRECT_NATIVE_CONTRACT passed=",passed," failures=",failures);quit(1 if failures else 0)

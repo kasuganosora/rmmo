@@ -49,6 +49,7 @@ static var native_preparation_enabled:=true # Probe-only old native/readmission 
 static var native_budget_enabled:=true # Validated native reservations; invalid candidates use full raw admission.
 static var full_native_worker_prepack_enabled:=false # Candidate; retains the complete native job lease.
 static var full_native_template_reuse_enabled:=false # Offline-proven direct original template; probe candidate.
+static var full_native_material_plan_enabled:=true # Applies only inside the opt-in direct native route.
 static var ready_worker_yield_enabled:=true # Bytes remain charged after join.
 static var fair_publication_enabled:=true # Probe may select the old distance-only order.
 static var independent_instance_preparation_enabled:=true # Diagnostic control for dependency-blocked private cursors.
@@ -2097,7 +2098,7 @@ static func _prepare_job_inner(path:String,digest:String,token:RefCounted,manife
 		prepared.elapsed_us=int(prepared.get("read_profile",{}).get("elapsed_us",0));prepared.native_reference=native
 		return prepared
 	var result:Dictionary
-	if model_route.get("stage")=="fixed_native":result=_prepare_fixed_scene(path,digest,token,manifest,faces,root,model_route.candidate,int(geometry.mode),model_route.get("require_native_products",false),model_route.get("worker_prepack",false))
+	if model_route.get("stage")=="fixed_native":result=_prepare_fixed_scene(path,digest,token,manifest,faces,root,model_route.candidate,int(geometry.mode),model_route.get("require_native_products",false),model_route.get("worker_prepack",false),model_route.get("direct_material_plan",false))
 	else:result=prepare_scene(path,digest,token,manifest,faces,root,model_route.get("stage")=="raw_import",int(geometry.mode),true,preload("res://scripts/world3d/runtime_package_policy.gd").trusted(),model_route.get("require_native_products",false))
 	if model_route.get("require_native_products",false) and result.has("native_packet"):
 		var packet:Dictionary=result.native_packet
@@ -3102,7 +3103,7 @@ static func _manifest_matches(path:String,expected:Dictionary)->bool:
 	var current:Dictionary=preload("res://scripts/world3d/asset_bounds_manifest.gd").read(path)
 	return current.get("known",false) and current.get("json_sha256")==expected.get("json_sha256") and current.get("file_length")==expected.get("file_length")
 
-static func _native_private(packed:PackedScene,path:String,token:RefCounted,manifest:Dictionary,faces:bool,geometry_mode:int=CollisionGeometry.ALL,prepack:bool=false)->Dictionary:
+static func _native_private(packed:PackedScene,path:String,token:RefCounted,manifest:Dictionary,faces:bool,geometry_mode:int=CollisionGeometry.ALL,prepack:bool=false,direct_material_plan:bool=false)->Dictionary:
 	if token!=null and token.is_cancelled():return {"error":ERR_SKIP,"cancelled":true}
 	var began:=Time.get_ticks_usec()
 	var scene:Node=Compiled.instantiate(packed)
@@ -3120,6 +3121,13 @@ static func _native_private(packed:PackedScene,path:String,token:RefCounted,mani
 	# instantiation/capture and the final immutable classification observation.
 	if not _manifest_matches(path,manifest):result.error=ERR_BUSY;return result
 	if token!=null and token.is_cancelled():result.error=ERR_SKIP;result.cancelled=true;return result
+	if direct_material_plan:
+		# This frozen route owns a detached native scene and its resource graph.
+		# Partial plans stay in the packet for the existing main-thread drainer.
+		var plan_began:=Time.get_ticks_usec()
+		result.native_texture_plan=preload("res://scripts/world3d/model_texture_direct_plan.gd").prepare(scene,token)
+		preload("res://scripts/world3d/load_trace.gd").elapsed("deferred.native_texture_plan_prepare",plan_began,{"path":path,"state":result.native_texture_plan.get("state",""),"uses":result.native_texture_plan.get("names",[]).size(),"materials":result.native_texture_plan.get("materials",[]).size()})
+		if result.native_texture_plan.get("state")=="cancelled":result.error=ERR_SKIP;result.cancelled=true;return result
 	if prepack:
 		# Reader retains the original packed owner on success, failure and cancel.
 		if scene.has_meta("_compiled_resource_owner"):scene.remove_meta("_compiled_resource_owner")
@@ -3132,7 +3140,7 @@ static func _native_private(packed:PackedScene,path:String,token:RefCounted,mani
 		if token!=null and token.is_cancelled():result.error=ERR_SKIP;result.cancelled=true;return result
 	result.error=OK;return result
 
-static func _prepare_fixed_scene(path:String,digest:String,token:RefCounted,manifest:Dictionary,faces:bool,root:String,candidate:Dictionary,geometry_mode:int=CollisionGeometry.ALL,native_only:bool=false,worker_prepack:bool=false)->Dictionary:
+static func _prepare_fixed_scene(path:String,digest:String,token:RefCounted,manifest:Dictionary,faces:bool,root:String,candidate:Dictionary,geometry_mode:int=CollisionGeometry.ALL,native_only:bool=false,worker_prepack:bool=false,direct_material_plan:bool=false)->Dictionary:
 	var began:=Time.get_ticks_usec()
 	if token!=null and token.is_cancelled():return {"error":"素材准备已取消","cancelled":true}
 	var native_package:bool=native_only and preload("res://scripts/world3d/runtime_package_policy.gd").trusted()
@@ -3142,7 +3150,7 @@ static func _prepare_fixed_scene(path:String,digest:String,token:RefCounted,mani
 	if not digest.is_empty() and (not Assets._valid_source_digest(digest) or candidate.get("source_sha")!=digest):return {"error":"素材已验证来源与原生候选不符："+path}
 	if (digest.is_empty() and manifest.is_empty()) or not _manifest_matches(path,manifest):return {"error":"素材边界在后台准备前发生变化："+path}
 	var prepack:bool=worker_prepack and native_package and not preload("res://scripts/world3d/white_native_asset_cache.gd").active()
-	var packet:=CompiledPreparation.read(path,candidate,root,_native_private.bind(path,token,manifest,faces,geometry_mode,prepack),preload("res://scripts/world3d/runtime_package_policy.gd").trusted(),not native_only)
+	var packet:=CompiledPreparation.read(path,candidate,root,_native_private.bind(path,token,manifest,faces,geometry_mode,prepack,direct_material_plan and native_package and not prepack and bool(candidate.get("direct_template_reuse_safe",false))),preload("res://scripts/world3d/runtime_package_policy.gd").trusted(),not native_only)
 	var result:Dictionary={"error":"","native_packet":packet,"elapsed_us":Time.get_ticks_usec()-began}
 	if token!=null and token.is_cancelled():result.error="素材准备已取消";result.cancelled=true;return result
 	if packet.get("fallback_required",false):return result # Main validates + re-admits raw.
@@ -3154,6 +3162,7 @@ static func _prepare_fixed_scene(path:String,digest:String,token:RefCounted,mani
 	result.merge(private_result.get("capture",{}))
 	result.merge({"error":"","scene":private_result.scene,"source_digest":packet.source_digest,"compiled":true,"compiled_read_us":packet.get("cache_us",0)},true)
 	if private_result.has("prepacked"):result.prepacked=private_result.prepacked
+	if private_result.has("native_texture_plan"):result.native_texture_plan=private_result.native_texture_plan
 	preload("res://scripts/world3d/load_trace.gd").elapsed("deferred.prepare",began,{"path":path,"fixed_native":true})
 	return result
 
@@ -3394,8 +3403,13 @@ func _process(_delta:float)->void:
 			texture_packet.resident_textures=job.pixel_tickets.duplicate()
 			texture_packet.uploaded_textures=_shared_images.textures(job.pixel_consumer)
 		if result.has("scene") or result.has("packed"):
+			var planned:bool=job.get("direct_material_plan",false)
+			var plan_state:="";var plan_uses:=0
+			if planned:
+				var plan:Dictionary=result.get("native_texture_plan",{})
+				plan_state=str(plan.get("state",""));plan_uses=plan.get("names",[]).size()
 			var cached:bool
-			if job.get("direct_template_reuse",false):cached=Assets.cache_direct_native_scene(path,result.scene,result.get("native_packet",{}).get("packed"),str(result.get("source_digest","")))
+			if job.get("direct_template_reuse",false):cached=Assets.cache_direct_native_scene(path,result.scene,result.get("native_packet",{}).get("packed"),str(result.get("source_digest","")),result.get("native_texture_plan",{}))
 			elif result.has("prepacked"):cached=Assets.cache_prepared_native_scene(path,result.scene,result.prepacked,result.get("native_packet",{}).get("packed"),str(result.get("source_digest","")))
 			elif result.has("packed"):cached=Assets.cache_packed(path,result.packed,str(result.get("source_digest","")))
 			else:cached=Assets.cache_scene(path,result.scene,str(result.get("source_digest","")))
@@ -3406,6 +3420,11 @@ func _process(_delta:float)->void:
 				if result.has("resource_owners"):result.resource_owners.transfer_template(result.packed)
 				profile.worker_packed_models=int(profile.get("worker_packed_models",0))+1
 			if job.get("direct_template_reuse",false):profile.full_native_reused_templates=int(profile.get("full_native_reused_templates",0))+1
+			if planned:
+				if plan_state=="ready":
+					profile.native_texture_plans=int(profile.get("native_texture_plans",0))+1
+					profile.native_texture_plan_uses=int(profile.get("native_texture_plan_uses",0))+plan_uses
+				else:profile.native_texture_plan_fallbacks=int(profile.get("native_texture_plan_fallbacks",0))+1
 			if result.has("prepacked"):profile.worker_prepacked_native_models=int(profile.get("worker_prepacked_native_models",0))+1
 			job.result.erase("scene");job.result.erase("packed");job.result.erase("prepacked");profile.models+=1
 			var cache_key:="compiled_hits" if result.get("compiled",false) else "compiled_misses"
@@ -3779,6 +3798,10 @@ func _dispatch_jobs(tree:SceneTree,prefetch_only:bool=false)->void:
 					estimate=_estimate_job(raw_item,requests,true)
 					estimate.raw_model_bytes=raw_bytes
 					estimate.native_model_bound_bytes=offered.estimated_bytes
+		var direct_material_plan:bool=direct_template_reuse and full_native_material_plan_enabled
+		if direct_material_plan:
+			estimate.texture_plan_workspace_bytes=preload("res://scripts/world3d/model_texture_direct_plan.gd").EXTRA_RESERVATION_BYTES
+			estimate.estimated_bytes=int(estimate.estimated_bytes)+int(estimate.texture_plan_workspace_bytes)
 		estimate.stage=stage
 		if not native and preload("res://scripts/world3d/asset_spec_template.gd").enabled and preload("res://scripts/world3d/asset_spec_template.gd").worker_enabled and (preload("res://scripts/world3d/runtime_probe_controls.gd").white_materials or preload("res://scripts/world3d/runtime_probe_controls.gd").native_geometry_only):
 			estimate.spec_workspace_bytes=preload("res://scripts/world3d/asset_spec_template.gd").WORKSPACE_BYTES
@@ -3840,7 +3863,7 @@ func _dispatch_jobs(tree:SceneTree,prefetch_only:bool=false)->void:
 				if item.path==path and str(item.record.get("collision",""))!="none":needs_faces=true;break
 		_drainer=Drainer.for_tree(tree);_drainer.watch(worker,token)
 		var publication_ids:Array=_job_publication_ids(path,requests)
-		_jobs[path]={"worker":worker,"token":token,"estimate":estimate,"publication_ids":publication_ids,"native":native,"stage":stage,"candidate":candidate,"digest":digest,"dispatch_us":Time.get_ticks_usec(),"parallel_pixels":parallel_pixels,"worker_prepack":worker_prepack,"direct_template_reuse":direct_template_reuse}
+		_jobs[path]={"worker":worker,"token":token,"estimate":estimate,"publication_ids":publication_ids,"native":native,"stage":stage,"candidate":candidate,"digest":digest,"dispatch_us":Time.get_ticks_usec(),"parallel_pixels":parallel_pixels,"worker_prepack":worker_prepack,"direct_template_reuse":direct_template_reuse,"direct_material_plan":direct_material_plan}
 		if CompletedTrace.enabled:CompletedTrace.record(path,token.get_instance_id(),"dispatch",{"publication_ids":publication_ids.duplicate(),"estimated_bytes":int(estimate.estimated_bytes),"exclusive":bool(estimate.get("exclusive",true)),"native":native})
 		if CollisionGeometry.enabled and not native:
 			_jobs[path].geometry_consumers=geometry_consumers;_jobs[path].geometry_mode=geometry_mode
@@ -3910,7 +3933,7 @@ func _dispatch_jobs(tree:SceneTree,prefetch_only:bool=false)->void:
 
 func _make_prepare_task(path:String,digest:String,token:RefCounted,item:Dictionary,needs_faces:bool,content_root:String,requests:Array,native:bool,need_model:bool)->Callable:
 	var job:Dictionary=_jobs.get(path,{})
-	var route:Dictionary={"stage":job.get("stage","legacy"),"candidate":job.get("candidate",{}).duplicate(true),"require_native_products":require_native_products,"worker_prepack":job.get("worker_prepack",false)}
+	var route:Dictionary={"stage":job.get("stage","legacy"),"candidate":job.get("candidate",{}).duplicate(true),"require_native_products":require_native_products,"worker_prepack":job.get("worker_prepack",false),"direct_template_reuse":job.get("direct_template_reuse",false),"direct_material_plan":job.get("direct_material_plan",false)}
 	if CompletedTrace.enabled:route.completed_job_trace=true
 	if job.has("geometry_consumers"):
 		route.filter_collision_geometry=true;route.geometry_consumers=job.geometry_consumers.duplicate(true)

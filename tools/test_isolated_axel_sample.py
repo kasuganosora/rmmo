@@ -177,6 +177,12 @@ class IsolationTest(unittest.TestCase):
             run_sample(self.args, runner=self.fake, artifacts=self.root)
         self.assertFalse((self.args.sample_dir / "isolation.runner.log").exists())
 
+    def test_material_plan_baseline_rejected_without_reuse(self):
+        self.args.without_full_native_material_plan = True
+        with self.assertRaisesRegex(ValueError, "requires full native template reuse"):
+            run_sample(self.args, runner=self.fake, artifacts=self.root)
+        self.assertFalse(self.args.sample_dir.exists())
+
     def test_requeue_controls_are_passed_and_recorded(self):
         self.args.legacy_requeue = True
         self.args.suppress_sync_slow_logs = True

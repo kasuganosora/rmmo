@@ -340,6 +340,7 @@ func run()->void:
 		elif arg=="--full-material-stage":full_material_stage=true
 		elif arg=="--full-native-worker-prepack":full_native_worker_prepack_requested=true
 		elif arg=="--full-native-template-reuse":full_native_template_reuse_requested=true
+		elif arg=="--without-full-native-material-plan":preload("res://scripts/world3d/deferred_asset_loader.gd").full_native_material_plan_enabled=false
 		elif arg=="--without-lazy-terrain-height":preload("res://scripts/world3d/river_materials.gd").lazy_terrain_height_enabled=false
 		elif arg=="--texture-lighting":texture_lighting=true
 		elif arg=="--stage-screenshot":stage_screenshot=true
@@ -414,6 +415,7 @@ func run()->void:
 	report.controls.full_material_stage=full_material_stage
 	report.controls.full_native_worker_prepack=preload("res://scripts/world3d/deferred_asset_loader.gd").full_native_worker_prepack_enabled
 	report.controls.full_native_template_reuse=preload("res://scripts/world3d/deferred_asset_loader.gd").full_native_template_reuse_enabled
+	report.controls.full_native_material_plan=preload("res://scripts/world3d/deferred_asset_loader.gd").full_native_material_plan_enabled
 	report.controls.lazy_terrain_height=preload("res://scripts/world3d/river_materials.gd").lazy_terrain_height_enabled
 	report.controls.texture_lighting=texture_lighting
 	report.controls.stage_screenshot=stage_screenshot
@@ -681,6 +683,8 @@ func whiten_spec(spec:Dictionary)->void:
 	preload("res://scripts/world3d/runtime_probe_controls.gd").whiten_spec(spec)
 
 static func map_texture_stage_argument_error(arguments:PackedStringArray)->String:
+	if "--without-full-native-material-plan" in arguments and not "--full-native-template-reuse" in arguments:
+		return "material plan baseline requires --full-native-template-reuse"
 	for candidate:String in ["--full-native-worker-prepack","--full-native-template-reuse"]:
 		if candidate in arguments and not "--full-material-stage" in arguments:
 			return candidate+" requires --full-material-stage"

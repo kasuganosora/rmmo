@@ -113,7 +113,7 @@ static func _dispose_owned_packet(packet:Dictionary,seen:Array)->void:
 	seen.append(packet)
 	var scene:Variant=packet.get("scene")
 	if is_instance_valid(scene) and scene is Node and not scene.is_inside_tree() and scene.get_parent()==null:dispose_scene(scene)
-	for key:String in ["native_packet","private_preparation","prefab_texture_packet"]:
+	for key:String in ["native_packet","private_preparation","prefab_texture_packet","native_texture_plan"]:
 		_dispose_owned_value(packet.get(key),seen)
 	var owners:Variant=packet.get("resource_owners")
 	if owners is ModelOwners:owners.release_now()
