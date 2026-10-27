@@ -361,6 +361,31 @@ static func cache_scene(path: String, scene: Node, verified_digest:String="") ->
 	keepalive=null
 	return cached
 
+## The private worker packed this graph while its original native owner stayed
+## alive. Intern on main before publishing, exactly as cache_scene does.
+static func cache_prepared_native_scene(path:String,scene:Node,packed:PackedScene,native_owner:PackedScene,verified_digest:String)->bool:
+	if scene==null or packed==null or native_owner==null or not native_owner.get_meta("compiled_asset_validated",false):return false
+	var began:=Time.get_ticks_usec()
+	preload("res://scripts/world3d/model_texture_cache.gd").apply(scene)
+	preload("res://scripts/world3d/load_trace.gd").elapsed("asset_library.cache_materials",began,{"path":path})
+	packed.set_meta("compiled_asset_validated",true);packed.set_meta("compiled_grass_rebound",true)
+	var cached:=cache_packed(path,packed,verified_digest)
+	began=Time.get_ticks_usec();preload("res://scripts/world3d/asset_worker_drainer.gd").dispose_scene(scene)
+	preload("res://scripts/world3d/load_trace.gd").elapsed("asset_library.cache_dispose",began,{"path":path})
+	return cached
+
+## Offline classification guarantees that the private scene made no node-local
+## changes that must be repacked. Keep the original owner until after disposal.
+static func cache_direct_native_scene(path:String,scene:Node,native_owner:PackedScene,verified_digest:String)->bool:
+	if scene==null or native_owner==null or not native_owner.get_meta("compiled_asset_validated",false):return false
+	var began:=Time.get_ticks_usec()
+	preload("res://scripts/world3d/model_texture_cache.gd").apply(scene)
+	preload("res://scripts/world3d/load_trace.gd").elapsed("asset_library.cache_materials",began,{"path":path})
+	began=Time.get_ticks_usec();preload("res://scripts/world3d/asset_worker_drainer.gd").dispose_scene(scene)
+	preload("res://scripts/world3d/load_trace.gd").elapsed("asset_library.cache_dispose",began,{"path":path})
+	native_owner.set_meta("compiled_grass_rebound",true)
+	return cache_packed(path,native_owner,verified_digest)
+
 static func cache_packed(path:String,packed:PackedScene,verified_digest:String="")->bool:
 	if packed==null:return false
 	if not verified_digest.is_empty():

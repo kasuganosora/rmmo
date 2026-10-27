@@ -165,6 +165,18 @@ class IsolationTest(unittest.TestCase):
         child = json.loads((self.args.sample_dir / "isolation.runner.log").read_text())
         self.assertIn("--texture-profile", child["args"])
 
+    def test_prepack_rejected_outside_full_stage(self):
+        self.args.full_native_worker_prepack = True
+        with self.assertRaisesRegex(ValueError, "requires full stage"):
+            run_sample(self.args, runner=self.fake, artifacts=self.root)
+        self.assertFalse((self.args.sample_dir / "isolation.runner.log").exists())
+
+    def test_template_reuse_rejected_outside_full_stage(self):
+        self.args.full_native_template_reuse = True
+        with self.assertRaisesRegex(ValueError, "requires full stage"):
+            run_sample(self.args, runner=self.fake, artifacts=self.root)
+        self.assertFalse((self.args.sample_dir / "isolation.runner.log").exists())
+
     def test_requeue_controls_are_passed_and_recorded(self):
         self.args.legacy_requeue = True
         self.args.suppress_sync_slow_logs = True

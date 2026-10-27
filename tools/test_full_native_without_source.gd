@@ -9,6 +9,19 @@ class CountingReferenceLoader extends "res://scripts/world3d/map_loader.gd":
 	func _native_model_manifest(path:String,timing:Variant=null)->Dictionary:
 		metadata_reads+=1
 		return super._native_model_manifest(path,timing)
+class PrepackQueue extends Deferred:
+	var dispatch_reservation:=0
+	var dispatch_prepack:=false
+	var dispatches:Array=[]
+	var flip_after_second:=false
+	func _start_worker(worker:RefCounted,task:Callable)->Error:
+		for path:String in _jobs:
+			if _jobs[path].worker==worker:
+				dispatch_reservation=int(_jobs[path].estimate.estimated_bytes)
+				dispatch_prepack=bool(_jobs[path].get("worker_prepack",false))
+				dispatches.append({"path":path,"estimate":dispatch_reservation,"prepack":dispatch_prepack,"total":_admission.reserved_bytes})
+				if flip_after_second and dispatches.size()==2:Deferred.full_native_worker_prepack_enabled=false
+		return super._start_worker(worker,task)
 
 func write(path:String,value:Dictionary)->void:
 	# Generate a real embedded image and material. Geometry bounds remain the
@@ -86,6 +99,8 @@ func run()->void:
 		check_full_target_prefetch()
 		check_full_far_registration()
 		for sample:Dictionary in samples:await check_full_runtime(sample)
+		await check_fixed_worker_prepack(samples[0])
+		await check_real_prepack_acceptance(samples)
 		await check_full_preparation_without_injected_estimates()
 		await check_initial_loader_without_source()
 		check_full_kits()
@@ -98,6 +113,111 @@ func run()->void:
 		if FileAccess.file_exists(item):DirAccess.remove_absolute(item)
 	print("FULL_NATIVE_WITHOUT_SOURCE passed=",passed," failures=",failures," fixture=",directory)
 	quit(1 if failures else 0)
+
+func check_fixed_worker_prepack(sample:Dictionary)->void:
+	var original_flag:bool=Deferred.full_native_worker_prepack_enabled
+	Deferred.full_native_worker_prepack_enabled=true
+	var candidate:Dictionary=sample.observation.native_candidate
+	var route:Dictionary={"stage":"fixed_native","candidate":candidate,"require_native_products":true,"worker_prepack":true}
+	var packet:Dictionary=await worker_result(Deferred._prepare_job_inner.bind(sample.path,sample.sha,null,sample.observation,true,directory,{},"",[],false,true,null,route))
+	var scene:Variant=packet.get("scene");var prepacked:Variant=packet.get("prepacked")
+	check(str(packet.get("error","unknown")).is_empty(),"real fixed native worker preparation succeeds with no source")
+	check(scene is Node and prepacked is PackedScene,"fixed native worker returns private scene plus prepacked template")
+	if scene is Node and prepacked is PackedScene:
+		check(packet.native_packet.packed!=prepacked and packet.source_digest==sample.sha,"prepacked result retains original immutable native owner and source identity")
+		var old_owner:WeakRef=weakref(packet.native_packet.packed);var new_owner:WeakRef=weakref(prepacked);var scene_owner:WeakRef=weakref(scene)
+		check(not Library.cache_prepared_native_scene(sample.path,scene,prepacked,packet.native_packet.packed,"invalid"),"bad source identity rejects prepacked publication")
+		scene=null;prepacked=null
+		Drainer.dispose_result(packet);Drainer.synchronize_transfer()
+		check(old_owner.get_ref()==null and new_owner.get_ref()==null and scene_owner.get_ref()==null,"failed publication releases scene and both native owners")
+	Drainer.dispose_result(packet);Drainer.synchronize_transfer()
+	var rejected_owner:Dictionary=await worker_result(Deferred._prepare_job_inner.bind(sample.path,sample.sha,null,sample.observation,true,directory,{},"",[],false,true,null,route))
+	if rejected_owner.get("scene") is Node and rejected_owner.get("prepacked") is PackedScene:
+		var node_ref:WeakRef=weakref(rejected_owner.scene);var old_ref:WeakRef=weakref(rejected_owner.native_packet.packed);var new_ref:WeakRef=weakref(rejected_owner.prepacked)
+		check(not Library.cache_prepared_native_scene(sample.path,rejected_owner.scene,rejected_owner.prepacked,null,sample.sha),"invalid owner rejects prepacked publication before scene disposal")
+		rejected_owner.erase("scene");rejected_owner.erase("prepacked");Drainer.dispose_result(rejected_owner);Drainer.synchronize_transfer()
+		check(node_ref.get_ref()==null and old_ref.get_ref()==null and new_ref.get_ref()==null,"nested packet retires all aliases after early publication failure")
+	else:check(false,"invalid owner fixture prepared scene and both templates")
+	var mismatched:Dictionary=candidate.duplicate(true);mismatched.source_sha="f".repeat(64)
+	var wrong:Dictionary=await worker_result(Deferred._prepare_fixed_scene.bind(sample.path,sample.sha,null,sample.observation,true,directory,mismatched,Deferred.CollisionGeometry.ALL,true,true))
+	check(not str(wrong.get("error","")).is_empty() and not wrong.has("scene"),"wrong source identity rejects fixed native before allocating a private graph")
+	Drainer.dispose_result(wrong)
+	var token:=Drainer.CancelToken.new()
+	var cancelled:Dictionary=await worker_result(Deferred._prepare_job_inner.bind(sample.path,sample.sha,token,sample.observation,true,directory,{},"",[],false,true,null,route))
+	if cancelled.get("prepacked") is PackedScene and cancelled.get("scene") is Node:
+		var old_ref:WeakRef=weakref(cancelled.native_packet.packed);var new_ref:WeakRef=weakref(cancelled.prepacked);var node_ref:WeakRef=weakref(cancelled.scene)
+		token.cancel();Drainer.dispose_result(cancelled);Drainer.synchronize_transfer()
+		check(old_ref.get_ref()==null and new_ref.get_ref()==null and node_ref.get_ref()==null,"cancel after worker pack retires scene and both template owners")
+	else:check(false,"cancel fixture produced real worker-prepacked owners")
+	await check_prepacked_texture_intern(sample,route)
+	Deferred.full_native_worker_prepack_enabled=original_flag
+
+func check_prepacked_texture_intern(sample:Dictionary,route:Dictionary)->void:
+	var packet:Dictionary=await worker_result(Deferred._prepare_job_inner.bind(sample.path,sample.sha,null,sample.observation,true,directory,{},"",[],false,true,null,route))
+	var scene:Node=packet.get("scene");var prepared:PackedScene=packet.get("prepacked")
+	if scene==null or prepared==null:check(false,"intern fixture prepared");Drainer.dispose_result(packet);return
+	var meshes:Array=preload("res://scripts/world3d/surface_materials.gd").meshes(scene)
+	if meshes.is_empty():check(false,"intern fixture has real mesh");Drainer.dispose_result(packet);return
+	var material:StandardMaterial3D=meshes[0].get_active_material(0)
+	if material==null or material.albedo_texture==null:check(false,"intern fixture has material texture");Drainer.dispose_result(packet);return
+	var cache=preload("res://scripts/world3d/model_texture_cache.gd")
+	var source_image:=material.albedo_texture.get_image();var key:String=cache.pixel_key(source_image)
+	var seed:=ImageTexture.create_from_image(source_image);seed.set_meta(cache.PIXEL_KEY,key);cache._textures.clear();cache._remember(key,seed)
+	var ok:=Library.cache_prepared_native_scene(sample.path,scene,prepared,packet.native_packet.packed,sample.sha)
+	packet.erase("scene");check(ok,"actual fixed-native scene and worker pack accepted with matching source identity")
+	var first:=Library.instantiate(sample.path,true);var second:=Library.instantiate(sample.path,true)
+	if first==null or second==null:check(false,"two interned instances created")
+	else:
+		var a:MeshInstance3D=preload("res://scripts/world3d/surface_materials.gd").meshes(first)[0]
+		var b:MeshInstance3D=preload("res://scripts/world3d/surface_materials.gd").meshes(second)[0]
+		var ma:StandardMaterial3D=a.get_active_material(0);var mb:StandardMaterial3D=b.get_active_material(0)
+		check(ma.albedo_texture==seed and mb.albedo_texture==seed and ma.albedo_texture.get_rid()==mb.albedo_texture.get_rid(),"actual worker prepack preserves main-thread interned texture RID across instances")
+	if first!=null:Drainer.dispose_scene(first)
+	if second!=null:Drainer.dispose_scene(second)
+	Drainer.dispose_result(packet);Library.evict_cached_scene(sample.path);Drainer.synchronize_transfer()
+
+func check_real_prepack_acceptance(values:Array)->void:
+	for sample:Dictionary in values:Library.evict_cached_scene(sample.path)
+	Drainer.synchronize_transfer()
+	var old:bool=Deferred.full_native_worker_prepack_enabled;Deferred.full_native_worker_prepack_enabled=true
+	var map:=Node3D.new();root.add_child(map);map.set_meta("stream_library",[]);map.set_meta("extras",{"rmmo_records":[]})
+	var index:Dictionary=preload("res://scripts/world3d/stream_index.gd").build([])
+	for key:String in index:map.set_meta(key,index[key])
+	var queue:=PrepackQueue.new();queue.flip_after_second=true;queue._doc=preload("res://scripts/world3d/world_document.gd").new();queue.require_native_products=true
+	var pending:Array=[]
+	for i:int in values.size():
+		var sample:Dictionary=values[i]
+		var record:Dictionary={"uuid":"real_prepack_%d"%i,"kind":"asset","asset_path":sample.path,"position":[0,0,0],"rotation":[0,0,0],"size":[1,1,1]}
+		pending.append({"record":record,"path":sample.path,"bounds":AABB(Vector3(-2,-2,-2),Vector3(4,5,5)),"digest":sample.sha,"memory":sample.observation.memory,"manifest":sample.observation})
+	queue.pending=pending
+	var trace=preload("res://scripts/world3d/load_trace.gd");trace.start()
+	map.add_child(queue);queue.activate(map);queue.set_demand("test",AABB(Vector3(-4,-4,-4),Vector3(8,8,8)))
+	var deadline:=Time.get_ticks_msec()+30000
+	while int(queue.profile.get("worker_prepacked_native_models",0))<2 and queue.error.is_empty() and Time.get_ticks_msec()<deadline:await process_frame
+	check(int(queue.profile.get("worker_prepacked_native_models",0))==2 and queue.dispatches.size()==2 and queue.dispatches.all(func(v):return v.prepack),"real Deferred queue accepts two worker-prepacked native templates")
+	check(not Deferred.full_native_worker_prepack_enabled,"in-flight tickets retain the admitted prepack decision after the global switch changes")
+	var charged:bool=queue.dispatches.size()==2 and queue.dispatches[1].total>=queue.dispatches[0].estimate+queue.dispatches[1].estimate
+	for row:Dictionary in queue.dispatches:
+		for sample:Dictionary in values:
+			if sample.path==row.path:charged=charged and row.estimate>=sample.footprint_bytes
+	check(charged,"two concurrent jobs retain each complete existing native envelope")
+	var observed:Dictionary=trace.stop();var material_calls:=0;var main_pack_calls:=0;var worker_pack_calls:=0
+	for stat:Dictionary in observed.stats:
+		if stat.label=="asset_library.cache_materials":material_calls+=stat.count
+		if stat.label=="asset_library.cache_pack":main_pack_calls+=stat.count
+		if stat.label=="deferred.worker_native_pack":worker_pack_calls+=stat.count
+	check(material_calls==2 and main_pack_calls==0 and worker_pack_calls==2,"real acceptance interns on main and packs each model once on worker")
+	for sample:Dictionary in values:
+		var published:PackedScene=Library._scenes.get(sample.path)
+		var instance:=Library.instantiate(sample.path,true)
+		check(published!=null and instance!=null and has_textured_material(instance) and Library._scenes.get(sample.path)==published,"real acceptance preserves textured native reusable template without GLB")
+		if instance!=null:Drainer.dispose_scene(instance)
+	var ledger:RefCounted=queue._admission;queue.shutdown();map.queue_free()
+	for sample:Dictionary in values:Library.evict_cached_scene(sample.path)
+	Drainer.synchronize_transfer()
+	for frame:int in 20:await process_frame
+	check(ledger.reserved_bytes==0,"real queue cancellation/eviction releases both full job leases after owners retire")
+	Deferred.full_native_worker_prepack_enabled=old
 
 func check_full_metadata(sample:Dictionary)->void:
 	var observed:Dictionary=FullProduct.read(sample.path,directory,"",-1)
@@ -279,6 +399,10 @@ func check_full_missing(sample:Dictionary)->void:
 	var deferred:Dictionary=await worker_result(Deferred.prepare_scene.bind(sample.path,"",null,sample.observation,true,directory,false,Deferred.CollisionGeometry.ALL,true,true,true))
 	check(not str(deferred.get("error","")).is_empty() or not deferred.get("compiled",false),"missing full product fails deferred preparation without raw fallback")
 	Drainer.dispose_result(deferred)
+	var route:Dictionary={"stage":"fixed_native","candidate":sample.observation.native_candidate,"require_native_products":true,"worker_prepack":true}
+	var stale:Dictionary=await worker_result(Deferred._prepare_job_inner.bind(sample.path,sample.sha,null,sample.observation,true,directory,{},"",[],false,true,null,route))
+	check(not str(stale.get("error","")).is_empty() and not stale.has("scene") and not stale.has("prepacked"),"stale fixed native ticket fails without raw fallback or retained prepared owners")
+	Drainer.dispose_result(stale)
 	var map:=directory.path_join("missing_prefetch.gltf");save_bytes(map,"missing product test".to_utf8_buffer());created.append(map)
 	var records:Array=[{"uuid":"missing","kind":"asset","asset_path":sample.path,"position":[0,0,0],"rotation":[0,0,0],"size":[1,1,1]}]
 	check(TargetPrefetch.plan(records,directory,map,FileAccess.get_sha256(map),{}).is_empty(),"missing full native product rejects target prefetch")

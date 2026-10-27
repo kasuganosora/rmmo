@@ -100,6 +100,9 @@ def verify_full_fixture(root, map_path, manifest_sha256, expected_models=49):
         if payload != folder / (payload_sha + '.scn') or index != folder / (key + '.json') or descriptor != folder / 'footprints_v1' / (key + '.json'):
             raise ValueError('native product path/identity mismatch')
         index_bytes = index.read_bytes(); desc_bytes = descriptor.read_bytes()
+        if (not _digest(model.get('index_sha256')) or not _digest(model.get('descriptor_sha256'))
+                or _sha(index_bytes) != model['index_sha256'] or _sha(desc_bytes) != model['descriptor_sha256']):
+            raise ValueError('manifest metadata identity mismatch')
         info = json.loads(index_bytes); envelope = json.loads(desc_bytes)
         body = envelope.get('body') if isinstance(envelope, dict) else None
         if not isinstance(info, dict) or info.get('version') != 1 or info.get('source_sha') != source_sha or info.get('payload_sha') != payload_sha or not isinstance(info.get('bytes'), int) or isinstance(info['bytes'], bool) or info['bytes'] <= 0:

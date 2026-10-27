@@ -60,21 +60,30 @@ def test_fixture_paths(map_path, content_root, stage="map"):
     return map_file, root
 
 
-def stage_arguments(stage):
+def stage_arguments(stage, full_native_worker_prepack=False, full_native_template_reuse=False):
+    if (full_native_worker_prepack or full_native_template_reuse) and stage != "full":
+        raise ValueError("full native template experiment requires full stage")
+    if full_native_worker_prepack and full_native_template_reuse:
+        raise ValueError("native template reuse and worker prepack are separate experiments")
     if stage == "white": return ["--white-material", "--without-map-textures"]
     if stage == "map": return ["--map-texture-stage"]
-    if stage == "full": return ["--full-material-stage"]
+    if stage == "full":
+        return (["--full-material-stage"]
+                + (["--full-native-worker-prepack"] if full_native_worker_prepack else [])
+                + (["--full-native-template-reuse"] if full_native_template_reuse else []))
     raise ValueError("unsupported stage")
 
 
-def full_stage_controls_match(report):
+def full_stage_controls_match(report, expected_prepack=False, expected_template_reuse=False):
     if not isinstance(report, dict) or not isinstance(report.get("controls"), dict): return False
     controls = report["controls"]
     audit = report.get("full_model_material_audit", {})
     if not isinstance(audit, dict): return False
     meshes, surfaces = audit.get("visible_model_meshes"), audit.get("base_textured_surfaces")
     if type(meshes) is not int or type(surfaces) is not int: return False
-    return (controls.get("full_material_stage") is True and controls.get("map_texture_stage") is False
+    return (controls.get("full_native_worker_prepack") is expected_prepack
+            and controls.get("full_native_template_reuse") is expected_template_reuse
+            and controls.get("full_material_stage") is True and controls.get("map_texture_stage") is False
             and controls.get("map_textures") is True and controls.get("white_material") is False
             and controls.get("white_native") is False and controls.get("native_geometry_only") is False
             and controls.get("compiled") is True
@@ -88,6 +97,8 @@ def main():
     parser.add_argument("--map-path", type=Path, help="Explicit isolated test map; requires --content-root")
     parser.add_argument("--content-root", type=Path, help="Owned isolated fixture root; requires --map-path")
     parser.add_argument("--stage", choices=("white", "map", "full"), default="map")
+    parser.add_argument("--full-native-worker-prepack", action="store_true")
+    parser.add_argument("--full-native-template-reuse", action="store_true")
     parser.add_argument("--full-fixture-manifest-sha256")
     parser.add_argument("--expected-full-models", type=int, default=49)
     parser.add_argument("--cold-index", action="store_true")
@@ -134,6 +145,10 @@ def main():
     parser.add_argument("--fault-capture-extension", type=Path,
                         help="Opt-in native first-chance capture; marks this as a diagnostic sample")
     args = parser.parse_args()
+    try:
+        selected_stage_arguments = stage_arguments(args.stage, args.full_native_worker_prepack, args.full_native_template_reuse)
+    except ValueError as exc:
+        parser.error(str(exc))
     fixture = test_fixture_paths(args.map_path, args.content_root, args.stage)
     map_path = fixture[0] if fixture else MAP
     full_before = None
@@ -174,7 +189,7 @@ def main():
            "--native-only", "--efficient-membership-probe", "--settle-demands",
            "--without-derived-geometry-cache", "--without-prefab-bounds-cache",
            "--without-model-metadata-cache"]
-    cmd += stage_arguments(args.stage)
+    cmd += selected_stage_arguments
     if fixture:
         cmd += ["--test-map=" + str(map_path), "--test-content-root=" + str(fixture[1])]
     cmd += ["--native-departure", "--frame-split-probe"] if args.traverse else ["--origin-only"]
@@ -258,7 +273,9 @@ def main():
               "map_sha256": digest(map_path), "map_path": str(map_path),
               "content_root": str(fixture[1]) if fixture else "D:/code/rmmo_runtime", "source_before": before,
               "git_head": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip(),
-              "stage": args.stage, "legacy_publication": args.legacy_publication,
+              "stage": args.stage, "full_native_worker_prepack_requested": args.full_native_worker_prepack,
+              "full_native_template_reuse_requested": args.full_native_template_reuse,
+              "legacy_publication": args.legacy_publication,
               "legacy_requeue": args.legacy_requeue,
               "suppress_sync_slow_logs": args.suppress_sync_slow_logs,
               "diagnostic": bool(fault_capture) or args.batch_timeline or args.profile_procedural_uploads or args.texture_profile, "fault_capture": fault_capture,
@@ -340,7 +357,7 @@ def main():
         except Exception as exc:
             outcome["full_fixture_unchanged"] = False
             outcome["full_fixture_error"] = str(exc)
-        outcome["full_controls_match"] = full_stage_controls_match(report)
+        outcome["full_controls_match"] = full_stage_controls_match(report, args.full_native_worker_prepack, args.full_native_template_reuse)
     outcome["requeue_controls_match"] = requeue_controls_match(report, args.legacy_requeue, args.suppress_sync_slow_logs)
     outcome["functional_ok"] = (code == 0 and bool(report) and not errors and
                                 report.get("failures") == [] and outcome["source_unchanged"] and

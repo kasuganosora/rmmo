@@ -31,6 +31,8 @@ var cancel_during_capture:=false
 var white_material:=false
 var map_texture_stage:=false
 var full_material_stage:=false
+var full_native_worker_prepack_requested:=false
+var full_native_template_reuse_requested:=false
 var texture_lighting:=false
 var stage_screenshot:=false
 var early_white_camera:=false
@@ -336,6 +338,8 @@ func run()->void:
 		elif arg=="--white-material":white_material=true;preload("res://scripts/world3d/runtime_probe_controls.gd").enable_white_materials()
 		elif arg=="--map-texture-stage":map_texture_stage=true
 		elif arg=="--full-material-stage":full_material_stage=true
+		elif arg=="--full-native-worker-prepack":full_native_worker_prepack_requested=true
+		elif arg=="--full-native-template-reuse":full_native_template_reuse_requested=true
 		elif arg=="--without-lazy-terrain-height":preload("res://scripts/world3d/river_materials.gd").lazy_terrain_height_enabled=false
 		elif arg=="--texture-lighting":texture_lighting=true
 		elif arg=="--stage-screenshot":stage_screenshot=true
@@ -386,6 +390,10 @@ func run()->void:
 	var stage_error:=map_texture_stage_argument_error(OS.get_cmdline_user_args())
 	if not stage_error.is_empty():
 		check(false,stage_error);save();quit(2);return
+	if full_native_worker_prepack_requested:
+		preload("res://scripts/world3d/deferred_asset_loader.gd").full_native_worker_prepack_enabled=true
+	if full_native_template_reuse_requested:
+		preload("res://scripts/world3d/deferred_asset_loader.gd").full_native_template_reuse_enabled=true
 	if map_texture_stage:
 		preload("res://scripts/world3d/runtime_probe_controls.gd").enable_native_geometry_only()
 		preload("res://scripts/world3d/runtime_probe_controls.gd").hud_enabled=false
@@ -404,6 +412,8 @@ func run()->void:
 	report.controls.white_native=report.controls.compiled and preload("res://scripts/world3d/white_native_asset_cache.gd").active() and preload("res://scripts/world3d/white_native_asset_cache.gd").enabled
 	report.controls.map_texture_stage=map_texture_stage
 	report.controls.full_material_stage=full_material_stage
+	report.controls.full_native_worker_prepack=preload("res://scripts/world3d/deferred_asset_loader.gd").full_native_worker_prepack_enabled
+	report.controls.full_native_template_reuse=preload("res://scripts/world3d/deferred_asset_loader.gd").full_native_template_reuse_enabled
 	report.controls.lazy_terrain_height=preload("res://scripts/world3d/river_materials.gd").lazy_terrain_height_enabled
 	report.controls.texture_lighting=texture_lighting
 	report.controls.stage_screenshot=stage_screenshot
@@ -671,6 +681,11 @@ func whiten_spec(spec:Dictionary)->void:
 	preload("res://scripts/world3d/runtime_probe_controls.gd").whiten_spec(spec)
 
 static func map_texture_stage_argument_error(arguments:PackedStringArray)->String:
+	for candidate:String in ["--full-native-worker-prepack","--full-native-template-reuse"]:
+		if candidate in arguments and not "--full-material-stage" in arguments:
+			return candidate+" requires --full-material-stage"
+	if "--full-native-worker-prepack" in arguments and "--full-native-template-reuse" in arguments:
+		return "native template reuse and worker prepack are separate experiments"
 	if "--full-material-stage" in arguments:
 		for conflict:String in ["--map-texture-stage","--white-material","--without-map-textures","--without-compiled"]:
 			if conflict in arguments:return "--full-material-stage conflicts with "+conflict

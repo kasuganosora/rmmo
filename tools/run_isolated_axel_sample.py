@@ -81,6 +81,12 @@ def _run_sample_locked(args, *, runner, artifacts):
         raise ValueError("timeout must be positive")
     if args.stage != "full" and (args.expected_state not in ("A", "B") or args.expected_candidates <= 0):
         raise ValueError("expected state or candidate count invalid")
+    prepack = getattr(args, "full_native_worker_prepack", False)
+    template_reuse = getattr(args, "full_native_template_reuse", False)
+    if (prepack or template_reuse) and args.stage != "full":
+        raise ValueError("full native template experiment requires full stage")
+    if prepack and template_reuse:
+        raise ValueError("native template reuse and worker prepack are separate experiments")
     if args.stage == "full" and (args.expected_state is not None or getattr(args, "expected_full_models", 49) <= 0):
         raise ValueError("full stage requires full model coverage and no sidecar A/B state")
     engine = Path(args.engine).resolve(strict=True)
@@ -131,6 +137,10 @@ def _run_sample_locked(args, *, runner, artifacts):
                "--timeout", str(args.timeout)]
         if args.stage == "full":
             cmd.extend(["--full-fixture-manifest-sha256", args.manifest_sha256.lower(), "--expected-full-models", str(getattr(args, "expected_full_models", 49))])
+        if getattr(args, "full_native_worker_prepack", False):
+            cmd.append("--full-native-worker-prepack")
+        if template_reuse:
+            cmd.append("--full-native-template-reuse")
         if args.traverse:
             cmd.append("--traverse")
         if args.cold_index:
@@ -146,6 +156,8 @@ def _run_sample_locked(args, *, runner, artifacts):
                   "settings_snapshot": str(settings), "map_path": str(map_path),
                   "content_root": str(content), "manifest_sha256": args.manifest_sha256.lower(),
                   "expected_state": args.expected_state, "expected_candidates": args.expected_candidates,
+                  "full_native_worker_prepack_requested": getattr(args, "full_native_worker_prepack", False),
+                  "full_native_template_reuse_requested": template_reuse,
                   "legacy_requeue": getattr(args, "legacy_requeue", False),
                   "suppress_sync_slow_logs": getattr(args, "suppress_sync_slow_logs", False),
                   "cache_note": "Verification hashes warm OS caches; not physical cold disk. User directory may be reused; record cache state separately."}
@@ -193,6 +205,8 @@ def main():
     parser.add_argument("--expected-candidates", type=int, default=11)
     parser.add_argument("--stage", choices=("white", "map", "full"), default="map")
     parser.add_argument("--expected-full-models", type=int, default=49)
+    parser.add_argument("--full-native-worker-prepack", action="store_true")
+    parser.add_argument("--full-native-template-reuse", action="store_true")
     parser.add_argument("--timeout", type=int, default=420)
     parser.add_argument("--traverse", action="store_true")
     parser.add_argument("--cold-index", action="store_true")

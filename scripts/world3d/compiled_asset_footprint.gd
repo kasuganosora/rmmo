@@ -10,6 +10,7 @@ const Drainer = preload("res://scripts/world3d/asset_worker_drainer.gd")
 # Serialized accounting contract. Incompatible estimate/format changes must
 # bump this revision and republish; runtime reader edits are not format changes.
 const VERSION := 1
+const DIRECT_TEMPLATE_REUSE_VERSION := 1
 const FLOOR_BYTES := 64 * 1024 * 1024
 const EXCLUSIVE_BYTES := 4 * 1024 * 1024 * 1024
 const MAX_BYTES := 1024 * 1024 * 1024 * 1024
@@ -61,6 +62,8 @@ static func candidate(path: String, content_root: String, expected_source: Strin
 	# Freeze the exact product identity. Do not derive it from another manifest
 	# read later, and do not mistake these unhashed source bytes for verification.
 	identity.merge(estimate)
+	var direct:Variant=descriptor.get("direct_template_reuse")
+	identity.direct_template_reuse_safe=direct is Dictionary and direct.get("version")==DIRECT_TEMPLATE_REUSE_VERSION and direct.get("safe") is bool and direct.safe
 	if metadata is Dictionary: metadata.assign(descriptor)
 	identity.erase("source_bytes")
 	return identity
@@ -103,7 +106,8 @@ static func build(path: String, content_root: String = "") -> Dictionary:
 		var reason := str(loaded.get("cache_reason", loaded.get("error", "unknown")))
 		Drainer.synchronize_transfer(); loaded.clear()
 		return {"ok":false, "reason":"native_read:" + reason}
-	var stats := measure(loaded.packed)
+	var reuse:Dictionary={}
+	var stats := measure(loaded.packed,reuse)
 	Drainer.synchronize_transfer()
 	loaded.clear()
 	if stats.is_empty(): return {"ok":false, "reason":"unsupported_resource_statistics"}
@@ -122,6 +126,7 @@ static func build(path: String, content_root: String = "") -> Dictionary:
 	descriptor.erase("product")
 	descriptor.merge({"version":VERSION, "footprint_generator":generator(), "stats":stats, "estimated_bytes":estimate.estimated_bytes, "resident_bytes":estimate.resident_bytes})
 	descriptor.model_metadata=model_metadata
+	descriptor.direct_template_reuse={"version":DIRECT_TEMPLATE_REUSE_VERSION,"safe":reuse.get("safe",false)}
 	var destination := descriptor_path(path, content_root)
 	var result := _publish(descriptor, destination, content_root)
 	if result != OK: return {"ok":false, "reason":"descriptor_write", "error":result}
@@ -156,6 +161,28 @@ static func refresh_bounds(path:String,content_root:String)->Dictionary:
 	var error:=_publish(descriptor,target,content_root)
 	return {"ok":error==OK,"error":error,"descriptor":target,"source":path,"product":candidate_.product}
 
+# Explicit offline refresh for already published descriptors. The source and
+# product stay unchanged; never perform this resource walk during gameplay.
+static func refresh_direct_template_reuse(path:String,content_root:String)->Dictionary:
+	if OS.get_thread_caller_id()!=OS.get_main_thread_id() or DisplayServer.get_name()=="headless":return {"ok":false,"reason":"main_graphics_thread_required"}
+	if content_root.is_empty() or not Paths.asset_key_allowed(path,content_root):return {"ok":false,"reason":"source_path"}
+	var descriptor:Dictionary={}
+	var offered:=candidate(path,content_root,"",true,"",descriptor)
+	if offered.is_empty():return {"ok":false,"reason":"native_footprint_missing"}
+	var target:=descriptor_path(path,content_root);var descriptor_sha:=FileAccess.get_sha256(target)
+	if FileAccess.get_sha256(offered.product)!=offered.payload_sha:return {"ok":false,"reason":"product_changed"}
+	var packet:=Preparation.read(path,offered,content_root,Callable(),true)
+	if packet.get("error",FAILED)!=OK or not packet.get("packed") is PackedScene:
+		Drainer.dispose_result(packet);return {"ok":false,"reason":"native_read"}
+	var reuse:Dictionary={};var stats:=measure(packet.packed,reuse)
+	Drainer.dispose_result(packet)
+	if stats.is_empty():return {"ok":false,"reason":"unsupported_resource_statistics"}
+	if FileAccess.get_sha256(offered.product)!=offered.payload_sha or FileAccess.get_sha256(target)!=descriptor_sha or candidate(path,content_root,"",true)!=offered:
+		return {"ok":false,"reason":"identity_changed_during_measurement"}
+	descriptor.direct_template_reuse={"version":DIRECT_TEMPLATE_REUSE_VERSION,"safe":reuse.get("safe",false)}
+	var error:=_publish(descriptor,target,content_root)
+	return {"ok":error==OK,"error":error,"descriptor":target,"safe":descriptor.direct_template_reuse.safe}
+
 static func estimate_stats(stats: Dictionary) -> Dictionary:
 	for key in STAT_KEYS:
 		if not _integer(stats.get(key), MAX_BYTES): return {}
@@ -173,15 +200,20 @@ static func estimate_stats(stats: Dictionary) -> Dictionary:
 	if peak > MAX_BYTES: return {}
 	return {"estimated_bytes":peak, "resident_bytes":peak, "exclusive":peak > EXCLUSIVE_BYTES}
 
-static func measure(packed: PackedScene) -> Dictionary:
+static func measure(packed: PackedScene, direct_reuse:Variant=null) -> Dictionary:
 	if packed == null or not packed.get_meta("compiled_asset_validated", false) or not Compiled._valid_packed(packed): return {}
 	var stats := empty_stats()
 	var state := packed.get_state()
 	stats.nodes = state.get_node_count()
-	var context := {"ok":true, "seen":{}, "retained":[], "visits":0}
+	var context := {"ok":true, "seen":{}, "retained":[], "visits":0,"direct_safe":not packed.resource_local_to_scene and packed.get_script()==null}
 	for node in state.get_node_count():
 		for property in state.get_node_property_count(node):
-			_walk(state.get_node_property_value(node, property), stats, context, 0, false)
+			var name_:String=str(state.get_node_property_name(node,property))
+			var value:Variant=state.get_node_property_value(node, property)
+			if name_=="metadata/extras" and value is Dictionary and value.get("rmmo_grass",false)==true:context.direct_safe=false
+			if name_=="script" and value!=null:context.direct_safe=false
+			_walk(value, stats, context, 0, false)
+	if direct_reuse is Dictionary:direct_reuse.assign({"safe":bool(context.ok and context.direct_safe)})
 	return stats if context.ok else {}
 
 static func empty_stats() -> Dictionary:
@@ -194,6 +226,7 @@ static func _walk(value: Variant, stats: Dictionary, context: Dictionary, depth:
 	if not context.ok: return
 	if depth > 32 or context.visits > 2000000: context.ok = false; return
 	if value is Resource:
+		if value.resource_local_to_scene or value.get_script()!=null:context.direct_safe=false
 		var id: int = value.get_instance_id()
 		if context.seen.has(id): return
 		context.seen[id] = true; context.retained.append(value)
