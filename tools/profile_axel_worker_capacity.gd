@@ -136,6 +136,7 @@ func _initialize()->void:
 		if arg=="--without-texture-plan-reuse":preload("res://scripts/world3d/deferred_asset_loader.gd").texture_plan_reuse_enabled=false
 		if arg=="--sync-texture-headers":preload("res://scripts/world3d/deferred_asset_loader.gd").async_texture_headers_enabled=false
 		if arg=="--full-cache-trims":preload("res://scripts/world3d/surface_materials.gd").incremental_cache_budget_enabled=false
+		if arg=="--without-capacity-eviction-accounting":preload("res://scripts/world3d/surface_materials.gd").capacity_eviction_accounting_enabled=false
 		if arg=="--full-stream-adoption":preload("res://scripts/world3d/world_stream.gd").incremental_adoption_enabled=false
 		if arg=="--unaccounted-stream-removals":preload("res://scripts/world3d/world_stream.gd").owned_removal_accounting_enabled=false
 		if arg=="--rebuild-demand-catalogues":
@@ -251,6 +252,7 @@ func tick_geometry()->void:
 		report.resumable_bin_ledger=preload("res://scripts/world3d/ground_batcher.gd").resumable_bin_ledger_enabled
 		report.independent_instance_preparation=preload("res://scripts/world3d/deferred_asset_loader.gd").independent_instance_preparation_enabled
 		report.native_prefab_direct_specs=preload("res://scripts/world3d/deferred_asset_loader.gd").native_prefab_direct_specs_enabled
+		report.capacity_eviction_accounting=preload("res://scripts/world3d/surface_materials.gd").capacity_eviction_accounting_enabled
 		report.completed_owner_drain=preload("res://scripts/world3d/publication_order.gd").completed_owner_drain_enabled
 		report.white_stream_time_slice=Stream.white_time_slice_enabled
 		report.white_building_turns=preload("res://scripts/world3d/publication_order.gd").white_building_turns_enabled

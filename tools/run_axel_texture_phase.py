@@ -70,6 +70,7 @@ def main():
     parser.add_argument("--without-texture-plan-reuse", action="store_true")
     parser.add_argument("--sync-texture-headers", action="store_true")
     parser.add_argument("--full-cache-trims", action="store_true")
+    parser.add_argument("--without-capacity-eviction-accounting", action="store_true")
     parser.add_argument("--full-stream-adoption", action="store_true")
     parser.add_argument("--unaccounted-stream-removals", action="store_true")
     parser.add_argument("--rebuild-demand-catalogues", action="store_true")
@@ -162,6 +163,8 @@ def main():
         cmd.append("--sync-texture-headers")
     if args.full_cache_trims:
         cmd.append("--full-cache-trims")
+    if args.without_capacity_eviction_accounting:
+        cmd.append("--without-capacity-eviction-accounting")
     if args.full_stream_adoption:
         cmd.append("--full-stream-adoption")
     if args.unaccounted_stream_removals:
@@ -199,6 +202,7 @@ def main():
               "texture_plan_reuse": not args.without_texture_plan_reuse,
               "async_texture_headers": not args.sync_texture_headers,
               "incremental_cache_budget": not args.full_cache_trims,
+              "capacity_eviction_accounting": not args.without_capacity_eviction_accounting,
               "incremental_stream_adoption": not args.full_stream_adoption,
               "owned_removal_accounting": not args.unaccounted_stream_removals,
               "reuse_demand_catalogues": not args.rebuild_demand_catalogues,

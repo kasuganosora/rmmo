@@ -30,6 +30,7 @@ static var incremental_cache_budget_enabled:=true # Diagnostic full-scan control
 static var _cache_accounted:Dictionary={}
 static var _cache_upper_bytes:=0
 static var _cache_estimate_valid:=false
+static var capacity_eviction_accounting_enabled:=true # Diagnostic legacy control.
 const TEXTURE_PROPERTIES=["albedo_texture","normal_texture","roughness_texture","metallic_texture","ao_texture","heightmap_texture"]
 static func texture_key(path:String,flip:bool=false,normal:bool=false)->String:
 	if path.is_empty():return ""
@@ -75,7 +76,40 @@ static func _account_texture(texture:Texture2D)->void:
 	var bytes:=_texture_cost(texture)
 	_cache_accounted[id]=bytes;_cache_upper_bytes+=bytes
 	_watch_cache_resource(texture)
-static func _trim_after_insert(value:Resource)->void:
+static func _forget_retired_texture_cost(retired_id:int)->bool:
+	# Validate the actual current owners: a material can have changed while its
+	# signals were blocked, and raw edits can replace keys without changing size.
+	if not capacity_eviction_accounting_enabled or retired_id==0 or _cache_accounted.size()>1024 or _cache_use.size()>256:return false
+	# The full scan also removes recency entries left by external raw erases.
+	# Preserve that behavior before permitting a shortcut, even below its cap.
+	for key:String in _cache_use:
+		if not (_materials if key.begins_with("m:") else _textures).has(key.substr(2)):return false
+	if not _cache_accounted.has(retired_id):return false
+	# Hot dictionaries can be edited externally. Inspect actual remaining owner
+	# IDs and costs; same-size raw replacement must never grant a stale proof.
+	var checked:Dictionary={}
+	for texture:Texture2D in _textures.values():
+		var id:=texture.get_instance_id()
+		if id==retired_id:return false
+		if not checked.has(id):
+			if not _cache_accounted.has(id) or _texture_cost(texture)>int(_cache_accounted[id]):return false
+			checked[id]=true
+	# Do not trust change notifications as proof: set_block_signals can hide a
+	# slot replacement and set_meta can silently change runtime_upload_bytes.
+	if texture_profile_enabled:TextureCache._profile_count("paint.cache.guard_material_property_reads",_materials.size()*TEXTURE_PROPERTIES.size())
+	for material:Material in _materials.values():
+		for property:String in TEXTURE_PROPERTIES:
+			var texture:Texture2D=material.get(property)
+			if texture==null:continue
+			var id:=texture.get_instance_id()
+			if id==retired_id:return false
+			if not checked.has(id):
+				if not _cache_accounted.has(id) or _texture_cost(texture)>int(_cache_accounted[id]):return false
+				checked[id]=true
+	_cache_upper_bytes-=int(_cache_accounted[retired_id]);_cache_accounted.erase(retired_id)
+	if texture_profile_enabled:TextureCache._profile_count("paint.cache.capacity_accounting_reuses")
+	return true
+static func _trim_after_insert(value:Resource,retired_id:int=0)->void:
 	if not residency_budget_enabled:_cache_estimate_valid=false;return
 	if not incremental_cache_budget_enabled or not _cache_estimate_valid or cache_byte_budget<=0 or (value is BaseMaterial3D and _materials.size()==1 and _textures.is_empty()):
 		if texture_profile_enabled:TextureCache._profile_count("paint.cache.full_insert_"+("legacy" if not incremental_cache_budget_enabled else ("dirty" if not _cache_estimate_valid else "small")))
@@ -87,6 +121,7 @@ static func _trim_after_insert(value:Resource)->void:
 		for property:String in TEXTURE_PROPERTIES:
 			var texture:Texture2D=value.get(property)
 			if texture!=null:_account_texture(texture)
+	if _cache_upper_bytes>maxi(0,cache_byte_budget) and retired_id!=0:_forget_retired_texture_cost(retired_id)
 	if _cache_upper_bytes>maxi(0,cache_byte_budget) or _cache_accounted.size()>1024 or _cache_use.size()>256:
 		if texture_profile_enabled:TextureCache._profile_count("paint.cache.full_insert_"+("budget" if _cache_upper_bytes>maxi(0,cache_byte_budget) else "metadata"))
 		trim_cached_resources()
@@ -443,18 +478,21 @@ static func _texture(material:Dictionary,field:String,path_checks:Variant)->Text
 	var cache_key := texture_key(key,flip_normal,field=="normal_path")
 	if key.is_empty(): return null
 	var restored_weak:=false
+	var capacity_retired_id:=0
 	if not _textures.has(cache_key) and residency_budget_enabled and _texture_refs.has(cache_key):
 		var retained:Texture2D=_texture_refs[cache_key].get_ref()
 		if retained!=null and (not prepared_images.has(cache_key) or retained.get_meta("runtime_source_sha256","")==prepared_images[cache_key].get_meta("runtime_source_sha256","")):
 			if _textures.size()>=64:
-				var oldest:String=_textures.keys()[0];_textures.erase(oldest);_cache_use.erase("t:"+oldest)
+				var oldest:String=_textures.keys()[0]
+				if capacity_eviction_accounting_enabled:capacity_retired_id=_textures[oldest].get_instance_id()
+				_textures.erase(oldest);_cache_use.erase("t:"+oldest)
 			_textures[cache_key]=retained;restored_weak=true
 	if _textures.has(cache_key):
 		_touch_cache("t:",cache_key)
 		if texture_profile_enabled:TextureCache._profile_count("paint.texture.gpu_cache_hit")
 		prepared_images.erase(cache_key)
 		var cached:Texture2D=_textures[cache_key]
-		if restored_weak:_trim_after_insert(cached)
+		if restored_weak:_trim_after_insert(cached,capacity_retired_id)
 		else:_trim_changed_cache()
 		return cached
 	if key!="checker" and not prepared_images.has(cache_key):
@@ -467,9 +505,11 @@ static func _texture(material:Dictionary,field:String,path_checks:Variant)->Text
 			side_texture.set_meta("runtime_normal_xy",side.image.get_format()==Image.FORMAT_RGTC_RG)
 			side_texture.set_meta("runtime_source_sha256",path.sha256_text())
 			if _textures.size()>=64:
-				var oldest:String=_textures.keys()[0];_textures.erase(oldest);_cache_use.erase("t:"+oldest)
+				var oldest:String=_textures.keys()[0]
+				if capacity_eviction_accounting_enabled:capacity_retired_id=_textures[oldest].get_instance_id()
+				_textures.erase(oldest);_cache_use.erase("t:"+oldest)
 			_textures[cache_key]=side_texture
-			_touch_cache("t:",cache_key);_remember_weak(_texture_refs,cache_key,side_texture);_trim_after_insert(side_texture)
+			_touch_cache("t:",cache_key);_remember_weak(_texture_refs,cache_key,side_texture);_trim_after_insert(side_texture,capacity_retired_id)
 			if texture_profile_enabled:
 				TextureCache._profile_elapsed("paint.texture.sidecar_upload",side_started,{"path":path,"bytes":side.image.get_data_size(),"sidecar":side.path})
 				TextureCache._profile_count("paint.texture.sidecar_uploads")
@@ -520,9 +560,11 @@ static func _texture(material:Dictionary,field:String,path_checks:Variant)->Text
 	result.set_meta("runtime_normal_xy",image.get_format()==Image.FORMAT_RGTC_RG)
 	result.set_meta("runtime_source_sha256",image.get_meta("runtime_source_sha256",""))
 	if _textures.size() >= 64:
-		var oldest:String=_textures.keys()[0];_textures.erase(oldest);_cache_use.erase("t:"+oldest)
+		var oldest:String=_textures.keys()[0]
+		if capacity_eviction_accounting_enabled:capacity_retired_id=_textures[oldest].get_instance_id()
+		_textures.erase(oldest);_cache_use.erase("t:"+oldest)
 	_textures[cache_key] = result
-	_touch_cache("t:",cache_key);_remember_weak(_texture_refs,cache_key,result);_trim_after_insert(result)
+	_touch_cache("t:",cache_key);_remember_weak(_texture_refs,cache_key,result);_trim_after_insert(result,capacity_retired_id)
 	return result
 
 static func texture_error(record: Dictionary, checks: Variant = null) -> String:
