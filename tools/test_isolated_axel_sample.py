@@ -98,6 +98,8 @@ class IsolationTest(unittest.TestCase):
                       "--traverse", "--cold-index"):
             self.assertIn(value, child["args"])
         self.assertNotIn("--texture-profile", child["args"])
+        self.assertNotIn("--legacy-requeue", child["args"])
+        self.assertNotIn("--suppress-sync-slow-logs", child["args"])
         self.assertEqual((self.args.user_dir / "roaming/Godot/app_userdata/rmmo/game_settings.cfg").read_bytes(), original)
         self.assertEqual(self.settings.read_bytes(), original)
 
@@ -162,6 +164,17 @@ class IsolationTest(unittest.TestCase):
         run_sample(self.args, runner=self.fake, artifacts=self.root)
         child = json.loads((self.args.sample_dir / "isolation.runner.log").read_text())
         self.assertIn("--texture-profile", child["args"])
+
+    def test_requeue_controls_are_passed_and_recorded(self):
+        self.args.legacy_requeue = True
+        self.args.suppress_sync_slow_logs = True
+        run_sample(self.args, runner=self.fake, artifacts=self.root)
+        child = json.loads((self.args.sample_dir / "isolation.runner.log").read_text())
+        self.assertIn("--legacy-requeue", child["args"])
+        self.assertIn("--suppress-sync-slow-logs", child["args"])
+        launch = json.loads((self.args.sample_dir / "isolation.launch.json").read_text())
+        self.assertIs(launch["legacy_requeue"], True)
+        self.assertIs(launch["suppress_sync_slow_logs"], True)
 
     def test_state_mismatch_prevents_launch(self):
         self.args.expected_state = "B"

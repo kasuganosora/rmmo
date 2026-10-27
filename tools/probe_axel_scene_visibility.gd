@@ -61,7 +61,7 @@ func visibility_snapshot(view:Dictionary)->Dictionary:
 			row.camera_distance=vector(view.eye).distance_to(node.global_transform*node.get_aabb().get_center())
 		rows.append(row)
 	var queue:Node=map.get_node_or_null("DeferredAssets")
-	return {"at_ms":Time.get_ticks_msec(),"feet":xyz(feet()),"stream_chunk":str(map.get_meta("stream_chunk","unsettled")),"stream_target":str(map.get_meta("stream_target","unplanned")),"cursor":map.get_meta("stream_cursor",0),"jobs":map.get_meta("stream_jobs",[]).size(),"water_indexed":water_count,"water_resident":water_visible,"subjects":rows,"queue_pending":queue.pending.size() if queue!=null else -1,"batches":runtime_batch_stats()}
+	return {"at_ms":Time.get_ticks_msec(),"feet":xyz(feet()),"stream_chunk":str(map.get_meta("stream_chunk","unsettled")),"stream_target":str(map.get_meta("stream_target","unplanned")),"cursor":map.get_meta("stream_cursor",0),"jobs":map.get_meta("stream_jobs",[]).size(),"water_indexed":water_count,"water_resident":water_visible,"subjects":rows,"queue_pending":queue.pending_count() if queue!=null else -1,"batches":runtime_batch_stats()}
 func run()->void:
 	started_ms=Time.get_ticks_msec();map_path="D:/code/rmmo_runtime/cache/world3d/axel_town_layout_20261016/map.gltf";output=FB_OUT+"/scene_visibility_fixed"
 	expected_map_sha="cbfa6d3b0d5315d934bb679c741976e15d9e3170808dccac8bf74cb857248475"
@@ -107,7 +107,7 @@ func run()->void:
 		while Time.get_ticks_msec()-began<120000:
 			await process_frame
 			var map:Node=world._map_root;var queue:Node=map.get_node_or_null("DeferredAssets")
-			var unfinished:bool=queue!=null and queue.pending.any(func(item):return queue._demanded_by_id.has(item.record.uuid))
+			var unfinished:bool=queue!=null and queue._materialize_pending_snapshot().any(func(item):return queue._demanded_by_id.has(item.record.uuid))
 			var ready:bool=map.has_meta("stream_chunk") and map.get_meta("stream_jobs",[]).is_empty() and map.get_meta("stream_append_pending",[]).is_empty() and not unfinished
 			stable=stable+1 if ready else 0
 			if stable>=30:break

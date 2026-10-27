@@ -20,8 +20,8 @@ func _process(_delta:float)->bool:
 		var spec:Dictionary=jobs[cursor]
 		row.head={"id":spec.get("uuid",""),"collision":spec.get("collision",""),"kind":spec.get("ground_batch_record",{}).get("kind","asset"),"prepared_shape":spec.has("shape"),"prepared_body":spec.has("prepared_body")}
 	if queue!=null:
-		row.pending=queue.pending.size();row.demanded=queue._demanded_by_id.size()
-		row.actual_unpublished_demand=queue.pending.filter(func(item):return queue._demanded_by_id.has(item.record.uuid)).size()
+		row.pending=queue.pending_count();row.demanded=queue._demanded_by_id.size()
+		row.actual_unpublished_demand=queue.pending_demanded_count()
 		row.jobs=[]
 		for path:String in queue._jobs:
 			var job:Dictionary=queue._jobs[path];var worker:RefCounted=job.get("worker")

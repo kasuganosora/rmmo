@@ -79,26 +79,50 @@ func work_delta(q:Deferred,before:Dictionary)->Dictionary:
 	return result
 
 func exact_full_scan_oracle(q:Deferred,label:String)->void:
+	# prioritize() updates the current position even when it deliberately keeps
+	# the previous rank anchor. Refresh the optimized path at that same current
+	# position before comparing it with a freshly rebuilt full-scan oracle.
+	var oracle_position:Vector3=q._priority
+	q._demand_revision+=1;q._refresh_demanded()
 	var expected:=snapshot(q);var owners:Array=q._demanded.duplicate()
 	var old_typed:bool=Deferred.typed_demand_scan_enabled
 	var old_membership:bool=Deferred.demand_membership_cache_enabled
 	Deferred.typed_demand_scan_enabled=false;Deferred.demand_membership_cache_enabled=false
 	q._demand_revision+=1;q._refresh_demanded()
-	var same:bool=snapshot(q)==expected and q._demanded.size()==owners.size()
+	var same:bool=q._priority==oracle_position and snapshot(q)==expected and q._demanded.size()==owners.size()
 	for i:int in mini(owners.size(),q._demanded.size()):same=same and is_same(owners[i],q._demanded[i])
 	check(same,label+": full scan preserves exact UUID/order/path/head/rank/priority and owner identity")
 	Deferred.typed_demand_scan_enabled=old_typed;Deferred.demand_membership_cache_enabled=old_membership
 	q._demand_revision+=1;q._refresh_demanded()
+	var restored:bool=q._priority==oracle_position and snapshot(q)==expected and q._demanded.size()==owners.size()
+	for i:int in mini(owners.size(),q._demanded.size()):restored=restored and is_same(owners[i],q._demanded[i])
+	check(restored,label+": restored optimized path preserves the same order and exact owners")
+
+func rank_anchor_boundary()->void:
+	var f:=return_fixture();var q:Deferred=f.queue
+	var revision:int=q._demand_revision
+	q.prioritize(Vector3(31.999,0,0));q._refresh_demanded()
+	check(q._priority_rank_anchor==Vector3.ZERO and q._demand_revision==revision,"movement under 32m inside the chunk retains the rank anchor and revision")
+	q.prioritize(Vector3(32,0,0));q._refresh_demanded()
+	# This position also crosses a chunk boundary: ticket revisions may advance
+	# alongside the rank revision, so do not assert an exact increment count.
+	check(q._priority_rank_anchor==Vector3(32,0,0) and q._demand_revision>revision,"movement at 32m updates the anchor even when the chunk also changes")
+	exact_full_scan_oracle(q,"32m boundary")
+	q.free();f.map.free()
 
 func rank_trial()->Dictionary:
 	var f:=return_fixture();var q:Deferred=f.queue
 	check_production_invariants(q,"rank setup")
+	# Opposite points remain in chunk (0,0) but are over 32m apart. Prewarm the
+	# first anchor via the real prioritize path before measuring alternating moves.
+	q.prioritize(Vector3(28,0,28));q._refresh_demanded()
+	q.prioritize(Vector3(4,0,4));q._refresh_demanded()
 	var before:=work_snapshot(q);var samples:Array=[]
 	for step:int in STEPS:
-		# Four-metre rank updates remain inside chunk (0,0), retaining every
-		# actual prioritize() ticket envelope. No private revision injection.
+		# Diagonal movement exceeds the 32m rank threshold while all actual
+		# prioritize() ticket envelopes stay in the same chunk.
 		var started:=Time.get_ticks_usec()
-		q.prioritize(Vector3(float(step%7+1)*4.,0.,0.));q._refresh_demanded()
+		q.prioritize(Vector3(28,0,28) if step%2==0 else Vector3(4,0,4));q._refresh_demanded()
 		samples.append(Time.get_ticks_usec()-started)
 	var delta:=work_delta(q,before)
 	check(delta.demand_refreshes==STEPS and delta.demand_membership_misses==0,"rank-only updates reuse stable membership through real prioritize")
@@ -138,6 +162,7 @@ func run()->void:
 	var logger:=Errors.new();OS.add_logger(logger)
 	var expect_current:=OS.get_cmdline_user_args().has("--expect-current-invalidation")
 	check(Deferred.support_set_ids_enabled and Deferred.demand_membership_cache_enabled and Deferred.incremental_pending_index_enabled,"production scheduling optimizations enabled")
+	rank_anchor_boundary()
 	var trials:Array=[rank_trial(),unrelated_requeue_trial(expect_current)]
 	OS.remove_logger(logger);check(logger.errors.is_empty(),"zero script/engine errors")
 	print("DEMAND_RETURN_REFRESH ",JSON.stringify({"trials":trials,"passed":passed,"failures":failed,"engine_errors":logger.errors,"scope":"Synthetic CPU-only scheduler replay; no map load, upload, physics, publication, GPU or IO. Timings are not production performance. Exact oracle runs outside measured intervals."}))

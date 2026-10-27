@@ -26,6 +26,7 @@ def sources():
     files += list((ROOT / "scripts").rglob("*.gdshaderinc"))
     files += [ROOT / "tools" / name for name in (
         "profile_axel_game_pipeline.gd", "profile_axel_white_streaming.gd",
+        "profile_axel_predictive_streaming.gd",
         "profile_axel_worker_capacity.gd", "profile_axel_fault_capture.gd", "run_godot_background.py",
         "run_axel_texture_phase.py")]
     return {str(p.relative_to(ROOT)).replace("\\", "/"): digest(p) for p in files}
@@ -34,6 +35,14 @@ def sources():
 def save(path, value):
     with path.open("x", encoding="utf-8") as handle:
         json.dump(value, handle, ensure_ascii=False, indent=2)
+
+
+def requeue_controls_match(report, legacy, suppressed):
+    controls = report.get("controls", {})
+    return (isinstance(controls, dict) and
+            controls.get("dirty_requeue_index") is (not legacy) and
+            controls.get("selective_requeue_membership") is (not legacy) and
+            report.get("sync_slow_logs_suppressed") is suppressed)
 
 
 def test_fixture_paths(map_path, content_root):
@@ -95,6 +104,8 @@ def main():
     parser.add_argument("--full-stream-adoption", action="store_true")
     parser.add_argument("--unaccounted-stream-removals", action="store_true")
     parser.add_argument("--rebuild-demand-catalogues", action="store_true")
+    parser.add_argument("--legacy-requeue", action="store_true")
+    parser.add_argument("--suppress-sync-slow-logs", action="store_true")
     parser.add_argument("--screenshot", action="store_true")
     parser.add_argument("--timeout", type=int, default=420)
     parser.add_argument("--fault-capture-extension", type=Path,
@@ -202,6 +213,10 @@ def main():
         cmd.append("--unaccounted-stream-removals")
     if args.rebuild_demand_catalogues:
         cmd.append("--rebuild-demand-catalogues")
+    if args.legacy_requeue:
+        cmd.append("--legacy-requeue")
+    if args.suppress_sync_slow_logs:
+        cmd.append("--suppress-sync-slow-logs")
     if args.screenshot:
         cmd.append("--stage-screenshot")
     if fault_capture:
@@ -213,6 +228,8 @@ def main():
               "content_root": str(fixture[1]) if fixture else "D:/code/rmmo_runtime", "source_before": before,
               "git_head": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip(),
               "stage": args.stage, "legacy_publication": args.legacy_publication,
+              "legacy_requeue": args.legacy_requeue,
+              "suppress_sync_slow_logs": args.suppress_sync_slow_logs,
               "diagnostic": bool(fault_capture) or args.batch_timeline or args.profile_procedural_uploads or args.texture_profile, "fault_capture": fault_capture,
               "legacy_source_reads": args.legacy_source_reads,
               "legacy_vsync_submission": args.legacy_vsync_submission,
@@ -284,9 +301,10 @@ def main():
                "errors": errors, "failures": report.get("failures"),
                "entry_ms": report.get("entry_ms"), "full_ready": report.get("origin_first_ready"),
                "not_p95": "Single sample; do not infer stability or treat diagnostics as ordinary samples."}
+    outcome["requeue_controls_match"] = requeue_controls_match(report, args.legacy_requeue, args.suppress_sync_slow_logs)
     outcome["functional_ok"] = (code == 0 and bool(report) and not errors and
                                 report.get("failures") == [] and outcome["source_unchanged"] and
-                                outcome["map_unchanged"] and bool(outcome["full_ready"]))
+                                outcome["map_unchanged"] and bool(outcome["full_ready"]) and outcome["requeue_controls_match"])
     if fault_capture:
         raw = paths["fault.raw"].read_text(encoding="utf-8", errors="replace") if paths["fault.raw"].exists() else ""
         outcome["fault_capture_armed"] = "armed\t1" in raw

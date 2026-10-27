@@ -131,11 +131,17 @@ def _run_sample_locked(args, *, runner, artifacts):
             cmd.append("--cold-index")
         if args.texture_profile:
             cmd.append("--texture-profile")
+        if getattr(args, "legacy_requeue", False):
+            cmd.append("--legacy-requeue")
+        if getattr(args, "suppress_sync_slow_logs", False):
+            cmd.append("--suppress-sync-slow-logs")
         launch = {"command": cmd, "appdata": str(roaming), "localappdata": str(local), "temp": str(temporary),
                   "settings_sha256": settings_sha, "map_sha256": map_sha,
                   "settings_snapshot": str(settings), "map_path": str(map_path),
                   "content_root": str(content), "manifest_sha256": args.manifest_sha256.lower(),
                   "expected_state": args.expected_state, "expected_candidates": args.expected_candidates,
+                  "legacy_requeue": getattr(args, "legacy_requeue", False),
+                  "suppress_sync_slow_logs": getattr(args, "suppress_sync_slow_logs", False),
                   "cache_note": "Verification hashes warm OS caches; not physical cold disk. User directory may be reused; record cache state separately."}
         with (sample / "isolation.launch.json").open("x", encoding="utf-8") as handle:
             json.dump(launch, handle, indent=2)
@@ -180,6 +186,8 @@ def main():
     parser.add_argument("--traverse", action="store_true")
     parser.add_argument("--cold-index", action="store_true")
     parser.add_argument("--texture-profile", action="store_true")
+    parser.add_argument("--legacy-requeue", action="store_true")
+    parser.add_argument("--suppress-sync-slow-logs", action="store_true")
     args = parser.parse_args()
     result = run_sample(args)
     print(json.dumps(result), flush=True)

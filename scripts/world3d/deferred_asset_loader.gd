@@ -78,10 +78,14 @@ static var private_publication_packet_enabled:=true
 const COLLISION_QUERY_CACHE_LIMIT:=16
 var _pending_snapshot:Array=[]
 var _pending_snapshot_dirty:=false
+var _pending_snapshot_private:=false # Array owner, not mutable item ownership.
 var pending:Array:
-	get:return _materialize_pending_snapshot()
+	get:
+		var value:Array=_materialize_pending_snapshot()
+		_pending_snapshot_private=false # The caller may retain or mutate this Array.
+		return value
 	set(value):
-		_pending_snapshot=value;_pending_snapshot_dirty=false
+		_pending_snapshot=value;_pending_snapshot_dirty=false;_pending_snapshot_private=false
 var profile:Dictionary={"models":0,"instances":0,"specs":0,"worker_us":0,"max_publish_us":0}
 var error:=""
 var path_errors:Dictionary={}
@@ -102,6 +106,7 @@ var _demand_revision:=0
 var _candidates_revision:=-1
 var _demand_revision_trace:RefCounted # Opt-in only; normal loads allocate nothing.
 var _demand_membership:Dictionary={} # Per live ticket; spatial candidates only, never readiness/leases.
+var _membership_registration_epoch:=0 # Conservative requeue-cache guard.
 var _typed_pending:Dictionary={}
 var _typed_pending_buildings:=-1
 var _pending_kinds:RefCounted
@@ -545,6 +550,8 @@ static func reference_path(entry:Dictionary)->String:
 	return "reference:"+str(entry.record_index)
 
 static var background_requeue_records_enabled:=true
+static var dirty_requeue_index_enabled:=true
+static var selective_requeue_membership_enabled:=true
 var require_native_products:=false: # Copied from the owning game MapLoader.
 	set(value):
 		require_native_products=value
@@ -554,13 +561,19 @@ func requeue_references(entries:Array)->int:
 	# Preserve the compact catalog and verified model version for a later revisit.
 	if _reference_index.is_empty():return 0
 	var incremental:bool=incremental_pending_index_enabled and _indexed
+	# A dirty snapshot was detached when publication transferred authoritative
+	# ownership to the UUID index. Never reuse an externally borrowed live Array.
+	var canonical_pending:bool=incremental and _pending_by_record_id.size()==pending_count() and _large_native_pending.size()==_large_pending.size() and _pending_kinds!=null and _pending_kinds.owners.size()==pending_count()
+	var direct_pending:bool=dirty_requeue_index_enabled and _pending_snapshot_dirty and canonical_pending
+	# Membership preservation and skipping Array materialization are independent.
+	var preserve_membership:bool=selective_requeue_membership_enabled and canonical_pending and (_pending_snapshot_dirty or _pending_snapshot_private)
 	var known:Dictionary={};var selected:Dictionary={};var accepted:Array=[]
 	# The ordered pending catalog already owns these UUIDs. Borrow it only for
 	# membership queries; accepted entries enter through _index_pending_item,
 	# so neither duplicates nor a refused requeue can mutate the live index.
 	if incremental and _pending_by_record_id.size()==pending_count():known=_pending_by_record_id
 	else:
-		for item:Dictionary in pending:known[item.record.uuid]=true
+		for item:Dictionary in _materialize_pending_snapshot():known[item.record.uuid]=true
 		profile.requeue_membership_scan_rows=int(profile.get("requeue_membership_scan_rows",0))+pending_count()
 	for entry:Dictionary in entries:
 		var uuid:String=entry.compact_record.uuid
@@ -601,7 +614,7 @@ func requeue_references(entries:Array)->int:
 		var memory:Dictionary=_memory_estimates.get(path,{"estimated_bytes":_admission.byte_limit,"exclusive":true,"known":false})
 		var runtime_bounds:Variant=_runtime_building_records.get(uuid)
 		var item:Dictionary={"record":entry.compact_record,"path":path,"bounds":runtime_bounds if runtime_bounds is AABB else entry.bounds,"digest":source_signatures.get(path,""),"memory":memory,"manifest":_reference_index.models.get(path,{}),"draw_order":int(entry.record_index)*65536,"reference_entry":entry,"reference_prepared":false,"native_reference":native,"group_id":entry.get("group_id","")}
-		pending.append(item)
+		if not direct_pending:_materialize_pending_snapshot().append(item)
 		if incremental:
 			var previous:Dictionary=_pending_by_record_id.get(uuid,EMPTY_DEMAND)
 			if not previous.is_empty():_unindex_pending_item(previous)
@@ -611,7 +624,10 @@ func requeue_references(entries:Array)->int:
 		profile.pending_indexed_items=int(profile.get("pending_indexed_items",0))+accepted.size()
 	else:
 		_indexed=false;_pending_index.clear();_large_pending.clear();_pending_native_index.clear();_large_native_pending.clear()
-	_demand_membership.clear();_typed_pending.clear();_typed_pending_buildings=-1
+	if preserve_membership:_preserve_unrelated_typed_memberships(accepted)
+	else:_demand_membership.clear()
+	_typed_pending.clear();_typed_pending_buildings=-1
+	if direct_pending:profile.requeue_direct_pending_items=int(profile.get("requeue_direct_pending_items",0))+accepted.size()
 	_demand_revision+=1
 	if _demand_revision_trace!=null:_demand_revision_trace.change("requeue","",0,accepted.size(),_demand_revision)
 	_invalidate_collision_queries()
@@ -630,7 +646,7 @@ func activate(host:Node)->void:
 	_adopt_collision_prefetch()
 	_runtime_record_ids.clear()
 	for record:Dictionary in _map.get_meta("extras",{}).get("rmmo_records",[]):_runtime_record_ids[record.uuid]=record
-	for item:Dictionary in pending:
+	for item:Dictionary in _materialize_pending_snapshot():
 		if not _memory_estimates.has(item.path) and item.has("memory"):_memory_estimates[item.path]=item.memory
 	# Keep decoded outputs and upload copies inside a conservative physical-RAM
 	# envelope. Oversized/unknown tasks run alone rather than starving forever.
@@ -795,7 +811,7 @@ func group_is_published(group_id:String)->bool:
 	# Members already installed by initial loading are absent from pending; the
 	# authority consumer additionally verifies actual resident membership.
 	if not error.is_empty() or not _reference_index.get("groups",{}).has(group_id):return false
-	for item:Dictionary in pending:
+	for item:Dictionary in _materialize_pending_snapshot():
 		if item.get("group_id","")==group_id and not item.get("published",false):return false
 	return true
 
@@ -896,12 +912,27 @@ func _instance_failed(uuid:String,reason:String)->void:
 func pending_count()->int:
 	return _pending_by_record_id.size() if _pending_snapshot_dirty else _pending_snapshot.size()
 
+func pending_demanded_count()->int:
+	# Count the existing observer predicate without exposing the snapshot.
+	# Mutable/aliased or diagnostic rows retain exact per-Array semantics.
+	var canonical:bool=incremental_pending_index_enabled and _indexed and (_pending_snapshot_dirty or _pending_snapshot_private) and _pending_by_record_id.size()==pending_count() and _large_native_pending.size()==_large_pending.size() and _pending_kinds!=null and _pending_kinds.owners.size()==pending_count()
+	var count:=0
+	if canonical:
+		var smaller:Dictionary=_pending_by_record_id if _pending_by_record_id.size()<=_demanded_by_id.size() else _demanded_by_id
+		var other:Dictionary=_demanded_by_id if is_same(smaller,_pending_by_record_id) else _pending_by_record_id
+		for uuid:String in smaller:
+			if other.has(uuid):count+=1
+	else:
+		for item:Dictionary in _materialize_pending_snapshot():
+			if _demanded_by_id.has(item.record.uuid):count+=1
+	return count
+
 func _materialize_pending_snapshot()->Array:
 	if _pending_snapshot_dirty:
 		# Internal publication already invalidated collision queries. Replacing
 		# this private representation is not an external membership mutation.
 		var observed:=is_same(_collision_pending_snapshot,_pending_snapshot) and _collision_pending_count==pending_count()
-		_pending_snapshot=_pending_by_record_id.values();_pending_snapshot_dirty=false
+		_pending_snapshot=_pending_by_record_id.values();_pending_snapshot_dirty=false;_pending_snapshot_private=true
 		if observed:_collision_pending_snapshot=_pending_snapshot
 		profile.pending_snapshot_materializations=int(profile.get("pending_snapshot_materializations",0))+1
 		profile.pending_snapshot_materialized_rows=int(profile.get("pending_snapshot_materialized_rows",0))+_pending_snapshot.size()
@@ -917,7 +948,7 @@ func pending_record_catalogue()->Variant:
 func adopt_prepared_pending(prepared:RefCounted)->bool:
 	# Only a fresh queue accepts the parser's private catalogue. Dynamic callers
 	# and diagnostic UUID aliases retain the general rebuild/incremental path.
-	if prepared==null or _indexed or not _runtime_building_records.is_empty() or not prepared.matches(pending):return false
+	if prepared==null or _indexed or not _runtime_building_records.is_empty() or not prepared.matches(_materialize_pending_snapshot()):return false
 	var began:=Time.get_ticks_usec()
 	_pending_by_record_id=prepared.owners;_pending_index=prepared.cells
 	_pending_native_index=prepared.native_cells;_large_pending=prepared.large;_large_native_pending=prepared.native_large
@@ -934,7 +965,7 @@ func _index_pending()->void:
 	_demand_membership.clear()
 	_pending_kinds=null
 	_typed_pending.clear();_typed_pending_buildings=-1
-	var records:Array=pending # Materialize before clearing its authoritative owners.
+	var records:Array=_materialize_pending_snapshot() # Materialize before clearing its authoritative owners.
 	_pending_by_record_id.clear();_pending_index.clear();_large_pending.clear();_pending_native_index.clear();_large_native_pending.clear()
 	for item:Dictionary in records:_index_pending_item(item)
 	profile.pending_index_builds=int(profile.get("pending_index_builds",0))+1
@@ -1083,7 +1114,7 @@ func _in_clip_catalogue(clip:AABB)->Dictionary:
 		tests+=1
 		if not item.get("published",false) and (flat.intersects(item.demand_rect,true) if native_demand_bounds_enabled and item.has("demand_rect") else _intersects(clip,item.bounds)):candidates[uuid]=item
 	if (high.x-low.x+1)*(high.y-low.y+1)>_pending_index.size():
-		for item:Dictionary in pending:
+		for item:Dictionary in _materialize_pending_snapshot():
 			script_rows+=1
 			var uuid:String=item.record.uuid
 			if spatial_candidate_reuse_enabled and is_same(candidates.get(uuid),item):continue
@@ -1114,7 +1145,7 @@ func _has_pending_in_clip(clip:AABB)->bool:
 		if not item.get("published",false) and (flat.intersects(item.demand_rect,true) if native_demand_bounds_enabled and item.has("demand_rect") else _intersects(clip,item.bounds)):return true
 	var low:=Stream.chunk_key(clip.position);var high:=Stream.chunk_key(clip.end)
 	if (high.x-low.x+1)*(high.y-low.y+1)>_pending_index.size():
-		for item:Dictionary in pending:
+		for item:Dictionary in _materialize_pending_snapshot():
 			if not item.get("published",false) and (flat.intersects(item.demand_rect,true) if native_demand_bounds_enabled and item.has("demand_rect") else _intersects(clip,item.bounds)):return true
 		return false
 	for z in range(low.y,high.y+1):
@@ -1133,6 +1164,37 @@ static var reuse_demand_dispatch_catalogue_enabled:=true
 static var reuse_demand_membership_rows_enabled:=true
 static var borrow_publication_rows_enabled:=true
 const EMPTY_CANDIDATE:Array=[]
+
+func _requeue_typed_full_strategy(demand:Dictionary)->bool:
+	# A tag is saved only when the original ticket used typed full-scan. Check
+	# the current bucket threshold again after requeue, not just pre/post sizes.
+	if not selective_requeue_membership_enabled or not demand_membership_cache_enabled or not typed_demand_scan_enabled or not reuse_typed_demand_filter_enabled or not reuse_spatial_membership_catalogue_enabled or not filtered_demand_membership_enabled:return false
+	if not incremental_pending_index_enabled or not _indexed or demand.has("group_id"):return false
+	if demand.get("kind","all") not in ["building","road","structure","terrain"] or not demand.get("clip") is AABB:return false
+	if _pending_by_record_id.size()!=pending_count() or _large_native_pending.size()!=_large_pending.size() or _pending_kinds==null:return false
+	if _pending_kinds.owners.size()!=pending_count() or _pending_kinds.building_count!=_runtime_building_records.size():return false
+	var clip:AABB=demand.clip
+	if not clip.position.is_finite() or not clip.size.is_finite() or clip.size.x<0 or clip.size.z<0:return false
+	var low:=Stream.chunk_key(clip.position);var high:=Stream.chunk_key(clip.end)
+	return (high.x-low.x+1)*(high.y-low.y+1)>_pending_index.size()
+
+func _preserve_unrelated_typed_memberships(accepted:Array)->void:
+	# This is membership reuse only: the original demand revision, retries,
+	# collision invalidation and full candidate re-rank remain in force.
+	for id:String in _demand_membership.keys():
+		var cached:Dictionary=_demand_membership[id];var demand:Variant=_demands.get(id)
+		if not demand is Dictionary or not cached.get("requeue_typed_full",false) or int(cached.get("registration_epoch",-1))!=_membership_registration_epoch or cached.get("requeue_native_bounds")!=native_demand_bounds_enabled or not cached.get("items") is Dictionary or not _requeue_typed_full_strategy(demand):
+			_demand_membership.erase(id);continue
+		var clip:AABB=demand.clip;var unaffected:=true
+		for entry:Dictionary in accepted:
+			var uuid:String=entry.compact_record.uuid
+			var item:Dictionary=_pending_by_record_id.get(uuid,EMPTY_DEMAND)
+			if item.is_empty() or not item.get("bounds") is AABB or cached.items.has(uuid):unaffected=false;break
+			var bounds:AABB=item.bounds
+			if not bounds.position.is_finite() or not bounds.size.is_finite() or bounds.size.x<0 or bounds.size.z<0 or _intersects(clip,bounds):unaffected=false;break
+		if not unaffected:_demand_membership.erase(id)
+		else:profile.requeue_memberships_preserved=int(profile.get("requeue_memberships_preserved",0))+1
+
 func _demand_membership_rows(cached:Dictionary)->Array:
 	var members:Variant=cached.items
 	if not members is Dictionary:return members
@@ -1206,18 +1268,20 @@ func _refresh_demanded()->void:
 		var priority:int=int(demand.priority);var base_score:=float(priority)*1e15
 		var origin:Vector3=_priority if id=="player" or demand.get("rank_from_player",false) else demand.clip.get_center()
 		var candidates_for_demand:Array
+		var typed_saw_published:=false
 		# Spatial and typed queries already own an ordered, UUID-deduplicated
 		# catalogue. Transfer it to the ticket instead of rebuilding it from its
 		# values. Publication prunes by exact identity, including diagnostic aliases.
 		var fresh_members:Variant=null
 		if memberships.has(id):
 			candidates_for_demand=_demand_membership_rows(_demand_membership[id])
-		elif grouped:candidates_for_demand=pending
+		elif grouped:candidates_for_demand=_materialize_pending_snapshot()
 		elif typed_scans.has(id):
 			var matches:Dictionary={}
 			var clip:AABB=demand.clip;var flat:=Rect2(Vector2(clip.position.x,clip.position.z),Vector2(clip.size.x,clip.size.z))
 			for item:Dictionary in typed_scans[id]:
-				if not item.get("published",false) and (flat.intersects(item.demand_rect,true) if native_demand_bounds_enabled and item.has("demand_rect") else _intersects(demand.clip,item.bounds)):matches[item.record.uuid]=item
+				if item.get("published",false):typed_saw_published=true;continue
+				if flat.intersects(item.demand_rect,true) if native_demand_bounds_enabled and item.has("demand_rect") else _intersects(demand.clip,item.bounds):matches[item.record.uuid]=item
 			candidates_for_demand=matches.values()
 			if reuse_spatial_membership_catalogue_enabled:fresh_members=matches
 		elif reuse_spatial_membership_catalogue_enabled:
@@ -1265,8 +1329,8 @@ func _refresh_demanded()->void:
 			# Learned imported buildings retain the same supporting landscape as
 			# their last verified live index. This closure stays inside the allowed
 			# parent ticket/scope; it never broadens demand to unrelated far props.
-			if support_priorities.has(uuid) and int(support_priorities[uuid])<=priority:continue
 			if not _runtime_building_supports.has(uuid):continue
+			if support_priorities.has(uuid) and int(support_priorities[uuid])<=priority:continue
 			support_priorities[uuid]=priority
 			# Shared support identity was resolved exactly at registration. Hashing
 			# the whole immutable Array on each refresh would repeat its string walk.
@@ -1310,7 +1374,7 @@ func _refresh_demanded()->void:
 				elif support_score<float(previous[0]):
 					previous[0]=support_score;previous[2]=dependency;previous[3]=support_priority;previous[4]=_priority
 		if demand_membership_cache_enabled and not memberships.has(id):
-			_demand_membership[id]={"clip":demand.clip,"kind":kind,"group":demand.get("group_id",""),"buildings":_runtime_building_records.size(),"items":fresh_members if fresh_members!=null else _cache_demand_items(eligible if filtered_demand_membership_enabled else candidates_for_demand),"filtered":filtered_demand_membership_enabled}
+			_demand_membership[id]={"clip":demand.clip,"kind":kind,"group":demand.get("group_id",""),"buildings":_runtime_building_records.size(),"items":fresh_members if fresh_members!=null else _cache_demand_items(eligible if filtered_demand_membership_enabled else candidates_for_demand),"filtered":filtered_demand_membership_enabled,"requeue_typed_full":typed_scans.has(id) and not typed_saw_published and _requeue_typed_full_strategy(demand),"requeue_native_bounds":native_demand_bounds_enabled,"registration_epoch":_membership_registration_epoch}
 			if fresh_members!=null:profile.demand_catalogue_rows_reused=int(profile.get("demand_catalogue_rows_reused",0))+fresh_members.size()
 			profile.demand_membership_misses=int(profile.get("demand_membership_misses",0))+1
 	profile.demand_input_rows=int(profile.get("demand_input_rows",0))+input_rows
@@ -1449,7 +1513,7 @@ func _typed_full_scan_inputs(cached:Dictionary={})->Dictionary:
 	if incremental_pending_index_enabled and _pending_by_record_id.size()==pending_count() and _large_native_pending.size()==_large_pending.size():
 		if _pending_kinds==null or _pending_kinds.owners.size()!=pending_count() or _pending_kinds.building_count!=_runtime_building_records.size():
 			_pending_kinds=preload("res://scripts/world3d/pending_kind_catalogue.gd").new()
-			for item:Dictionary in pending:_pending_kinds.add(item,_large_native_pending.has(item.record.uuid),_runtime_building_records)
+			for item:Dictionary in _materialize_pending_snapshot():_pending_kinds.add(item,_large_native_pending.has(item.record.uuid),_runtime_building_records)
 			_pending_kinds.building_count=_runtime_building_records.size()
 			profile.typed_partition_builds=int(profile.get("typed_partition_builds",0))+1
 			profile.typed_full_scan_prefilter_tests=int(profile.get("typed_full_scan_prefilter_tests",0))+pending_count()
@@ -1465,7 +1529,7 @@ func _typed_full_scan_inputs(cached:Dictionary={})->Dictionary:
 	if _typed_pending_buildings!=_runtime_building_records.size():
 		_typed_pending={"building":[],"road":[],"structure":[],"terrain":[]}
 		# Preserve large-first ordering and exact intersection before UUID dedup.
-		for collection:Array in [_large_pending,pending]:
+		for collection:Array in [_large_pending,_materialize_pending_snapshot()]:
 			for item:Dictionary in collection:
 				if str(item.get("group_id","")).begins_with("building:") or _runtime_building_records.has(item.record.uuid):_typed_pending.building.append(item)
 				var reason:Variant=item.get("reference_entry",EMPTY_DEMAND).get("reason","")
@@ -1541,6 +1605,7 @@ func register_runtime_building(uuid:String,bounds:AABB,supports:Dictionary)->voi
 	var order:Array=supports.keys()
 	# Dictionary equality ignores insertion order; closure score ties do not.
 	if _runtime_building_records.get(uuid)==bounds and _runtime_building_supports.get(uuid,{})==supports and _runtime_support_order.get(uuid,EMPTY_CANDIDATE)==order:return
+	_membership_registration_epoch+=1
 	var previous_buildings:=_runtime_building_records.size()
 	_runtime_building_records[uuid]=bounds;_runtime_building_supports[uuid]=supports.duplicate()
 	order.make_read_only();_intern_runtime_support_order(uuid,order)
@@ -1686,7 +1751,7 @@ func _collision_in_clip(clip:AABB,id:String,kind:String)->Array:
 		# the moving footprint and published flags are always evaluated below.
 		for item:Dictionary in _large_pending:candidates[item.record.uuid]=item
 		if (high.x-low.x+1)*(high.y-low.y+1)>_pending_index.size():
-			for item:Dictionary in pending:candidates[item.record.uuid]=item
+			for item:Dictionary in _materialize_pending_snapshot():candidates[item.record.uuid]=item
 		else:
 			for z in range(low.y,high.y+1):
 				for x in range(low.x,high.x+1):
@@ -1851,7 +1916,7 @@ func _geometry_consumers(path:String)->Array:
 			if rows.size()>CollisionGeometry.MAX_CONSUMERS:return [{"mode":CollisionGeometry.ALL}]
 	# Pending is the newest consumer, including a requeued/changed record. An
 	# older published record with the same UUID must not weaken this demand.
-	for item:Dictionary in pending:
+	for item:Dictionary in _materialize_pending_snapshot():
 		if item.get("path")!=path:continue
 		var record:Dictionary=item.record
 		rows[str(record.uuid)]=CollisionGeometry.consumer(record,item.get("reference_entry",EMPTY_DEMAND).get("compact_record",{}))
@@ -2193,7 +2258,7 @@ func _accept_prepared_records(result:Dictionary)->void:
 			if not item.is_empty():item.record=records[uuid];item.reference_prepared=true
 		profile.acceptance_record_visits=int(profile.get("acceptance_record_visits",0))+records.size()
 	else:
-		for item:Dictionary in pending:
+		for item:Dictionary in _materialize_pending_snapshot():
 			if records.has(item.record.uuid):item.record=records[item.record.uuid];item.reference_prepared=true
 		profile.acceptance_record_visits=int(profile.get("acceptance_record_visits",0))+pending_count()
 	profile.reference_records=int(profile.get("reference_records",0))+records.size()
@@ -2496,10 +2561,11 @@ func _remove_published_demand(items:Array)->void:
 	if ordered_pending:
 		# The ordered catalogue is already the complete survivor list. Keep
 		# borrowed arrays intact; only an actual traversal needs a fresh Array.
-		if not _pending_snapshot_dirty:_pending_snapshot=[]
+		if not _pending_snapshot_dirty:
+			_pending_snapshot=[];_pending_snapshot_private=true
 		_pending_snapshot_dirty=true
 		profile.pending_snapshot_rows_deferred=int(profile.get("pending_snapshot_rows_deferred",0))+_pending_by_record_id.size()
-	else:pending=_without_published(pending,removed)
+	else:pending=_without_published(_materialize_pending_snapshot(),removed)
 	_invalidate_collision_queries()
 	if ordered_demand:
 		# The ordered UUID catalogue already contains the exact survivors. Most
@@ -3627,7 +3693,7 @@ func _dispatch_jobs(tree:SceneTree,prefetch_only:bool=false)->void:
 			faces_known=true
 			if CollisionGeometry.enabled:needs_faces=geometry_mode!=CollisionGeometry.NONE
 			else:
-				for item:Dictionary in pending:
+				for item:Dictionary in _materialize_pending_snapshot():
 					if item.path==path and str(item.record.get("collision",""))!="none":needs_faces=true;break
 			if needs_faces:reuse_faces=_reuse_face_offer(template_owner,geometry_mode)
 		if not reuse_faces.is_empty():
@@ -3725,7 +3791,7 @@ func _dispatch_jobs(tree:SceneTree,prefetch_only:bool=false)->void:
 		# consumed only by the shared model route; scanning all pending native
 		# records also forced a fresh ordered snapshot after each publication.
 		if not native and not faces_known:
-			for item:Dictionary in pending:
+			for item:Dictionary in _materialize_pending_snapshot():
 				if item.path==path and str(item.record.get("collision",""))!="none":needs_faces=true;break
 		_drainer=Drainer.for_tree(tree);_drainer.watch(worker,token)
 		var publication_ids:Array=_job_publication_ids(path,requests)
@@ -3890,7 +3956,7 @@ func _discard_pending_preparation(path:String,job:Dictionary)->void:
 		for uuid:String in ids:
 			var item:Dictionary=_pending_by_record_id.get(uuid,EMPTY_DEMAND)
 			if not item.is_empty():items.append(item)
-	else:items=pending # Standalone/diagnostic producers may not have a catalogue.
+	else:items=_materialize_pending_snapshot() # Standalone/diagnostic producers may not have a catalogue.
 	profile.discard_pending_visits=int(profile.get("discard_pending_visits",0))+items.size()
 	for item:Dictionary in items:
 		if item.path!=path:continue
@@ -3973,7 +4039,7 @@ static func _resume_pixels_inner(requested:Dictionary,plan:Dictionary,root:Strin
 func _nearest_index()->int:
 	var at:=-1;var nearest:=INF
 	for i in pending_count():
-		var distance:float=_distance(pending[i])
+		var distance:float=_distance(_materialize_pending_snapshot()[i])
 		if distance<nearest:nearest=distance;at=i
 	return at
 

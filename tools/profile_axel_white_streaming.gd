@@ -87,7 +87,7 @@ func sample_residency()->Dictionary:
 	var assets:Node=mesh_map.get_node("AssetResidency")
 	var native:Node=mesh_map.get_node("NativeResidency")
 	var queue:Node=mesh_map.get_node("DeferredAssets")
-	return {"at_ms":(Time.get_ticks_usec()-began)/1000.,"phase":phase,"position":[position.x,position.y,position.z],"specs":mesh_map.get_meta("stream_library",[]).size(),"visuals":mesh_map.get_meta("stream_meshes",{}).size(),"bodies":mesh_map.get_meta("stream_bodies",{}).size(),"asset":assets.profile.duplicate(),"native":native.profile.duplicate(true),"pending":queue.pending.size(),"unpublished":queue._demanded_by_id.size(),"jobs":queue._jobs.size(),"admission":queue._admission.snapshot()}
+	return {"at_ms":(Time.get_ticks_usec()-began)/1000.,"phase":phase,"position":[position.x,position.y,position.z],"specs":mesh_map.get_meta("stream_library",[]).size(),"visuals":mesh_map.get_meta("stream_meshes",{}).size(),"bodies":mesh_map.get_meta("stream_bodies",{}).size(),"asset":assets.profile.duplicate(),"native":native.profile.duplicate(true),"pending":queue.pending_count(),"unpublished":queue._demanded_by_id.size(),"jobs":queue._jobs.size(),"admission":queue._admission.snapshot()}
 
 func demanded_terrain_ids(at:Vector3)->Array:
 	# Boundary-only correctness observation. Keep initial IDs, not resource or
@@ -413,8 +413,8 @@ func traverse()->void:
 	print("WHITE_TRAVERSAL_COMPLETE crossings=",crossings.size()," removed=",removed.size()," reloaded=",reloaded.size())
 	# Exit with a newly admitted ownership transaction as a separate stress
 	# phase. This is an explicit focus jump, not part of the walking leg data.
-	if not queue.pending.is_empty():
-		var target:Vector3=queue.pending[0].bounds.get_center();target.y=origin.y
+	if queue.pending_count()>0:
+		var target:Vector3=queue._materialize_pending_snapshot()[0].bounds.get_center();target.y=origin.y
 		phase="white_stream_exit_inflight";position=target
 		var deadline:=Time.get_ticks_msec()+4000
 		while queue._jobs.is_empty() and Time.get_ticks_msec()<deadline:

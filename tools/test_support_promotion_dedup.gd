@@ -18,10 +18,33 @@ func compare_modes(q:Deferred,label:String)->void:
 	var same:=old==snapshot(q)
 	for i:int in owners.size():same=same and is_same(owners[i],q._demanded[i])
 	check(same,label)
+
+func support_order_contract()->void:
+	var q:=Deferred.new()
+	var building:=item("building",0);var empty:=item("empty",1);var support:=item("support",1000)
+	q.pending=[building,empty,support]
+	q._runtime_building_supports={"building":{"support":true},"empty":{}}
+	var bounds:=AABB(Vector3(-2,-1,-2),Vector3(10,3,10))
+	q._demands={"weak":{"kind":"all","priority":6,"clip":bounds},"strong":{"kind":"all","priority":2,"clip":bounds}}
+	q._demand_revision+=1;q._refresh_demanded()
+	check(q._demanded_priority.get("support")==1 and q._demanded_priority.get("building")==2,"stronger overlapping ticket promotes the shared support before its building")
+	check(q._demanded_by_id.has("empty") and is_same(q._demanded_by_id.empty,empty),"registered empty support set keeps its original demanded owner")
+	var ids:Array=[]
+	for row:Dictionary in q._demanded:ids.append(row.record.uuid)
+	check(ids==["support","empty","building"],"support promotion preserves exact priority and distance-based output order")
+	q._demands.strong.priority=7;q._demand_revision+=1;q._refresh_demanded()
+	check(q._demanded_priority.get("support")==5 and q._demanded_priority.get("building")==6,"weaker later ticket does not demote the earlier shared support")
+	support.published=true;q._demand_revision+=1;q._refresh_demanded()
+	check(not q._demanded_by_id.has("support") and q._demanded_by_id.has("building"),"published support is not rescheduled while its parent remains demanded")
+	q.free()
+
 func run()->void:
 	var q:=make_queue();var logger:=Errors.new();OS.add_logger(logger)
+	support_order_contract()
+	q._runtime_building_supports["row150"]={}
 	for i:int in 16:
 		q._priority=Vector3(i*4,0,i*8);q.pending[2301].published=i%2==0
+		q._demands.ticket0.priority=(i%5)-2;q._demands.ticket1.priority=2-(i%5)
 		q._demand_scope={"ticket3":true,"ticket0":true} if i%3==0 else {}
 		q.instance_errors={"row2300":"fixture"} if i%2==0 else {}
 		compare_modes(q,"exact owner/order/path/rank with overlapping supports and changing priority/scope/publication %d"%i)

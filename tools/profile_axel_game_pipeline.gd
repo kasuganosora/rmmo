@@ -136,7 +136,7 @@ func observe()->void:
 			row.stream.ready_bypass_max_scan_us=map.get_meta("stream_ready_bypass_max_scan_us",0)
 			var queue:Node=map.get_node_or_null("DeferredAssets")
 			if queue!=null:
-				row.deferred={"pending":queue.pending.size(),"demanded":queue._demanded_by_id.size(),"unpublished":queue.pending.filter(func(item):return queue._demanded_by_id.has(item.record.uuid)).size(),"admission":queue._admission.snapshot(),"profile":queue.profile.duplicate(true),"jobs":[]}
+				row.deferred={"pending":queue.pending_count(),"demanded":queue._demanded_by_id.size(),"unpublished":queue.pending_demanded_count(),"admission":queue._admission.snapshot(),"profile":queue.profile.duplicate(true),"jobs":[]}
 				if map_texture_stage:row.deferred.shared_pixels=queue._shared_images.snapshot()
 				for path:String in queue._jobs:
 					var job:Dictionary=queue._jobs[path];var worker:RefCounted=job.get("worker")
@@ -308,6 +308,9 @@ func run()->void:
 		elif arg=="--serial-retirement-schema":preload("res://scripts/world3d/stream_index.gd").retirement_schema_workers=0
 		elif arg=="--allocated-index-signatures":preload("res://scripts/world3d/stream_index_preparation.gd").shared_signature_defaults_enabled=false
 		elif arg=="--untyped-demand-scan":preload("res://scripts/world3d/deferred_asset_loader.gd").typed_demand_scan_enabled=false
+		elif arg=="--legacy-requeue":
+			preload("res://scripts/world3d/deferred_asset_loader.gd").dirty_requeue_index_enabled=false
+			preload("res://scripts/world3d/deferred_asset_loader.gd").selective_requeue_membership_enabled=false
 		elif arg=="--eager-retirement-pending-scan":preload("res://scripts/world3d/native_residency.gd").lazy_pending_scan_enabled=false
 		elif arg=="--single-asset-retirement":preload("res://scripts/world3d/asset_residency.gd").retirement_batching_enabled=false
 		elif arg=="--sync-loading-batches":preload("res://scripts/world3d/world_stream.gd").sliced_loading_batches_enabled=false
@@ -409,6 +412,8 @@ func run()->void:
 	report.controls.parallel_native_classification=preload("res://scripts/world3d/map_dependency_index.gd").parallel_native_classification
 	report.controls.parallel_imported_sources=preload("res://scripts/world3d/map_dependency_index.gd").parallel_imported_sources
 	report.controls.numeric_rows=preload("res://scripts/world3d/document_schema.gd").numeric_rows_enabled
+	report.controls.dirty_requeue_index=preload("res://scripts/world3d/deferred_asset_loader.gd").dirty_requeue_index_enabled
+	report.controls.selective_requeue_membership=preload("res://scripts/world3d/deferred_asset_loader.gd").selective_requeue_membership_enabled
 	report.controls.early_stale_rejection=preload("res://scripts/world3d/map_dependency_index.gd").early_stale_rejection
 	report.controls.trusted_resource_packages=preload("res://scripts/world3d/runtime_package_policy.gd").trusted()
 	report.controls.coalesce_prefab_decodes=preload("res://scripts/world3d/house_prefab.gd").coalesce_decodes
