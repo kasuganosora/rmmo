@@ -10,9 +10,11 @@ import time
 
 
 @contextmanager
-def fixture_lock(root, *, timeout=0.0):
+def fixture_lock(root, *, timeout=0.0, manifest_name="fixture_manifest.json"):
     root = Path(root).resolve(strict=True)
-    if not root.is_dir() or not (root / "fixture_manifest.json").is_file():
+    if manifest_name not in ("fixture_manifest.json", "full_fixture_manifest.json"):
+        raise ValueError("unsupported fixture manifest")
+    if not root.is_dir() or not (root / manifest_name).is_file():
         raise ValueError("existing fixture root and manifest required")
     path = root / ".benchmark.lock"
     if path.is_symlink():

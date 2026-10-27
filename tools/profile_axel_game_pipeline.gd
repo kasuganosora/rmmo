@@ -30,6 +30,7 @@ var uncapped_runtime:=false
 var cancel_during_capture:=false
 var white_material:=false
 var map_texture_stage:=false
+var full_material_stage:=false
 var texture_lighting:=false
 var stage_screenshot:=false
 var early_white_camera:=false
@@ -41,6 +42,9 @@ var measured_sources_us:=0
 var queue_observer_calls:=0
 var queue_observer_elapsed_us:=0
 var queue_observer_max_us:=0
+static func fixture_manifest_name(arguments:PackedStringArray)->String:
+	return "full_fixture_manifest.json" if "--full-material-stage" in arguments else "fixture_manifest.json"
+
 func _initialize()->void:
 	report.startup={"initialize_us":Time.get_ticks_usec()}
 	report.frame_metric_contract={"ms":"Wall time between consecutive observer callbacks; phase is sampled at the ending callback.","process_ms":"Performance.TIME_PROCESS: engine process wall-time maximum published about once per second, not this frame's OS thread CPU time.","physics_ms":"Performance.TIME_PHYSICS_PROCESS: engine physics wall-time maximum published about once per second, not this frame's OS thread CPU time.","deferred_stages":"Last observed stage counters; use the timestamped stage ring to associate work with a frame. Zero alone does not prove OS or GPU idle."}
@@ -50,7 +54,7 @@ func _initialize()->void:
 		if arg.begins_with("--test-content-root="):test_root=arg.trim_prefix("--test-content-root=").replace("\\","/").simplify_path().trim_suffix("/")
 	if not test_map.is_empty() or not test_root.is_empty():
 		var paths=preload("res://scripts/world3d/map_paths.gd")
-		if test_map.is_empty() or test_root.is_empty() or test_root.to_lower()==TEST_ROOT.to_lower() or not paths.allowed(test_root,TEST_ROOT) or not DirAccess.dir_exists_absolute(test_root) or not paths.allowed(test_map,test_root) or not FileAccess.file_exists(test_map) or not FileAccess.file_exists(test_root.path_join("fixture_manifest.json")):
+		if test_map.is_empty() or test_root.is_empty() or test_root.to_lower()==TEST_ROOT.to_lower() or not paths.allowed(test_root,TEST_ROOT) or not DirAccess.dir_exists_absolute(test_root) or not paths.allowed(test_map,test_root) or not FileAccess.file_exists(test_map) or not FileAccess.file_exists(test_root.path_join(fixture_manifest_name(OS.get_cmdline_user_args()))):
 			printerr("isolated fixture requires a map and owned review-artifact root");quit(2);return
 		var user:=ProjectSettings.globalize_path("user://").replace("\\","/").simplify_path()
 		if not paths.allowed(user,TEST_ROOT) or not paths.allowed(OS.get_data_dir(),TEST_ROOT) or not paths.allowed(OS.get_cache_dir(),TEST_ROOT):
@@ -137,7 +141,7 @@ func observe()->void:
 			var queue:Node=map.get_node_or_null("DeferredAssets")
 			if queue!=null:
 				row.deferred={"pending":queue.pending_count(),"demanded":queue._demanded_by_id.size(),"unpublished":queue.pending_demanded_count(),"admission":queue._admission.snapshot(),"profile":queue.profile.duplicate(true),"jobs":[]}
-				if map_texture_stage:row.deferred.shared_pixels=queue._shared_images.snapshot()
+				if map_texture_stage or full_material_stage:row.deferred.shared_pixels=queue._shared_images.snapshot()
 				for path:String in queue._jobs:
 					var job:Dictionary=queue._jobs[path];var worker:RefCounted=job.get("worker")
 					row.deferred.jobs.append({"path":path,"stage":job.get("stage",""),"alive":worker!=null and worker.is_alive(),"age_ms":(now-int(job.get("dispatch_us",now)))/1000.,"ready":job.has("result")})
@@ -166,9 +170,10 @@ func finish(code:int)->void:
 		if current_scene.has_method("is_world_ready"):report.is_world_ready=current_scene.is_world_ready()
 	var map:Node=mesh_map if mesh_map!=null else (current_scene.get("_map_root") if current_scene!=null and current_scene.has_method("is_world_ready") else null)
 	if map!=null:
-		if map_texture_stage and not report.has("map_texture_render_audit"):
+		if (map_texture_stage or full_material_stage) and not report.has("map_texture_render_audit"):
 			if DisplayServer.get_name()!="headless":await preload("res://scripts/util/frame_presentation.gd").drawn()
 			audit_map_texture_stage()
+			if full_material_stage:audit_full_model_materials()
 		if mesh_only and white_material:
 			report.white_render_audit={"gpu_surfaces":0,"shader_surfaces":0,"nonwhite_surfaces":0,"examples":[]}
 			for visual:MeshInstance3D in preload("res://scripts/world3d/surface_materials.gd").meshes(map):
@@ -232,7 +237,7 @@ func finish(code:int)->void:
 		report.stage_ring=final_queue.profile.get("stage_ring",[])
 		report.stage_slow=final_queue.profile.get("stage_slow",[])
 		report.publish_slow=final_queue.profile.get("publish_slow",[])
-		if map_texture_stage:report.map_texture_final=texture_stage_snapshot(final_queue)
+		if map_texture_stage or full_material_stage:report.map_texture_final=texture_stage_snapshot(final_queue)
 	if mesh_only and is_instance_valid(mesh_map):await retire_white_map()
 	preload("res://scripts/world3d/map_resource_store.gd").wait_bundle_writes()
 	report.resource_bundle=preload("res://scripts/world3d/map_resource_store.gd").bundle_profile.duplicate()
@@ -330,6 +335,7 @@ func run()->void:
 		elif arg=="--without-taa":root.use_taa=false
 		elif arg=="--white-material":white_material=true;preload("res://scripts/world3d/runtime_probe_controls.gd").enable_white_materials()
 		elif arg=="--map-texture-stage":map_texture_stage=true
+		elif arg=="--full-material-stage":full_material_stage=true
 		elif arg=="--without-lazy-terrain-height":preload("res://scripts/world3d/river_materials.gd").lazy_terrain_height_enabled=false
 		elif arg=="--texture-lighting":texture_lighting=true
 		elif arg=="--stage-screenshot":stage_screenshot=true
@@ -397,6 +403,7 @@ func run()->void:
 	report.controls={"hud":preload("res://scripts/world3d/runtime_probe_controls.gd").hud_enabled,"map_textures":not preload("res://scripts/world3d/runtime_probe_controls.gd").discard_map_textures,"compiled":preload("res://scripts/world3d/compiled_asset_cache.gd").enabled}
 	report.controls.white_native=report.controls.compiled and preload("res://scripts/world3d/white_native_asset_cache.gd").active() and preload("res://scripts/world3d/white_native_asset_cache.gd").enabled
 	report.controls.map_texture_stage=map_texture_stage
+	report.controls.full_material_stage=full_material_stage
 	report.controls.lazy_terrain_height=preload("res://scripts/world3d/river_materials.gd").lazy_terrain_height_enabled
 	report.controls.texture_lighting=texture_lighting
 	report.controls.stage_screenshot=stage_screenshot
@@ -548,6 +555,7 @@ func run()->void:
 func run_mesh_only(spawn:Vector3)->void:
 	report.scope="MapLoader plus core streaming only; no World3D gameplay, avatar, HUD, radar, navigation, weather or events. This isolates geometry cost and is not a full game entry."
 	if map_texture_stage:report.scope="MapLoader plus core streaming with authored procedural map/prefab materials and textures; imported models retain material-free native geometry with canonical white materials. No gameplay, avatar, HUD, radar, navigation baking, weather or events. Not full model materials or a full game entry."
+	if full_material_stage:report.scope="MapLoader plus core streaming with authored map/prefab textures and full native imported model materials. No gameplay, avatar, HUD, radar, navigation baking, weather or events; not a full game entry."
 	var host:=Node3D.new();root.add_child(host);current_scene=host
 	if loading_disable_3d:
 		root.get_viewport().disable_3d=true
@@ -663,11 +671,19 @@ func whiten_spec(spec:Dictionary)->void:
 	preload("res://scripts/world3d/runtime_probe_controls.gd").whiten_spec(spec)
 
 static func map_texture_stage_argument_error(arguments:PackedStringArray)->String:
+	if "--full-material-stage" in arguments:
+		for conflict:String in ["--map-texture-stage","--white-material","--without-map-textures","--without-compiled"]:
+			if conflict in arguments:return "--full-material-stage conflicts with "+conflict
+		if not "--mesh-only" in arguments:return "--full-material-stage requires --mesh-only isolation"
+		if not "--native-only" in arguments:return "--full-material-stage requires --native-only products"
 	if not "--map-texture-stage" in arguments:return ""
 	for conflict:String in ["--white-material","--without-map-textures","--without-compiled"]:
 		if conflict in arguments:return "--map-texture-stage conflicts with "+conflict
 	if not "--mesh-only" in arguments:return "--map-texture-stage requires --mesh-only isolation"
 	return ""
+
+static func textured_stage_ready(enabled:bool,queue_idle:bool,snapshot:Dictionary,admission:RefCounted=null)->bool:
+	return not enabled or (queue_idle and texture_pixels_settled(snapshot,admission))
 
 static func texture_pixels_settled(snapshot:Dictionary,admission:RefCounted=null)->bool:
 	# Historical measured full-ready includes all old pool retirement leases,
@@ -731,6 +747,55 @@ func audit_map_texture_stage()->void:
 	audit.unique_textures=texture_ids.size();audit.elapsed_us=Time.get_ticks_usec()-started
 	report.map_texture_render_audit=audit
 	check(audit.after_real_draw and audit.nonwhite_surfaces>0 and audit.textured_surfaces>0,"map texture stage restores visible GPU material and texture bindings after a real 3D draw")
+
+static func model_surface_material_info(visual:MeshInstance3D,slot:int)->Dictionary:
+	var base:Material=visual.mesh.surface_get_material(slot)
+	var active:Material=visual.get_active_material(slot)
+	return {"base":texture_material_info(base),"active":texture_material_info(active),"overridden":base!=active}
+
+func audit_full_model_materials()->void:
+	# Audit only rendered stream instances whose namespaced source UUID maps to
+	# an imported model record in the actual mounted dependency index. Terrain or
+	# other procedural texture bindings cannot satisfy this evidence.
+	var began_audit:=Time.get_ticks_usec()
+	var queue:Node=mesh_map.get_node_or_null("DeferredAssets")
+	var audit:Dictionary={"imported_record_ids":0,"visible_model_meshes":0,"surfaces":0,"base_textured_surfaces":0,"base_nonwhite_surfaces":0,"base_unique_textures":0,"active_textured_surfaces":0,"active_nonwhite_surfaces":0,"active_unique_textures":0,"overridden_surfaces":0,"examples":[],"after_real_draw":DisplayServer.get_name()!="headless" and not root.get_viewport().disable_3d,"contract":"Only scene-tree-visible resident streaming meshes matched by namespaced UUID to imported model records, sampled after draw. Base mesh surface and active override are recorded separately; visibility is not camera-frustum proof, nor original GLB or every-model fidelity proof."}
+	if queue==null:
+		report.full_model_material_audit=audit;check(false,"full material audit requires the streaming reference queue");return
+	var index:Dictionary=queue._reference_index
+	var rows:Array=index.get("rows",[])
+	var records:Array=index.get("extras",{}).get("rmmo_records",[])
+	var imported:Dictionary={}
+	for i:int in rows.size():
+		var row:Dictionary=rows[i]
+		var path:String=str(row.get("asset_path",""))
+		var order:int=int(row.get("order",i))
+		if not path.is_empty() and order>=0 and order<records.size():imported[str(records[order].get("uuid",""))]=path
+	audit.imported_record_ids=imported.size()
+	var base_textures:Dictionary={};var active_textures:Dictionary={}
+	for key:Variant in mesh_map.get_meta("stream_meshes",{}):
+		var uuid:String=str(key)
+		var prefix:=uuid
+		while not imported.has(prefix) and prefix.contains("__"):
+			prefix=prefix.substr(0,prefix.rfind("__"))
+		if not imported.has(prefix):continue
+		var visual:Variant=mesh_map.get_meta("stream_meshes",{})[key]
+		if not is_instance_valid(visual) or not visual is MeshInstance3D or not visual.is_visible_in_tree() or visual.mesh==null or visual.mesh is CpuMesh or visual.cast_shadow==GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY:continue
+		audit.visible_model_meshes+=1
+		for slot:int in visual.mesh.get_surface_count():
+			var materials:=model_surface_material_info(visual,slot)
+			audit.surfaces+=1
+			if materials.overridden:audit.overridden_surfaces+=1
+			if materials.base.nonwhite:audit.base_nonwhite_surfaces+=1
+			if materials.active.nonwhite:audit.active_nonwhite_surfaces+=1
+			if not materials.base.textures.is_empty():
+				audit.base_textured_surfaces+=1;base_textures.merge(materials.base.textures)
+				if audit.examples.size()<8:audit.examples.append({"record_uuid":prefix,"model_path":imported[prefix],"surface":slot,"base_material_class":visual.mesh.surface_get_material(slot).get_class(),"base_texture_count":materials.base.textures.size(),"active_texture_count":materials.active.textures.size(),"overridden":materials.overridden})
+			if not materials.active.textures.is_empty():
+				audit.active_textured_surfaces+=1;active_textures.merge(materials.active.textures)
+	audit.base_unique_textures=base_textures.size();audit.active_unique_textures=active_textures.size();audit.elapsed_us=Time.get_ticks_usec()-began_audit
+	report.full_model_material_audit=audit
+	check(audit.after_real_draw and audit.visible_model_meshes>0 and audit.base_textured_surfaces>0,"full stage observes imported model base-surface textures on resident visible meshes after draw")
 
 func capture_stage_screenshot()->void:
 	var previous_phase:=phase;phase="stage_screenshot"

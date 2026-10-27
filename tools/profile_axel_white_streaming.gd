@@ -75,9 +75,10 @@ func _release_initial_cover_after_ready()->void:
 	# The full-ready anchor was recorded earlier and is unchanged.
 	await process_frame
 	report.initial_cover_observation_finished_at_ms=(Time.get_ticks_usec()-began)/1000.
-	if map_texture_stage:
+	if map_texture_stage or full_material_stage:
 		phase="map_texture_stage_audit"
 		audit_map_texture_stage()
+		if full_material_stage:audit_full_model_materials()
 		await process_frame # Keep the audit's observer interval outside traversal samples.
 	phase=previous_phase
 
@@ -177,7 +178,8 @@ func demands_ready()->bool:
 	# Pixel continuations normally retain a queue job, but an orphaned/shared
 	# lease must not turn a geometry-only ready anchor into texture-ready proof.
 	# Take this small locked snapshot only after the existing queues are empty.
-	return not map_texture_stage or (queue.is_idle() and texture_pixels_settled(queue._shared_images.snapshot(),queue._admission))
+	if not map_texture_stage and not full_material_stage:return true
+	return textured_stage_ready(true,queue.is_idle(),queue._shared_images.snapshot(),queue._admission)
 
 func observe_origin_readiness()->void:
 	if report.has("origin_first_ready"):return
@@ -189,7 +191,7 @@ func observe_origin_readiness()->void:
 		var batches:Node=mesh_map.get_node_or_null("GroundRenderBatches")
 		report.origin_ready_work={"batches":batches.stats() if batches!=null else {},"snapshot_at_ms":(Time.get_ticks_usec()-began)/1000.,"contract":"Settled batch counters captured once immediately after the unchanged full-ready time anchor"}
 		if mesh_map.has_meta(Stream.BATCH_ARRIVALS):report.origin_ready_work.batch_arrivals=mesh_map.get_meta(Stream.BATCH_ARRIVALS).profile.duplicate()
-		if map_texture_stage:
+		if map_texture_stage or full_material_stage:
 			report.origin_first_ready.contract+="; current demand revision settled and shared pixel outputs/consumers/retained bytes all zero; includes texture preparation/publication but not first presentation"
 			report.origin_texture_ready=texture_stage_snapshot(mesh_map.get_node("DeferredAssets"))
 
@@ -233,7 +235,7 @@ func on_publication(specs:Array)->void:
 	# factory. Normalize every later arrival too, retaining surface cull modes.
 	var stage_began:=0
 	var packet:RefCounted=mesh_map.get_node("DeferredAssets").publication_metadata
-	if not map_texture_stage:
+	if white_material:
 		stage_began=Trace.begin("probe.whiten_publication")
 		if packet==null or not packet.white_ready(specs):
 			for spec:Dictionary in specs:
@@ -259,8 +261,9 @@ func traverse()->void:
 		for label:String in ["world_stream._sync_work","world_stream._apply","world_stream._spawn","world_stream._prepare_collision","world_stream._prepare_collision_impl","world_stream._finish_loading_sources"]:Trace.method_labels["method."+label]=true
 	var white_stage:bool=mesh_only and white_material and not report.controls.map_textures and not map_texture_stage
 	var texture_stage:bool=mesh_only and map_texture_stage and not white_material and report.controls.map_textures and report.controls.native_geometry_only
-	check(white_stage or texture_stage,"traversal uses the declared white or map-texture isolation stage")
-	if not white_stage and not texture_stage:return
+	var full_stage:bool=mesh_only and full_material_stage and not white_material and not map_texture_stage and report.controls.map_textures and not report.controls.native_geometry_only and not report.controls.white_native and report.controls.compiled
+	check(white_stage or texture_stage or full_stage,"traversal uses the declared white, map-texture or full-material isolation stage")
+	if not white_stage and not texture_stage and not full_stage:return
 	var host:Node=current_scene;host.set_script(GeometryHost)
 	var queue:Node=mesh_map.get_node("DeferredAssets")
 	var nav:=preload("res://scripts/world3d/world_navigation.gd").new()

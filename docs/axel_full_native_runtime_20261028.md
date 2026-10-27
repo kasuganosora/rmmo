@@ -42,9 +42,15 @@
 
 ## 下一步仍属于原目标
 
-先准备与当前 axel_town 内容对应的完整材质测试包。44 个已有 SCN 保持字节不变，仅离线补元数据；sign_potion、frame_2、sign_general、长木围挡、暖砖长花池缺少 full native，须离线构建并按 `rmmo-model-review` 复验实际导出。现有 map-texture-stage 夹具重写过材质，不能当作正式完整材质地图。
+先准备与当前 axel_town 内容对应的完整材质测试包。现有 map-texture-stage 夹具重写过材质，不能当作正式完整材质地图。
 
-当前 staging 在 `D:/code/rmmo_runtime/review_artifacts/axel_full_native_staging_20261027_01/`：44/44 SCN 源/副本 SHA 一致，5/5 源 GLB SHA 与文件名一致，49 个路径与地图清单一致；`staging_manifest.json` 为复制身份记录。离线补 bounds、缺失产品构建、逐模型画质、地图重定位和 full runner 仍须分别记录实际完成状态，不能从文件已复制推出通过。正式资源根未因此改动。
+当前 staging 在 `D:/code/rmmo_runtime/review_artifacts/axel_full_native_staging_20261027_01/`：44/44 SCN 源/副本 SHA 一致，bounds 已离线补齐；5/5 源 GLB SHA 与文件名一致，缺失产品已通过现有离线编译器构建。49 个路径与地图清单一致；`staging_manifest.json`、`bounds_migration_report.json`、`missing_build_report.json` 分别保留复制、迁移和构建身份。5 个源文件保留在 staging 的 `authoring/assets/`，运行时逻辑模型路径下 GLB 数量为零。正式资源根未因此改动。
+
+五件新增导出按 `rmmo-model-review` 完成受影响项复验，逐件报告入口是 `model_review_manifest.json`：sign_potion、frame_2、sign_general、长木围挡、暖砖长花池的节点、变换、网格、材质、解码纹理、LOD 和 extras 记录一致；源与实际 native SCN 的固定近/中/远/细节及风时刻对照共 60/60 帧原始像素一致。花池另补明暗背景、接收投影地面及两个风时刻，24/24 帧一致。提交查看的图像为原尺寸有损 WebP Q90，SHA/参数记录在清单和逐件报告中。花池砖材在测试灯光下偏亮是源和候选共有的表现，本轮没有改材质掩盖它。
+
+这证明受检格式转换保持内容；不是五件模型的设定美术重新验收，也不是连续动画、真实地图光照或编辑器交互完成。随后已经完成 2369 条记录的隔离地图重定位和一次 full core-streaming 测试，分别见 `axel_full_native_fixture_20261028.md` 和 `axel_full_native_pipeline_20261028.md`：入口 39.079 s、需求完整就绪 65.779 s，初始公会 native 读取 29.466 s，不能视为性能达标。实际图像记录也确认本轮 native 内嵌图像仍是未压缩 RGB/RGBA 加 mip；前轮地表 DDS 优化没有自动覆盖这些模型。图像字节数与 footprint 保守预留均不能冒充实测显存。
+
+**正式资源迁移尚未完成，当前分支不能凭隔离测试视为正常游戏已可用。** 2026-10-28 的只读核对发现，正式根下 44 个既有 footprint 均缺少新增 `model_metadata`，另 5 个 full index 缺失；默认游戏使用 full + require_native_products，会沿原生元数据入口拒绝这些旧产品。这是源码和实际文件证据，尚未运行正式地图取得失败日志。必须将已经验证的元数据补充与五件产品离线发布到正式根，再验证正常入口；不以恢复 GLB fallback 掩盖迁移缺口。普通编辑器非 native-only 路径不同，仍有源 GLB 时可能走旧导入，但不因此宣称编辑器适配已完成。
 
 完成后用同一边界测加载、卸载、返回、长帧、1% low 及工作量，确认本轮取消二次读取的实际命中。模型内嵌材质尚未接入地表/道路 DDS sidecar，须分别测其图像格式、解码和上传成本；不能把前轮 DDS 收益外推过来。同步 kit miss、主线程重打包、冷目录预制件重复准备、此前 51.133 ms 边界帧均仍待证据闭环。
 

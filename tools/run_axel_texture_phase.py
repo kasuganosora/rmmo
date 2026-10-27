@@ -28,7 +28,7 @@ def sources():
         "profile_axel_game_pipeline.gd", "profile_axel_white_streaming.gd",
         "profile_axel_predictive_streaming.gd",
         "profile_axel_worker_capacity.gd", "profile_axel_fault_capture.gd", "run_godot_background.py",
-        "run_axel_texture_phase.py")]
+        "run_axel_texture_phase.py", "full_native_fixture_audit.py")]
     return {str(p.relative_to(ROOT)).replace("\\", "/"): digest(p) for p in files}
 
 
@@ -45,7 +45,7 @@ def requeue_controls_match(report, legacy, suppressed):
             report.get("sync_slow_logs_suppressed") is suppressed)
 
 
-def test_fixture_paths(map_path, content_root):
+def test_fixture_paths(map_path, content_root, stage="map"):
     if map_path is None and content_root is None:
         return None
     if map_path is None or content_root is None:
@@ -55,9 +55,30 @@ def test_fixture_paths(map_path, content_root):
     map_file = map_path.resolve(strict=True)
     if (root == review or not root.is_relative_to(review) or not root.is_dir() or
             not map_file.is_relative_to(root) or not map_file.is_file() or
-            not (root / "fixture_manifest.json").is_file()):
+            not (root / ("full_fixture_manifest.json" if stage == "full" else "fixture_manifest.json")).is_file()):
         raise ValueError("test map and content root must be an owned review-artifact fixture")
     return map_file, root
+
+
+def stage_arguments(stage):
+    if stage == "white": return ["--white-material", "--without-map-textures"]
+    if stage == "map": return ["--map-texture-stage"]
+    if stage == "full": return ["--full-material-stage"]
+    raise ValueError("unsupported stage")
+
+
+def full_stage_controls_match(report):
+    if not isinstance(report, dict) or not isinstance(report.get("controls"), dict): return False
+    controls = report["controls"]
+    audit = report.get("full_model_material_audit", {})
+    if not isinstance(audit, dict): return False
+    meshes, surfaces = audit.get("visible_model_meshes"), audit.get("base_textured_surfaces")
+    if type(meshes) is not int or type(surfaces) is not int: return False
+    return (controls.get("full_material_stage") is True and controls.get("map_texture_stage") is False
+            and controls.get("map_textures") is True and controls.get("white_material") is False
+            and controls.get("white_native") is False and controls.get("native_geometry_only") is False
+            and controls.get("compiled") is True
+            and audit.get("after_real_draw") is True and meshes > 0 and surfaces > 0)
 
 
 def main():
@@ -66,7 +87,9 @@ def main():
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--map-path", type=Path, help="Explicit isolated test map; requires --content-root")
     parser.add_argument("--content-root", type=Path, help="Owned isolated fixture root; requires --map-path")
-    parser.add_argument("--stage", choices=("white", "map"), default="map")
+    parser.add_argument("--stage", choices=("white", "map", "full"), default="map")
+    parser.add_argument("--full-fixture-manifest-sha256")
+    parser.add_argument("--expected-full-models", type=int, default=49)
     parser.add_argument("--cold-index", action="store_true")
     parser.add_argument("--legacy-publication", action="store_true")
     parser.add_argument("--separate-material-publication", action="store_true")
@@ -111,8 +134,16 @@ def main():
     parser.add_argument("--fault-capture-extension", type=Path,
                         help="Opt-in native first-chance capture; marks this as a diagnostic sample")
     args = parser.parse_args()
-    fixture = test_fixture_paths(args.map_path, args.content_root)
+    fixture = test_fixture_paths(args.map_path, args.content_root, args.stage)
     map_path = fixture[0] if fixture else MAP
+    full_before = None
+    if args.stage == "full":
+        if not fixture or not args.full_fixture_manifest_sha256:
+            parser.error("full stage requires an isolated full fixture and its manifest SHA")
+        from full_native_fixture_audit import verify_full_fixture
+        full_before = verify_full_fixture(fixture[1], map_path, args.full_fixture_manifest_sha256.lower(), args.expected_full_models)
+    elif args.full_fixture_manifest_sha256:
+        parser.error("full fixture manifest is only valid for full stage")
     output = args.output.resolve()
     paths = {suffix: output.with_suffix("." + suffix) for suffix in
              ("json", "log", "launch.json", "result.json")}
@@ -143,7 +174,7 @@ def main():
            "--native-only", "--efficient-membership-probe", "--settle-demands",
            "--without-derived-geometry-cache", "--without-prefab-bounds-cache",
            "--without-model-metadata-cache"]
-    cmd += ["--white-material", "--without-map-textures"] if args.stage == "white" else ["--map-texture-stage"]
+    cmd += stage_arguments(args.stage)
     if fixture:
         cmd += ["--test-map=" + str(map_path), "--test-content-root=" + str(fixture[1])]
     cmd += ["--native-departure", "--frame-split-probe"] if args.traverse else ["--origin-only"]
@@ -258,7 +289,8 @@ def main():
               "incremental_stream_adoption": not args.full_stream_adoption,
               "owned_removal_accounting": not args.unaccounted_stream_removals,
               "reuse_demand_catalogues": not args.rebuild_demand_catalogues,
-              "scope": "Map/prefab textures with imported-model materials still white" if args.stage == "map" else "All-white baseline",
+              "scope": {"map":"Map/prefab textures with imported-model materials still white", "white":"All-white baseline", "full":"Map/prefab textures and full native imported-model materials; core streaming only"}[args.stage],
+              "full_fixture_before": full_before,
               "cache_scope": {"derived_index": "invalidated" if args.cold_index else "retained",
                               "geometry_cache": "disabled", "texture_disk_cache": "retained",
                               "native_products": "retained", "os_cache": "untouched"},
@@ -301,10 +333,20 @@ def main():
                "errors": errors, "failures": report.get("failures"),
                "entry_ms": report.get("entry_ms"), "full_ready": report.get("origin_first_ready"),
                "not_p95": "Single sample; do not infer stability or treat diagnostics as ordinary samples."}
+    if full_before is not None:
+        try:
+            full_after = verify_full_fixture(fixture[1], map_path, args.full_fixture_manifest_sha256.lower(), args.expected_full_models)
+            outcome["full_fixture_unchanged"] = full_before == full_after
+        except Exception as exc:
+            outcome["full_fixture_unchanged"] = False
+            outcome["full_fixture_error"] = str(exc)
+        outcome["full_controls_match"] = full_stage_controls_match(report)
     outcome["requeue_controls_match"] = requeue_controls_match(report, args.legacy_requeue, args.suppress_sync_slow_logs)
     outcome["functional_ok"] = (code == 0 and bool(report) and not errors and
                                 report.get("failures") == [] and outcome["source_unchanged"] and
                                 outcome["map_unchanged"] and bool(outcome["full_ready"]) and outcome["requeue_controls_match"])
+    if full_before is not None:
+        outcome["functional_ok"] &= outcome["full_fixture_unchanged"] and outcome["full_controls_match"]
     if fault_capture:
         raw = paths["fault.raw"].read_text(encoding="utf-8", errors="replace") if paths["fault.raw"].exists() else ""
         outcome["fault_capture_armed"] = "armed\t1" in raw

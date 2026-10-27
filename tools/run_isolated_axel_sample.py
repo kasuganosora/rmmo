@@ -16,6 +16,7 @@ if TOOLS_DIR not in sys.path:
     sys.path.insert(0, TOOLS_DIR)
 from isolated_fixture_lock import fixture_lock
 from isolated_sidecar_switch import load_fixture, check_state
+from full_native_fixture_audit import verify_full_fixture
 
 ROOT = Path(__file__).resolve().parents[1]
 ARTIFACTS = Path("D:/code/rmmo_runtime/review_artifacts")
@@ -54,7 +55,7 @@ def run_sample(args, *, runner=RUNNER, artifacts=ARTIFACTS):
     # Lock before reading the map hash, and retain the lock through the child
     # process and post-run checks. Only cooperating fixture consumers obey it.
     root = inside(args.content_root, Path(artifacts).resolve(strict=True))
-    with fixture_lock(root, timeout=0.0):
+    with fixture_lock(root, timeout=0.0, manifest_name="full_fixture_manifest.json" if args.stage == "full" else "fixture_manifest.json"):
         return _run_sample_locked(args, runner=runner, artifacts=artifacts)
 
 
@@ -78,8 +79,10 @@ def _run_sample_locked(args, *, runner, artifacts):
         raise ValueError("frozen settings must be outside mutable user and sample roots")
     if args.timeout <= 0:
         raise ValueError("timeout must be positive")
-    if args.expected_state not in ("A", "B") or args.expected_candidates <= 0:
+    if args.stage != "full" and (args.expected_state not in ("A", "B") or args.expected_candidates <= 0):
         raise ValueError("expected state or candidate count invalid")
+    if args.stage == "full" and (args.expected_state is not None or getattr(args, "expected_full_models", 49) <= 0):
+        raise ValueError("full stage requires full model coverage and no sidecar A/B state")
     engine = Path(args.engine).resolve(strict=True)
     if not engine.is_file():
         raise ValueError("engine must be a file")
@@ -90,11 +93,12 @@ def _run_sample_locked(args, *, runner, artifacts):
     map_sha = digest(map_path.read_bytes())
     sample.mkdir(parents=True, exist_ok=False)
     try:
-        before = variant_audit(content, map_path, args)
+        before = (verify_full_fixture(content, map_path, args.manifest_sha256.lower(), getattr(args, "expected_full_models", 49))
+                  if args.stage == "full" else variant_audit(content, map_path, args))
     except Exception as exc:
         write_json(sample / "isolation.variants.before.json", {"ok": False, "error": str(exc)})
         raise
-    before["ok"] = before["state"] == args.expected_state
+    before["ok"] = True if args.stage == "full" else before["state"] == args.expected_state
     write_json(sample / "isolation.variants.before.json", before)
     if not before["ok"]:
         raise ValueError("fixture sidecar state does not match expected state")
@@ -125,6 +129,8 @@ def _run_sample_locked(args, *, runner, artifacts):
                "--output", str(sample / "sample"), "--map-path", str(map_path),
                "--content-root", str(content), "--stage", args.stage,
                "--timeout", str(args.timeout)]
+        if args.stage == "full":
+            cmd.extend(["--full-fixture-manifest-sha256", args.manifest_sha256.lower(), "--expected-full-models", str(getattr(args, "expected_full_models", 49))])
         if args.traverse:
             cmd.append("--traverse")
         if args.cold_index:
@@ -152,10 +158,14 @@ def _run_sample_locked(args, *, runner, artifacts):
         with (sample / "isolation.runner.log").open("xb") as handle:
             handle.write(completed.stdout)
         try:
-            after = variant_audit(content, map_path, args)
-            variants_unchanged = (after["state"] == args.expected_state and
-                                  before["variants"] == after["variants"] and
-                                  before["stable_files"] == after["stable_files"])
+            if args.stage == "full":
+                after = verify_full_fixture(content, map_path, args.manifest_sha256.lower(), getattr(args, "expected_full_models", 49))
+                variants_unchanged = {k:v for k,v in before.items() if k != "ok"} == after
+            else:
+                after = variant_audit(content, map_path, args)
+                variants_unchanged = (after["state"] == args.expected_state and
+                                      before["variants"] == after["variants"] and
+                                      before["stable_files"] == after["stable_files"])
             after["ok"] = variants_unchanged
         except Exception as exc:
             variants_unchanged = False
@@ -179,9 +189,10 @@ def main():
         parser.add_argument("--" + name, type=Path, required=True)
     parser.add_argument("--settings-sha256", required=True)
     parser.add_argument("--manifest-sha256", required=True)
-    parser.add_argument("--expected-state", choices=("A", "B"), required=True)
+    parser.add_argument("--expected-state", choices=("A", "B"))
     parser.add_argument("--expected-candidates", type=int, default=11)
-    parser.add_argument("--stage", choices=("white", "map"), default="map")
+    parser.add_argument("--stage", choices=("white", "map", "full"), default="map")
+    parser.add_argument("--expected-full-models", type=int, default=49)
     parser.add_argument("--timeout", type=int, default=420)
     parser.add_argument("--traverse", action="store_true")
     parser.add_argument("--cold-index", action="store_true")
