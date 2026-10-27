@@ -48,3 +48,11 @@
 官方 `textured_direct_specs_20261027/return_official27` 调试客户端、接收器和解码均exit0，主地图及被测脚本未变；返回阶段采4551 profiler帧（engine_frame 29806–34356）。采集起点由日志标记触发，可能漏掉最初部分返回帧，且带profiler开销，不能冒称map24_B2原始帧的栈。frame 34343为50.103ms，Deferred._process包含43.000ms、_refresh_demanded包含40.225ms/自身23.284ms；同engine frame的测试宿主记录45.085ms、bookkeeping35.040ms，附近publication增量0且无queue observer。各边界不同、数值有包含关系不可相加。附近三个profiler帧的需求刷新各38–39ms；500ms观察快照区间记录11次刷新、29751输入行、16074距离计算、6541空间脚本扫描行及12次typed扫描21948行，这些是区间总工作量，并非单帧，也未记录需求clip不能说明每次刷新的原因。该返回阶段_publish_ready单帧最大包含19.026ms、shared图片release最大包含0.507ms，未复现map24_B2附近48.659ms发布增量。
 
 证据路径 `return_official27.summary.json`/原始bin、phase report及receiver/decode日志在上述目录；另有在采集中记录的扩展脚本SHA：worker official `7a47eb102b4f8aff262ba4ce9561f00993aafe27c9316bdad118d413c4554f3d`，receiver `22f4b7ce54004120bf515bfbc9e5574117bb708b439f461f0cac88ce23f8d6a2`，decoder `e17a508f85dbf8fdf8fe995a49ffa93f363493af8131f8f489ac630199da5bd4`。它们不在runner默认的796文件散列清单内，该记录不表示已经核对其采集前后的独立快照。
+
+## 材质步骤回溯
+
+map24_B2的52.921ms附近，500ms queue快照中 `max_material_preparation_unit_us` 首次由22151增至48651，`max_publication_unit_us` 由6543增至48659；全路线paint.texture最大48.398ms、其包含的upload最大47.823ms。统计最大值没有逐次时间戳/UUID，数值相近只构成线索，不能认定同一调用或说它占满原帧。该material准备计数来自非READY step，不是直接等同 prefab mesh最终发布。
+
+`material_trace34` 在相同地图与默认候选下单独以现有LoadTrace采返回阶段，脚本/地图主文件及额外专用runner SHA前后相同，exit0、failures/errors空、状态complete_return_leg、5731事件、dropped0、1ms门限；stop快照848µs，记录开销不完整，诊断不能作普通性能。未复现48ms材质步骤：最大 `deferred.material_step` 5.203ms（obj_377），其同线程嵌套 `paint.texture` 4.873ms / `paint.texture.upload` 4.310ms；该纹理为1254² RGBA normal、输出逻辑8384072字节，路径见原始文件。另一单元木板2048² DXT1上传4.050ms、材质步骤4.932ms。嵌套不能相加。该样本仅证明其自身时序关系，map24_B2发布长帧仍未解决。
+
+返回trace工具 `tools/profile_axel_return_material_trace.gd` 默认关闭、仅用 `--return-material-trace --texture-stage-profile`；`return_material_trace_contract01.log` 20/0、parse通过。原始 `material_trace34.json`、日志及launch保留。

@@ -19,3 +19,7 @@
 ## 新一轮GDB现场
 
 `material_publication_scope_20261027/map24_return28` 在高速返回阶段geometry-end后12ms阈值触发，独立PID/启动时间和引擎身份核对，冻结marker仍有效、无新包/序号缺口，冻结PC与GDB一致，已归还本工具唯一suspend增量；触发到读取context 0.442ms。冻结前窗口墙时15.267ms、主线程CPU计数15.625ms（Windows 粒度及接收误差，不能当精准逐帧占比）；现场GDScript主线程为 Deferred._process → _refresh_demanded，顶层native位于 Array::size / indexed get，说明该瞬间在执行需求刷新，不证明该单个数组调用占据窗口，也不是map24_B2原发布帧。调试暂停约299ms及后续GDB all-stop开销污染该路线，不能作为正常FPS。引擎/GDB退出0，主地图与测量源前后未变，完整线程与原始触发记录保留。
+
+## 已撤回：稳定分数复用候选
+
+候选只在相同owner、priority、origin和AABB时复用前次最终score，其他情形走旧计算；不缩减扫描和排序。`demand_stable_red34.log` 是比较时机夹具错误，已修为相同位置刷新后再比；后续红测复现预期工作量断言，`demand_stable_green36.log` 96/0。6m/s固定输入避免3525次距离计算但新增4025次guard；高速避免48693次但新增78339次guard。独立重复 `demand_stable_repeat37.log` 97/0：6m/s ABBA A 24.65/26.06ms、B 46.61/30.73ms；高速 A 703.87/609.99ms、B 653.98/695.63ms；总时间无稳定收益，guard更多、输入及排序工作不减少，因此候选完整撤回，不宣称实际改善。候选源码与测试转存外部 `material_cache_pressure_20261027/demand_stable_candidate/`，红绿及重复日志保留。
