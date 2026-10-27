@@ -53,6 +53,7 @@ static var independent_instance_preparation_enabled:=true # Diagnostic control f
 static var native_prefab_direct_specs_enabled:=true
 static var material_publication_slices_enabled:=true # Probe-only synchronous control.
 static var prepared_material_slicing_enabled:=true # Probe-only control for prepared/shared pixel publication.
+static var combined_material_publication_enabled:=true # Finish a ready material slice without reopening its synchronous scope.
 static var collision_first_enabled:=false # Exact sidecar experiment; normal geometry/nav gates remain available.
 static var collision_query_cache_enabled:=true # Disable for the legacy guard cost/behaviour comparison.
 static var collision_query_profile_enabled:=false # Detailed timers are opt-in to avoid perturbing physics ticks.
@@ -2777,6 +2778,7 @@ func _publish_ready(began:int,budget_usec:int=INTERACTIVE_BUDGET_US)->Dictionary
 				preload("res://scripts/world3d/load_trace.gd").elapsed("deferred.record_texture_step",unit_began,{"uuid":publication_id,"phase":texture_phase})
 				_account_work_unit(timing,unit_began);continue
 		if item.record.has("house_prefab"):
+			var prefab_published:=false
 			var prepared:Dictionary=_jobs.get(item.path,{}).get("result",{}).get("prefab_cpu",{}).get(item.record.house_prefab.sha256,{})
 			var textures:Dictionary=_jobs.get(item.path,{}).get("result",{}).get("prefab_texture_packet",{})
 			# CPU preparation does not pay the main-thread texture upload cost.
@@ -2790,10 +2792,16 @@ func _publish_ready(began:int,budget_usec:int=INTERACTIVE_BUDGET_US)->Dictionary
 				if not pixel_job.has("material_textures"):pixel_job.material_textures={}
 				if not textures.is_empty() and not pixel_job.has("material_scope"):pixel_job.material_scope={}
 				var publication=preload("res://scripts/world3d/material_publication.gd")
-				var phase:int=publication.step(prepared.data.materials,_doc.load_paint_validation,_doc.load_material_pool,pixel_job.material_textures) if textures.is_empty() else publication.step_prepared(item.record,prepared.data.materials,_doc.load_paint_validation,_doc.load_material_pool,pixel_job.material_textures,textures,pixel_job.material_scope)
+				var phase:int
+				if textures.is_empty():phase=publication.step(prepared.data.materials,_doc.load_paint_validation,_doc.load_material_pool,pixel_job.material_textures)
+				elif combined_material_publication_enabled:
+					phase=publication.step_and_publish_prepared(item.record,prepared,_doc.load_paint_validation,_doc.load_material_pool,pixel_job.material_textures,textures,pixel_job.material_scope,prefab_parts)
+					prefab_published=phase==publication.READY
+					if prefab_published:profile.combined_material_publications=int(profile.get("combined_material_publications",0))+1
+				else:phase=publication.step_prepared(item.record,prepared.data.materials,_doc.load_paint_validation,_doc.load_material_pool,pixel_job.material_textures,textures,pixel_job.material_scope)
 				if phase!=0:
 					if phase<0:
-						_instance_failed(publication_id,"预制件材质准备失败："+publication_id)
+						_instance_failed(publication_id,"预制件材质准备或发布失败："+publication_id)
 						if not str(item.get("group_id","")).is_empty():_stage_building(item,[])
 					else:
 						# Revisit this ready member next turn; all readiness/collision and
@@ -2805,7 +2813,7 @@ func _publish_ready(began:int,budget_usec:int=INTERACTIVE_BUDGET_US)->Dictionary
 					profile.max_material_preparation_unit_us=maxi(int(profile.get("max_material_preparation_unit_us",0)),elapsed)
 					preload("res://scripts/world3d/load_trace.gd").elapsed("deferred.material_step",unit_began,{"uuid":publication_id,"path":item.path,"phase":phase})
 					_account_work_unit(timing,unit_began);continue
-			if not preload("res://scripts/world3d/house_prefab.gd").publish_prepared(item.record,prepared,_doc.load_paint_validation,_doc.load_material_pool,prefab_parts,textures,pixel_job.get("material_scope")):
+			if not prefab_published and not preload("res://scripts/world3d/house_prefab.gd").publish_prepared(item.record,prepared,_doc.load_paint_validation,_doc.load_material_pool,prefab_parts,textures,pixel_job.get("material_scope")):
 				textures={};prepared={}
 				_instance_failed(item.record.uuid,"后台预制件数据无法发布："+item.record.uuid);_stage_building(item,[])
 				_account_work_unit(timing,unit_began);continue

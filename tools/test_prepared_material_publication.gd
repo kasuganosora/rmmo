@@ -51,9 +51,9 @@ func run()->void:
 		check(after-before<=1 and Paint.prepared_images.is_empty(),"each resumed prepared slice performs at most one upload and closes its image scope")
 		check(Paint._materials.values().has(unrelated),"missing future uploads do not clear another material between slices")
 	check(doc.calls.size()==1 and turns==5,"three texture turns and one material turn precede component instantiation")
-	check(job.material_scope.initializations==1 and job.material_scope.reuses==5,"five scheduler turns and final prefab publication share one complete generation setup")
+	check(job.material_scope.initializations==1 and job.material_scope.reuses==4,"five scheduler turns include final publication without reopening its completed synchronous scope")
 	var prior_images:Dictionary=Paint.prepared_images
-	check(Prefab.publish_prepared(record,cpu,{},doc.load_material_pool,{},packet,job.material_scope) and job.material_scope.initializations==1 and job.material_scope.reuses==6 and is_same(Paint.prepared_images,prior_images),"repeated final publication also reuses scope state and restores the exact previous image owner")
+	check(Prefab.publish_prepared(record,cpu,{},doc.load_material_pool,{},packet,job.material_scope) and job.material_scope.initializations==1 and job.material_scope.reuses==5 and is_same(Paint.prepared_images,prior_images),"a separate later publication checks once again and restores the exact previous image owner")
 	check(Paint.profile_snapshot().counters.get("paint.texture.gpu_cache_miss",0)==3 and Paint.profile_snapshot().counters.get("paint.texture.runtime_image_lookup",0)==0,"all unique textures upload once from worker pixels without source decode fallback")
 	var slot:Dictionary=cpu.data.materials[0]
 	var material:StandardMaterial3D=doc.load_material_pool.get([slot])
@@ -73,10 +73,12 @@ func run()->void:
 		temporary_tickets.stale=material.albedo_texture
 		check(Slices.step_prepared(record,cpu.data.materials,{},doc.load_material_pool,temporary_tickets,resident_packet)==Slices.FAILED and temporary_tickets.is_empty() and is_same(Paint.prepared_images,original_images),"invalid resident proof fails before installation and releases material handoff")
 		resident_packet.clear();tickets.clear()
+	transaction_case(record,cpu,doc.load_material_pool,packet)
 	f.map.free();fixtures.free();packet.clear();cpu.clear();job.clear();clear_caches();Drainer.synchronize_transfer()
 	material=null;doc=null
 	await cancellation_case(record,requested,plan)
 	await failure_case(paint,requested,plan)
+	await final_geometry_failure_retry_case(record,requested,plan)
 	await zero_budget_case(record,requested,plan)
 	await generation_case(record,requested,plan)
 	await resident_generation_case(record,requested,plan)
@@ -120,23 +122,66 @@ func failure_case(paint:Dictionary,requested:Dictionary,plan:Dictionary)->void:
 	check(packet.is_empty() and service._admission.reserved_bytes==1,"failed prepared job releases packet and its admission lease")
 	f.map.free();fixtures.free();job.clear();cpu.clear();clear_caches()
 
+func final_geometry_failure_retry_case(record:Dictionary,requested:Dictionary,plan:Dictionary)->void:
+	# Reach the scheduler's combined READY branch with a structurally admissible
+	# packet whose geometry restore returns no entry. The first sibling is staged
+	# already: failure of the final sibling must abort the whole group and retire
+	# its admission, and an ordinary retry must construct the group again.
+	var packet:=await prepare_worker(requested,plan);var cpu:=Prefab.prepare_cpu(record)
+	var broken:Dictionary=cpu.duplicate(true);broken.data.entries=[]
+	clear_caches();var fixtures:=SchedulerFixture.new();var f:Dictionary=fixtures.fixture(2,false,root)
+	var service:Node=f.service;var doc:=MaterialFixture.Document.new();service._doc=doc
+	var items:Array=service._demanded_by_path["reference:building:0"]
+	var first_id:String=items[0].record.uuid;var last_id:String=items[1].record.uuid;var path:String=items[0].path
+	items[1].record.house_prefab=record.house_prefab
+	var job:Dictionary=service._jobs[path]
+	job.result={"prefab_cpu":{record.house_prefab.sha256:broken},"prefab_texture_packet":packet}
+	service._publish_ready(Time.get_ticks_usec()-1000000)
+	check(job.get("staged",{}).has(first_id) and int(service.profile.instances)==0,"final failure fixture stages a healthy first sibling without partial publication")
+	for turn:int in 12:
+		if service.instance_errors.has(last_id):break
+		service._publish_ready(Time.get_ticks_usec()-1000000)
+	print("FINAL_GEOMETRY_FAILURE ",JSON.stringify({"reason":service.instance_errors.get(last_id,""),"material_ready":doc.load_material_pool.has([cpu.data.materials[0]]),"material_units":service.profile.get("material_preparation_units",0),"scope":job.get("material_scope",{})}))
+	check(doc.load_material_pool.has([cpu.data.materials[0]]) and int(service.profile.get("material_preparation_units",0))>=5 and int(job.get("material_scope",{}).get("reuses",0))>=4,"failure reaches the combined final geometry branch after complete sliced materials")
+	check(service.instance_errors.has(first_id) and service.instance_errors.has(last_id) and job.get("staged",{}).is_empty() and int(service.profile.instances)==0,"combined final geometry failure aborts the entire staged building")
+	check(not Prefab._meshes.has(record.house_prefab.sha256) and Paint.prepared_images.is_empty() and Paint.prepared_textures.is_empty(),"failed final publication leaves neither prefab nor borrowed texture scope")
+	for turn:int in 4:
+		if not service._jobs.has(path):break
+		service._process(0)
+	check(not service._jobs.has(path) and packet.is_empty() and service._admission.reserved_bytes<=1,"failed building releases its image packet and admission through normal service cleanup")
+	var replacement:=await prepare_worker(requested,plan)
+	service.retry_failed(AABB(Vector3(-1,-1,-1),Vector3(12000,2,2)));service.set_process(false);service._refresh_demanded()
+	check(not service.instance_errors.has(first_id) and not service.instance_errors.has(last_id),"ordinary retry clears both failed sibling records")
+	service._admission.worker_limit=2
+	service._admission.reserve(path,{"estimated_bytes":1,"exclusive":false})
+	service._jobs[path]={"accepted":true,"result":{"prefab_cpu":{record.house_prefab.sha256:cpu},"prefab_texture_packet":replacement},"token":Deferred.Drainer.CancelToken.new(),"publication_ids":[first_id,last_id]}
+	service._prepared_paths[path]=true;service._admission.worker_limit=0
+	for turn:int in 20:
+		if not service._pending_by_record_id.has(first_id) and not service._pending_by_record_id.has(last_id):break
+		service._publish_ready(Time.get_ticks_usec()-1000000)
+	check(not service._pending_by_record_id.has(first_id) and not service._pending_by_record_id.has(last_id) and doc.calls.get(first_id,0)==2 and doc.calls.get(last_id,0)==1,"valid retry reconstructs both siblings and publishes the group atomically")
+	service._process(0)
+	check(not service._jobs.has(path) and service._admission.reserved_bytes<=1,"successful retry retires its accepted job and reservation")
+	f.map.free();fixtures.free();job.clear();cpu.clear();broken.clear();clear_caches();Drainer.synchronize_transfer()
+
 func zero_budget_case(record:Dictionary,requested:Dictionary,plan:Dictionary)->void:
 	var packet:=await prepare_worker(requested,plan);var cpu:=Prefab.prepare_cpu(record)
 	clear_caches();Pixels.reset_profile();var old_budget:int=Paint.cache_byte_budget;Paint.cache_byte_budget=0
 	var pool:Dictionary={};var tickets:Dictionary={};var state:Dictionary={};var turns:=0;var phase:=Slices.PROGRESS
 	var slot:Dictionary=cpu.data.materials[0]
 	while phase==Slices.PROGRESS and turns<10:
-		phase=Slices.step_prepared(record,cpu.data.materials,{},pool,tickets,packet,state);turns+=1
+		phase=Slices.step_and_publish_prepared(record,cpu,{},pool,tickets,packet,state);turns+=1
 		check(Paint.prepared_images.is_empty(),"zero-budget prepared slice restores image scope")
 	check(phase==Slices.READY and turns==5 and pool.has([slot]) and tickets.is_empty(),"zero hot-cache budget still completes three prepared texture slices and a whole material")
 	check(Paint.profile_snapshot().counters.get("paint.texture.gpu_cache_miss",0)==3,"zero-budget retries reuse job tickets instead of uploading the same texture repeatedly")
 	check(state.initializations==1 and state.reuses==4,"zero-budget eviction does not become repeated source invalidation")
+	check(Prefab._meshes.has(record.house_prefab.sha256) and Prefab._meshes[record.house_prefab.sha256].mesh.materials[0]==pool[[slot]],"zero-budget final transaction publishes the same complete material owner")
 	Paint.cache_byte_budget=old_budget;pool.clear();packet.clear();cpu.clear();clear_caches();Drainer.synchronize_transfer()
 
 func generation_case(record:Dictionary,requested:Dictionary,plan:Dictionary)->void:
 	var packet:=await prepare_worker(requested,plan);var cpu:=Prefab.prepare_cpu(record)
 	clear_caches();var pool:Dictionary={};var tickets:Dictionary={};var state:Dictionary={}
-	check(Slices.step_prepared(record,cpu.data.materials,{},pool,tickets,packet,state)==Slices.PROGRESS,"old immutable generation starts one sliced upload")
+	check(Slices.step_and_publish_prepared(record,cpu,{},pool,tickets,packet,state)==Slices.PROGRESS,"old immutable generation starts one sliced upload")
 	var path:String=record.prefab_materials[0].texture_path;var original:=FileAccess.get_file_as_bytes(path)
 	var replacement:=Image.create(19,13,false,Image.FORMAT_RGBA8);replacement.fill(Color.BLUE)
 	check(replacement.save_png(path)==OK,"replace only the temporary fixture source between slices")
@@ -148,7 +193,7 @@ func generation_case(record:Dictionary,requested:Dictionary,plan:Dictionary)->vo
 	files.write_bytes(path,original)
 	var phase:=Slices.PROGRESS;var turns:=0
 	while phase==Slices.PROGRESS and turns<8:
-		phase=Slices.step_prepared(record,cpu.data.materials,{},pool,tickets,packet,state);turns+=1
+		phase=Slices.step_and_publish_prepared(record,cpu,{},pool,tickets,packet,state);turns+=1
 	check(phase==Slices.READY and state.initializations==2,"interleaved replacement re-enters invalidation even after hot and weak texture catalogues are cleared")
 	var slot:Dictionary=cpu.data.materials[0];var material:StandardMaterial3D=pool.get([slot])
 	check(material!=null and material.albedo_texture.get_meta("runtime_source_sha256")==packet.sources[path] and material.albedo_texture!=newer,"resumed packet cannot consume a newer incompatible material generation")
@@ -156,6 +201,35 @@ func generation_case(record:Dictionary,requested:Dictionary,plan:Dictionary)->vo
 		RenderingServer.force_sync()
 		check(canonical(material.albedo_texture.get_image())==canonical(packet.images[path]) and canonical(newer.get_image())==canonical(fresh.images[path]),"both live texture generations preserve their exact original pixels")
 	pool.clear();packet.clear();fresh.clear();cpu.clear();tickets.clear();state.clear();clear_caches();Drainer.synchronize_transfer()
+
+func transaction_case(record:Dictionary,cpu:Dictionary,pool:Dictionary,packet:Dictionary)->void:
+	# A synchronous READY hit used to open and restore the exact same scope twice.
+	# Fixed work and nested sentinels make this independent of frame scheduling.
+	var old_images:Dictionary=Paint.prepared_images;var old_uploaded:Dictionary=Paint.prepared_textures
+	var sentinel:={"outer":Image.create(1,1,false,Image.FORMAT_RGBA8)}
+	var uploaded:={"outer":pool.values()[0].albedo_texture}
+	Paint.prepared_images=sentinel;Paint.prepared_textures=uploaded
+	var owner:Dictionary=Prefab._meshes[record.house_prefab.sha256]
+	var rows:Array=[]
+	for combined:bool in [false,true,true,false]:
+		var state:Dictionary={};var tickets:Dictionary={};var ok:=true;var began:=Time.get_ticks_usec()
+		for i:int in 1000:
+			if combined:ok=ok and Slices.step_and_publish_prepared(record,cpu,{},pool,tickets,packet,state)==Slices.READY
+			else:
+				ok=ok and Slices.step_prepared(record,cpu.data.materials,{},pool,tickets,packet,state)==Slices.READY
+				ok=ok and Prefab.publish_prepared(record,cpu,{},pool,{},packet,state)
+		rows.append({"combined":combined,"calls":1000,"elapsed_us":Time.get_ticks_usec()-began,"scope_entries":int(state.initializations)+int(state.reuses)})
+		check(ok and rows.back().scope_entries==(1000 if combined else 2000),"fixed publication work enters one scope instead of two, combined="+str(combined))
+		check(is_same(Prefab._meshes[record.house_prefab.sha256],owner) and is_same(Paint.prepared_images,sentinel) and is_same(Paint.prepared_textures,uploaded) and tickets.is_empty(),"each path preserves exact mesh/material identity and restores both outer handoff owners")
+	var rejected:Dictionary={"sources":{files.folder.path_join("missing.png"):"a".repeat(64)},"resident_textures":{"bad":{"texture":null,"source_sha":"a".repeat(64)}}}
+	var held:Dictionary={"old":uploaded.outer}
+	check(Slices.step_and_publish_prepared(record,cpu,{},pool,held,rejected,{})==Slices.FAILED and held.is_empty() and is_same(Paint.prepared_images,sentinel) and is_same(Paint.prepared_textures,uploaded),"failed resident gate clears private tickets without modifying outer scopes")
+	Prefab._meshes.clear();Prefab._render_meshes.clear()
+	var broken:Dictionary=cpu.duplicate();broken.sha256="f".repeat(64)
+	check(Slices.step_and_publish_prepared(record,broken,{},pool,{},packet,{})==Slices.FAILED and not Prefab._meshes.has(record.house_prefab.sha256) and is_same(Paint.prepared_images,sentinel) and is_same(Paint.prepared_textures,uploaded),"final geometry failure also closes the combined scope without installing a prefab")
+	check(Slices.step_and_publish_prepared(record,cpu,{},pool,{},packet,{})==Slices.READY,"a later valid transaction publishes normally after failure")
+	Paint.prepared_images=old_images;Paint.prepared_textures=old_uploaded
+	print("MATERIAL_SCOPE_TRANSACTION ",JSON.stringify(rows))
 
 func resident_generation_case(record:Dictionary,requested:Dictionary,plan:Dictionary)->void:
 	var packet:=await prepare_worker(requested,plan)

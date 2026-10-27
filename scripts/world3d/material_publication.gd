@@ -60,12 +60,33 @@ static func step_prepared(record:Dictionary,materials:Array,validation:Variant,p
 	var prefab=load("res://scripts/world3d/house_prefab.gd")
 	var scope:Dictionary=prefab.begin_texture_publication(record,pool,packet,scope_state,materials)
 	if not scope.ok:texture_tickets.clear();return FAILED
-	var result:=READY
+	var result:=_step_prepared_in_scope(prefab,record,materials,validation,pool,texture_tickets)
+	prefab.end_texture_publication(scope)
+	return result
+
+static func _step_prepared_in_scope(prefab:GDScript,record:Dictionary,materials:Array,validation:Variant,pool:Dictionary,texture_tickets:Dictionary)->int:
 	# A packet can invalidate the former prefab material generation. Check the
 	# cache AFTER installing it, so replacement textures are sliced as well.
-	if not prefab._meshes.has(record.house_prefab.sha256):result=step(materials,validation,pool,texture_tickets)
-	else:texture_tickets.clear()
+	if not prefab._meshes.has(record.house_prefab.sha256):return step(materials,validation,pool,texture_tickets)
+	texture_tickets.clear()
+	return READY
+
+static func step_and_publish_prepared(record:Dictionary,prepared:Dictionary,validation:Variant,pool:Dictionary,texture_tickets:Dictionary,packet:Dictionary,scope_state:Dictionary,timings:Variant=null)->int:
+	# READY completes geometry publication in this same synchronous scope. No
+	# borrowed Images, authorization token or open scope escapes to the scheduler.
+	# PROGRESS still does exactly one material/texture operation and closes here;
+	# another frame must enter the ordinary generation/ticket checks again.
+	var prefab=load("res://scripts/world3d/house_prefab.gd")
+	var materials:Array=prepared.get("data",{}).get("materials",[])
+	var began:=Time.get_ticks_usec()
+	var scope:Dictionary=prefab.begin_texture_publication(record,pool,packet,scope_state,materials)
+	if not scope.ok:texture_tickets.clear();return FAILED
+	var result:=_step_prepared_in_scope(prefab,record,materials,validation,pool,texture_tickets)
+	var published:bool=result==READY
+	if published and not prefab._publish_prepared(record,prepared,validation,pool,timings):result=FAILED
 	prefab.end_texture_publication(scope)
+	if published:
+		preload("res://scripts/world3d/load_trace.gd").elapsed("prefab_pixels.publish",began,{"uuid":record.get("uuid",""),"images":packet.get("images",{}).size(),"parts_ms":timings if timings!=null else {}})
 	return result
 
 static func step(materials:Array,validation:Variant,pool:Dictionary,texture_tickets:Variant=null)->int:

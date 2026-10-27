@@ -42,6 +42,7 @@ def main():
     parser.add_argument("--stage", choices=("white", "map"), default="map")
     parser.add_argument("--cold-index", action="store_true")
     parser.add_argument("--legacy-publication", action="store_true")
+    parser.add_argument("--separate-material-publication", action="store_true")
     parser.add_argument("--legacy-source-reads", action="store_true")
     parser.add_argument("--legacy-vsync-submission", action="store_true")
     parser.add_argument("--traverse", action="store_true")
@@ -112,6 +113,8 @@ def main():
         cmd.append("--cold-index")
     if args.legacy_publication:
         cmd.append("--legacy-prepared-material-publication")
+    if args.separate_material_publication:
+        cmd.append("--separate-material-publication")
     if args.legacy_source_reads:
         cmd.append("--without-mounted-texture-source-reuse")
     if args.legacy_vsync_submission:
@@ -188,6 +191,7 @@ def main():
               "batched_texture_handoff": not args.without_batched_texture_handoff,
               "incremental_source_retirement": not args.without_incremental_source_retirement,
               "raw_face_reuse": not args.without_raw_face_reuse,
+              "combined_material_publication": not args.separate_material_publication,
               "texture_plan_reuse": not args.without_texture_plan_reuse,
               "async_texture_headers": not args.sync_texture_headers,
               "incremental_cache_budget": not args.full_cache_trims,

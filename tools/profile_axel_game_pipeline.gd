@@ -340,6 +340,7 @@ func run()->void:
 			preload("res://scripts/world3d/deferred_asset_loader.gd").prefab_texture_preparation_enabled=true
 			preload("res://scripts/world3d/deferred_asset_loader.gd").shared_prefab_texture_preparation_enabled=true
 		elif arg=="--legacy-prepared-material-publication":preload("res://scripts/world3d/deferred_asset_loader.gd").prepared_material_slicing_enabled=false
+		elif arg=="--separate-material-publication":preload("res://scripts/world3d/deferred_asset_loader.gd").combined_material_publication_enabled=false
 		elif arg=="--without-mounted-texture-source-reuse":preload("res://scripts/world3d/prefab_texture_preparation.gd").mounted_source_reuse_enabled=false
 		elif arg=="--texture-stage-profile":
 			preload("res://scripts/world3d/runtime_texture_cache.gd").profile_enabled=true
@@ -373,6 +374,7 @@ func run()->void:
 	report.controls.stage_screenshot=stage_screenshot
 	report.controls.native_geometry_only=preload("res://scripts/world3d/runtime_probe_controls.gd").native_geometry_only
 	report.controls.prepared_material_slicing=preload("res://scripts/world3d/deferred_asset_loader.gd").prepared_material_slicing_enabled
+	report.controls.combined_material_publication=preload("res://scripts/world3d/deferred_asset_loader.gd").combined_material_publication_enabled
 	report.controls.mounted_texture_source_reuse=preload("res://scripts/world3d/prefab_texture_preparation.gd").mounted_source_reuse_enabled
 	report.controls.worker_model_scenes=preload("res://scripts/world3d/model_parse_preparation.gd").initial_scene_preparation_enabled
 	report.controls.cold_index_handoff=preload("res://scripts/world3d/map_loader.gd").cold_index_handoff_enabled
