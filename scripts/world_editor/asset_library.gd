@@ -377,6 +377,7 @@ static func cache_prepared_native_scene(path:String,scene:Node,packed:PackedScen
 ## Offline classification guarantees that the private scene made no node-local
 ## changes that must be repacked. Keep the original owner until after disposal.
 static func cache_direct_native_scene(path:String,scene:Node,native_owner:PackedScene,verified_digest:String,material_plan:Dictionary={})->bool:
+	if OS.get_thread_caller_id()!=OS.get_main_thread_id():return false
 	if scene==null or native_owner==null or not native_owner.get_meta("compiled_asset_validated",false):return false
 	var began:=Time.get_ticks_usec()
 	if not preload("res://scripts/world3d/model_texture_direct_plan.gd").apply_prepared(material_plan):
@@ -384,8 +385,8 @@ static func cache_direct_native_scene(path:String,scene:Node,native_owner:Packed
 		# Clear the private aliases on main, then use the established fallback.
 		material_plan.clear();preload("res://scripts/world3d/model_texture_direct_seen.gd").apply(scene)
 	preload("res://scripts/world3d/load_trace.gd").elapsed("asset_library.cache_materials",began,{"path":path})
-	began=Time.get_ticks_usec();preload("res://scripts/world3d/asset_worker_drainer.gd").dispose_scene(scene)
-	preload("res://scripts/world3d/load_trace.gd").elapsed("asset_library.cache_dispose",began,{"path":path})
+	began=Time.get_ticks_usec();var owner_fast:bool=preload("res://scripts/world3d/asset_worker_drainer.gd").dispose_direct_native_scene(scene,native_owner)
+	preload("res://scripts/world3d/load_trace.gd").elapsed("asset_library.cache_dispose",began,{"path":path,"owner_fast":owner_fast})
 	native_owner.set_meta("compiled_grass_rebound",true)
 	return cache_packed(path,native_owner,verified_digest)
 

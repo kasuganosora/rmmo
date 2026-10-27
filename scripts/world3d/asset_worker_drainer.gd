@@ -160,6 +160,20 @@ static func dispose_scene(scene: Node) -> void:
 	synchronize_transfer()
 	retained.clear()
 
+# Only for a detached instance from the already-classified direct-safe native
+# packet. The caller must not modify its node/resource graph after preparation.
+# The same PackedScene owns every visual resource through the second fence.
+static func dispose_direct_native_scene(scene: Node, native_owner: PackedScene) -> bool:
+	if OS.get_thread_caller_id()!=OS.get_main_thread_id():
+		return false
+	if not is_instance_valid(scene) or native_owner==null or not native_owner.get_meta("compiled_asset_validated",false) or scene.is_inside_tree() or scene.get_parent()!=null or not scene.has_meta("_compiled_resource_owner") or scene.get_meta("_compiled_resource_owner")!=native_owner:
+		dispose_scene(scene)
+		return false
+	synchronize_transfer()
+	scene.free()
+	synchronize_transfer()
+	return true
+
 static func _retain_visual_resources(node: Node, retained: Array[Resource]) -> void:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.asset_worker_drainer._retain_visual_resources") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	if node is MeshInstance3D:

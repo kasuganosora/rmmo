@@ -80,3 +80,8 @@ In frame 3005, the same CPU mesh's surfaces 4, 5 and 7 each fully contained 28 a
 | 7 | 1,505.332 | 131.165 | 737.016 | 734.837 | 637.151 | 60.710 |
 
 The largest individual container in each of these three spans had module intervals 45.499 / 52.320 / 51.401 ms respectively. In the matched engine source, `module_us` wraps `vkCreateShaderModule` per shader stage, and includes any driver work or scheduling wait inside that call. It is nested within commit, not extra time. The `parse_us` portion of prepare was 113.794 / 109.298 / 109.769 ms, also nested. Surface 7's large remainder remains unidentified; no source establishes that it has the same cause as surfaces 4 and 5. The named variant is not recorded, and the observed module costs cannot be generalized as normal-engine timing under all workloads. The complete per-container data and partially overlapping exclusions are in `respv_analysis.json`.
+
+
+## Correction: open duration and shadow reads
+
+The original file trace also records `open_cost_us` in its ninth column (zero-based index 8); the old analysis did not separately include it. The same-run per-surface and shadow open/read totals, actual timer scope, containment rules, and the engine/user-directory boundary are documented in [the native acceptance follow-up](axel_native_acceptance_20261028.md#旧-engine09-文件-trace-的-openread-口径补正). In that engine09 diagnostic the three measured material spans have less than 1.7 ms of open plus fread/check each, but the `obj_1020` shadow span includes 17.813 ms of fread/check and 0.987 ms of open. Do not generalize the earlier low-read observation to the shadow or to another engine run.

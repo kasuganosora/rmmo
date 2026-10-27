@@ -94,3 +94,58 @@ A1 初始完整就绪前 prepared_source_visits=34329、sync=11、rebuild=243；
 因此接下来仍优先真实材质首次提交和阴影绑定；解析共享是已独立验证的候选，须经真实引擎合同和 GDB/普通地图对照后再决定。后台计划之后的 `cache_dispose` 也保留下一候选：证明同一原始 native PackedScene 已持有全部视觉资源后，只省略重复收集，仍在主线程 free 并保留前后同步。
 
 另有独立流程缺口：`world_stream._finish_loading_sources(...,0,false)` 在交互路径可无截止时间地恢复全部待处理源；现有测试甚至要求准备未完就恢复，未覆盖多源预算。修复必须让剩余 obligation 与 stream_chunk/ready 一起跨帧推进，保留 budget=0 的同步编辑器合同。但上述大帧 cursor 明显未到 jobs 末尾，full 阶段 checkpoint 又未启用，不能把这一潜在缺陷冒充已观察长帧根因。full-material 的增量合批同样不能直接取消白模开关：运行时材质、可见性和编辑失效合同须先验证。
+
+
+## GREEN 定向 GDB：同一帧的材质与阴影
+
+`D:/code/rmmo_runtime/review_artifacts/full_native_green_targeted_gdb_20261028_01/sample_01/` 是起始需求区域的诊断，而不是正常耗时样本。GREEN 可执行文件 SHA `20d25131e638bb6cafa0c285e2cddbf09eb6e7e528ee4f8f22dc566adfd8fde8`，调试符号 SHA `6aec02bb3d434fa83b12b1579d8205b64651ac7d59248e871e7d4c08d08ac833`；full fixture manifest SHA `b350e4ded3c3666d4768f7695337fdbb0fc5147423d278a02c94d936a4ff6fbb`。源码、引擎、符号、私有用户设置与 fixture 前后核对一致，脚本和 probe 均无错误。实际 controls 为 full-material、direct template 和 material plan 开启，worker-prepack 关闭；module/source-key 开启。诊断 overlay 仅在 MapLoader 前添加文件 gate，并给现有心跳添加需求收尾阶段标记；其余项目源码与冻结仓库逐文件一致。GDB 的 Vulkan/rendering 修改文件按 GREEN 已存档源码映射，未归档的引擎文件没有逐文件身份保证。
+
+collector 在 gate 前装载符号，核验 owned PID 及创建时间后附加，只在较长的上传或 geometry 调用中最多暂停三次，并抓取主线程和其他线程。三次 all-stop 暂停约 **12.732、4.612、4.226 秒**，因此本次 66.015 秒 ready、任何被暂停覆盖的 Trace 耗时都不能用于性能比较。
+
+- 第一次主线程停在 `GodotConcavePolygonShape3D::_fill_bvh` 链；后台多个线程同时可见 `FileAccessWindows::get_buffer → FileAccessCompressed::get_buffer → ResourceLoaderBinary::parse_variant`。
+- 第二次落在 frame 4261 的 `obj_1020` CPU mesh 恢复内，surface 4 的材质提交区间及 `mesh.gpu_restore_total` 内；主线程栈为 `ArrayMesh::surface_set_material → BaseMaterial3D::_update_shader → shader_create_from_code → ShaderRD::_load_from_cache → FileAccessWindows::open_internal → CreateFileW`。
+- 第三次同在 frame 4261，心跳显示上一个 upload 已结束；时间戳落入该对象后续 `shadow.build` 的 `bind_2` 子段，主线程也在上述 shader-cache 文件打开调用链中。这是两个先后执行的区间，不能合并成一次调用；进程内帧号、CPU ID 与事件时间是同次证据，不能与别次进程的 RID 直接对应。
+
+某些后台线程也出现在原生资源读取或 shader-cache 读取栈。栈是瞬间位置，不能证明打开的具体路径、文件读取耗时、锁主或发生磁盘争用；也不能仅凭两次 CreateFileW 栈把整帧归因于磁盘。LoadTrace 记录 3704 个事件、0 丢弃；心跳接收序列未观察到缺号，但内存留存超过上限后有 **10010 条未保存**，尾部原始心跳不完整。采样期间的原始栈、MI 日志、状态、启动控制和身份见上述目录的 `collector/`、`sample.json`、`status.json`。
+
+## 旧 engine09 文件 trace 的 open/read 口径补正
+
+重新读取 `D:/code/rmmo_runtime/review_artifacts/full_shader_file_trace_origin_20261028_01/engine_file_trace.tsv`。文件共 9101 条、无格式错误；该 run LoadTrace 为 3734 事件、0 丢弃。`O` 行实际为十列 `kind, begin, end, thread, read_us, reads, bytes, length, open_cost_us, path`，旧分析未单独统计第九列（从 0 开始的索引 8）`open_cost_us`。以下使用同一主线程，材质真实区间 `[end_us - material_us, end_us]`，而不是把整个 surface 区间都当材质；各匹配的文件从打开到关闭前记录的完整生命周期均包含在对应区间内。
+
+| 同次区间 | 区间 ms | shader-cache 文件数 | open 合计 ms | fread/check 合计 ms |
+| --- | ---: | ---: | ---: | ---: |
+| frame 3215 surface 4 材质 | 115.137 | 2 | 0.685 | 0.571 |
+| frame 3215 surface 5 材质 | 151.313 | 2 | 0.681 | 0.476 |
+| frame 3215 surface 7 材质 | 199.871 | 2 | 0.891 | 0.804 |
+| `obj_1020` shadow.build | 67.373 | 2 | 0.987 | 17.813 |
+
+这一旧样本中三个材质区间各自的 open 加读取小于 1.7 ms；阴影的两个读取分别为 11.075 和 6.738 ms，不能将“读取都很低”泛化到阴影。其余时间仍未由这组文件 trace 细分，包含其他工作及诊断开销。`open_cost_us` 从 `FileAccessWindows::open_internal` 开始，到 `_wfsopen` 返回，包含合法性判断、旧文件 `_close`、`fix_path`、`GetFileAttributesW`、符合条件时工具版大小写查找/缓存锁，以及 `_wfsopen`；不是单独的 `CreateFileW` 或磁盘时间。`read_us` 是该文件生命周期内 `fread` 与错误检查累计，open→close 的墙钟也不能当作读盘时间。
+
+这些数值仅属于旧 engine09 的独立诊断与当时私有 user 缓存；当前私有 APPDATA 在 D 盘 HDD，正式默认 user 路径可能在 C 盘 SSD。不得把旧样本数值外推到上面的 GREEN GDB 栈、正式游戏或其他机器。
+
+## 真实公会 owner 释放及 Deferred 接入
+
+四次隔离夹具和全部失败保留在 `D:/code/rmmo_runtime/review_artifacts/native_owner_dispose_guild_20261028_01/` 至 `_04/`：
+
+1. `_01` 两臂在 600 帧后 owner/cache 与 2012 个视觉资源仍存活，检查失败；尚无证据确定原因，独立弱引用小测的通过不能反推此失败原因。
+2. `_02` 仅等待 owner/cache 释放后即检查视觉资源（35/23 帧），此时 scene retirement phase 1 尚在处理、资源和模拟 lease 仍被合法保留；这次观察过早，不能称为 600 帧永久滞留。
+3. `_03` 改为等待 visual 与 retirement queue 后，两臂 77/81 帧均释放并令模拟 lease 归零；GPU 语义相同且无 fixture errors，但 runner 因报告缺少四个实际过程字段而失败，不能记为完整通过。
+4. `_04` 补全实际过程字段后，runner/身份/语义/覆盖和回收检查通过。两臂覆盖 2176 个视觉资源引用、2012 个唯一资源；81/75 帧时 visual 存活数、retirement queue 和模拟 lease 均为 0，owner/cache 弱引用已释放。两实例的材质、网格与碰撞快照一致。帧数是该夹具的观察，不是帧耗时或整图收益。
+
+真实 Deferred 接入合同 `D:/code/rmmo_runtime/review_artifacts/native_owner_dispose_integration_20261028_01/sample_01/` 已通过 **98/0**，对应实现与测试已按逐字节身份接入仓库；需保留 `gpu.log`、`result.json` 和身份快照作证据。该切片的真实整图加载、卸载和返回重载复测仍待执行，不把夹具通过等同于整图性能验收。
+
+### owner 释放接入后的正常整图复测
+
+随后 `D:/code/rmmo_runtime/review_artifacts/full_native_owner_disposal_20261028_01/` 完成普通完整纹理路径：固定 GREEN、direct template/material plan/module/source-key 开启，prepack/unlocked 关闭；没有 profiler/GDB 或高频 trace。代码、引擎、设置和 fixture 前后身份一致，功能与真实退出回收通过，errors/failures 均为 0。实际 direct reuse=1、material plan=1、uses=273、fallback=0；compiled miss=0。测试名称仍有 `white_*` 历史标签，实际 controls 为 full-material，不能与旧白模样本混用。
+
+| 指标 | 本次普通样本 |
+| --- | ---: |
+| MapLoader → 入口 / 当前需求完整就绪 | 11.911 / 25.794 s |
+| 卸载最大帧 / >50 ms 帧数 | 31.965 ms / 0 |
+| 返回最大帧 / >50 ms 帧数 / 1% low | 77.293 ms / 2 / 29.518 FPS |
+| 重载最大帧 / >50 ms 帧数 / 1% low | 63.957 ms / 6 / 21.938 FPS |
+| 重载接收峰值 / 所在整帧 | 33.357 / 63.957 ms |
+
+初始最终合批仍为 211 groups、2316 sources、3349 surfaces、2128385 vertices；输出 359 surfaces / 2075484 vertices，prepared visits=6396、packed visits=2634、rebuild=213、sync=2。实际遍历发生 257 crossings、4499 removals、4429 reloads；周期采样 models=51/instances=3147 不是精确全程工作量。module footer 的 live/retained 为零。
+
+本次有外部 Blender 活动且只有一个样本，不是冷启动、ABBA 或 p95；不能把与旧样本的时间差归因为本改动。独立合同证明可省略 2176 个视觉资源引用的重复收集，同时保留主线程 free 和前后两次同步；整图证明这一接入功能成立，**尚未证明相较后台材质计划单独开启时有进一步帧时或总加载收益**。保留工作量收益，不宣称材质阶段稳定或完成。后续优先对照真实材质首次提交与 shader 解析共享的关键路径收益，内容编辑器及当前 3D MCP 的适配仍在游戏材质优化之后执行。

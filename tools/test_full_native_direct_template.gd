@@ -111,6 +111,22 @@ func check_direct_intern(sample:Dictionary)->void:
 	if second!=null:Drainer.dispose_scene(second)
 	owner=null;material=null;meshes.clear();Drainer.dispose_result(packet);Library.evict_cached_scene(sample.path);Drainer.synchronize_transfer()
 
+# These are actual direct-path private scenes, but with malformed owner metadata.
+# The existing full collector must still free the scene in each case.
+func check_bad_direct_owner(sample:Dictionary)->void:
+	for which:String in ["missing", "mismatch"]:
+		var packet:Dictionary=await worker_result(Deferred._prepare_fixed_scene.bind(sample.path,sample.sha,null,sample.observation,true,directory,sample.observation.native_candidate,Deferred.CollisionGeometry.ALL,true,false))
+		var scene:Variant=packet.get("scene");var owner:Variant=packet.get("native_packet",{}).get("packed")
+		if not scene is Node or not owner is PackedScene:
+			check(false,"bad-owner fixture prepares private native scene");Drainer.dispose_result(packet);continue
+		var supplied:PackedScene=owner
+		if which=="missing":scene.remove_meta("_compiled_resource_owner")
+		else:
+			supplied=PackedScene.new();supplied.set_meta("compiled_asset_validated",true)
+		var fast:bool=Drainer.dispose_direct_native_scene(scene,supplied)
+		check(not fast and not is_instance_valid(scene),"invalid owner %s falls back and frees"%which)
+		scene=null;owner=null;supplied=null;Drainer.dispose_result(packet)
+
 func check_ready_cancellation(sample:Dictionary)->void:
 	Library.evict_cached_scene(sample.path);Drainer.synchronize_transfer()
 	var texture_cache=preload("res://scripts/world3d/model_texture_cache.gd");texture_cache._textures.clear()
@@ -138,7 +154,12 @@ func check_ready_cancellation(sample:Dictionary)->void:
 			meshes.clear();mat=null;plan=null
 			var node_ref:WeakRef=weakref(node);var owner_ref:WeakRef=weakref(original);node=null;original=null
 			check(queue._admission.reserved_bytes>=sample.footprint_bytes+12*1024*1024,"ready direct owner and plan remain fully charged")
+			var trace=preload("res://scripts/world3d/load_trace.gd")
+			var old_min:int=trace.minimum_event_us;var old_methods:bool=trace.methods_enabled;var old_labels:Dictionary=trace.method_labels
+			trace.minimum_event_us=0;trace.methods_enabled=true;trace.method_labels={"method.asset_worker_drainer.dispose_scene":true};trace.start()
 			queue._poll_jobs({});job={}
+			var cancelled_trace:Dictionary=trace.stop();trace.minimum_event_us=old_min;trace.methods_enabled=old_methods;trace.method_labels=old_labels
+			check(count_trace(cancelled_trace,"method.asset_worker_drainer.dispose_scene")>0 and count_trace(cancelled_trace,"asset_library.cache_dispose")==0,"ready cancellation uses existing scene disposal without acceptance")
 			for frame:int in 30:await process_frame
 			check(node_ref.get_ref()==null and owner_ref.get_ref()==null and queue._admission.reserved_bytes==0,"real ready cancellation clears owners and full lease")
 			check(plan_alias.is_empty() and material_ref!=null and material_ref.get_ref()==null and texture_ref!=null and texture_ref.get_ref()==null,"ready cancellation clears held plan alias and material/texture references")
@@ -183,12 +204,19 @@ func check_two_jobs(values:Array,direct:bool,with_plan:bool=true)->void:
 	for sample:Dictionary in values:Library.evict_cached_scene(sample.path)
 	Drainer.synchronize_transfer();Deferred.full_native_template_reuse_enabled=direct;Deferred.full_native_worker_prepack_enabled=direct;Deferred.full_native_material_plan_enabled=with_plan
 	var holder:=make_queue(values);var queue:DirectQueue=holder.queue;queue.flip_after_second=direct
-	var trace=preload("res://scripts/world3d/load_trace.gd");trace.start()
+	var trace=preload("res://scripts/world3d/load_trace.gd");var old_min:int=trace.minimum_event_us;trace.minimum_event_us=0;trace.start()
 	var deadline:=Time.get_ticks_msec()+30000
 	while Time.get_ticks_msec()<deadline and queue.error.is_empty():
 		if queue.dispatches.size()==2 and int(queue.profile.get("models",0))>=2:break
 		await process_frame
-	var observed:Dictionary=trace.stop()
+	var observed:Dictionary=trace.stop();trace.minimum_event_us=old_min
+	var disposal_count:=0;var observed_route_ok:bool=int(observed.get("dropped",0))==0
+	for event:Dictionary in observed.get("events",[]):
+		if event.get("label","")=="asset_library.cache_dispose":
+			disposal_count+=1
+			var details:Dictionary=event.get("details",{})
+			observed_route_ok=observed_route_ok and (details.get("owner_fast",false)==true if direct else not details.has("owner_fast"))
+	check(disposal_count==2 and observed_route_ok,"only actual accepted direct native jobs use owner-fast disposal")
 	check(queue.dispatches.size()==2 and int(queue.profile.get("models",0))>=2,"two real source-free model jobs accepted")
 	var dispatched:=queue.dispatches.size()==2
 	for d:Dictionary in queue.dispatches:dispatched=dispatched and d.direct==direct and d.plan==(direct and with_plan) and not d.prepack and d.stage=="fixed_native" and d.plan_bytes==(12*1024*1024 if direct and with_plan else 0)
@@ -243,6 +271,7 @@ func run()->void:
 	if samples.size()==2:
 		check_descriptor_gate(samples[0])
 		await check_direct_intern(samples[0])
+		await check_bad_direct_owner(samples[0])
 		await check_two_jobs(samples,false)
 		await check_ready_cancellation(samples[0])
 		await check_ready_fallback(samples[0],true)
