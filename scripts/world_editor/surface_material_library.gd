@@ -2,7 +2,6 @@ extends RefCounted
 const Paths = preload("res://scripts/world3d/map_paths.gd")
 const Paint = preload("res://scripts/world3d/surface_materials.gd")
 const Atomic = preload("res://scripts/world3d/atomic_file.gd")
-const LOOKUP_DIRECTORY_LIMIT := 256
 var directory: String
 var include_shared := true
 
@@ -27,17 +26,24 @@ static func _builtins() -> Array:
 		{"material_id": "builtin:checker", "material": {"name": "棋盘格 · 检查比例", "pattern": "checker", "color": [1, 1, 1, 1], "roughness": 0.9}}]
 
 func _collect(path: String, base: String, prefix: String, origin: String, result: Array, content_root: String, depth: int = 0) -> void:
-	if depth > 8 or result.size() >= 2048 or not Paths.allowed(path, content_root): return
-	var dir := DirAccess.open(path)
-	if dir == null: return
-	for file in dir.get_files():
-		var full := path.path_join(file)
-		if not file.ends_with(".json") or dir.is_link(file) or not Paths.allowed(full, content_root): continue
-		var entry := _read_entry(full, path, base, prefix, origin, content_root)
-		if not entry.is_empty(): result.append(entry)
-	for folder in dir.get_directories():
-		if folder.begins_with(".") or dir.is_link(folder): continue
-		_collect(path.path_join(folder), base, prefix, origin, result, content_root, depth + 1)
+	# Keep the existing depth-first order while avoiding recursive stack growth
+	# and never silently dropping later directories or deeply nested materials.
+	var pending:Array[String]=[path]
+	while not pending.is_empty():
+		var current:String=pending.pop_back()
+		if not Paths.allowed(current,content_root):continue
+		var dir:=DirAccess.open(current)
+		if dir==null:continue
+		for file:String in dir.get_files():
+			var full:=current.path_join(file)
+			if not file.ends_with(".json") or dir.is_link(file) or not Paths.allowed(full,content_root):continue
+			var entry:=_read_entry(full,current,base,prefix,origin,content_root)
+			if not entry.is_empty():result.append(entry)
+		var folders:=dir.get_directories()
+		for index in range(folders.size()-1,-1,-1):
+			var folder:String=folders[index]
+			if folder.begins_with(".") or dir.is_link(folder):continue
+			pending.append(current.path_join(folder))
 
 static func _read_entry(full: String, path: String, base: String, prefix: String, origin: String, content_root: String) -> Dictionary:
 	var value: Variant = JSON.parse_string(FileAccess.get_file_as_string(full))
@@ -102,9 +108,8 @@ func _find_many_entries(ids: Array) -> Dictionary:
 	return result
 
 func _lookup_candidates(ids: Array, content_root: String) -> Dictionary:
-	# Count every .json name, including invalid descriptors, as an upper bound
-	# on valid entries. Below 2048 (including builtins), the catalog's per-
-	# directory cap cannot skip a branch. Otherwise use the original traversal.
+	# Count every JSON name for diagnostics. Listing has no material-count or
+	# depth cap, so those values cannot turn a valid requested ID into a miss.
 	var state := {"complete":true, "count":2, "directories":0, "paths":[]}
 	_candidate_paths(directory, directory, "", "导入材质", ids, content_root, state)
 	if include_shared and state.complete:
@@ -116,25 +121,25 @@ func _lookup_candidates(ids: Array, content_root: String) -> Dictionary:
 	return state
 
 func _candidate_paths(path: String, base: String, prefix: String, origin: String, ids: Array, content_root: String, state: Dictionary, depth: int = 0) -> void:
-	if not state.complete or depth > 8 or not Paths.allowed(path, content_root): return
-	var dir := DirAccess.open(path)
-	if dir == null: return
-	state.directories += 1
-	if state.directories > LOOKUP_DIRECTORY_LIMIT:
-		state.complete = false; return
-	for file in dir.get_files():
-		if not file.ends_with(".json"): continue
-		state.count += 1
-		if state.count >= 2048:
-			state.complete = false; return
-		var full := path.path_join(file)
-		var relative := full.replace("\\", "/").trim_prefix(base.replace("\\", "/").trim_suffix("/") + "/").get_basename()
-		if prefix + relative in ids and not dir.is_link(file):
-			state.paths.append({"id":prefix + relative,"full":full,"path":path,"base":base,"prefix":prefix,"origin":origin})
-	for folder in dir.get_directories():
-		if not state.complete: return
-		if folder.begins_with(".") or dir.is_link(folder): continue
-		_candidate_paths(path.path_join(folder), base, prefix, origin, ids, content_root, state, depth + 1)
+	var pending:Array[String]=[path]
+	while not pending.is_empty() and state.complete:
+		var current:String=pending.pop_back()
+		if not Paths.allowed(current,content_root):continue
+		var dir:=DirAccess.open(current)
+		if dir==null:continue
+		state.directories+=1
+		for file:String in dir.get_files():
+			if not file.ends_with(".json"):continue
+			state.count+=1
+			var full:=current.path_join(file)
+			var relative:=full.replace("\\","/").trim_prefix(base.replace("\\","/").trim_suffix("/")+"/").get_basename()
+			if prefix+relative in ids and not dir.is_link(file):
+				state.paths.append({"id":prefix+relative,"full":full,"path":current,"base":base,"prefix":prefix,"origin":origin})
+		var folders:=dir.get_directories()
+		for index in range(folders.size()-1,-1,-1):
+			var folder:String=folders[index]
+			if folder.begins_with(".") or dir.is_link(folder):continue
+			pending.append(current.path_join(folder))
 
 func import_texture(path: String, label: String = "") -> Dictionary:
 	if not Paths.allowed(path) or path.get_extension().to_lower() not in ["png", "jpg", "jpeg", "webp"] or not FileAccess.file_exists(path): return Paint.fail("请选择内容目录内的 PNG / JPEG / WebP 贴图")

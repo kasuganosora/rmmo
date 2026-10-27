@@ -85,7 +85,9 @@ func run()->void:
 	var deep:="a/b/c/d/e/f/g/h/"
 	write(library.directory.path_join(deep+"accepted.json"),{"material":kerb})
 	write(library.directory.path_join(deep+"i/rejected.json"),{"material":kerb})
-	compare([".hidden/ignored",deep+"accepted",deep+"i/rejected","../kerb","kerb.json","KERB"],"depth hidden traversal extension case")
+	var depth_ids:=[".hidden/ignored",deep+"accepted",deep+"i/rejected","../kerb","kerb.json","KERB"]
+	var deep_found:=library.find_many(depth_ids)
+	check(deep_found.size()==2 and deep_found.has(deep+"accepted") and deep_found.has(deep+"i/rejected"),"deep entries remain visible while hidden and invalid IDs stay excluded")
 	var pack:=directory.path_join("packs/default");write(pack.path_join("metadata.json"),{"id":"default","name":"default"})
 	write(pack.path_join("assets/materials/nested/material.json"),{"material":material("shared")})
 	var second:=directory.path_join("default");write(second.path_join("metadata.json"),{"id":"default","name":"default"})
@@ -121,13 +123,13 @@ func run()->void:
 		check(OS.execute("powershell.exe",["-NoProfile","-NonInteractive","-Command","[IO.Directory]::Delete('%s')"%linked.replace("'","''")],output,true,false)==0,"unlink only temporary junction non-recursively")
 	var snapshot:=Snapshot.new();snapshot.rows=[{"material_id":"same","material":pavement},{"material_id":"same","material":kerb}]
 	check(snapshot.find_many(["same"]).same==pavement and snapshot.scans==1,"virtual catalogs and first duplicate remain supported")
-	# Boundary fixture: entries stops before descending after 2048 valid rows,
-	# including two builtins; it does not truncate the last directory mid-loop.
+	# Boundary fixture: old listing silently skipped the later directory after
+	# 2048 valid rows. All valid IDs must remain available to both consumers.
 	library.directory=directory.path_join("cap");baseline.directory=library.directory
 	for i in 2046:write(library.directory.path_join("%04d.json"%i),{"material":kerb})
 	write(library.directory.path_join("later/hidden.json"),{"material":pavement})
-	var capped:=compare(["2045","later/hidden","builtin:white"],"catalog cap")
-	check(capped.has("2045") and not capped.has("later/hidden"),"catalog cap excludes later directory exactly as before")
+	var uncapped:=library.find_many(["2045","later/hidden","builtin:white"])
+	check(uncapped.has("2045") and uncapped.has("later/hidden") and uncapped.has("builtin:white"),"all catalog entries remain visible beyond the old cap")
 	await extra_cases()
 	manager.content_root_override=original
 	var failures:=checks.filter(func(c):return not c.ok).size()
@@ -136,9 +138,8 @@ func run()->void:
 
 func extra_cases()->void:
 	var bounded:=library._lookup_candidates(["2045","later/hidden"],directory)
-	check(not bounded.complete and bounded.count==2048,"candidate upper bound reaches cap and explicitly falls back")
-	# Many invalid descriptors must not hide a later valid descriptor: the
-	# upper-bound fallback counts real valid entries using the old collector.
+	check(bounded.complete and bounded.count==2049 and bounded.paths.size()==2,"targeted lookup covers all candidates beyond the old cap")
+	# Many invalid descriptors must not hide a later valid descriptor.
 	library.directory=directory.path_join("invalid_cap");baseline.directory=library.directory
 	for i in 2046:write(library.directory.path_join("%04d.json"%i),{"material":{"name":"invalid"}})
 	write(library.directory.path_join("later/valid.json"),{"material":material()})
@@ -146,7 +147,7 @@ func extra_cases()->void:
 	library.directory=directory.path_join("wide");baseline.directory=library.directory
 	for i in 257:DirAccess.make_dir_recursive_absolute(library.directory.path_join("d%03d"%i))
 	write(library.directory.path_join("d256/valid.json"),{"material":material()})
-	check(not library._lookup_candidates(["d256/valid"],directory).complete,"directory traversal budget explicitly falls back")
+	check(library._lookup_candidates(["d256/valid"],directory).complete,"targeted lookup completes beyond 256 directories")
 	check(compare(["d256/valid"],"wide catalog fallback").has("d256/valid"),"fallback resolves beyond speculative directory budget")
 	library.directory=directory.path_join("small");baseline.directory=library.directory
 	for i in 25:write(library.directory.path_join("unused_%02d.json"%i),{"material":material("unused")})
