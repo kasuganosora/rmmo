@@ -98,7 +98,7 @@ func run(paths: Array, parser: Callable = Callable(), worker_limit: int = 2, thr
 		estimates[path]=estimate.duplicate()
 		legacy_estimates[path]=estimate.duplicate()
 		if native_route and (candidate_provider.is_valid() or not cache_reader.is_valid()):
-			var candidate:Dictionary=candidate_provider.call(path) if candidate_provider.is_valid() else preload("res://scripts/world3d/compiled_asset_footprint.gd").candidate(path,content_root,str(verified_sources.get(path,"")))
+			var candidate:Dictionary=candidate_provider.call(path) if candidate_provider.is_valid() else preload("res://scripts/world3d/compiled_asset_footprint.gd").candidate(path,content_root,str(verified_sources.get(path,"")),preload("res://scripts/world3d/runtime_package_policy.gd").trusted())
 			if not candidate.is_empty() and candidate.get("estimated_bytes") is int and candidate.estimated_bytes>0 and candidate.get("exclusive") is bool:
 				# Source cleanup can shrink the raw envelope without changing the
 				# native pixels or loader working set. A known native bound applies

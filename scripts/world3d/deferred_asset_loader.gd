@@ -3486,7 +3486,7 @@ func _retire_failed_jobs()->void:
 func _candidate_for_job(path:String,root:String,digest:String)->Dictionary:
 	var cached:Dictionary=_native_candidates.get(path,{})
 	if not cached.is_empty() and cached.digest==digest:return cached.value
-	var value:Dictionary=preload("res://scripts/world3d/compiled_asset_footprint.gd").candidate(path,root,digest)
+	var value:Dictionary=preload("res://scripts/world3d/compiled_asset_footprint.gd").candidate(path,root,digest,preload("res://scripts/world3d/runtime_package_policy.gd").trusted())
 	_native_candidates[path]={"digest":digest,"value":value.duplicate(true)}
 	profile.native_candidate_lookups=int(profile.get("native_candidate_lookups",0))+1
 	return value

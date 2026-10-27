@@ -1,12 +1,14 @@
 extends RefCounted
-## Offline native-resource accounting. A candidate is a budget, never permission
-## to deserialize: its consumer must verify payload SHA/closure/type and final
-## source SHA, and must not fall back to GLTF inside the smaller reservation.
+## Offline native-resource accounting. Runtime trusts the package's published
+## identity and budget; explicit audits can still check source and generators.
+## Never fall back to GLTF inside a smaller native reservation.
 const Compiled = preload("res://scripts/world3d/compiled_asset_cache.gd")
 const Preparation = preload("res://scripts/world3d/compiled_asset_preparation.gd")
 const Paths = preload("res://scripts/world3d/map_paths.gd")
 const Atomic = preload("res://scripts/world3d/atomic_file.gd")
 const Drainer = preload("res://scripts/world3d/asset_worker_drainer.gd")
+# Serialized accounting contract. Incompatible estimate/format changes must
+# bump this revision and republish; runtime reader edits are not format changes.
 const VERSION := 1
 const FLOOR_BYTES := 64 * 1024 * 1024
 const EXCLUSIVE_BYTES := 4 * 1024 * 1024 * 1024
@@ -24,46 +26,61 @@ static func generator() -> String:
 	# This invalidates only footprints, never an existing native product.
 	return (str(VERSION) + ":" + FileAccess.get_sha256("res://scripts/world3d/compiled_asset_footprint.gd")).sha256_text()
 
-static func candidate(path: String, content_root: String, expected_source: String = "") -> Dictionary:
+static func candidate(path: String, content_root: String, expected_source: String = "", trusted_package: bool = false, expected_product_generator: String = "") -> Dictionary:
 	# White native packets also own exact CPU arrays; keep the full existing raw
 	# envelope until a separate footprint is measured. Never borrow textured data.
 	if preload("res://scripts/world3d/white_native_asset_cache.gd").active():return {}
 	if content_root.is_empty() or not Compiled.enabled: return {}
 	if not expected_source.is_empty() and not Compiled._sha(expected_source): return {}
-	var identity := _identity(path, content_root)
+	var identity := _identity(path, content_root, trusted_package, expected_product_generator)
 	if identity.is_empty() or (not expected_source.is_empty() and identity.source_sha != expected_source): return {}
 	var filename := descriptor_path(path, content_root)
 	if not Paths.allowed(filename, directory(content_root)): return {}
 	var envelope := _read_json(filename, MAX_DESCRIPTOR_BYTES)
 	var body: Variant = envelope.get("body")
-	if envelope.get("version") != VERSION or not body is String or not Compiled._sha(envelope.get("sha256")): return {}
-	if body.sha256_text() != envelope.sha256: return {}
+	if envelope.get("version") != VERSION or not body is String: return {}
+	if not trusted_package and (not Compiled._sha(envelope.get("sha256")) or body.sha256_text() != envelope.sha256): return {}
 	var descriptor: Variant = JSON.parse_string(body)
-	if not descriptor is Dictionary or descriptor.get("version") != VERSION or descriptor.get("footprint_generator") != generator(): return {}
-	for key in ["source_path", "source_sha", "payload_sha", "generator", "bytes", "source_bytes"]:
+	if not descriptor is Dictionary or descriptor.get("version") != VERSION: return {}
+	if not trusted_package and descriptor.get("footprint_generator") != generator(): return {}
+	for key in ["source_path", "source_sha", "payload_sha", "generator", "bytes"]:
 		if descriptor.get(key) != identity[key]: return {}
-	var stats: Variant = descriptor.get("stats")
-	if not stats is Dictionary: return {}
-	var estimate := estimate_stats(stats)
-	if estimate.is_empty() or descriptor.get("estimated_bytes") != estimate.estimated_bytes or descriptor.get("resident_bytes") != estimate.resident_bytes: return {}
+	var estimate:Dictionary
+	if trusted_package:
+		# These are offline decoded-resource bounds, never compressed file size.
+		# Reader edits and instrumentation do not invalidate published accounting.
+		if not _integer(descriptor.get("estimated_bytes"), MAX_BYTES, 1) or descriptor.get("resident_bytes") != descriptor.estimated_bytes: return {}
+		var amount:int=int(descriptor.estimated_bytes)
+		estimate={"estimated_bytes":amount,"resident_bytes":amount,"exclusive":amount>EXCLUSIVE_BYTES}
+	else:
+		if descriptor.get("source_bytes") != identity.source_bytes: return {}
+		var stats: Variant = descriptor.get("stats")
+		if not stats is Dictionary: return {}
+		estimate=estimate_stats(stats)
+		if estimate.is_empty() or descriptor.get("estimated_bytes") != estimate.estimated_bytes or descriptor.get("resident_bytes") != estimate.resident_bytes: return {}
 	# Freeze the exact product identity. Do not derive it from another manifest
 	# read later, and do not mistake these unhashed source bytes for verification.
 	identity.merge(estimate)
 	identity.erase("source_bytes")
 	return identity
 
-static func _identity(path: String, content_root: String) -> Dictionary:
+static func _identity(path: String, content_root: String, trusted_package:bool=false, expected_product_generator:String="") -> Dictionary:
 	path = _path(path)
-	if content_root.is_empty() or not Paths.allowed(path, content_root): return {}
-	var source := FileAccess.open(path, FileAccess.READ)
-	if source == null: return {}
-	var source_bytes := source.get_length(); source.close()
+	if content_root.is_empty(): return {}
+	if not (Paths.asset_key_allowed(path,content_root) if trusted_package else Paths.allowed(path,content_root)): return {}
+	var source_bytes:=-1
+	if not trusted_package:
+		var source := FileAccess.open(path, FileAccess.READ)
+		if source == null: return {}
+		source_bytes=source.get_length(); source.close()
 	var folder := Compiled.directory(content_root)
 	if not Paths.allowed(folder, content_root): return {}
 	var index := Compiled.index_path(path, content_root)
 	if not Paths.allowed(index, folder): return {}
 	var manifest := _read_json(index, 8192)
-	if manifest.get("version") != Compiled.VERSION or manifest.get("generator") != Compiled.generator(): return {}
+	if manifest.get("version") != Compiled.VERSION or not manifest.get("generator") is String: return {}
+	if not trusted_package and manifest.generator != Compiled.generator(): return {}
+	if not expected_product_generator.is_empty() and manifest.generator != expected_product_generator: return {}
 	if not Compiled._sha(manifest.get("source_sha")) or not Compiled._sha(manifest.get("payload_sha")) or not _integer(manifest.get("bytes"), Compiled.MAX_FILE_BYTES, 1): return {}
 	var product := folder.path_join(manifest.payload_sha + ".scn")
 	if not Paths.allowed(product, folder): return {}

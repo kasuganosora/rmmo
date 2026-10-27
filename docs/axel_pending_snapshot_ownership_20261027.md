@@ -21,3 +21,5 @@ game_pipeline、white_streaming、region_loading 的 check-only 通过；region 
 ## 任务边界
 
 本项解决实际缓存复用未触发，不能从初始 full-ready 的四个数推断初始加载因果收益，尤其缓存命中发生在初始完整就绪之后时。当前地图/预制件纹理路线仍不等于导入模型完整材质或真实玩家体验。目标保持进行中：完整材质关键路径优化后，继续适配和优化内容编辑器与当前 3D MCP，保留导入、撤销、保存重开和派生资源更新语义。
+
+后续完整材质 reader 的生产精简、编辑器回归、真实产品 GPU 对照与 A/B/B/A 微测见 `axel_trusted_native_material_reader_20261027.md`；其中仍明确保留完整材质游戏入口尚有 GLB 依赖的边界。

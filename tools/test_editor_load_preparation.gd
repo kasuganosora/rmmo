@@ -232,7 +232,9 @@ func run()->void:
 	check(drainer.drained>before and ledger.count()==0,"tree-owned drainer joins then releases abandoned result and lease")
 
 	queue=make_queue();queue.enqueue("budget",packet.bind("budget"),{"estimated_bytes":1,"exclusive":false})
-	Budget.enabled=true;Budget.shared().record(Engine.get_process_frames(),"publication",7000);queue.pump()
+	# This queue requests the covered publication budget. Exhaust the actual
+	# current covered limit rather than a stale interactive-budget constant.
+	Budget.enabled=true;Budget.shared().record(Engine.get_process_frames(),"publication",Budget.shared().covered_budget_usec);queue.pump()
 	check(queue.rows.budget.state=="pending","spent frame budget postpones dispatch without changing readiness")
 	queue.cancel();check(queue.cancelled and queue.ledger.count()==0,"budget denial cannot prevent cancellation")
 	Budget.enabled=false;queue.free()
@@ -250,9 +252,12 @@ func run()->void:
 	job._begin_asset_lookahead(records)
 	check(job._preparation.order.size()==1 and job._texture_tasks.size()==1,"texture lookahead deduplicates repeated authored references")
 	var prepared:Dictionary=await job._prepare_record_textures(records[0])
-	var key:String=filename+"|flip_y"
+	var key:String=preload("res://scripts/world3d/surface_materials.gd").texture_key(filename,true,true)
 	check(prepared.failed.is_empty() and prepared.images.has(key) and absf(prepared.images[key].get_pixel(0,0).g-.75)<.01,"bounded CPU preparation retains normal orientation and source pixels")
-	check(prepared.images[key].get_meta("runtime_source_sha256")==FileAccess.get_sha256(filename),"prefetched image carries source SHA proof")
+	# Trusted package identity is path-derived; only explicit strict mode hashes
+	# file contents. Neither identity alone proves mutable-editor invalidation.
+	var expected_identity:=filename.sha256_text() if preload("res://scripts/world3d/runtime_package_policy.gd").trusted() else FileAccess.get_sha256(filename)
+	check(prepared.images.has(key) and prepared.images[key].get_meta("runtime_source_sha256")==expected_identity,"prefetched image carries the configured source identity")
 	job._preparation.release(prepared.queue_key)
 	# Deliberately do not install an ImageTexture: equivalent to an LRU miss,
 	# and keeps this fixture independent of GPU/RenderingServer textures.

@@ -39,6 +39,7 @@ var _thread: Thread
 var _validation:RefCounted
 var _asset_paths: Array[String]=[]
 var _model_candidates:Dictionary={}
+var _product_generator_snapshot:=""
 var _cached_asset_candidates:Dictionary={}
 var _verified_asset_versions:Dictionary={}
 var _preparation:Node
@@ -331,11 +332,11 @@ static func _parse_asset(value:String,content_root:String="")->Dictionary:
 	parsed.elapsed_us=Time.get_ticks_usec()-started
 	return parsed
 
-static func _parse_native_asset(value:String,content_root:String,candidate:Dictionary)->Dictionary:
+static func _parse_native_asset(value:String,content_root:String,candidate:Dictionary,product_generator:String="")->Dictionary:
 	# This reader binds the exact product behind the admitted footprint and has
 	# no raw fallback. Package identity replaces repeated source authentication.
 	var started:=preload("res://scripts/world3d/load_trace.gd").begin("editor.model_parse")
-	var parsed:=NativePreparation.read(value,candidate,content_root,Callable(),preload("res://scripts/world3d/runtime_package_policy.gd").trusted())
+	var parsed:=NativePreparation.read(value,candidate,content_root,Callable(),preload("res://scripts/world3d/runtime_package_policy.gd").trusted(),true,product_generator)
 	preload("res://scripts/world3d/load_trace.gd").elapsed("editor.model_parse",started,{"path":value,"stage":"compiled_read"})
 	return parsed
 
@@ -400,6 +401,10 @@ func _prepare_terrain(records:Array)->RefCounted:
 	report("build",0,records.size())
 	return prepared.context
 
+func _editor_product_generator()->String:
+	if _product_generator_snapshot.is_empty():_product_generator_snapshot=NativePreparation.Compiled.generator()
+	return _product_generator_snapshot
+
 func _begin_asset_lookahead(records:Array)->void:
 	_clear_asset_lookahead()
 	_preparation=PreparationQueue.new();_preparation.worker_limit=clampi(preparation_worker_limit,1,4) if parallel_preparation_enabled else 1
@@ -438,14 +443,14 @@ func _begin_asset_lookahead(records:Array)->void:
 				# The candidate route only loads this exact native product; any raw
 				# fallback is retired and re-admitted separately on main.
 				var estimate:=MemoryEstimate.estimate(value)
-				var native:=NativeFootprint.candidate(value,root_)
+				var native:=NativeFootprint.candidate(value,root_,"",preload("res://scripts/world3d/runtime_package_policy.gd").trusted(),_editor_product_generator())
 				if not native.is_empty():estimate.estimated_bytes=maxi(estimate.estimated_bytes,native.estimated_bytes);estimate.exclusive=estimate.exclusive or native.exclusive
 				legacy_bytes+=int(estimate.estimated_bytes)
 				if native_model_footprints_enabled and not native.is_empty():
 					_model_candidates[value]=native.duplicate(true)
 					var native_estimate:={"estimated_bytes":int(native.estimated_bytes),"exclusive":bool(native.exclusive),"stage":"compiled_read"}
 					native_bytes+=native_estimate.estimated_bytes
-					_preparation.enqueue("model:"+value,_parse_native_asset.bind(value,root_,native),native_estimate,"model")
+					_preparation.enqueue("model:"+value,_parse_native_asset.bind(value,root_,native,_product_generator_snapshot),native_estimate,"model")
 				else:
 					native_bytes+=int(estimate.estimated_bytes)
 					estimate.stage="legacy_model"
@@ -490,7 +495,7 @@ func _cached_result_matches(asset_path:String,packet:Dictionary)->bool:
 func _retry_cached_asset(queue:Node,key:String,asset_path:String)->bool:
 	var root_:=Paths.external_root()
 	var estimate:=MemoryEstimate.estimate(asset_path)
-	var candidate:=NativeFootprint.candidate(asset_path,root_)
+	var candidate:=NativeFootprint.candidate(asset_path,root_,"",preload("res://scripts/world3d/runtime_package_policy.gd").trusted(),_editor_product_generator())
 	if not candidate.is_empty():estimate.estimated_bytes=maxi(estimate.estimated_bytes,candidate.estimated_bytes);estimate.exclusive=estimate.exclusive or candidate.exclusive
 	var task:=_parse_asset.bind(asset_path,root_)
 	estimate.stage="legacy_model"
@@ -498,7 +503,7 @@ func _retry_cached_asset(queue:Node,key:String,asset_path:String)->bool:
 	if native_model_footprints_enabled and not candidate.is_empty():
 		_model_candidates[asset_path]=candidate.duplicate(true)
 		estimate={"estimated_bytes":int(candidate.estimated_bytes),"exclusive":bool(candidate.exclusive),"stage":"compiled_read"}
-		task=_parse_native_asset.bind(asset_path,root_,candidate)
+		task=_parse_native_asset.bind(asset_path,root_,candidate,_product_generator_snapshot)
 	return queue.retry_cached_model(key,task,estimate)
 
 func _can_reside_native(key:String,packet:Dictionary)->bool:
@@ -526,7 +531,7 @@ func _clear_asset_lookahead()->void:
 	if is_instance_valid(_preparation):
 		_timings.preparation=_preparation.snapshot()
 		_preparation.cancel();_preparation.queue_free()
-	_preparation=null;_asset_paths.clear();_model_candidates.clear();_cached_asset_candidates.clear();_verified_asset_versions.clear();_texture_tasks.clear();_texture_requests.clear();_texture_retry=0
+	_preparation=null;_product_generator_snapshot="";_asset_paths.clear();_model_candidates.clear();_cached_asset_candidates.clear();_verified_asset_versions.clear();_texture_tasks.clear();_texture_requests.clear();_texture_retry=0
 	if is_instance_valid(_model_ownership):_timings.published_models=_model_ownership.report()
 
 func _operation_current(operation:int)->bool:return is_inside_tree() and operation==_serial
