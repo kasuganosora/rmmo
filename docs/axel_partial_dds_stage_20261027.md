@@ -9,3 +9,7 @@
 `tools/stage_map_dds_sidecars.py` 是Windows限定的离线包外候选生成工具：依据 `audit_map_dds_sidecars.gd` 的source、normal role、DirectX flip声明去重，同SHA同角色共用一个编码结果。输入真实资源包只读，输出新建外部stage；已有首选侧车分 header_usable/selected_unusable 且不覆盖，前者不证明新鲜度。完成时核对产物字节/SHA并最后创建COMPLETE；失败保留无COMPLETE的外部目录，不删除不确定身份的文件。句柄及路径边界、源与工具变化、角色/翻转/现有文件、失败及并发替换由 `stage_cleanup_green12.log` 20/20覆盖，独立只读复审无新确定性阻断。该工具没有发布功能，离线阶段一致性检查不等于游戏启动时再认证资源。
 
 `actual_dds_audit41.json`：2369记录、1065唯一定义、85个声明纹理变体，其中11个无侧车（8色、2 OpenGL normal、1翻转normal）；范围仅地图/预制件paint，不包含导入模型材质。包外 `actual_dds_stage42/` 依据清单生成11个目标映射/6个共享候选blob，74首选header可用，COMPLETE存在、六个blob SHA复核通过；正式资源包未写。若未来接入，需要先验证实际shader/场景视觉与alpha/normal、资源代际、游戏与编辑器读写，不能将本stage或数值误差当完整画质/性能验收。
+
+## 屋顶法线临时视觉对照
+
+`actual_normal_visual43/` 使用外部复制的原始屋顶albedo、roughness和normal，以及与stage42 SHA相同的BC5，在私有桌面用同一平面网格、StandardMaterial3D、UV、normal_strength=1、相同相机/光照/曝光比较近中远与掠射光；实际绑定PNG RGBA8和BC5 RGTC_RG，均完整10级mipmap，输入前后SHA不变。没有修改正式地图或模型。无损本地像素RGB绝对差均值近/中/远/掠射1.816/2.227/1.729/2.675（0–255），各p99为20/20/8/18，不等于可感知损失。近景和掠射光查看有损WebP quality=90副本，整体瓦片形状、颜色与明暗相近，局部受光与细纹有细微差异。全部原始截图、本地无损对比、Q90 WebP/参数及SHA见 `visual_comparison.json`、`capture_report.json` 与各 `.review-image.json`。该隔离平面不构成实际建筑、所有材质或整图画质验收，也不改变候选未发布状态。
