@@ -157,7 +157,7 @@ func tick_geometry()->void:
 	Stream.sync(mesh_map,current_scene,position,Stream.FRAME_BUDGET)
 	var elapsed:=Time.get_ticks_usec()-start
 	var tick_us:=Time.get_ticks_usec()-tick_begin
-	if tick_us>20000:
+	if tick_us>20000 and Stream._slow_log_enabled(mesh_map):
 		print("WHITE_TICK_SLOW at=",(Time.get_ticks_usec()-began)/1000.," total_us=",tick_us," prioritize_us=",prioritize_us," ensure_us=",ensure_us," stream_us=",elapsed," cursor=",mesh_map.get_meta("stream_cursor",0)," jobs=",mesh_map.get_meta("stream_jobs",[]).size())
 	if not current_scene.has_meta("profile_unshared_stream_budget"):
 		var batcher:Node=mesh_map.get_node_or_null("GroundRenderBatches")

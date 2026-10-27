@@ -580,6 +580,10 @@ func run_mesh_only(spawn:Vector3)->void:
 			if deferred!=null:deferred._texture_plan_catalog.header_reader=_delayed_prefab_header.bind(delay_ms)
 			report.controls.prefab_header_delay_ms=delay_ms
 	mesh_map.set_meta("profile_frame",true)
+	# Diagnostic A/B: suppress only slow print calls, retaining profile_frame and
+	# its profiling branches. Production maps never receive this flag here.
+	if "--suppress-sync-slow-logs" in OS.get_cmdline_user_args():mesh_map.set_meta("suppress_stream_slow_logs",true)
+	report.sync_slow_logs_suppressed=bool(mesh_map.get_meta("suppress_stream_slow_logs",false))
 	if white_material:
 		# Unshaded debug draw still runs custom spatial shaders. This separate
 		# control removes material/shader rendering while preserving every mesh,

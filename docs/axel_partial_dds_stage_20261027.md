@@ -13,3 +13,9 @@
 ## 屋顶法线临时视觉对照
 
 `actual_normal_visual43/` 使用外部复制的原始屋顶albedo、roughness和normal，以及与stage42 SHA相同的BC5，在私有桌面用同一平面网格、StandardMaterial3D、UV、normal_strength=1、相同相机/光照/曝光比较近中远与掠射光；实际绑定PNG RGBA8和BC5 RGTC_RG，均完整10级mipmap，输入前后SHA不变。没有修改正式地图或模型。无损本地像素RGB绝对差均值近/中/远/掠射1.816/2.227/1.729/2.675（0–255），各p99为20/20/8/18，不等于可感知损失。近景和掠射光查看有损WebP quality=90副本，整体瓦片形状、颜色与明暗相近，局部受光与细纹有细微差异。全部原始截图、本地无损对比、Q90 WebP/参数及SHA见 `visual_comparison.json`、`capture_report.json` 与各 `.review-image.json`。该隔离平面不构成实际建筑、所有材质或整图画质验收，也不改变候选未发布状态。
+
+## 其余五种候选的临时材质对照
+
+`actual_remaining_visual44/` 对4种BC1（亚麻、屋顶albedo、屋顶roughness、土灰墙）和1种BC5 DirectX normal，在外部临时目录逐字段比较，其他纹理、相机、几何、UV、灯光与曝光保持相同。GPU 11个材质绑定、44帧无失败；实际四BC1为格式17、BC5为格式21，输入与候选SHA在运行结束不变，四个color源本身RGB/候选alpha=255、该测试使用的材质透明模式disabled。屋顶roughness按真实RED通道比，base mip误差均值1.99/255、p95 6；DirectX normal实际绿通道翻转一次，包含未翻转对照，角误差p95 9.16°、p99 18.14°，非美术阈值。
+
+不同视距屏幕RGB平均/95分位差：亚麻近景1.15/3、屋顶albedo中景5.08/18、屋顶roughness掠射0.24/1、墙面近景0.97/3、石板normal掠射2.21/6（0–255）。我查看了同尺寸有损WebP quality=90的屋顶颜色中景和掠射光，整体结构相近但局部颜色及细节有差异；布料在测试曝光/UV下太淡，尚不能判断布纹损失。原始无损图仅作本地像素分析，WebP参数、SHA、输入/实际绑定在 `visual_comparison.json`、`capture_report.json`、各图 `.review-image.json`。此隔离平面不是实际建筑、其他角色或整图验收，不发布候选。

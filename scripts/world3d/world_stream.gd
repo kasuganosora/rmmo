@@ -255,7 +255,7 @@ static func _sync_work(map_root:Node,host:Node,origin:Vector3,budget:int,deadlin
 	if detailed:map_root.get_meta("stream_plan_detail")["call_ms"]=(Time.get_ticks_usec()-plan_call_started)/1000.
 	if not plan_ready:
 		if detailed:map_root.set_meta("stream_phase_timing",{"frame":Engine.get_process_frames(),"phase":"planning","index_ms":(plan_started-sync_started)/1000.,"plan_ms":(Time.get_ticks_usec()-plan_started)/1000.,"plan_detail":map_root.get_meta("stream_plan_detail")})
-		if map_root.has_meta("profile_frame") and Time.get_ticks_usec()-sync_started>10000:print("STREAM_PLAN_SLOW ",{"index":(plan_started-sync_started)/1000.0,"plan":(Time.get_ticks_usec()-plan_started)/1000.0})
+		if map_root.has_meta("profile_frame") and Time.get_ticks_usec()-sync_started>10000 and _slow_log_enabled(map_root):print("STREAM_PLAN_SLOW ",{"index":(plan_started-sync_started)/1000.0,"plan":(Time.get_ticks_usec()-plan_started)/1000.0})
 		if budget>=LOAD_BUDGET:_profile_load(map_root,{"index":plan_started-sync_started,"plan":Time.get_ticks_usec()-plan_started})
 		return
 	if planned_work and deadline>0 and Time.get_ticks_usec()>=deadline:return
@@ -326,7 +326,7 @@ static func _sync_work(map_root:Node,host:Node,origin:Vector3,budget:int,deadlin
 		if wrapper_stamps!=null:wrapper_stamps[7]=Time.get_ticks_usec()
 		# Detailed runs retain absolute endpoints instead of synchronously printing
 		# inside the interval whose unexplained tail is being investigated.
-		if not detailed and map_root.has_meta("profile_frame") and Time.get_ticks_usec()-prepare_started>10000:
+		if not detailed and map_root.has_meta("profile_frame") and Time.get_ticks_usec()-prepare_started>10000 and _slow_log_enabled(map_root):
 			print("COLLISION_PREP_SLOW ",jobs[cursor].uuid," ",(Time.get_ticks_usec()-prepare_started)/1000.0," ",map_root.get_meta("collision_prepare_timing",{}) if map_root.get_meta("profile_collision_details",false) else {})
 		var apply_index:=cursor
 		if not collision_ready:
@@ -363,7 +363,7 @@ static func _sync_work(map_root:Node,host:Node,origin:Vector3,budget:int,deadlin
 		if map_root.has_meta("stream_job_catalog"):
 			var catalog:Dictionary=map_root.get_meta("stream_job_catalog")
 			catalog.ids.erase(jobs[cursor].uuid);catalog.cursor=cursor+1
-		if map_root.has_meta("profile_frame") and Time.get_ticks_usec()-item_started>10000:print("STREAM_SLOW ",jobs[cursor].uuid," ",(Time.get_ticks_usec()-item_started)/1000.0," ms ",jobs[cursor].get("profile_body",{}))
+		if map_root.has_meta("profile_frame") and Time.get_ticks_usec()-item_started>10000 and _slow_log_enabled(map_root):print("STREAM_SLOW ",jobs[cursor].uuid," ",(Time.get_ticks_usec()-item_started)/1000.0," ms ",jobs[cursor].get("profile_body",{}))
 		cursor += 1
 		left -= 1
 		var item_us:=Time.get_ticks_usec()-item_started
@@ -425,7 +425,7 @@ static func _sync_work(map_root:Node,host:Node,origin:Vector3,budget:int,deadlin
 		fort_sync_ms=collision_batches.last_sync_ms
 		map_root.remove_meta("stream_fortification_collision_dirty")
 	if detailed:map_root.set_meta("stream_phase_timing",{"frame":Engine.get_process_frames(),"phase":"apply","index_ms":(plan_started-sync_started)/1000.,"plan_ms":(apply_started-plan_started)/1000.,"plan_detail":map_root.get_meta("stream_plan_detail"),"apply_ms":(batch_started-apply_started)/1000.,"batch_ms":(Time.get_ticks_usec()-batch_started)/1000.,"fort_ms":fort_sync_ms})
-	if map_root.has_meta("profile_frame") and Time.get_ticks_usec()-sync_started>10000:print("STREAM_PHASES ",{"index":(plan_started-sync_started)/1000.0,"plan":(apply_started-plan_started)/1000.0,"apply":(batch_started-apply_started)/1000.0,"batch":(Time.get_ticks_usec()-batch_started)/1000.0,"fort":fort_sync_ms})
+	if map_root.has_meta("profile_frame") and Time.get_ticks_usec()-sync_started>10000 and _slow_log_enabled(map_root):print("STREAM_PHASES ",{"index":(plan_started-sync_started)/1000.0,"plan":(apply_started-plan_started)/1000.0,"apply":(batch_started-apply_started)/1000.0,"batch":(Time.get_ticks_usec()-batch_started)/1000.0,"fort":fort_sync_ms})
 	map_root.set_meta(&"stream_library", library)
 	map_root.set_meta(&"stream_children", map_root.get_child_count(true))
 	if budget<=0:map_root.set_meta("stream_profile_ms",{"index":(plan_started-sync_started)/1000.0,"plan":(apply_started-plan_started)/1000.0,"apply":(batch_started-apply_started)/1000.0,"batch":(Time.get_ticks_usec()-batch_started)/1000.0})
@@ -1672,7 +1672,7 @@ static func _apply(map_root: Node, host: Node, spec: Dictionary, draw: Dictionar
 			var spawn_started:=Time.get_ticks_usec()
 			inst = _spawn(map_root, spec, bool(map_root.get_meta("defer_source_upload",false)), map_root.has_meta("profile_frame"))
 			var spawn_us:=Time.get_ticks_usec()-spawn_started
-			if map_root.has_meta("profile_frame") and spawn_us>20000:
+			if map_root.has_meta("profile_frame") and spawn_us>20000 and _slow_log_enabled(map_root):
 				var record:Dictionary=spec.get("ground_batch_record",{})
 				print("STREAM_SPAWN_SLOW ",uuid," ",spawn_us/1000.0," ms group=",spec.get("group_id","")," asset=",record.get("asset_path","")," prefab=",record.has("house_prefab")," surfaces=",spec.get("mesh",null).get_surface_count() if spec.get("mesh") is Mesh else -1," overrides=",spec.get("surface_overrides",[]).size())
 			map_root.add_child(inst)
@@ -1708,7 +1708,7 @@ static func _apply(map_root: Node, host: Node, spec: Dictionary, draw: Dictionar
 		elif body == null:
 			var body_started:=Time.get_ticks_usec()
 			body = _make_body(host, spec, map_root.has_meta("profile_frame"))
-			if map_root.has_meta("profile_frame") and Time.get_ticks_usec()-body_started>20000:
+			if map_root.has_meta("profile_frame") and Time.get_ticks_usec()-body_started>20000 and _slow_log_enabled(map_root):
 				print("STREAM_BODY_SLOW ",uuid," ",(Time.get_ticks_usec()-body_started)/1000.0," ms")
 			if body != null:
 				body.set_meta("stream_physics_published_frame",Engine.get_physics_frames())
@@ -1795,6 +1795,12 @@ static func _spec(visual: MeshInstance3D,final_pose:Variant=null) -> Dictionary:
 	return spec
 
 
+static func _slow_log_enabled(map_root:Node)->bool:
+	# Diagnostic override suppresses synchronous output only; timings and
+	# profile_frame-controlled measurements remain enabled.
+	return not bool(map_root.get_meta("suppress_stream_slow_logs",false))
+
+
 static func _spawn(map_root:Node, spec: Dictionary, defer_upload:bool=false, profile:bool=false) -> MeshInstance3D:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.world_stream._spawn") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	var started:=Time.get_ticks_usec() if profile else 0
@@ -1827,7 +1833,7 @@ static func _spawn(map_root:Node, spec: Dictionary, defer_upload:bool=false, pro
 	if visual.mesh is CpuMesh:
 		if deferred_materials:visual.set_meta("deferred_gpu",true)
 		else:visual.mesh = preload("res://scripts/world3d/prepared_cpu_upload.gd").restore(visual.mesh,str(spec.uuid))
-	if profile and Time.get_ticks_usec()-spawn_phase_started>20000:print("SPAWN_PHASE_SLOW restore ",spec.get("uuid","")," ",(Time.get_ticks_usec()-spawn_phase_started)/1000.0)
+	if profile and Time.get_ticks_usec()-spawn_phase_started>20000 and _slow_log_enabled(map_root):print("SPAWN_PHASE_SLOW restore ",spec.get("uuid","")," ",(Time.get_ticks_usec()-spawn_phase_started)/1000.0)
 	spawn_phase_started=Time.get_ticks_usec()
 	if traced:preload("res://scripts/world3d/load_trace.gd").elapsed("stream.spawn_restore",stage_started,{"uuid":spec.uuid})
 	stage_started=Time.get_ticks_usec() if traced else 0
@@ -1837,7 +1843,7 @@ static func _spawn(map_root:Node, spec: Dictionary, defer_upload:bool=false, pro
 	visual.cast_shadow=spec.get("cast_shadow",GeometryInstance3D.SHADOW_CASTING_SETTING_ON)
 	for slot in spec.get("surface_overrides",[]).size():
 		if not deferred_materials and spec.surface_overrides[slot]!=null:visual.set_surface_override_material(slot,spec.surface_overrides[slot])
-	if profile and Time.get_ticks_usec()-spawn_phase_started>20000:print("SPAWN_PHASE_SLOW materials ",spec.get("uuid","")," ",(Time.get_ticks_usec()-spawn_phase_started)/1000.0," surfaces=",spec.get("surface_overrides",[]).size())
+	if profile and Time.get_ticks_usec()-spawn_phase_started>20000 and _slow_log_enabled(map_root):print("SPAWN_PHASE_SLOW materials ",spec.get("uuid","")," ",(Time.get_ticks_usec()-spawn_phase_started)/1000.0," surfaces=",spec.get("surface_overrides",[]).size())
 	spawn_phase_started=Time.get_ticks_usec()
 	visual.set_meta("stream_instance", true)
 	visual.position = spec.get("position", Vector3.ZERO)
@@ -1851,7 +1857,7 @@ static func _spawn(map_root:Node, spec: Dictionary, defer_upload:bool=false, pro
 	preload("res://scripts/world3d/asset_visibility_range.gd").register(visual)
 	preload("res://scripts/world3d/wind_response.gd").register(visual)
 	preload("res://scripts/world3d/streetlamp_lights.gd").register(visual)
-	if profile and Time.get_ticks_usec()-spawn_phase_started>20000:print("SPAWN_PHASE_SLOW registration ",spec.get("uuid","")," ",(Time.get_ticks_usec()-spawn_phase_started)/1000.0)
+	if profile and Time.get_ticks_usec()-spawn_phase_started>20000 and _slow_log_enabled(map_root):print("SPAWN_PHASE_SLOW registration ",spec.get("uuid","")," ",(Time.get_ticks_usec()-spawn_phase_started)/1000.0)
 	spawn_phase_started=Time.get_ticks_usec()
 	if traced:preload("res://scripts/world3d/load_trace.gd").elapsed("stream.spawn_registration",stage_started,{"uuid":spec.uuid})
 	stage_started=Time.get_ticks_usec() if traced else 0
@@ -1876,7 +1882,7 @@ static func _spawn(map_root:Node, spec: Dictionary, defer_upload:bool=false, pro
 		visual.add_child(label)
 	preload("res://scripts/world3d/building_shadow_proxy.gd").attach(visual)
 	if traced:preload("res://scripts/world3d/load_trace.gd").elapsed("stream.spawn_shadow",stage_started,{"uuid":spec.uuid})
-	if profile and Time.get_ticks_usec()-started>5000:print("STREAM_VISUAL_SLOW ",spec.uuid," ",{"restore_ms":(restored-started)/1000.0,"setup_ms":(Time.get_ticks_usec()-restored)/1000.0})
+	if profile and Time.get_ticks_usec()-started>5000 and _slow_log_enabled(map_root):print("STREAM_VISUAL_SLOW ",spec.uuid," ",{"restore_ms":(restored-started)/1000.0,"setup_ms":(Time.get_ticks_usec()-restored)/1000.0})
 	return visual
 
 
