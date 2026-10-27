@@ -21,7 +21,7 @@ func configure_isolated_content(prior:Dictionary)->Dictionary:
 	manager.content_root_override=content_root
 	check(Paths.external_root()==content_root and Compile.directory().begins_with(content_root+'/'),'production root and native cache scoped together')
 	audit.content_root=content_root;audit.shared_content_root=shared_root
-	audit.native_cache_directory=Compile.directory();audit.native_cache_limit_bytes=Compile.MAX_CACHE_BYTES
+	audit.native_cache_directory=Compile.directory();audit.native_cache_limit_bytes=null
 	audit.isolation_note='Process-only existing AssetManager content_root_override; production compiler limit unchanged, no shared cache eviction or persistent project settings write.'
 	return prior
 

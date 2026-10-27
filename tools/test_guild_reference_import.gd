@@ -323,7 +323,7 @@ func run()->void:
 		var manager:=root.get_node("AssetManager")
 		previous_content_override=manager.content_root_override;manager.content_root_override=content_root
 		check(Paths.external_root()==content_root and Compile.directory().begins_with(content_root+"/"),"production import/native/editor share isolated root")
-		audit.content_root=content_root;audit.shared_content_root=shared_root;audit.native_cache_directory=Compile.directory();audit.native_cache_limit_bytes=Compile.MAX_CACHE_BYTES
+		audit.content_root=content_root;audit.shared_content_root=shared_root;audit.native_cache_directory=Compile.directory();audit.native_cache_limit_bytes=null
 		audit.isolation_note="Existing process-only content_root_override; no production budget increase, shared cache eviction or persistent settings write."
 	var directory:=Paths.cache_directory("guild_reference_import_%d"%Time.get_ticks_usec())
 	DirAccess.make_dir_recursive_absolute(directory)

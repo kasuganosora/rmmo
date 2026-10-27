@@ -1,5 +1,6 @@
 extends RefCounted
-## Disposable, local derived resources. Author maps continue to reference GLB.
+## Persistent native import products. Author maps retain logical model keys;
+## the corresponding GLB is only an import source, never a runtime dependency.
 ## Builds belong to import/preparation, never to a live streaming cache miss.
 ## Each read owns its PackedScene; only the caller publishes to AssetLibrary.
 const Paths=preload("res://scripts/world3d/map_paths.gd")
@@ -7,7 +8,6 @@ const Manifest=preload("res://scripts/world3d/asset_bounds_manifest.gd")
 const Trace=preload("res://scripts/world3d/load_trace.gd")
 const VERSION=1
 const MAX_FILE_BYTES=1024*1024*1024
-const MAX_CACHE_BYTES=8*1024*1024*1024
 static var enabled:=true # Probe-only A/B switch; ordinary entry points leave enabled.
 
 static func directory(content_root:String="")->String:
@@ -242,12 +242,10 @@ static func _build_prepared(prepared:PreparedSource,started:int)->Dictionary:
 		if FileAccess.get_sha256(payload)!=payload_digest:_remove(temporary);return {"ok":false,"reason":"existing_product_corrupt"}
 		_remove(temporary)
 	else:
-		var disk_bytes:=0
-		for name in DirAccess.get_files_at(directory()):
-			if not name.ends_with(".scn") or name==temporary.get_file():continue
-			var existing:=FileAccess.open(directory().path_join(name),FileAccess.READ)
-			if existing!=null:disk_bytes+=existing.get_length();existing.close()
-		if disk_bytes+size>MAX_CACHE_BYTES:_remove(temporary);return {"ok":false,"reason":"cache_capacity"}
+		# These are the only consumable model products, not an evictable cache.
+		# A global historical-byte quota made unrelated imports fail after all
+		# parsing/serialization work. Per-product bounds and filesystem errors
+		# still apply; live memory is governed by the separate admission ledger.
 		err=DirAccess.rename_absolute(temporary,payload)
 		if err!=OK:
 			_remove(temporary)
@@ -256,7 +254,7 @@ static func _build_prepared(prepared:PreparedSource,started:int)->Dictionary:
 	if not Paths.allowed(index,directory()):return {"ok":false,"reason":"index_path"}
 	file=FileAccess.open(staged,FileAccess.WRITE)
 	if file==null:return {"ok":false,"reason":"manifest_write"}
-	file.store_string(JSON.stringify({"version":VERSION,"source_sha":source_digest,"generator":generator(),"payload_sha":payload_digest,"bytes":size}))
+	file.store_string(JSON.stringify({"version":VERSION,"source_path":path,"source_sha":source_digest,"generator":generator(),"payload_sha":payload_digest,"bytes":size}))
 	file.flush();err=file.get_error();file.close()
 	if err==OK:err=preload("res://scripts/world3d/atomic_file.gd").publish(staged,index)
 	_remove(staged)

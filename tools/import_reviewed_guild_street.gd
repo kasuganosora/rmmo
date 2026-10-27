@@ -89,7 +89,7 @@ func run()->void:
 		var target:=folder.path_join(digest+".glb")
 		if FileAccess.file_exists(target) and not check(FileAccess.get_sha256(target)==digest,"immutable target intact "+str(row.id)):finish();return
 	var original:=Library.new(folder)
-	audit.merge({"manifest_path":canonical(SPEC),"manifest_sha256":FileAccess.get_sha256(SPEC),"catalog_path":catalog_path,"catalog_sha_before":original._revision,"catalog_entries_before":original.entries.duplicate(true),"catalog_count_before":original.entries.size(),"generator":Compile.generator(),"shared_native_cache":Compile.directory(),"native_cache_limit_bytes":Compile.MAX_CACHE_BYTES,"scope":"Formal default-pack catalog import only; user maps are never opened for writing. Existing source/native visual evidence remains tied to original SHA."})
+	audit.merge({"manifest_path":canonical(SPEC),"manifest_sha256":FileAccess.get_sha256(SPEC),"catalog_path":catalog_path,"catalog_sha_before":original._revision,"catalog_entries_before":original.entries.duplicate(true),"catalog_count_before":original.entries.size(),"generator":Compile.generator(),"shared_native_cache":Compile.directory(),"native_cache_limit_bytes":null,"scope":"Formal default-pack catalog import only; user maps are never opened for writing. Existing source/native visual evidence remains tied to original SHA."})
 	for path:String in [external.path_join("maps/medieval_river_town/map.gltf")]:
 		if FileAccess.file_exists(path):guards[path]=FileAccess.get_sha256(path)
 	flush()
