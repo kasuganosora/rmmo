@@ -98,7 +98,10 @@ func run()->void:
 		for old:bool in [true,false,false,true]:trials.append(benchmark(shared,shared_entry,old,2048))
 	else:trials.append(benchmark(shared,shared_entry,true,2048))
 	print("PREFAB_SPEC_PREPARATION ",JSON.stringify({"legacy":legacy,"checks":checks,"failures":failures,"trials":trials}))
-	var report:=FileAccess.open(OUT.path_join("prefab_spec_178_"+("red" if legacy else "green")+".json"),FileAccess.WRITE)
+	var output:=OUT.path_join("prefab_spec_178_"+("red" if legacy else "green")+".json")
+	for arg:String in OS.get_cmdline_user_args():
+		if arg.begins_with("--output="):output=arg.trim_prefix("--output=")
+	var report:=FileAccess.open(output,FileAccess.WRITE)
 	report.store_string(JSON.stringify({"legacy":legacy,"checks":checks,"failures":failures,"trials":trials},"\t"));report.close()
 	quit(1 if failures else 0)
 

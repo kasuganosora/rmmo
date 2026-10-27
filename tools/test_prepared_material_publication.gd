@@ -82,6 +82,7 @@ func run()->void:
 	await zero_budget_case(record,requested,plan)
 	await generation_case(record,requested,plan)
 	await resident_generation_case(record,requested,plan)
+	await direct_scheduler_generation_case(record,requested,plan)
 	Paint.texture_profile_enabled=false
 	OS.remove_logger(logger);check(logger.errors.is_empty(),"zero engine/script errors")
 	for error:String in logger.errors:print("ENGINE_ERROR ",error)
@@ -201,6 +202,59 @@ func generation_case(record:Dictionary,requested:Dictionary,plan:Dictionary)->vo
 		RenderingServer.force_sync()
 		check(canonical(material.albedo_texture.get_image())==canonical(packet.images[path]) and canonical(newer.get_image())==canonical(fresh.images[path]),"both live texture generations preserve their exact original pixels")
 	pool.clear();packet.clear();fresh.clear();cpu.clear();tickets.clear();state.clear();clear_caches();Drainer.synchronize_transfer()
+
+func direct_scheduler_generation_case(record:Dictionary,requested:Dictionary,plan:Dictionary)->void:
+	# Exercise actual scheduler slices and the direct projection after another
+	# consumer replaces this source, then exercise the record-scope fallback
+	# while an old streamed owner remains in the job.
+	var packet:=await prepare_worker(requested,plan);var cpu:=Prefab.prepare_cpu(record)
+	clear_caches()
+	var policy=preload("res://scripts/world3d/runtime_package_policy.gd")
+	var previous_policy:bool=policy.verify_packages;policy.verify_packages=false
+	var fixture_owner:=SchedulerFixture.new();var f:Dictionary=fixture_owner.fixture(2,false,root)
+	var service:Node=f.service;var doc=preload("res://scripts/world3d/world_document.gd").new()
+	doc.load_immutable_records=true;doc.load_paint_validation={};doc.load_material_pool={};doc.load_texture_checks={};service._doc=doc
+	var item:Dictionary=service._demanded_by_path["reference:building:0"][0];var uuid:String=item.record.uuid
+	item.record.merge(record,true);item.record.uuid=uuid;item.record.kind="box"
+	var job:Dictionary=service._jobs[item.path]
+	job.result={"prefab_cpu":{record.house_prefab.sha256:cpu},"prefab_texture_packet":packet}
+	service._publish_ready(Time.get_ticks_usec()-1000000)
+	check(job.get("material_textures",{}).size()==1 and not job.get("staged",{}).has(uuid),"real scheduler holds its first sliced texture before direct projection")
+	var path:String=record.prefab_materials[0].texture_path;var original:=FileAccess.get_file_as_bytes(path)
+	var replacement:=Image.create(19,13,false,Image.FORMAT_RGBA8);replacement.fill(Color.BLUE)
+	check(replacement.save_png(path)==OK,"replace only external test source while scheduler is between slices")
+	var fresh:=await prepare_worker(requested,Prep.estimate(requested,files.content_root))
+	check(Prefab.publish_prepared(item.record,cpu,{},doc.load_material_pool,{},fresh),"other consumer installs a different live prefab generation")
+	var newer:Texture2D=doc.load_material_pool[[cpu.data.materials[0]]].albedo_texture
+	Paint._textures.clear();Paint._texture_refs.clear();files.write_bytes(path,original)
+	for turn:int in 12:
+		if job.get("staged",{}).has(uuid):break
+		service._publish_ready(Time.get_ticks_usec()-1000000)
+	var staged:Dictionary=job.get("staged",{}).get(uuid,{})
+	check(int(service.profile.get("native_prefab_direct_instances",0))==1 and staged.get("specs",[]).size()==1,"resumed real textured job reaches the direct scheduler route once")
+	var material:StandardMaterial3D=Prefab._meshes[record.house_prefab.sha256].mesh.materials[0]
+	check(material.albedo_texture!=newer and material.albedo_texture.get_meta("runtime_source_sha256")==packet.sources[path] and staged.specs[0].mesh==Prefab._meshes[record.house_prefab.sha256].mesh,"direct spec binds the resumed source generation and final canonical owner")
+	RenderingServer.force_sync()
+	check(canonical(material.albedo_texture.get_image())==canonical(packet.images[path]),"resumed direct source retains exact GPU pixels")
+	var old_texture:Texture2D=material.albedo_texture
+	f.map.free();fixture_owner.free()
+	fixture_owner=SchedulerFixture.new();f=fixture_owner.fixture(2,false,root);service=f.service;service._doc=doc
+	item=service._demanded_by_path["reference:building:0"][0];uuid=item.record.uuid
+	item.record.merge(record,true);item.record.uuid=uuid;item.record.kind="box"
+	job=service._jobs[item.path];job.result={"prefab_cpu":{record.house_prefab.sha256:cpu},"prefab_texture_packet":fresh}
+	job.streamed_texture_owners={path:old_texture};job.streamed_texture_scope={}
+	for turn:int in 12:
+		if job.get("staged",{}).has(uuid):break
+		service._publish_ready(Time.get_ticks_usec()-1000000)
+	staged=job.get("staged",{}).get(uuid,{})
+	check(int(service.profile.get("native_prefab_direct_instances",0))==0 and staged.get("specs",[]).size()==1,"streamed owner keeps the real node and record-scope fallback")
+	material=Prefab._meshes[record.house_prefab.sha256].mesh.materials[0]
+	check(material.albedo_texture!=old_texture and material.albedo_texture.get_meta("runtime_source_sha256")==fresh.sources[path] and staged.specs[0].mesh==Prefab._meshes[record.house_prefab.sha256].mesh,"fallback rejects the stale streamed owner and reacquires the replacement prefab")
+	var invalid:Dictionary={"sources":fresh.sources,"resident_textures":{"bad":{"texture":null,"source_sha":"f".repeat(64)}}}
+	var rejected:Dictionary=service._begin_record_texture_scope(item,{"result":{"prefab_texture_packet":invalid},"streamed_texture_owners":{path:old_texture},"streamed_texture_scope":{}})
+	check(not rejected.ok and Paint.prepared_images.is_empty() and Paint.prepared_textures.is_empty(),"record-scope fallback rejects an invalid resident ticket without leaking a borrowed owner")
+	f.map.free();fixture_owner.free();policy.verify_packages=previous_policy
+	packet.clear();fresh.clear();cpu.clear();clear_caches();Drainer.synchronize_transfer()
 
 func transaction_case(record:Dictionary,cpu:Dictionary,pool:Dictionary,packet:Dictionary)->void:
 	# A synchronous READY hit used to open and restore the exact same scope twice.

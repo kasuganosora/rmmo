@@ -2849,7 +2849,12 @@ func _publish_ready(began:int,budget_usec:int=INTERACTIVE_BUDGET_US)->Dictionary
 		else:
 			var cursor:RefCounted
 			var entry:Dictionary=Prefab._meshes.get(item.record.house_prefab.sha256,{}) if item.record.has("house_prefab") else {}
-			if native_prefab_direct_specs_enabled and item.record.has("house_prefab") and PrefabSpecs.supports(item.record,entry,_local_collision_order(item)) and _doc.load_immutable_records:
+			# A job with a record-specific texture handoff must still open its
+			# existing scope and reacquire the resulting prefab owner through _mesh.
+			# The trusted immutable route with no such handoff has no texture
+			# validation or scope side effects to repeat after publication above.
+			var direct_textured:bool=item.record.has("house_prefab") and not pixel_job.has("streamed_texture_owners") and preload("res://scripts/world3d/runtime_package_policy.gd").trusted()
+			if native_prefab_direct_specs_enabled and item.record.has("house_prefab") and PrefabSpecs.supports(item.record,entry,_local_collision_order(item),direct_textured) and _doc.load_immutable_records:
 				# Geometry publication above already chose the canonical shared owner.
 				# Project this instance directly instead of constructing, inspecting
 				# and freeing a temporary MeshInstance3D for the same fields.

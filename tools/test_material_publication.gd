@@ -7,6 +7,7 @@ class Document extends RefCounted:
 	var calls:Dictionary={}
 	var load_material_pool:Dictionary={}
 	var load_paint_validation:Dictionary={}
+	var load_immutable_records:=false
 	func _mesh(record:Dictionary,_effects:bool=true,_timings:Variant=null)->Node3D:
 		calls[record.uuid]=int(calls.get(record.uuid,0))+1
 		return Node3D.new()

@@ -1,5 +1,5 @@
 extends RefCounted
-## Private projection of an already published native white prefab. The caller
+## Private projection of an already published native prefab. The caller
 ## retains the existing job lease and geometry publication/retirement policy.
 ## No Node, resource read, geometry copy, cache, or scene-thread call is needed.
 const Cpu=preload("res://scripts/world3d/ground_cpu_mesh.gd")
@@ -14,8 +14,10 @@ var complete:=false
 var specs:Array=[]
 var profile:Dictionary={"slices":0,"elapsed_us":0,"max_slice_us":0,"nodes_created":0,"nodes_visited":0,"nodes_freed":0,"subtree_free_calls":0,"meshes_projected":0}
 
-static func supports(value:Dictionary,entry:Dictionary,local_collision:bool=false)->bool:
-	if local_collision or not Controls.white_materials or not Controls.discard_map_textures:return false
+static func supports(value:Dictionary,entry:Dictionary,local_collision:bool=false,textured:bool=false)->bool:
+	# Textured admission is explicit: the caller must retain immutable/trusted
+	# document semantics and the record-scope handoff before opting in.
+	if local_collision or (not textured and (not Controls.white_materials or not Controls.discard_map_textures)):return false
 	# Box prefabs already contain their authored dimensions. Asset scale uses a
 	# Node3D decomposition, and paint has a separate geometry preparation path.
 	if value.get("kind")!="box" or not value.has("house_prefab") or not value.get("surface_paint",[]).is_empty():return false
