@@ -87,6 +87,51 @@ class SidecarTests(unittest.TestCase):
         flipped = levels(source.with_name(source.name + ".flip.bc5.dds"))
         self.assertLessEqual(abs(flipped[0][3].getpixel((0, 0))[1] - 191), 8)
 
+    def test_partial_blocks_generate_complete_mips_for_each_declared_role(self):
+        # These are staged test sources, not user assets. The source dimensions
+        # remain unchanged while every compressed mip rounds its own blocks.
+        for dimensions in ((5, 5), (6, 6), (7, 11), (1254, 1254)):
+            for role, color in (("bc1", (96, 64, 240, 255)),
+                                ("bc3", (96, 64, 240, 83)),
+                                ("bc5", (96, 64, 240, 255))):
+                with self.subTest(dimensions=dimensions, role=role):
+                    source = self.source(f"{dimensions[0]}x{dimensions[1]}_{role}.png", color, dimensions)
+                    before = digest(source)
+                    normal = role == "bc5"
+                    self.assertEqual(package.process(source, False, normal=normal),
+                                     (2 if normal else 1, 0, 0))
+                    suffixes = (".bc5.dds", ".flip.bc5.dds") if normal else (
+                        ".dxt5.dds" if role == "bc3" else ".dxt1.dds",)
+                    for suffix in suffixes:
+                        target = source.with_name(source.name + suffix)
+                        chain = levels(target)
+                        self.assertEqual(chain[0][:2], dimensions)
+                        self.assertEqual(len(chain), max(dimensions).bit_length())
+                        self.assertEqual(chain[-1][:2], (1, 1))
+                        expected_g = 255 - color[1] if suffix.startswith(".flip") else color[1]
+                        for width, height, _, image in chain:
+                            for point in ((0, 0), (width - 1, height - 1)):
+                                pixel = image.getpixel(point)
+                                self.assertLessEqual(abs(pixel[0] - color[0]), 8)
+                                self.assertLessEqual(abs(pixel[1] - expected_g), 8)
+                                if not normal:
+                                    self.assertLessEqual(abs(pixel[2] - color[2]), 8)
+                                    self.assertLessEqual(abs(pixel[3] - color[3]), 8)
+                    self.assertEqual(digest(source), before)
+
+    def test_partial_block_source_retains_color_and_normal_roles(self):
+        for order in ((False, True), (True, False)):
+            with self.subTest(order=order):
+                source = self.source(f"partial_roles_{order[0]}.png", size=(13, 7))
+                self.assertEqual(package.process(source, True, normal=order[0])[2], 0)
+                first = source.with_name(source.name + (".bc5.dds" if order[0] else ".dxt1.dds"))
+                self.assertTrue(first.exists())
+                before = digest(first)
+                self.assertEqual(package.process(source, True, normal=order[1])[2], 0)
+                self.assertEqual(digest(first), before)
+                self.assertTrue(source.with_name(source.name + ".bc5.dds").exists())
+                self.assertTrue(source.with_name(source.name + ".dxt1.dds").exists())
+
     def test_bc5_retires_only_unambiguous_normal_aliases(self):
         source = self.source("replacement_normal.png")
         old = source.with_name(source.name + ".dxt5.dds")
@@ -115,7 +160,7 @@ class SidecarTests(unittest.TestCase):
                 self.assertTrue(source.with_name(source.name + ".bc5.dds").exists())
                 self.assertTrue(source.with_name(source.name + ".dxt1.dds").exists())
 
-    def test_unsupported_size_without_overwrite_preserves_both_roles(self):
+    def test_partial_size_without_overwrite_preserves_both_roles(self):
         source = self.source("resized.png")
         package.process(source, True, normal=False)
         package.process(source, True, normal=True)

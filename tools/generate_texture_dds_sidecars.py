@@ -3,6 +3,8 @@
 Writes additive DDS sidecars next to PNG/JPEG/WebP sources. Runtime materials
 prefer these block-compressed files and skip the decoded RGBA upload. Sources
 are never modified; deleting the sidecars restores the uncompressed path.
+Partial edge blocks retain their original dimensions and require an engine and
+rendering backend that support them; the project's patched DDS loader does.
 """
 import argparse
 import io
@@ -24,39 +26,43 @@ def has_alpha(image: Image.Image) -> bool:
     return alpha.getextrema()[0] < 255
 
 
+def encode_dds(image: Image.Image, use_alpha: bool, *, normal: bool = False) -> bytearray:
+    # Pillow encodes only one DDS level. Assemble a complete mip chain so
+    # the compressed path keeps the runtime's mipmapped filtering contract.
+    levels = []
+    pixels = image.convert("RGB") if normal else image
+    while True:
+        encoded = io.BytesIO()
+        pixels.save(encoded, format="DDS", pixel_format="BC5" if normal else ("DXT5" if use_alpha else "DXT1"))
+        levels.append(encoded.getvalue())
+        if pixels.size == (1, 1):
+            break
+        pixels = pixels.resize((max(1, pixels.width // 2), max(1, pixels.height // 2)),
+                               Image.Resampling.BOX)
+    # Pillow writes a pitch value 268 for compressed DDS; Godot's reader
+    # expects the DXT linear-size block count and otherwise rejects the file.
+    raw = bytearray(levels[0][:128])
+    if normal:
+        # Pillow emits DX10 BC5_TYPELESS with a 20-byte extension. Godot
+        # supports ATI2 (BC5 UNORM); retain only the common header and RG
+        # block payload, never include the DX10 extension as pixel bytes.
+        raw[84:88] = b"ATI2"
+    blocks = max(1, (image.width + 3) // 4) * max(1, (image.height + 3) // 4)
+    struct.pack_into("<I", raw, 20, blocks * (16 if use_alpha or normal else 8))
+    struct.pack_into("<I", raw, 28, len(levels))
+    if len(levels) > 1:
+        struct.pack_into("<I", raw, 8, struct.unpack_from("<I", raw, 8)[0] | 0x20000)
+        struct.pack_into("<I", raw, 108, struct.unpack_from("<I", raw, 108)[0] | 0x400008)
+    for level in levels:
+        raw.extend(level[148 if normal else 128:])
+    return raw
+
+
 def save_dds(image: Image.Image, target: Path, use_alpha: bool, *, normal: bool = False) -> bool:
     target.parent.mkdir(parents=True, exist_ok=True)
     tmp = target.with_suffix(target.suffix + ".tmp")
     try:
-        # Pillow encodes only one DDS level. Assemble a complete mip chain so
-        # the compressed path keeps the runtime's mipmapped filtering contract.
-        levels = []
-        pixels = image.convert("RGB") if normal else image
-        while True:
-            encoded = io.BytesIO()
-            pixels.save(encoded, format="DDS", pixel_format="BC5" if normal else ("DXT5" if use_alpha else "DXT1"))
-            levels.append(encoded.getvalue())
-            if pixels.size == (1, 1):
-                break
-            pixels = pixels.resize((max(1, pixels.width // 2), max(1, pixels.height // 2)),
-                                   Image.Resampling.BOX)
-        # Pillow writes a pitch value 268 for compressed DDS; Godot's reader
-        # expects the DXT linear-size block count and otherwise rejects the file.
-        raw = bytearray(levels[0][:128])
-        if normal:
-            # Pillow emits DX10 BC5_TYPELESS with a 20-byte extension. Godot
-            # supports ATI2 (BC5 UNORM); retain only the common header and RG
-            # block payload, never include the DX10 extension as pixel bytes.
-            raw[84:88] = b"ATI2"
-        blocks = max(1, (image.width + 3) // 4) * max(1, (image.height + 3) // 4)
-        struct.pack_into("<I", raw, 20, blocks * (16 if use_alpha or normal else 8))
-        struct.pack_into("<I", raw, 28, len(levels))
-        if len(levels) > 1:
-            struct.pack_into("<I", raw, 8, struct.unpack_from("<I", raw, 8)[0] | 0x20000)
-            struct.pack_into("<I", raw, 108, struct.unpack_from("<I", raw, 108)[0] | 0x400008)
-        for level in levels:
-            raw.extend(level[148 if normal else 128:])
-        tmp.write_bytes(raw)
+        tmp.write_bytes(encode_dds(image, use_alpha, normal=normal))
         tmp.replace(target)
         return True
     except Exception:
@@ -84,15 +90,6 @@ def process(source: Path, overwrite: bool, *, normal: bool | None = None) -> tup
                           if normal else (".dxt1.dds", ".dxt5.dds"))
         with Image.open(source) as image:
             image.load()
-            if image.width % 4 or image.height % 4:
-                # DDS DXT blocks require a complete 4x4 block grid. Godot's DDS
-                # reader rejects padded/odd headers, so leave the source path.
-                for suffix in owned_suffixes if overwrite else ():
-                    try:
-                        source.with_name(source.name + suffix).unlink()
-                    except FileNotFoundError:
-                        pass
-                return 0, 1, 0
             rgba = image.convert("RGBA")
             # Map-aware packaging can pass the declared material role. Content
             # SHA filenames do not preserve a "normal" suffix.
