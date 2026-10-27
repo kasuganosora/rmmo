@@ -15,3 +15,7 @@
 `demand_walk33` 退出0、无errors/failures，测量脚本与诊断runner、地图主文件SHA前后相同，状态complete_return_leg，change/refresh事件丢弃0；采集start=straight、transition=turn、end=walk_reload，返回时长42.683秒。共133次revision变化及89次刷新，62次仅因player_collision变化；这62次刷新累计18.104ms、中位0.269ms、最大0.973ms；其余21次刷新累计19.302ms、最大2.345ms，6次仅anchor刷新累计1.146ms、最大0.281ms。探针自身记录6.725ms，结束快照复制4.310ms，非全部探针开销。以上是该诊断样本，不代表所有地图/普通玩家；正常速度该样本的需求刷新明显轻于先前高速焦点压力，不能把后者434次/18.566ms最大值推广为正常步行。
 
 不能只因碰撞窗口成员不变就跳过重排：`prioritize()` 每帧更新当前位置，旧刷新会按最新位置重新比较player与rank_from_player票据、支撑距离，同优先级候选可能反超。保留实时发布、错误、路径、支撑和准确就绪是优化前提；当前没有声称该重排已解决。
+
+## 新一轮GDB现场
+
+`material_publication_scope_20261027/map24_return28` 在高速返回阶段geometry-end后12ms阈值触发，独立PID/启动时间和引擎身份核对，冻结marker仍有效、无新包/序号缺口，冻结PC与GDB一致，已归还本工具唯一suspend增量；触发到读取context 0.442ms。冻结前窗口墙时15.267ms、主线程CPU计数15.625ms（Windows 粒度及接收误差，不能当精准逐帧占比）；现场GDScript主线程为 Deferred._process → _refresh_demanded，顶层native位于 Array::size / indexed get，说明该瞬间在执行需求刷新，不证明该单个数组调用占据窗口，也不是map24_B2原发布帧。调试暂停约299ms及后续GDB all-stop开销污染该路线，不能作为正常FPS。引擎/GDB退出0，主地图与测量源前后未变，完整线程与原始触发记录保留。
