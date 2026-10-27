@@ -31,6 +31,7 @@ static var _cache_accounted:Dictionary={}
 static var _cache_upper_bytes:=0
 static var _cache_estimate_valid:=false
 static var capacity_eviction_accounting_enabled:=true # Diagnostic legacy control.
+static var native_cache_sort_enabled:=true # Diagnostic scripted-comparator control.
 const TEXTURE_PROPERTIES=["albedo_texture","normal_texture","roughness_texture","metallic_texture","ao_texture","heightmap_texture"]
 static func texture_key(path:String,flip:bool=false,normal:bool=false)->String:
 	if path.is_empty():return ""
@@ -177,7 +178,7 @@ static func trim_cached_resources()->Dictionary:
 	var before:=total;var materials:=0;var textures:=0
 	if not incremental_cache_budget_enabled or total>maxi(0,cache_byte_budget):
 		if texture_profile_enabled:TextureCache._profile_count("paint.cache.sort_candidates",candidates.size())
-		candidates.sort_custom(func(a,b):return a.use<b.use)
+		_sort_cache_candidates(candidates)
 	for candidate:Dictionary in candidates:
 		if total<=maxi(0,cache_byte_budget):break
 		var kind:String=candidate.kind;var key:String=candidate.key
@@ -198,6 +199,26 @@ static func trim_cached_resources()->Dictionary:
 	else:_cache_estimate_valid=false
 	cache_residency_profile={"before_bytes":before,"after_bytes":total,"budget_bytes":cache_byte_budget,"evicted_materials":materials,"evicted_textures":textures,"scope":"unique decoded upload footprint held by hot cache references; not process RSS or measured VRAM"}
 	return cache_residency_profile.duplicate()
+
+static func _sort_cache_candidates(candidates:Array)->void:
+	if native_cache_sort_enabled:
+		# Unique serials make the old comparator's order unambiguous. Pairs use
+		# native Variant sorting and only retain integer indices, never Resources.
+		# Duplicated serials, including multiple missing ones, keep the legacy
+		# comparator and tie behavior.
+		var order:Array=[];var seen:Dictionary={};var unique:=true
+		for i:int in candidates.size():
+			var use:int=int(candidates[i].use)
+			if seen.has(use):unique=false;break
+			seen[use]=true;order.append([use,i])
+		if unique:
+			order.sort();var original:=candidates.duplicate()
+			for i:int in order.size():candidates[i]=original[order[i][1]]
+			if texture_profile_enabled:TextureCache._profile_count("paint.cache.native_sort_calls")
+			return
+		if texture_profile_enabled:TextureCache._profile_count("paint.cache.native_sort_tie_fallbacks")
+	if texture_profile_enabled:TextureCache._profile_count("paint.cache.scripted_sort_calls")
+	candidates.sort_custom(func(a,b):return a.use<b.use)
 static func _material_current(material:StandardMaterial3D)->bool:
 	var definition:Dictionary=material.get_meta("runtime_paint_definition",{})
 	for i in MAP_FIELDS.size():
