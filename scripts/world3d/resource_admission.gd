@@ -9,6 +9,9 @@ var peak_bytes:=0
 var peak_jobs:=0
 var peak_workers:=0
 var _entries:Dictionary={}
+var retiring_pixel_bytes:=0
+var retiring_pixel_outputs:=0
+var _retiring_pixel_serial:=0
 
 func active_workers()->int:
 	var count_:=0
@@ -133,8 +136,35 @@ func release_publication_workspace(key:String,size:int)->void:
 	assert(size>0 and size<=int(entry.get("publication_workspace_bytes",0)))
 	entry.bytes-=size;entry.publication_workspace_bytes-=size;reserved_bytes-=size
 
+func retire_shared_pixels(key:String)->String:
+	# Move the existing charge, not a second reservation. A new generation can
+	# reserve the logical key while this unique old lease still owns its bytes.
+	if not _entries.has(key) or _entries[key].stage!="shared_pixels":return ""
+	_retiring_pixel_serial+=1
+	var retired_key:="shared_pixel_retirement:%d"%_retiring_pixel_serial
+	while _entries.has(retired_key):
+		_retiring_pixel_serial+=1;retired_key="shared_pixel_retirement:%d"%_retiring_pixel_serial
+	var entry:Dictionary=_entries[key];_entries.erase(key)
+	entry.stage="shared_pixel_retiring";_entries[retired_key]=entry
+	retiring_pixel_bytes+=int(entry.bytes);retiring_pixel_outputs+=1
+	return retired_key
+
+func start_pixel_retirement(key:String)->bool:
+	# One borrowed scheduler slot covers an entire pure-byte batch.
+	if not _entries.has(key) or _entries[key].stage!="shared_pixel_retiring" or _entries[key].occupies_worker:return false
+	# Retiring an already-admitted allocation is not a competing allocation.
+	# It may proceed beside a parked exclusive lease when a worker slot is
+	# actually free; otherwise an exclusive lease waiting for retirement can
+	# prevent its own byte-drain forever.
+	if worker_limit<=0 or active_workers()>=worker_limit:return false
+	_entries[key].occupies_worker=true;_entries[key].worker_slots=1
+	peak_workers=maxi(peak_workers,active_workers())
+	return true
+
 func release(key:String)->void:
 	if not _entries.has(key):return
+	if _entries[key].stage=="shared_pixel_retiring":
+		retiring_pixel_bytes-=int(_entries[key].bytes);retiring_pixel_outputs-=1
 	reserved_bytes-=int(_entries[key].bytes);_entries.erase(key)
 
 func count()->int:return _entries.size()
@@ -152,7 +182,8 @@ func snapshot()->Dictionary:
 		stages[stage].jobs+=1;stages[stage].reserved_bytes+=int(entry.bytes)
 		if entry.exclusive:exclusive.append(key)
 	return {"jobs":_entries.size(),"worker_limit":worker_limit,"reserved_bytes":reserved_bytes,"byte_limit":byte_limit,
-		"active_workers":active_workers(),"peak_workers":peak_workers,"peak_jobs":peak_jobs,"peak_bytes":peak_bytes,"stages":stages,"exclusive_keys":exclusive}
+		"active_workers":active_workers(),"peak_workers":peak_workers,"peak_jobs":peak_jobs,"peak_bytes":peak_bytes,"stages":stages,"exclusive_keys":exclusive,
+		"retiring_pixel_bytes":retiring_pixel_bytes,"retiring_pixel_outputs":retiring_pixel_outputs}
 
 func inspect(key:String,estimate:Dictionary)->Dictionary:
 	# Explicitly sampled, not allocated by every can_admit/reserve polling call.

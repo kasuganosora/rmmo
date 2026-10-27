@@ -177,7 +177,7 @@ func demands_ready()->bool:
 	# Pixel continuations normally retain a queue job, but an orphaned/shared
 	# lease must not turn a geometry-only ready anchor into texture-ready proof.
 	# Take this small locked snapshot only after the existing queues are empty.
-	return not map_texture_stage or (queue.is_idle() and texture_pixels_settled(queue._shared_images.snapshot()))
+	return not map_texture_stage or (queue.is_idle() and texture_pixels_settled(queue._shared_images.snapshot(),queue._admission))
 
 func observe_origin_readiness()->void:
 	if report.has("origin_first_ready"):return

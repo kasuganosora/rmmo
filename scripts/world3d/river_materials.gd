@@ -13,6 +13,10 @@ static var cpu_index_override_count:=0
 static var cpu_index_legacy_restore_count:=0
 static var region_mask_prepared_hits:=0
 static var region_mask_fallback_generations:=0
+static var lazy_terrain_height_enabled:=true # Diagnostic eager-fallback control.
+static var terrain_height_profile_enabled:=false
+static var terrain_height_context_hits:=0
+static var terrain_height_fallback_generations:=0
 static var cache: Dictionary={}
 static var hidden_slab: ShaderMaterial
 
@@ -30,6 +34,21 @@ static func _region_mask(record:Dictionary,context:Dictionary)->Image:
 		return image
 	region_mask_fallback_generations+=1
 	return preload("res://scripts/world3d/terrain_regions.gd").mask(record)
+
+static func _terrain_height_image(record:Dictionary,context:Dictionary)->Image:
+	# Dictionary.get evaluates its fallback eagerly in GDScript. A prepared
+	# context already owns the exact padded image; never rebuild the unpadded
+	# height buffer unless the key is actually absent. Preserve explicit null.
+	if lazy_terrain_height_enabled and context.has("image"):
+		if terrain_height_profile_enabled:terrain_height_context_hits+=1
+		return context["image"]
+	var t:Dictionary=record.terrain_mesh
+	var heights:=PackedFloat32Array()
+	for height in t.heights:heights.append(float(height)*record.size[1])
+	if terrain_height_profile_enabled:
+		terrain_height_fallback_generations+=1
+		if context.has("image"):terrain_height_context_hits+=1
+	return context.get("image",Image.create_from_data(int(t.columns)+1,int(t.rows)+1,false,Image.FORMAT_RF,heights.to_byte_array()))
 
 static func bind(material: ShaderMaterial, prefix: String, definition: Dictionary,path_checks:Variant=null) -> void:
 	var started:=Time.get_ticks_usec() if Trace.enabled else 0
@@ -97,9 +116,7 @@ static func terrain(record: Dictionary, context: Dictionary={}) -> ShaderMateria
 	result.set_shader_parameter("transition_width",config.get("transition_width",0) if transition_enabled else 0.)
 	for param in ["edge_noise","height_blend_strength"]: result.set_shader_parameter(param,config.get(param,0.))
 	if transition_enabled:
-		var t: Dictionary=record.terrain_mesh; var heights:=PackedFloat32Array()
-		for height in t.heights: heights.append(float(height)*record.size[1])
-		var image: Image=context.get("image",Image.create_from_data(int(t.columns)+1,int(t.rows)+1,false,Image.FORMAT_RF,heights.to_byte_array()))
+		var image:Image=_terrain_height_image(record,context)
 		result.set_meta("terrain_height_image",image)
 		result.set_shader_parameter("terrain_heights",ImageTexture.create_from_image(image))
 		result.set_shader_parameter("terrain_span",Vector2(record.size[0],record.size[2]))

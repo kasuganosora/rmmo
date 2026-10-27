@@ -307,6 +307,7 @@ func run()->void:
 		elif arg=="--without-taa":root.use_taa=false
 		elif arg=="--white-material":white_material=true;preload("res://scripts/world3d/runtime_probe_controls.gd").enable_white_materials()
 		elif arg=="--map-texture-stage":map_texture_stage=true
+		elif arg=="--without-lazy-terrain-height":preload("res://scripts/world3d/river_materials.gd").lazy_terrain_height_enabled=false
 		elif arg=="--texture-lighting":texture_lighting=true
 		elif arg=="--stage-screenshot":stage_screenshot=true
 		elif arg=="--late-white-gltf":preload("res://scripts/world3d/runtime_probe_controls.gd").early_white_gltf_enabled=false
@@ -345,6 +346,9 @@ func run()->void:
 		elif arg=="--texture-stage-profile":
 			preload("res://scripts/world3d/runtime_texture_cache.gd").profile_enabled=true
 			preload("res://scripts/world3d/surface_materials.gd").texture_profile_enabled=true
+			preload("res://scripts/world3d/river_materials.gd").terrain_height_profile_enabled=true
+			preload("res://scripts/world3d/river_materials.gd").terrain_height_context_hits=0
+			preload("res://scripts/world3d/river_materials.gd").terrain_height_fallback_generations=0
 			preload("res://scripts/world3d/runtime_texture_cache.gd").reset_profile()
 			preload("res://scripts/world3d/ground_cpu_mesh.gd").profile_enabled=true
 			preload("res://scripts/world3d/ground_cpu_mesh.gd").profile_rows.clear()
@@ -370,6 +374,7 @@ func run()->void:
 	report.controls={"hud":preload("res://scripts/world3d/runtime_probe_controls.gd").hud_enabled,"map_textures":not preload("res://scripts/world3d/runtime_probe_controls.gd").discard_map_textures,"compiled":preload("res://scripts/world3d/compiled_asset_cache.gd").enabled}
 	report.controls.white_native=report.controls.compiled and preload("res://scripts/world3d/white_native_asset_cache.gd").active() and preload("res://scripts/world3d/white_native_asset_cache.gd").enabled
 	report.controls.map_texture_stage=map_texture_stage
+	report.controls.lazy_terrain_height=preload("res://scripts/world3d/river_materials.gd").lazy_terrain_height_enabled
 	report.controls.texture_lighting=texture_lighting
 	report.controls.stage_screenshot=stage_screenshot
 	report.controls.native_geometry_only=preload("res://scripts/world3d/runtime_probe_controls.gd").native_geometry_only
@@ -635,14 +640,22 @@ static func map_texture_stage_argument_error(arguments:PackedStringArray)->Strin
 	if not "--mesh-only" in arguments:return "--map-texture-stage requires --mesh-only isolation"
 	return ""
 
-static func texture_pixels_settled(snapshot:Dictionary)->bool:
-	return int(snapshot.get("outputs",-1))==0 and int(snapshot.get("consumers",-1))==0 and int(snapshot.get("retained_bytes",-1))==0
+static func texture_pixels_settled(snapshot:Dictionary,admission:RefCounted=null)->bool:
+	# Historical measured full-ready includes all old pool retirement leases,
+	# even if configure_references has since replaced the visible pool. Product
+	# demand readiness remains independent of asynchronous CPU byte cleanup.
+	var retiring_outputs:int=admission.retiring_pixel_outputs if admission!=null else int(snapshot.get("retiring_outputs",0))
+	var retiring_bytes:int=admission.retiring_pixel_bytes if admission!=null else int(snapshot.get("retiring_bytes",0))
+	return int(snapshot.get("outputs",-1))==0 and int(snapshot.get("consumers",-1))==0 and int(snapshot.get("retained_bytes",-1))==0 and retiring_outputs==0 and retiring_bytes==0
 
 func texture_stage_snapshot(queue:Node)->Dictionary:
 	var pixels=preload("res://scripts/world3d/runtime_texture_cache.gd")
 	var paint=preload("res://scripts/world3d/surface_materials.gd")
 	var snapshot:={"at_ms":(Time.get_ticks_usec()-began)/1000.,"shared_pixels":queue._shared_images.snapshot(),"texture_profiling_enabled":pixels.profile_enabled,"paint_profiling_enabled":paint.texture_profile_enabled,"contract":"Pixel pool leases are always observed. Detailed stage timings exist only with --texture-stage-profile; absent counters are not zero work. Upload submissions are not a GPU completion fence or measured VRAM."}
+	snapshot.shared_pixels.ledger_retiring_outputs=queue._admission.retiring_pixel_outputs
+	snapshot.shared_pixels.ledger_retiring_bytes=queue._admission.retiring_pixel_bytes
 	var river=preload("res://scripts/world3d/river_materials.gd")
+	snapshot.terrain_height={"lazy_enabled":river.lazy_terrain_height_enabled,"profiling_enabled":river.terrain_height_profile_enabled,"context_hits":river.terrain_height_context_hits,"fallback_generations":river.terrain_height_fallback_generations,"scope":"Material cache misses with an enabled terrain height transition; zero counters do not prove no work when profiling is disabled."}
 	snapshot.region_masks={"prepared_hits":river.region_mask_prepared_hits,"fallback_generations":river.region_mask_fallback_generations}
 	for field:String in ["generations","bytes","us","on_main"]:
 		snapshot.region_masks["worker_"+field]=int(queue.profile.get("reference_terrain_mask_"+field,0))

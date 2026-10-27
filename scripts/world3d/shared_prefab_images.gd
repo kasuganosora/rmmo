@@ -8,6 +8,8 @@ const Preparation=preload("res://scripts/world3d/prefab_texture_preparation.gd")
 const HASH_SCRATCH=8*1024*1024
 ## Candidate: preserve the CPU path until whole-map loading/return evidence passes.
 static var background_upload_enabled:=false
+static var background_pixel_retirement_enabled:=true
+const RETIRE_PIXEL_MIN_BYTES:=256*1024
 var _upload_enabled:bool=background_upload_enabled and RenderingServer.get_rendering_device()!=null
 var admission:RefCounted
 var _mutex:=Mutex.new()
@@ -15,7 +17,7 @@ var _entries:Dictionary={}
 var _consumers:Dictionary={}
 var _cancelled:Dictionary={}
 var _source_identities:Dictionary={} # Mounted operation only; String SHA values, no pixel/resource owners.
-var profile:Dictionary={"produced":0,"shared_hits":0,"waits":0,"peak_outputs":0,"retained_bytes":0,"peak_retained_bytes":0,"uploads":0,"upload_bytes":0,"upload_us":0,"upload_max_us":0,"discarded_uploads":0}
+var profile:Dictionary={"produced":0,"shared_hits":0,"waits":0,"peak_outputs":0,"retained_bytes":0,"peak_retained_bytes":0,"retiring_bytes":0,"retiring_outputs":0,"uploads":0,"upload_bytes":0,"upload_us":0,"upload_max_us":0,"discarded_uploads":0}
 
 func consumer_active(consumer:String)->bool:
 	_mutex.lock();var active:bool=_consumers.has(consumer) and not _cancelled.has(consumer);_mutex.unlock();return active
@@ -97,6 +99,10 @@ func commit(consumer:String,offer_:Dictionary)->void:
 		_entries[binding].consumers[consumer]=true
 	profile.peak_outputs=maxi(int(profile.peak_outputs),_entries.size());profile.peak_retained_bytes=maxi(int(profile.peak_retained_bytes),int(profile.retained_bytes))
 	_mutex.unlock()
+	if background_pixel_retirement_enabled and Thread.is_main_thread():
+		for key:String in offer_.leaders:
+			if int(offer_.rows[key].output_bytes)>=RETIRE_PIXEL_MIN_BYTES:
+				preload("res://scripts/world3d/resource_retirement.gd").request_shared_pixel_service();break
 
 func publish(consumer:String,key:String,digest:String,image:Image)->bool:
 	var texture:ImageTexture # Late/cancelled owner dies only AFTER unlocking below.
@@ -181,11 +187,37 @@ func release(consumer:String)->void:
 		if row.owner==consumer and row.state in ["pending","uploading"]:
 			row.state="failed"
 		if row.consumers.is_empty():
+			# Atomically move accounting with the logical output removal, so a
+			# concurrent snapshot cannot observe neither live nor retiring charge.
+			var image:Image=row.image
+			if background_pixel_retirement_enabled and Thread.is_main_thread() and image!=null and image.get_data_size()>=RETIRE_PIXEL_MIN_BYTES:
+				var lease:String=admission.retire_shared_pixels(binding)
+				if not lease.is_empty():
+					row.retiring_lease=lease;profile.retiring_bytes+=int(row.bytes);profile.retiring_outputs+=1
 			profile.retained_bytes-=int(row.bytes);retired[binding]=row;_entries.erase(binding)
 	_consumers.erase(consumer);_cancelled.erase(consumer);_mutex.unlock()
 	# Image/GPU destruction must not hold the pool lock while siblings publish.
+	# Image/Texture remain on main. Only a COW byte reference is transferred;
+	# the worker starts in a later frame after these stack aliases have unwound.
+	var values:Array=[];var completions:Array=[]
 	for binding:String in retired:
-		retired[binding].image=null;retired[binding].texture=null;admission.release(binding)
+		var row:Dictionary=retired[binding]
+		var image:Image=row.image
+		var lease:String=row.get("retiring_lease","")
+		if not lease.is_empty():values.append(image.get_data());completions.append({"owner":self,"lease":lease,"bytes":int(row.bytes)})
+		row.image=null;row.texture=null;image=null
+		if lease.is_empty():admission.release(binding)
+	if not values.is_empty() and not preload("res://scripts/world3d/resource_retirement.gd").defer_shared_pixel_buffers(values,completions,admission):
+		# No live tree service: drop the COW aliases synchronously and honour
+		# every original charge. Never report a queued release without a ticket.
+		values.clear()
+		for completion:Dictionary in completions:_complete_pixel_retirement(admission,completion.lease,int(completion.bytes))
+
+func _complete_pixel_retirement(ledger:RefCounted,lease:String,bytes:int)->void:
+	# Completion means the worker's COW alias is gone, not that unrelated
+	# Image borrowers or GPU residency have disappeared.
+	ledger.release(lease)
+	_mutex.lock();profile.retiring_bytes-=bytes;profile.retiring_outputs-=1;_mutex.unlock()
 
 func snapshot()->Dictionary:
 	_mutex.lock();var value:Dictionary=profile.duplicate();value.outputs=_entries.size();value.consumers=_consumers.size();value.source_identities=_source_identities.size();_mutex.unlock();return value

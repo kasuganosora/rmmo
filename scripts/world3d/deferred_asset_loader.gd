@@ -661,6 +661,11 @@ func active_workers()->int:
 		if _jobs[path].has("worker"):
 			var lease:Dictionary=_admission._entries.get(path,{})
 			if lease.get("occupies_worker",true):count+=int(lease.get("worker_slots",1))
+	# Shared pixel retirement borrows this ledger's execution slots but has no
+	# _jobs entry. Keep header and cross-map prefetch reporting semantics intact:
+	# headers are counted by the catalog below, unrelated leases are not added.
+	for lease:Dictionary in _admission._entries.values():
+		if lease.get("stage","")=="shared_pixel_retiring" and lease.get("occupies_worker",false):count+=int(lease.get("worker_slots",1))
 	return count+_texture_plan_catalog.pending_count()
 
 func quiesce()->void:
@@ -673,7 +678,7 @@ func quiesce()->void:
 	finish_entry_prefetch()
 	var tree:SceneTree=get_tree() if is_inside_tree() else _lifetime_tree
 	for job:Dictionary in _jobs.values():job.token.cancel()
-	while not _jobs.is_empty() or _texture_plan_catalog.pending_count()>0:
+	while not _jobs.is_empty() or _texture_plan_catalog.pending_count()>0 or _admission.retiring_pixel_outputs>0:
 		_texture_plan_catalog.poll()
 		for path:String in _jobs.keys():
 			var job:Dictionary=_jobs[path]
@@ -688,7 +693,7 @@ func quiesce()->void:
 			# or take RAW_IMPORT_MUTEX on the main thread.
 			Drainer.synchronize_transfer()
 			_discard_job(path)
-		if not _jobs.is_empty() or _texture_plan_catalog.pending_count()>0:
+		if not _jobs.is_empty() or _texture_plan_catalog.pending_count()>0 or _admission.retiring_pixel_outputs>0:
 			if is_instance_valid(tree):await tree.process_frame
 			else:shutdown();return
 	profile.active_jobs=0;profile.reserved_bytes=_admission.reserved_bytes
@@ -720,6 +725,9 @@ func shutdown()->void:
 			job.erase("worker")
 		else:Drainer.synchronize_transfer()
 		_discard_job(path)
+	# This explicit synchronous shutdown has no later owner to await the
+	# transferred byte leases. Ordinary quiesce waits asynchronously instead.
+	preload("res://scripts/world3d/resource_retirement.gd").drain_shared_pixel_buffers(_admission)
 	profile.active_jobs=0;profile.reserved_bytes=_admission.reserved_bytes
 	_raw_retries.clear()
 	if _prefetch_budget_owned:profile.entry_prefetch_mode="shutdown"
@@ -3752,6 +3760,7 @@ func _dispatch_jobs(tree:SceneTree,prefetch_only:bool=false)->void:
 	profile.total_jobs=_jobs.size()
 	profile.max_total_jobs=maxi(int(profile.get("max_total_jobs",0)),_jobs.size())
 	profile.active_jobs=_jobs.size();profile.reserved_bytes=_admission.reserved_bytes
+	profile.retiring_pixel_bytes=_admission.retiring_pixel_bytes;profile.retiring_pixel_outputs=_admission.retiring_pixel_outputs
 	profile.peak_reserved_bytes=_admission.peak_bytes;profile.peak_jobs=_admission.peak_jobs
 	profile.admission=_admission.snapshot()
 	profile.shared_pixels=_shared_images.snapshot()

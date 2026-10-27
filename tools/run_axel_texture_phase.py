@@ -64,6 +64,7 @@ def main():
     texture_upload = parser.add_mutually_exclusive_group()
     texture_upload.add_argument("--background-texture-upload", action="store_true")
     texture_upload.add_argument("--without-background-texture-upload", action="store_true")
+    parser.add_argument("--without-background-pixel-retirement", action="store_true")
     parser.add_argument("--without-batched-texture-handoff", action="store_true")
     parser.add_argument("--without-incremental-source-retirement", action="store_true")
     parser.add_argument("--without-raw-face-reuse", action="store_true")
@@ -72,6 +73,7 @@ def main():
     parser.add_argument("--full-cache-trims", action="store_true")
     parser.add_argument("--without-capacity-eviction-accounting", action="store_true")
     parser.add_argument("--scripted-cache-sort", action="store_true")
+    parser.add_argument("--without-lazy-terrain-height", action="store_true")
     parser.add_argument("--full-stream-adoption", action="store_true")
     parser.add_argument("--unaccounted-stream-removals", action="store_true")
     parser.add_argument("--rebuild-demand-catalogues", action="store_true")
@@ -152,6 +154,8 @@ def main():
         cmd.append("--background-texture-upload")
     if args.without_background_texture_upload:
         cmd.append("--without-background-texture-upload")
+    if args.without_background_pixel_retirement:
+        cmd.append("--without-background-pixel-retirement")
     if args.without_batched_texture_handoff:
         cmd.append("--without-batched-texture-handoff")
     if args.without_incremental_source_retirement:
@@ -168,6 +172,8 @@ def main():
         cmd.append("--without-capacity-eviction-accounting")
     if args.scripted_cache_sort:
         cmd.append("--scripted-cache-sort")
+    if args.without_lazy_terrain_height:
+        cmd.append("--without-lazy-terrain-height")
     if args.full_stream_adoption:
         cmd.append("--full-stream-adoption")
     if args.unaccounted_stream_removals:
@@ -207,6 +213,8 @@ def main():
               "incremental_cache_budget": not args.full_cache_trims,
               "capacity_eviction_accounting": not args.without_capacity_eviction_accounting,
               "native_cache_sort": not args.scripted_cache_sort,
+              "background_pixel_retirement": not args.without_background_pixel_retirement,
+              "lazy_terrain_height": not args.without_lazy_terrain_height,
               "incremental_stream_adoption": not args.full_stream_adoption,
               "owned_removal_accounting": not args.unaccounted_stream_removals,
               "reuse_demand_catalogues": not args.rebuild_demand_catalogues,

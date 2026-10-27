@@ -12,15 +12,20 @@ static var background_decoded_release_enabled:=true
 static var geometry_size_reuse_enabled:=true
 static var batched_geometry_release_enabled:=true # Diagnostic threshold-scan baseline.
 static var ordered_retirement_tail_enabled:=true # Diagnostic old-batch fence control.
+static var pixel_retirement_test_gate:Semaphore # Test only; production remains null.
+static var pixel_retirement_test_start_failure:=false # Test only.
+static var _pixel_service_requested:=false
 static var _geometry_sizes:=preload("res://scripts/world3d/cpu_geometry_size.gd").new()
 const BACKGROUND_BYTE_MIN:=8*1024*1024
 const CPU_GEOMETRIES_PER_BATCH:=1024
+const PIXEL_BUFFERS_PER_BATCH:=128
 var pending:Array=[]
 var known:Dictionary={}
 var exiting:=false
 var serial:=0
 var _advancing_ticket:Dictionary={}
 var _open_geometry_batch:Dictionary={}
+var _open_pixel_batch:Dictionary={}
 var profile:Dictionary={"scenes":0,"imports":0,"slices":0,"max_slice_us":0,"resources":0,"import_values":0,"import_slices":0,"import_max_slice_us":0,"truncated_imports":0,"private_arrays":0,"private_values":0,"private_slices":0,"private_max_slice_us":0,"models":0,"model_values":0,"model_slices":0,"model_max_slice_us":0,"terrain_shape_arrays":0,"terrain_shape_refs":0}
 static func _service()->Node:
 	if not Thread.is_main_thread():return null
@@ -30,6 +35,7 @@ static func _service()->Node:
 	if service!=null and service.exiting:return null
 	if service==null:
 		service=new();service.name=NODE_NAME;service.process_mode=Node.PROCESS_MODE_ALWAYS;tree.root.add_child(service)
+		if service.get_parent()!=tree.root or not service.is_inside_tree():service.free();return null
 	return service
 static func defer_scene(scene:PackedScene)->bool:
 	if scene==null or not Thread.is_main_thread():return false
@@ -132,6 +138,57 @@ static func defer_cpu_values(values:Array,logical_bytes:int)->bool:
 	service.pending.append({"kind":"cpu_geometry","source_id":id,"values":values,"logical_bytes":logical_bytes,"worker":null})
 	service.known[id]=true;service.set_process(true)
 	return true
+
+static func request_shared_pixel_service()->void:
+	# Never attempt root.add_child during exit propagation. The request is made
+	# while the producer is committed; if no future frame exists it simply dies.
+	if _pixel_service_requested or not Thread.is_main_thread():return
+	var tree:SceneTree=Engine.get_main_loop() as SceneTree
+	if tree==null or not is_instance_valid(tree.root) or tree.root.get_node_or_null(NODE_NAME)!=null:return
+	_pixel_service_requested=true
+	Callable(load("res://scripts/world3d/resource_retirement.gd"),"_prepare_pixel_service").call_deferred()
+
+static func _prepare_pixel_service()->void:
+	_pixel_service_requested=false
+	_service()
+
+static func defer_shared_pixel_buffers(values:Array,completions:Array,admission:RefCounted)->bool:
+	# Only pure PackedByteArray values cross to the worker. Completion records
+	# remain on main and keep the old pool/ledger alive until its lease is paid.
+	if values.is_empty() or values.size()!=completions.size() or admission==null or not Thread.is_main_thread():return false
+	var tree:SceneTree=Engine.get_main_loop() as SceneTree
+	if tree==null or not is_instance_valid(tree.root):return false
+	var service:Node=tree.root.get_node_or_null(NODE_NAME)
+	if service==null or service.exiting or not service.is_inside_tree():return false
+	service._enqueue_pixel_buffers(values,completions,admission)
+	return true
+
+static func drain_shared_pixel_buffers(admission:RefCounted)->void:
+	# Explicit queue shutdown retains its existing synchronous ledger contract.
+	# Normal cancellation and demand-ready paths never call this fence.
+	if admission==null or not Thread.is_main_thread():return
+	var tree:SceneTree=Engine.get_main_loop() as SceneTree
+	if tree==null or not is_instance_valid(tree.root):return
+	var service:Node=tree.root.get_node_or_null(NODE_NAME)
+	if service!=null:service._drain_pixel_buffers_for(admission)
+
+func _drain_pixel_buffers_for(admission:RefCounted)->void:
+	var index:=0
+	while index<pending.size():
+		var ticket:Dictionary=pending[index]
+		if ticket.get("kind","")!="pixel_buffers" or not is_same(ticket.admission,admission):index+=1;continue
+		_advance_pixel_buffers(ticket,0)
+		pending.remove_at(index);known.erase(ticket.source_id);_finish_pixel_ticket(ticket)
+	if pending.is_empty():set_process(false)
+
+func _enqueue_pixel_buffers(values:Array,completions:Array,admission:RefCounted)->void:
+	for i:int in values.size():
+		if _open_pixel_batch.is_empty() or not is_same(_open_pixel_batch.admission,admission) or _open_pixel_batch.values.size()>=PIXEL_BUFFERS_PER_BATCH:
+			serial+=1;var id:="pixels:%d"%serial
+			_open_pixel_batch={"kind":"pixel_buffers","source_id":id,"values":[],"completions":[],"admission":admission,"worker":null}
+			pending.append(_open_pixel_batch);known[id]=true
+		_open_pixel_batch.values.append(values[i]);_open_pixel_batch.completions.append(completions[i])
+	set_process(true)
 static func defer_import_packet(packet:Dictionary,on_done:Callable,owner:RefCounted)->bool:
 	var _scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.resource_retirement.defer_import_packet") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	if not Thread.is_main_thread() or not on_done.is_valid() or owner==null:return false
@@ -199,6 +256,7 @@ func _advance(ticket:Dictionary,budget_usec:int)->bool:
 	_advancing_ticket=previous
 	return complete
 func _advance_ticket(ticket:Dictionary,budget_usec:int)->bool:
+	if ticket.get("kind","")=="pixel_buffers":return _advance_pixel_buffers(ticket,budget_usec)
 	if ticket.get("kind","")=="cpu_geometry":return _advance_cpu_geometry(ticket,budget_usec<=0)
 	if ticket.get("kind","")=="model":return _advance_model(ticket,budget_usec)
 	if ticket.get("kind","")=="private_array":return _advance_private_array(ticket,budget_usec)
@@ -272,6 +330,43 @@ static func _release_cpu_geometry_batch(values:Array)->Dictionary:
 	# clear releases borrowed children without clearing their shared contents.
 	values.clear()
 	return {"elapsed_us":Time.get_ticks_usec()-began,"thread_id":OS.get_thread_caller_id()}
+
+static func _release_pixel_buffers(values:Array,gate:Semaphore)->Dictionary:
+	if gate!=null:gate.wait()
+	var began:=Time.get_ticks_usec();values.clear()
+	return {"elapsed_us":Time.get_ticks_usec()-began,"thread_id":OS.get_thread_caller_id()}
+
+func _advance_pixel_buffers(ticket:Dictionary,budget_usec:int)->bool:
+	var shutdown:=budget_usec<=0
+	var worker:Thread=ticket.worker
+	if worker==null:
+		if is_same(_open_pixel_batch,ticket):_open_pixel_batch={}
+		ticket.slot_blocked=false
+		if not shutdown and ticket.admission.worker_limit<=0:
+			# Disabled loading workers mean no background slot. Release at most
+			# one indivisible byte buffer in this budgeted slice to ensure progress.
+			_drop_private_value(ticket.values,false)
+			profile.pixel_disabled_slices=int(profile.get("pixel_disabled_slices",0))+1
+			return ticket.values.is_empty()
+		var first:Dictionary=ticket.completions[0]
+		if not ticket.admission.start_pixel_retirement(first.lease):
+			if shutdown:
+				# There will be no future service frame. Never exceed the worker
+				# cap just to shut down; finish this bounded ticket synchronously.
+				ticket.values.clear();return true
+			ticket.slot_blocked=true;return false
+		worker=Thread.new()
+		if pixel_retirement_test_start_failure or worker.start(_release_pixel_buffers.bind(ticket.values,pixel_retirement_test_gate))!=OK:
+			profile.pixel_start_failures=int(profile.get("pixel_start_failures",0))+1
+			ticket.values.clear();return true
+		ticket.worker=worker
+		profile.pixel_batches=int(profile.get("pixel_batches",0))+1
+		profile.pixel_buffers=int(profile.get("pixel_buffers",0))+ticket.completions.size()
+	if worker.is_alive() and not shutdown:return false
+	var result:Dictionary=worker.wait_to_finish();ticket.worker=null
+	profile.pixel_worker_us=int(profile.get("pixel_worker_us",0))+int(result.elapsed_us)
+	profile.pixel_max_worker_us=maxi(int(profile.get("pixel_max_worker_us",0)),int(result.elapsed_us))
+	return true
 func _advance_cpu_geometry(ticket:Dictionary,shutdown:bool)->bool:
 	var began:=Time.get_ticks_usec();var worker:Thread=ticket.worker
 	if worker==null:
@@ -431,6 +526,8 @@ func _finish_cpu_buffers(ticket:Dictionary,shutdown:bool)->bool:
 	return true
 func _finish_front()->void:
 	var ticket:Dictionary=pending.pop_front();known.erase(ticket.source_id)
+	if ticket.get("kind","")=="pixel_buffers":
+		_finish_pixel_ticket(ticket)
 	if ticket.has("geometry_tail"):
 		var tail:Dictionary=ticket.geometry_tail;ticket.erase("geometry_tail")
 		tail.on_done=ticket.get("on_done",Callable());tail.owner=ticket.get("owner")
@@ -439,12 +536,22 @@ func _finish_front()->void:
 		var callback:Callable=ticket.on_done;ticket.on_done=Callable()
 		if callback.is_valid():callback.call()
 		ticket.owner=null
+func _finish_pixel_ticket(ticket:Dictionary)->void:
+	for completion:Dictionary in ticket.completions:
+		completion.owner._complete_pixel_retirement(ticket.admission,completion.lease,int(completion.bytes))
+	ticket.completions.clear();ticket.admission=null
 func _process(_delta:float)->void:
 	var allowed:=Budget.allowance("retire",1000,false)
 	if allowed<=0 or pending.is_empty():return
 	var began:=Time.get_ticks_usec()
-	if _advance(pending[0],allowed):
+	var front:Dictionary=pending[0]
+	if _advance(front,allowed):
 		_finish_front()
+	elif front.get("kind","")=="pixel_buffers" and front.get("slot_blocked",false) and pending.size()>1:
+		# A later main-thread retirement may free the slot held by this ledger.
+		# Move only this unstarted independent ticket; preserve all other FIFO
+		# tail/fence ordering, and attempt at most one ticket per frame.
+		pending.pop_front();pending.append(front)
 	Budget.charge("retire",began)
 	if pending.is_empty():set_process(false)
 func _exit_tree()->void:

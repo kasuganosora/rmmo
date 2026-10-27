@@ -130,6 +130,7 @@ func _initialize()->void:
 	for arg:String in OS.get_cmdline_user_args():
 		if arg=="--background-texture-upload":preload("res://scripts/world3d/shared_prefab_images.gd").background_upload_enabled=true
 		if arg=="--without-background-texture-upload":preload("res://scripts/world3d/shared_prefab_images.gd").background_upload_enabled=false
+		if arg=="--without-background-pixel-retirement":preload("res://scripts/world3d/shared_prefab_images.gd").background_pixel_retirement_enabled=false
 		if arg=="--without-batched-texture-handoff":preload("res://scripts/world3d/prefab_texture_preparation.gd").batched_final_handoff_enabled=false
 		if arg=="--without-incremental-source-retirement":preload("res://scripts/world3d/ground_batcher.gd").incremental_source_retirement_enabled=false
 		if arg=="--serial-chunk-textures":preload("res://scripts/world3d/deferred_asset_loader.gd").parallel_texture_preparation_enabled=false
@@ -255,6 +256,7 @@ func tick_geometry()->void:
 		report.native_prefab_direct_specs=preload("res://scripts/world3d/deferred_asset_loader.gd").native_prefab_direct_specs_enabled
 		report.capacity_eviction_accounting=preload("res://scripts/world3d/surface_materials.gd").capacity_eviction_accounting_enabled
 		report.native_cache_sort=preload("res://scripts/world3d/surface_materials.gd").native_cache_sort_enabled
+		report.background_pixel_retirement=preload("res://scripts/world3d/shared_prefab_images.gd").background_pixel_retirement_enabled
 		report.completed_owner_drain=preload("res://scripts/world3d/publication_order.gd").completed_owner_drain_enabled
 		report.white_stream_time_slice=Stream.white_time_slice_enabled
 		report.white_building_turns=preload("res://scripts/world3d/publication_order.gd").white_building_turns_enabled
