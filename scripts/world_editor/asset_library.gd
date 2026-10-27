@@ -223,13 +223,31 @@ func search(query: String) -> Array:
 	if needle.is_empty(): return entries
 	return entries.filter(func(entry: Dictionary): return (str(entry.get("label", "")) + " " + str(entry.get("category", ""))).to_lower().contains(needle))
 
+## Existing synchronous native-only miss path; callers retain the existing
+## ownership semantics. Admission/async preparation belongs to the upstream
+## loading coordinator and has not yet been moved into this entry point.
+static func _read_published_native(path:String)->Dictionary:
+	var root:String=preload("res://scripts/world3d/map_paths.gd").external_root()
+	if preload("res://scripts/world3d/white_native_asset_cache.gd").active():
+		return Compiled.read(path,"",root,false,true)
+	# The fixed footprint binds both the actual product and its accounting;
+	# never reopen the authoring source or fall back to a raw import here.
+	var candidate:=preload("res://scripts/world3d/compiled_asset_footprint.gd").candidate(path,root,"",true)
+	if candidate.is_empty() or OS.get_thread_caller_id()!=OS.get_main_thread_id():return {"hit":false}
+	var packet:=preload("res://scripts/world3d/compiled_asset_preparation.gd").read(path,candidate,root,Callable(),true)
+	if packet.get("error",FAILED)!=OK or not packet.get("packed") is PackedScene:
+		preload("res://scripts/world3d/asset_worker_drainer.gd").dispose_result(packet)
+		return {"hit":false}
+	packet.hit=true
+	return packet
+
 static func instantiate(path: String,native_only:bool=false) -> Node3D:
-	var native_package:bool=native_only and preload("res://scripts/world3d/runtime_package_policy.gd").trusted() and preload("res://scripts/world3d/white_native_asset_cache.gd").active()
+	var native_package:bool=native_only and preload("res://scripts/world3d/runtime_package_policy.gd").trusted()
 	if native_package:
 		if not preload("res://scripts/world3d/map_paths.gd").asset_key_allowed(path):return null
 	elif not FileAccess.file_exists(path):return null
 	if not _scenes.has(path) or (native_only and not _scenes[path].get_meta("compiled_asset_validated",false)):
-		var compiled:=preload("res://scripts/world3d/compiled_asset_cache.gd").read(path,"","",false,preload("res://scripts/world3d/runtime_package_policy.gd").trusted())
+		var compiled:=_read_published_native(path) if native_package else preload("res://scripts/world3d/compiled_asset_cache.gd").read(path,"","",false,preload("res://scripts/world3d/runtime_package_policy.gd").trusted())
 		if compiled.hit:
 			if not cache_packed(path,compiled.packed,compiled.source_digest):
 				preload("res://scripts/world3d/asset_worker_drainer.gd").dispose_result(compiled)
@@ -256,7 +274,7 @@ static func _instantiate(packed:PackedScene)->Node3D:
 
 ## Preview/import owns one scene and frees it; it must not grow the runtime scene cache.
 static func instantiate_preview(path: String,native_only:bool=false) -> Node3D:
-	var native_package:bool=native_only and preload("res://scripts/world3d/runtime_package_policy.gd").trusted() and preload("res://scripts/world3d/white_native_asset_cache.gd").active()
+	var native_package:bool=native_only and preload("res://scripts/world3d/runtime_package_policy.gd").trusted()
 	var native_identity:=""
 	if native_package:
 		if not preload("res://scripts/world3d/map_paths.gd").asset_key_allowed(path):return null
@@ -268,7 +286,7 @@ static func instantiate_preview(path: String,native_only:bool=false) -> Node3D:
 		if native_package:
 			# Only a resident preview needs a fresh identity observation here.
 			# On a cold miss Compiled.read already resolves its native index.
-			var metadata:=preload("res://scripts/world3d/white_native_asset_metadata.gd").read(path,preload("res://scripts/world3d/map_paths.gd").external_root(),"",-1)
+			var metadata:=preload("res://scripts/world3d/native_model_product.gd").read(path,preload("res://scripts/world3d/map_paths.gd").external_root(),"",-1)
 			if metadata.is_empty():return null
 			native_identity=str(metadata.native_source_sha)
 		var digest:=native_identity if native_package else (preload("res://scripts/world3d/runtime_package_policy.gd").source_identity(path) if preload("res://scripts/world3d/runtime_package_policy.gd").trusted() else FileAccess.get_sha256(path))
@@ -279,7 +297,7 @@ static func instantiate_preview(path: String,native_only:bool=false) -> Node3D:
 			var validated:Variant=_scenes[path].get_meta("compiled_asset_validated",false)
 			if (validated is bool and validated) or (not native_only and preload("res://scripts/world3d/embedded_glb.gd").can_copy(path)):return _instantiate(_scenes[path])
 		evict_cached_scene(path)
-	var compiled:=preload("res://scripts/world3d/compiled_asset_cache.gd").read(path,"","",false,preload("res://scripts/world3d/runtime_package_policy.gd").trusted())
+	var compiled:=_read_published_native(path) if native_package else preload("res://scripts/world3d/compiled_asset_cache.gd").read(path,"","",false,preload("res://scripts/world3d/runtime_package_policy.gd").trusted())
 	if compiled.hit:return _instantiate(compiled.packed)
 	if not Compiled.dispose_miss(compiled):return null
 	if native_only:return null
@@ -333,6 +351,12 @@ static func cache_scene(path: String, scene: Node, verified_digest:String="") ->
 	preload("res://scripts/world3d/asset_worker_drainer.gd").dispose_scene(scene)
 	preload("res://scripts/world3d/load_trace.gd").elapsed("asset_library.cache_dispose",started,{"path":path})
 	if err != OK: return false
+	# This scene was instantiated from an accepted native product. Repacking its
+	# private node graph must preserve that provenance, or native-only consumers
+	# immediately reject this freshly published template and reload the product.
+	if keepalive is PackedScene and keepalive.get_meta("compiled_asset_validated",false):
+		packed.set_meta("compiled_asset_validated",true)
+		packed.set_meta("compiled_grass_rebound",true)
 	var cached:=cache_packed(path,packed,verified_digest)
 	keepalive=null
 	return cached

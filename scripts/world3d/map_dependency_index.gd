@@ -9,7 +9,7 @@ const Cursor = preload("res://scripts/world3d/document_open_cursor.gd")
 const Snapshot = preload("res://scripts/world3d/document_source_snapshot.gd")
 const Manifest = preload("res://scripts/world3d/asset_bounds_manifest.gd")
 const Native = preload("res://scripts/world3d/white_native_asset_cache.gd")
-const NativeMetadata = preload("res://scripts/world3d/white_native_asset_metadata.gd")
+const NativeMetadata = preload("res://scripts/world3d/native_model_product.gd")
 const Memory = preload("res://scripts/world3d/asset_memory_estimate.gd")
 const Blueprint = preload("res://scripts/world3d/building_blueprint.gd")
 const Imported = preload("res://scripts/world3d/imported_building.gd")
@@ -174,7 +174,7 @@ static func _build(path:String,content_root:String,hydrated_records:Array,source
 	if not trusted_package and not _ownership_valid(opened.extras, rows, groups): return _fail("invalid_ownership_directory")
 	if not trusted_package and not _imported_sources_valid(opened.extras, rows,worker_limit): return _fail("imported_building_source_mismatch")
 	if (not trusted_package and not Store.verify_dependencies(opened.dependencies, path, content_root,worker_limit)) or not opened.source.matches_disk(): return _fail("source_changed_during_build")
-	var native_package:bool=trusted_package and Native.active()
+	var native_package:bool=trusted_package
 	for model_path: String in models:
 		if not (Paths.asset_key_allowed(model_path,content_root) if native_package else Paths.allowed(model_path,content_root)):return _fail("model_path_changed_during_build")
 		if trusted_package:continue
@@ -216,7 +216,7 @@ static func _encode_index_definition(job:Dictionary,_decode:bool)->Dictionary:
 ## stay together so repeated instances share exactly one manifest/path check.
 static func _build_rows(records:Array,compact:Array,definition_bytes:Dictionary,root:String,worker_limit:int=Store.READ_WORKERS,thread_starter:Callable=Callable(),source_manifests:Dictionary={},trusted_package:bool=false)->Dictionary:
 	var started:=Time.get_ticks_usec()
-	var native_package:bool=trusted_package and Native.active()
+	var native_package:bool=trusted_package
 	var prefab_metadata:RefCounted=preload("res://scripts/world3d/prefab_bounds_metadata.gd").new(root) if trusted_package and preload("res://scripts/world3d/runtime_package_policy.gd").trusted() and Prefab.trusted_metadata_reuse_enabled else null
 	var rows:Array=[];rows.resize(records.size())
 	var models:Dictionary={};var paths:Dictionary={};var jobs:Array=[]
@@ -405,7 +405,7 @@ static func _classify(record: Dictionary, root: String, models: Dictionary, chec
 	elif record.has("model_building"):
 		result.asset_path=str(record.get("asset_path",""))
 		if (trusted_package or Imported.valid_record(record)) and _fields_allowed(record,COMMON_FIELDS+ASSET_FIELDS):
-			_classify_model(record,root,models,result,checked_paths,trusted_package and Native.active())
+			_classify_model(record,root,models,result,checked_paths,trusted_package)
 	elif not result.owner_keys.is_empty() or record.has("fixture"):
 		result.reason = "ownership_global"
 	# The package already supplies its authored road topology. Classification
@@ -422,7 +422,7 @@ static func _classify(record: Dictionary, root: String, models: Dictionary, chec
 		result.bounds_known = _finite_bounds(result.bounds); result.reason = "native_box"
 		if result.bounds_known: result.classification = "spatial"
 	elif record.get("kind") == "asset" and _fields_allowed(record, COMMON_FIELDS + ASSET_FIELDS):
-		_classify_model(record,root,models,result,checked_paths,trusted_package and Native.active())
+		_classify_model(record,root,models,result,checked_paths,trusted_package)
 	if record.has("building") and not _fields_allowed(record, COMMON_FIELDS + ["building", "fixture", "house_prefab", "prefab_locked", "prefab_materials", "window_design", "building_shape"]):
 		result.bounds_known = false; result.reason = "unsupported_building_behavior"
 	if result.bounds_known:

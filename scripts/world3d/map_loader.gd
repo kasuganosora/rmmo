@@ -81,6 +81,7 @@ var _entry_plan:Dictionary={}
 var _collision_core_deferred_ids:Array[String]=[] # Scheduling hint only; never collision authority.
 var _early_models:=preload("res://scripts/world3d/initial_model_prefetch.gd").new()
 var _cold_model_manifests:Dictionary={}
+var _native_model_manifests:Dictionary={} # This load's immutable product observations.
 var _early_deferred:Node
 var _draining_deferred:Node
 
@@ -112,6 +113,7 @@ func start(path: String,origin:Variant=null) -> void:
 	preload("res://scripts/world3d/definition_cache_policy.gd").configure()
 	_path = path
 	_cold_model_manifests.clear()
+	_native_model_manifests.clear()
 	_collision_core_deferred_ids.clear()
 	var session:=get_node_or_null("/root/GameSession")
 	_entry_origin_explicit=origin is Vector3
@@ -418,10 +420,10 @@ func _cold_model_hints(records:Array)->Dictionary:
 			if not allowed:
 				result.error="source_path";return _cold_hint_detail_result(result,detail)
 		if not manifests.has(path):
-			var native_only:bool=_model_preparation.require_native_products and preload("res://scripts/world3d/white_native_asset_cache.gd").active()
+			var native_only:bool=_native_package_models()
 			var metadata_timing:Variant={} if detail!=null else null
 			if detail!=null:began=Time.get_ticks_usec()
-			manifests[path]=preload("res://scripts/world3d/asset_source_metadata.gd").read(path,_content_root,"",native_only,metadata_timing)
+			manifests[path]=_native_model_manifest(path,metadata_timing) if native_only else preload("res://scripts/world3d/asset_source_metadata.gd").read(path,_content_root,"",false,metadata_timing)
 			if detail!=null:
 				_cold_hint_detail_span(detail,row,"metadata_read",began)
 				if row!=null:row.metadata=metadata_timing
@@ -570,7 +572,13 @@ func _collision_first_selection(index:Dictionary,selection:Dictionary)->Dictiona
 	return selection
 
 func _native_package_models()->bool:
-	return _model_preparation.require_native_products and PackagePolicy.trusted() and preload("res://scripts/world3d/white_native_asset_cache.gd").active()
+	return _model_preparation.require_native_products and PackagePolicy.trusted()
+
+func _native_model_manifest(path:String,timing:Variant=null)->Dictionary:
+	if not _native_model_manifests.has(path):
+		_native_model_manifests[path]=preload("res://scripts/world3d/asset_source_metadata.gd").read(path,_content_root,"",true,timing)
+	elif timing!=null:timing.assign({"identity_mode":"native_load_snapshot","source_open_count":0,"source_identity_count":0})
+	return _native_model_manifests[path]
 
 func _model_key_allowed(path:String)->bool:
 	var Paths=preload("res://scripts/world3d/map_paths.gd")
@@ -580,8 +588,8 @@ func _prepare_source_signatures(paths:Array)->Dictionary:
 	if not _native_package_models():return _source_hash_preparation.run(paths,_content_root,1 if background_preload else 4)
 	var began:=Time.get_ticks_usec();var signatures:Dictionary={}
 	for path:String in paths:
-		var metadata:=preload("res://scripts/world3d/white_native_asset_metadata.gd").read(path,_content_root,"",-1)
-		if metadata.is_empty():return {"error":ERR_FILE_CORRUPT,"reason":"native_metadata_missing_or_stale","error_path":path,"signatures":{},"elapsed_us":Time.get_ticks_usec()-began}
+		var metadata:=_native_model_manifest(path)
+		if not metadata.get("known",false):return {"error":ERR_FILE_CORRUPT,"reason":"native_metadata_missing_or_stale","error_path":path,"signatures":{},"elapsed_us":Time.get_ticks_usec()-began}
 		signatures[path]=metadata.native_source_sha
 	return {"error":OK,"signatures":signatures,"elapsed_us":Time.get_ticks_usec()-began,"mode":"native_product_index","source_reads":0}
 
@@ -594,12 +602,17 @@ func _register_reference_pending(entries:Array)->void:
 		var manifest:Dictionary={}
 		if not entry.asset_path.is_empty():
 			manifest=_dependency_index.models.get(entry.asset_path,{})
+			# Warm directories already contain the authored bounds and budget. Do
+			# not open every far product merely to register unvisited regions.
+			if _native_model_manifests.has(entry.asset_path):manifest=_native_model_manifests[entry.asset_path]
+			if _native_package_models() and not preload("res://scripts/world3d/white_native_asset_cache.gd").active() and manifest.get("memory",{}).get("native_product_kind")!="full":
+				manifest=_native_model_manifest(entry.asset_path)
 			if not estimates.has(entry.asset_path):
 				if _native_package_models():
 					var Model=preload("res://scripts/world3d/model_parse_preparation.gd")
 					estimates[entry.asset_path]=Model.native_memory(manifest)
 					if estimates[entry.asset_path].is_empty():
-						manifest=preload("res://scripts/world3d/white_native_asset_metadata.gd").read(entry.asset_path,_content_root,"",-1)
+						manifest=_native_model_manifest(entry.asset_path)
 						estimates[entry.asset_path]=Model.native_memory(manifest)
 					if estimates[entry.asset_path].is_empty():
 						_error=ERR_FILE_CORRUPT;_failure_reason=Model.native_failure(entry.asset_path,"native_metadata_missing_or_stale").error_message;return
@@ -661,7 +674,7 @@ func _prepare_record_assets_inner()->void:
 				# Large distant files are hashed on their preparation worker. The
 				# source JSON bounds snapshot is checked again before import; full
 				# navigation caches stay disabled until every source hash is known.
-				_deferred_assets.append({"record":record,"path":path,"bounds":footprint.world_bounds,"digest":"","memory":memory_estimates[path],"manifest":{"json_sha256":manifests[path].json_sha256,"file_length":manifests[path].file_length},"draw_order":int(_record_order[record.uuid])*65536})
+				_deferred_assets.append({"record":record,"path":path,"bounds":footprint.world_bounds,"digest":str(manifests[path].get("native_source_sha","")),"memory":memory_estimates[path],"manifest":manifests[path],"draw_order":int(_record_order[record.uuid])*65536})
 				_deferred_ids[record.uuid]=true
 				continue
 		signature_paths[path]=true

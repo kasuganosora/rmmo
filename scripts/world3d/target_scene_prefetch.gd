@@ -26,7 +26,7 @@ var _verify_ticket:Dictionary={}
 var _root:=""
 static func plan(records:Array,root:String,source_path:String,source_sha:String,dependencies:Dictionary)->Dictionary:
 	var files:Dictionary={source_path:source_sha};var models:Dictionary={};var pixels:Dictionary={};var bytes:=512*1024*1024
-	var native_package:bool=preload("res://scripts/world3d/runtime_package_policy.gd").trusted() and preload("res://scripts/world3d/white_native_asset_cache.gd").active()
+	var native_package:bool=preload("res://scripts/world3d/runtime_package_policy.gd").trusted()
 	for record:Dictionary in records:
 		bytes+=int(record.get("house_prefab",{}).get("length",0))*16
 		if record.has("terrain_mesh"):bytes+=int(record.terrain_mesh.columns)*int(record.terrain_mesh.rows)*1024
@@ -41,13 +41,14 @@ static func plan(records:Array,root:String,source_path:String,source_sha:String,
 	for path:String in models:
 		if native_package:
 			var file_identities:Dictionary={}
-			var metadata:=preload("res://scripts/world3d/white_native_asset_metadata.gd").read(path,root,"",-1,null,file_identities)
+			var metadata:=preload("res://scripts/world3d/native_model_product.gd").read(path,root,"",-1,null,file_identities)
 			var memory:=preload("res://scripts/world3d/model_parse_preparation.gd").native_memory(metadata)
 			if memory.is_empty():return {}
 			bytes+=int(memory.estimated_bytes)*2
 			# The authoring path is a logical key. Only the actual published index,
 			# descriptor and native payload participate in prefetch invalidation.
 			for metadata_path:String in [metadata.native_index_path,metadata.native_descriptor_path]:
+				if not file_identities.has(metadata_path):return {}
 				files[metadata_path]=file_identities[metadata_path]
 			files[metadata.native_product_path]={"sha256":metadata.native_payload_sha,"length":int(metadata.native_product_bytes),"native_product":true}
 			continue
@@ -75,8 +76,9 @@ static func plan(records:Array,root:String,source_path:String,source_sha:String,
 
 static func _native_file_identity(path:String,identity:Dictionary,root:String)->bool:
 	if identity.size()!=3 or identity.get("native_product")!=true or not preload("res://scripts/world3d/compiled_asset_cache.gd")._sha(identity.get("sha256")) or not identity.get("length") is int or identity.length<=0 or identity.length>preload("res://scripts/world3d/compiled_asset_cache.gd").MAX_FILE_BYTES:return false
-	var directory:=preload("res://scripts/world3d/white_native_asset_cache.gd").directory(root)
-	return path==directory.path_join(identity.sha256+".scn") and Paths.allowed(path,directory)
+	for directory:String in [preload("res://scripts/world3d/white_native_asset_cache.gd").directory(root),preload("res://scripts/world3d/compiled_asset_cache.gd").directory(root)]:
+		if path==directory.path_join(identity.sha256+".scn") and Paths.allowed(path,directory):return true
+	return false
 
 static func verify(files:Dictionary,root:String)->bool:
 	for path:String in files:

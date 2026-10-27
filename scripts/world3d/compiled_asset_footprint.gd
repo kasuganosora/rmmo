@@ -26,17 +26,17 @@ static func generator() -> String:
 	# This invalidates only footprints, never an existing native product.
 	return (str(VERSION) + ":" + FileAccess.get_sha256("res://scripts/world3d/compiled_asset_footprint.gd")).sha256_text()
 
-static func candidate(path: String, content_root: String, expected_source: String = "", trusted_package: bool = false, expected_product_generator: String = "") -> Dictionary:
+static func candidate(path: String, content_root: String, expected_source: String = "", trusted_package: bool = false, expected_product_generator: String = "", metadata: Variant = null, file_identities: Variant = null) -> Dictionary:
 	# White native packets also own exact CPU arrays; keep the full existing raw
 	# envelope until a separate footprint is measured. Never borrow textured data.
 	if preload("res://scripts/world3d/white_native_asset_cache.gd").active():return {}
 	if content_root.is_empty() or not Compiled.enabled: return {}
 	if not expected_source.is_empty() and not Compiled._sha(expected_source): return {}
-	var identity := _identity(path, content_root, trusted_package, expected_product_generator)
+	var identity := _identity(path, content_root, trusted_package, expected_product_generator, file_identities)
 	if identity.is_empty() or (not expected_source.is_empty() and identity.source_sha != expected_source): return {}
 	var filename := descriptor_path(path, content_root)
 	if not Paths.allowed(filename, directory(content_root)): return {}
-	var envelope := _read_json(filename, MAX_DESCRIPTOR_BYTES)
+	var envelope := _read_json(filename, MAX_DESCRIPTOR_BYTES, file_identities)
 	var body: Variant = envelope.get("body")
 	if envelope.get("version") != VERSION or not body is String: return {}
 	if not trusted_package and (not Compiled._sha(envelope.get("sha256")) or body.sha256_text() != envelope.sha256): return {}
@@ -61,10 +61,11 @@ static func candidate(path: String, content_root: String, expected_source: Strin
 	# Freeze the exact product identity. Do not derive it from another manifest
 	# read later, and do not mistake these unhashed source bytes for verification.
 	identity.merge(estimate)
+	if metadata is Dictionary: metadata.assign(descriptor)
 	identity.erase("source_bytes")
 	return identity
 
-static func _identity(path: String, content_root: String, trusted_package:bool=false, expected_product_generator:String="") -> Dictionary:
+static func _identity(path: String, content_root: String, trusted_package:bool=false, expected_product_generator:String="", file_identities:Variant=null) -> Dictionary:
 	path = _path(path)
 	if content_root.is_empty(): return {}
 	if not (Paths.asset_key_allowed(path,content_root) if trusted_package else Paths.allowed(path,content_root)): return {}
@@ -77,7 +78,7 @@ static func _identity(path: String, content_root: String, trusted_package:bool=f
 	if not Paths.allowed(folder, content_root): return {}
 	var index := Compiled.index_path(path, content_root)
 	if not Paths.allowed(index, folder): return {}
-	var manifest := _read_json(index, 8192)
+	var manifest := _read_json(index, 8192, file_identities)
 	if manifest.get("version") != Compiled.VERSION or not manifest.get("generator") is String: return {}
 	if not trusted_package and manifest.generator != Compiled.generator(): return {}
 	if not expected_product_generator.is_empty() and manifest.generator != expected_product_generator: return {}
@@ -111,6 +112,8 @@ static func build(path: String, content_root: String = "") -> Dictionary:
 	stats.native_uncompressed_bytes = uncompressed
 	var estimate := estimate_stats(stats)
 	if estimate.is_empty(): return {"ok":false, "reason":"unbounded_estimate"}
+	var model_metadata:=_source_metadata(path)
+	if model_metadata.is_empty():return {"ok":false,"reason":"source_bounds_unknown"}
 	# Statistics can perform renderer readback. Recheck the complete source and
 	# product afterward, and ensure the index did not change while measuring.
 	if _identity(path, content_root) != before or FileAccess.get_sha256(before.source_path) != before.source_sha or FileAccess.get_sha256(before.product) != before.payload_sha:
@@ -118,10 +121,40 @@ static func build(path: String, content_root: String = "") -> Dictionary:
 	var descriptor := before.duplicate()
 	descriptor.erase("product")
 	descriptor.merge({"version":VERSION, "footprint_generator":generator(), "stats":stats, "estimated_bytes":estimate.estimated_bytes, "resident_bytes":estimate.resident_bytes})
+	descriptor.model_metadata=model_metadata
 	var destination := descriptor_path(path, content_root)
 	var result := _publish(descriptor, destination, content_root)
 	if result != OK: return {"ok":false, "reason":"descriptor_write", "error":result}
 	return {"ok":true, "path":before.source_path, "descriptor":destination, "candidate":candidate(path, content_root, before.source_sha), "stats":stats}
+
+# Immutable source facts alongside the existing full native budget.
+# No geometry or texture data is duplicated. JSON carries AABB as six numbers.
+static func _source_metadata(path:String)->Dictionary:
+	var bounds:Dictionary=preload("res://scripts/world3d/asset_bounds_manifest.gd").read(path)
+	if not bounds.get("known",false) or not bounds.get("local_bounds") is AABB:return {}
+	var box:AABB=bounds.local_bounds
+	return {"version":1,"local_bounds":[box.position.x,box.position.y,box.position.z,box.size.x,box.size.y,box.size.z],"json_sha256":bounds.json_sha256,"file_length":bounds.file_length,"json_bytes":bounds.json_bytes}
+
+# Explicit offline conversion of existing native footprints. Never modifies the
+# SCN or source. The before/after observations protect the publication transaction;
+# no part of this work runs in the gameplay reader.
+static func refresh_bounds(path:String,content_root:String)->Dictionary:
+	if content_root.is_empty() or not Paths.allowed(path,content_root):return {"ok":false,"reason":"source_path"}
+	var descriptor:Dictionary={}
+	var candidate_:=candidate(path,content_root,"",true,"",descriptor)
+	if candidate_.is_empty():return {"ok":false,"reason":"native_footprint_missing"}
+	var target:=descriptor_path(path,content_root)
+	var descriptor_sha:=FileAccess.get_sha256(target)
+	if FileAccess.get_sha256(path)!=candidate_.source_sha or FileAccess.get_sha256(candidate_.product)!=candidate_.payload_sha:
+		return {"ok":false,"reason":"source_or_product_changed"}
+	var observation:=_source_metadata(path)
+	if observation.is_empty() or observation.file_length!=descriptor.get("source_bytes"):
+		return {"ok":false,"reason":"source_bounds_unknown"}
+	if FileAccess.get_sha256(path)!=candidate_.source_sha or FileAccess.get_sha256(target)!=descriptor_sha or candidate(path,content_root,"",true)!=candidate_:
+		return {"ok":false,"reason":"identity_changed_during_refresh"}
+	descriptor.model_metadata=observation
+	var error:=_publish(descriptor,target,content_root)
+	return {"ok":error==OK,"error":error,"descriptor":target,"source":path,"product":candidate_.product}
 
 static func estimate_stats(stats: Dictionary) -> Dictionary:
 	for key in STAT_KEYS:
@@ -285,10 +318,18 @@ static func _publish(descriptor: Dictionary, destination: String, content_root: 
 	if FileAccess.file_exists(temporary): DirAccess.remove_absolute(temporary)
 	return error
 
-static func _read_json(path: String, maximum: int) -> Dictionary:
+static func _read_json(path: String, maximum: int, file_identities:Variant=null) -> Dictionary:
 	var file := FileAccess.open(path, FileAccess.READ)
 	if file == null or file.get_length() > maximum: return {}
-	var data: Variant = JSON.parse_string(file.get_as_text()); file.close()
+	var text:String
+	if file_identities is Dictionary:
+		var bytes:=file.get_buffer(file.get_length())
+		var hash_:=HashingContext.new();hash_.start(HashingContext.HASH_SHA256);hash_.update(bytes)
+		file_identities[path]=hash_.finish().hex_encode()
+		text=bytes.get_string_from_utf8()
+	else: text=file.get_as_text()
+	file.close()
+	var data: Variant = JSON.parse_string(text)
 	return data if data is Dictionary else {}
 
 static func _integer(value: Variant, maximum: int, minimum: int = 0) -> bool:

@@ -472,8 +472,8 @@ func _mesh(record: Dictionary, effects: bool=true, timings: Variant=null) -> Mes
 	if effects and load_box_meshes!=null and record.has("fortification_art") and str(record.fortification_art.asset_path).get_extension().to_lower()=="glb":
 		var model_path:String=record.fortification_art.asset_path
 		if not load_model_signatures.has(model_path):
-			if load_require_native_products and preload("res://scripts/world3d/runtime_package_policy.gd").trusted() and preload("res://scripts/world3d/white_native_asset_cache.gd").active():
-				var metadata:=preload("res://scripts/world3d/white_native_asset_metadata.gd").read(model_path,preload("res://scripts/world3d/map_paths.gd").external_root(),"",-1)
+			if load_require_native_products and preload("res://scripts/world3d/runtime_package_policy.gd").trusted():
+				var metadata:=preload("res://scripts/world3d/native_model_product.gd").read(model_path,preload("res://scripts/world3d/map_paths.gd").external_root(),"",-1)
 				if metadata.is_empty():
 					mesh_node.set_meta("paint_error","游戏模型缺少可用原生描述，请在内容编辑器重新导出："+model_path)
 					return mesh_node

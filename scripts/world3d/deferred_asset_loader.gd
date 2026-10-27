@@ -2095,7 +2095,7 @@ static func _prepare_job_inner(path:String,digest:String,token:RefCounted,manife
 		prepared.elapsed_us=int(prepared.get("read_profile",{}).get("elapsed_us",0));prepared.native_reference=native
 		return prepared
 	var result:Dictionary
-	if model_route.get("stage")=="fixed_native":result=_prepare_fixed_scene(path,digest,token,manifest,faces,root,model_route.candidate,int(geometry.mode))
+	if model_route.get("stage")=="fixed_native":result=_prepare_fixed_scene(path,digest,token,manifest,faces,root,model_route.candidate,int(geometry.mode),model_route.get("require_native_products",false))
 	else:result=prepare_scene(path,digest,token,manifest,faces,root,model_route.get("stage")=="raw_import",int(geometry.mode),true,preload("res://scripts/world3d/runtime_package_policy.gd").trusted(),model_route.get("require_native_products",false))
 	if model_route.get("require_native_products",false) and result.has("native_packet"):
 		var packet:Dictionary=result.native_packet
@@ -2112,7 +2112,7 @@ static func _prepare_job_inner(path:String,digest:String,token:RefCounted,manife
 
 static func _preflight_reused_source(path:String,digest:String,content_root:String,token:RefCounted,native_only:bool=false)->Dictionary:
 	if token!=null and token.is_cancelled():return {"error":"素材准备已取消","cancelled":true}
-	var native_package:bool=native_only and preload("res://scripts/world3d/runtime_package_policy.gd").trusted() and preload("res://scripts/world3d/white_native_asset_cache.gd").active()
+	var native_package:bool=native_only and preload("res://scripts/world3d/runtime_package_policy.gd").trusted()
 	var confined:bool=preload("res://scripts/world3d/map_paths.gd").asset_key_allowed(path,content_root) if native_package else preload("res://scripts/world3d/map_paths.gd").allowed(path,content_root)
 	if not Assets._valid_source_digest(digest) or content_root.is_empty() or not confined:return {"error":"复用素材缺少有效来源身份："+path}
 	# A reused native template already owns its accepted product and digest. Its
@@ -3120,13 +3120,16 @@ static func _native_private(packed:PackedScene,path:String,token:RefCounted,mani
 	if token!=null and token.is_cancelled():result.error=ERR_SKIP;result.cancelled=true;return result
 	result.error=OK;return result
 
-static func _prepare_fixed_scene(path:String,digest:String,token:RefCounted,manifest:Dictionary,faces:bool,root:String,candidate:Dictionary,geometry_mode:int=CollisionGeometry.ALL)->Dictionary:
+static func _prepare_fixed_scene(path:String,digest:String,token:RefCounted,manifest:Dictionary,faces:bool,root:String,candidate:Dictionary,geometry_mode:int=CollisionGeometry.ALL,native_only:bool=false)->Dictionary:
 	var began:=Time.get_ticks_usec()
 	if token!=null and token.is_cancelled():return {"error":"素材准备已取消","cancelled":true}
-	if root.is_empty() or not preload("res://scripts/world3d/map_paths.gd").allowed(path,root):return {"error":"素材路径无效："+path}
+	var native_package:bool=native_only and preload("res://scripts/world3d/runtime_package_policy.gd").trusted()
+	var confined:bool=preload("res://scripts/world3d/map_paths.gd").asset_key_allowed(path,root) if native_package else preload("res://scripts/world3d/map_paths.gd").allowed(path,root)
+	if root.is_empty() or not confined:return {"error":"素材路径无效："+path}
+	if native_package and digest.is_empty():digest=str(candidate.get("source_sha",""))
 	if not digest.is_empty() and (not Assets._valid_source_digest(digest) or candidate.get("source_sha")!=digest):return {"error":"素材已验证来源与原生候选不符："+path}
 	if (digest.is_empty() and manifest.is_empty()) or not _manifest_matches(path,manifest):return {"error":"素材边界在后台准备前发生变化："+path}
-	var packet:=CompiledPreparation.read(path,candidate,root,_native_private.bind(path,token,manifest,faces,geometry_mode),preload("res://scripts/world3d/runtime_package_policy.gd").trusted())
+	var packet:=CompiledPreparation.read(path,candidate,root,_native_private.bind(path,token,manifest,faces,geometry_mode),preload("res://scripts/world3d/runtime_package_policy.gd").trusted(),not native_only)
 	var result:Dictionary={"error":"","native_packet":packet,"elapsed_us":Time.get_ticks_usec()-began}
 	if token!=null and token.is_cancelled():result.error="素材准备已取消";result.cancelled=true;return result
 	if packet.get("fallback_required",false):return result # Main validates + re-admits raw.
@@ -3147,7 +3150,7 @@ static func prepare_scene(path:String,digest:String,token:RefCounted=null,expect
 	if content_root.is_empty():
 		if OS.get_thread_caller_id()!=OS.get_main_thread_id():return {"error":"后台素材准备缺少资源根快照："+path}
 		content_root=preload("res://scripts/world3d/map_paths.gd").external_root()
-	var native_package:bool=native_only and trusted_package and preload("res://scripts/world3d/white_native_asset_cache.gd").active()
+	var native_package:bool=native_only and trusted_package
 	var confined:bool=preload("res://scripts/world3d/map_paths.gd").asset_key_allowed(path,content_root) if native_package else preload("res://scripts/world3d/map_paths.gd").allowed(path,content_root)
 	if content_root.is_empty() or not confined:return {"error":"素材路径无效："+path}
 	var Manifest=preload("res://scripts/world3d/asset_bounds_manifest.gd")
@@ -3170,7 +3173,15 @@ static func prepare_scene(path:String,digest:String,token:RefCounted=null,expect
 	if token!=null and token.is_cancelled():return {"error":"素材准备已取消","cancelled":true}
 	# Strict transactions verify source bytes after private preparation as well.
 	var compiled:Dictionary={"hit":false,"elapsed_us":0}
-	if not raw_only:compiled=Compiled.read(path,source_digest,content_root,not source_digest.is_empty(),trusted_package)
+	if native_package and not preload("res://scripts/world3d/white_native_asset_cache.gd").active():
+		var candidate:Dictionary=expected_manifest.get("native_candidate",{})
+		if candidate.is_empty():candidate=preload("res://scripts/world3d/compiled_asset_footprint.gd").candidate(path,content_root,source_digest,true)
+		if candidate.is_empty() or (not source_digest.is_empty() and candidate.get("source_sha")!=source_digest):return {"error":preload("res://scripts/world3d/model_parse_preparation.gd").native_failure(path,"native_footprint_missing_or_stale").error_message}
+		var packet:=CompiledPreparation.read(path,candidate,content_root,Callable(),true)
+		if packet.get("error",FAILED)!=OK or packet.get("fallback_required",false):
+			return {"error":preload("res://scripts/world3d/model_parse_preparation.gd").native_failure(path,str(packet.get("cache_reason","invalid_product"))).error_message,"native_packet":packet}
+		compiled={"hit":true,"packed":packet.packed,"source_digest":packet.source_digest,"elapsed_us":int(packet.get("cache_us",0))}
+	elif not raw_only:compiled=Compiled.read(path,source_digest,content_root,not source_digest.is_empty(),trusted_package)
 	if native_only and not compiled.hit:
 		return {"error":preload("res://scripts/world3d/model_parse_preparation.gd").native_failure(path,str(compiled.get("reason","invalid_product"))).error_message,"native_packet":compiled}
 	if native_package:
@@ -3486,7 +3497,9 @@ func _retire_failed_jobs()->void:
 func _candidate_for_job(path:String,root:String,digest:String)->Dictionary:
 	var cached:Dictionary=_native_candidates.get(path,{})
 	if not cached.is_empty() and cached.digest==digest:return cached.value
-	var value:Dictionary=preload("res://scripts/world3d/compiled_asset_footprint.gd").candidate(path,root,digest,preload("res://scripts/world3d/runtime_package_policy.gd").trusted())
+	var value:Dictionary=_path_first.get(path,{}).get("manifest",{}).get("native_candidate",{}) if require_native_products else {}
+	if value.is_empty():value=preload("res://scripts/world3d/compiled_asset_footprint.gd").candidate(path,root,digest,preload("res://scripts/world3d/runtime_package_policy.gd").trusted())
+	if not digest.is_empty() and value.get("source_sha")!=digest:value={}
 	_native_candidates[path]={"digest":digest,"value":value.duplicate(true)}
 	profile.native_candidate_lookups=int(profile.get("native_candidate_lookups",0))+1
 	return value
@@ -3721,6 +3734,10 @@ func _dispatch_jobs(tree:SceneTree,prefetch_only:bool=false)->void:
 				estimate=_estimate_job(raw_item,requests,true)
 			else:
 				var offered:Dictionary=_candidate_for_job(path,content_root,digest)
+				var full_native:bool=require_native_products and preload("res://scripts/world3d/runtime_package_policy.gd").trusted() and not preload("res://scripts/world3d/white_native_asset_cache.gd").active()
+				if full_native and offered.is_empty():
+					_path_failed(path,preload("res://scripts/world3d/model_parse_preparation.gd").native_failure(path,"native_footprint_missing_or_stale").error_message)
+					continue
 				var raw_bytes:=int(next.get("memory",{}).get("estimated_bytes",_admission.byte_limit))
 				if offered.get("estimated_bytes") is int and offered.estimated_bytes>0 and offered.get("exclusive") is bool:
 					# Both fixed and legacy readers may allocate the known native
@@ -3728,7 +3745,7 @@ func _dispatch_jobs(tree:SceneTree,prefetch_only:bool=false)->void:
 					raw_item.memory=next.get("memory",{}).duplicate()
 					raw_item.memory.estimated_bytes=maxi(raw_bytes,offered.estimated_bytes)
 					raw_item.memory.exclusive=bool(raw_item.memory.get("exclusive",false)) or offered.exclusive
-					if native_preparation_enabled:
+					if native_preparation_enabled or full_native:
 						candidate=offered.duplicate(true);stage="fixed_native"
 						if native_budget_enabled:raw_item.memory={"estimated_bytes":candidate.estimated_bytes,"exclusive":candidate.exclusive,"known":true}
 					estimate=_estimate_job(raw_item,requests,true)

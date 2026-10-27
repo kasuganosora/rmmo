@@ -76,21 +76,20 @@ func run(paths: Array, parser: Callable = Callable(), worker_limit: int = 2, thr
 	var limit := clampi(worker_limit, 1, 4)
 	var eligibility_started := Time.get_ticks_usec()
 	var eligible:Dictionary={};var estimates:Dictionary={};var candidates:Dictionary={};var native_estimates:Dictionary={};var legacy_estimates:Dictionary={};var native_bounds:Dictionary={};var required_resident:=0
-	var native_package:bool=require_native_products and preload("res://scripts/world3d/runtime_package_policy.gd").trusted() and preload("res://scripts/world3d/white_native_asset_cache.gd").active()
+	var native_package:bool=require_native_products and preload("res://scripts/world3d/runtime_package_policy.gd").trusted()
+	var full_native_package:bool=native_package and not preload("res://scripts/world3d/white_native_asset_cache.gd").active() and not cache_reader.is_valid()
 	for path: String in unique:
 		if is_cancelled(): break
 		if not require_native_products and (not native_route or _raw_eligible(path)):eligible[path]=true
 		var estimate:Variant
 		if native_package and native_route and not memory_estimator.is_valid():
 			estimate=native_memory(static_scene_paths.get(path,{}))
-			if estimate.is_empty():
-				var metadata:=preload("res://scripts/world3d/white_native_asset_metadata.gd").read(path,content_root,"",-1)
+			if estimate.is_empty() or (full_native_package and not static_scene_paths.get(path,{}).has("native_candidate")):
+				var metadata:=preload("res://scripts/world3d/native_model_product.gd").read(path,content_root,"",-1)
 				estimate=native_memory(metadata)
 				if not estimate.is_empty():static_scene_paths[path]=metadata
 			if estimate.is_empty():
-				var failure:=native_failure(path,"native_metadata_missing_or_stale")
-				failure.path=path;failure.elapsed_us=0
-				return _finish({"error":failure.error,"cancelled":false,"entries":[failure]},started)
+				return _preflight_failure(path,"native_metadata_missing_or_stale",unique.size(),started)
 		else:
 			estimate=memory_estimator.call(path) if memory_estimator.is_valid() else (MemoryEstimate.from_manifest(path,static_scene_paths.get(path,{})) if native_route else {"estimated_bytes":1,"exclusive":false,"known":true})
 		if not estimate is Dictionary or not estimate.get("estimated_bytes") is int or estimate.estimated_bytes<=0 or not estimate.get("exclusive") is bool:
@@ -98,7 +97,14 @@ func run(paths: Array, parser: Callable = Callable(), worker_limit: int = 2, thr
 		estimates[path]=estimate.duplicate()
 		legacy_estimates[path]=estimate.duplicate()
 		if native_route and (candidate_provider.is_valid() or not cache_reader.is_valid()):
-			var candidate:Dictionary=candidate_provider.call(path) if candidate_provider.is_valid() else preload("res://scripts/world3d/compiled_asset_footprint.gd").candidate(path,content_root,str(verified_sources.get(path,"")),preload("res://scripts/world3d/runtime_package_policy.gd").trusted())
+			var candidate:Dictionary
+			if candidate_provider.is_valid():candidate=candidate_provider.call(path)
+			else:
+				candidate=static_scene_paths.get(path,{}).get("native_candidate",{}) if full_native_package else {}
+				if candidate.is_empty():candidate=preload("res://scripts/world3d/compiled_asset_footprint.gd").candidate(path,content_root,str(verified_sources.get(path,"")),preload("res://scripts/world3d/runtime_package_policy.gd").trusted())
+			if not str(verified_sources.get(path,"")).is_empty() and candidate.get("source_sha")!=verified_sources[path]:candidate={}
+			if full_native_package and candidate.is_empty():
+				return _preflight_failure(path,"native_footprint_missing_or_stale",unique.size(),started)
 			if not candidate.is_empty() and candidate.get("estimated_bytes") is int and candidate.estimated_bytes>0 and candidate.get("exclusive") is bool:
 				# Source cleanup can shrink the raw envelope without changing the
 				# native pixels or loader working set. A known native bound applies
@@ -106,7 +112,7 @@ func run(paths: Array, parser: Callable = Callable(), worker_limit: int = 2, thr
 				native_bounds[path]=candidate.estimated_bytes
 				legacy_estimates[path].estimated_bytes=maxi(estimate.estimated_bytes,candidate.estimated_bytes)
 				legacy_estimates[path].exclusive=estimate.exclusive or candidate.exclusive
-				if native_footprints_enabled:
+				if native_footprints_enabled or full_native_package:
 					candidates[path]=candidate.duplicate(true)
 					native_estimates[path]={"estimated_bytes":candidate.estimated_bytes,"exclusive":candidate.exclusive,"known":true,"reason":"verified_native_footprint"}
 		# The synchronous API retains every completed model until its caller can
@@ -318,6 +324,15 @@ func _cache_stage(path:String,content_root:String,verified_sources:Dictionary)->
 	if not compiled.get("retained_resources",[]).is_empty():return _owned_cache_miss(compiled)
 	return {"error":OK,"fallback_required":true,"cache_reason":compiled.get("reason","")}
 
+func _preflight_failure(path:String,reason:String,unique_count:int,started:int)->Dictionary:
+	# No admission ledger, worker, or resource exists at this point. Keep the
+	# same observable completion contract as failures after dispatch.
+	var failure:=native_failure(path,reason)
+	failure.path=path;failure.elapsed_us=0
+	return _finish({"error":failure.error,"cancelled":false,"entries":[failure],"unique_count":unique_count,
+		"threads_started":0,"threads_joined":0,"inflight_jobs_at_return":0,"inflight_reserved_at_return":0,
+		"native_cache_hits":0,"native_cache_misses":1,"serial_fallbacks":0,"fallback_count":0},started)
+
 static func native_failure(path:String,reason:String)->Dictionary:
 	return {"error":ERR_FILE_CORRUPT,"cache_reason":reason,"native_product_required":true,
 		"error_message":"游戏模型缺少可用原生产物，请在内容编辑器重新导出："+path+" ("+reason+")"}
@@ -350,7 +365,7 @@ static func is_legacy_source_retry(packet:Dictionary)->bool:
 
 func _candidate_stage(path:String,candidate:Dictionary,content_root:String)->Dictionary:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.model_parse_preparation._candidate_stage") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
-	var raw:Variant=candidate_reader.call(path,candidate) if candidate_reader.is_valid() else preload("res://scripts/world3d/compiled_asset_preparation.gd").read(path,candidate,content_root,Callable(),preload("res://scripts/world3d/runtime_package_policy.gd").trusted())
+	var raw:Variant=candidate_reader.call(path,candidate) if candidate_reader.is_valid() else preload("res://scripts/world3d/compiled_asset_preparation.gd").read(path,candidate,content_root,Callable(),preload("res://scripts/world3d/runtime_package_policy.gd").trusted(),not require_native_products)
 	var result:Dictionary=raw if raw is Dictionary else {"error":ERR_INVALID_DATA}
 	if require_native_products and (result.get("fallback_required",false) or result.get("native_source_retry",false)):
 		# Keep any allocated native owners attached to the fatal result; the

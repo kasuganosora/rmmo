@@ -51,7 +51,7 @@ static func repair_zero_tangents(arrays:Array)->Dictionary:
 	return {"ok":best.size()==missing.size(),"repaired":best.size(),"unresolved":missing.size()-best.size()}
 static func kit(path: String,native_only:bool=false) -> Dictionary:
 	if kits.has(path): return kits[path]
-	var native_package:bool=native_only and preload("res://scripts/world3d/runtime_package_policy.gd").trusted() and preload("res://scripts/world3d/white_native_asset_cache.gd").active()
+	var native_package:bool=native_only and preload("res://scripts/world3d/runtime_package_policy.gd").trusted()
 	if native_package:
 		if not preload("res://scripts/world3d/map_paths.gd").asset_key_allowed(path):return {}
 	elif not preload("res://scripts/world3d/map_paths.gd").allowed(path) or not FileAccess.file_exists(path):return {}

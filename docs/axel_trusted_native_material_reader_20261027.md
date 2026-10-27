@@ -69,3 +69,5 @@ engine09、Windows Vulkan Forward+、RX 7900 XTX，使用 `run_godot_background.
 4. 前轮 B2 卸载 51.133 ms 未取得同帧调用栈。采样 monitor 错位不能据此归为 OS；仍须定位。当前生产 reader 工作量减少不能替代地图 low/FPS 收益证据。
 5. 模型内嵌材质与现有 DDS 路线不能混算：`Compiled` 的 GLTF append → `Io.generate_scene` → bundle/compress PackedScene 链没有调用 `SurfaceMaterials` / `PrefabTexturePreparation` 的外部 DDS sidecar 读取；`ModelTextureCache` 当前只 stamp 像素身份和弱引用共享。SCN 序列化压缩不等于 GPU 图像压缩，旧产物实际 image format 仍须单独取证；footprint 的 gpu_rgba_bytes 也只是保守预留，不是实际 VRAM。后续按真实材质 slot、去重图像 format/mips/data size 及模型上传数据定位，不能把地表 DDS 收益外推为完整模型收益。
 6. 游戏材质路径稳定后，进入内容编辑器和 3D MCP 的完整适配，特别是同路径纹理重导入后的缓存失效、共享去重、预算/回收及保存重开。目标保持进行中。
+
+后续入口接线和 Deferred 发布后重复读取的红绿证据见 `axel_full_native_runtime_20261028.md`。后续组件通过不覆盖本节尚未完成的真实地图测量。

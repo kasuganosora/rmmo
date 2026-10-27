@@ -35,7 +35,7 @@ static func read(path:String,root:String,version:String="",native_only:bool=fals
 		if timing!=null:timing.path_check_count=1;timing.path_check_us=Time.get_ticks_usec()-native_started;timing.identity_mode="native_index";native_started=Time.get_ticks_usec()
 		if not key_allowed:return Manifest.unknown("metadata_source_path")
 		var native_details:Variant={} if timing!=null else null
-		var published:=preload("res://scripts/world3d/white_native_asset_metadata.gd").read(path,root,"",-1,native_details)
+		var published:=preload("res://scripts/world3d/native_model_product.gd").read(path,root,"",-1,native_details)
 		if timing!=null:
 			timing.native_metadata_us=Time.get_ticks_usec()-native_started;timing.native_metadata_count=1;timing.native_metadata_hit=not published.is_empty();timing.native_details=native_details
 		return published if not published.is_empty() else Manifest.unknown("native_metadata_missing_or_stale")
