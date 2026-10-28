@@ -43,6 +43,16 @@
 - `garden_wall_short`（`0d00898aca5a…`）：源45/0、实际原生59/0；3张2K有效纹理像素与完整几何/LOD/材质语义一致，近中远/细节4组画面像素相同，root已查看4张Q90。有限范围报告见同名 `model_reviews/.../attempt_01/model_review.md`。
 - 成熟松树（`191e57178860…`）：源73/0、实际原生87/0；实际原生60,793,148 bytes，5张纹理的有效像素和完整资源语义一致。27组固定画面源/native像素完全相同，root已查看其中12张Q90，覆盖近中远、细节、投影、亮暗叶缘与两个固定风时刻；没有发现转换新增的外观损失。精确LOD阈值两侧与无双重绘制补验仍待完成，不能用普通远景代替。见该模型 `manual_review.json` 的逐图路径与状态。
 
-全部59件的真实编辑器放置、编辑、撤销、保存重开集成仍待完成；其余模型的画面复验继续进行。已有两件完整固定视角图审及松树有限范围图审不能替代整库验收。流水线测试期间存在独立引擎编译负载，本轮样本仅作为功能证据。
+新增长L形树篱花池（`1885d634da0f…`）和节庆彩旗（`3009b1ed360b…`）固定视角复验，各27组 source/native 画面像素相同，root各查看9张Q90，覆盖近中远、细节、亮暗叶缘/布边、投影与两个风时刻。每件实际资源、图片SHA和有限范围结论在同目录 `manual_review.json`。目前5/59件有固定视角图审，54件仍待图审；松树LOD阈值专项未完成。
 
-UI/MCP 自动 DDS 导入在独立 `editor-texture-import` worktree 开发。旧引擎实际 HTTP/UI 与地图 LoadJob 共享预算测试20/0，但只证明 PNG 回退；CPU 编码接口及本地 RenderingDevice 错误发布全局 singleton 的修复引擎还在编译，真实 DDS 分支未验证、未合并。本记录不产生新的 axel_town 加载、FPS/low 或峰值内存结论。
+## 全部新产品的实际编辑器集成
+
+**59/59件通过真实编辑器操作，9个独立进程共2768项检查，0失败。** 使用实际库入口（4个直接模型、55个预制件），临时地图与缩略图全部放在外部证据目录，不制造替代库条目或改写正式地图。
+
+`tools/test_editor_native_migration_http.gd` 通过真实HTTP完成工具发现、放置、选择、变换、一次撤销事务、撤销重做、非法操作无副作用、保存重开，并核对实际SCN owner的源/产物身份、拾取体、实际调色板预览和缩略图。每件随后打开空地图，确认原物件及拾取登记消失，等待后台释放；正式library、目标prefab和小型产品元数据SHA保持不变。
+
+证据为 `editor_http_pilot_01`、`editor_http_batch_{02,10,18,26,34,42,50,58}` 和 `editor_integration_summary_01.json`。源码、测试与候选引擎身份在各进程前后保持一致。引擎SHA为 `3d65b357ac8a14b8bf04b3a162d7dfea74eb0550ffb10a5a26764cea21958066`；此轮不是性能基线。初次parse中的两处测试变量类型错误保存在 `editor_http_parse_01`，修正后的 `editor_http_parse_02` 通过。并未执行完整消费者I/O追踪，不能把native owner断言扩大成系统调用级证明。
+
+每件 `per_model_status` 已追加editor操作通过状态；图审、精确LOD及适用的旗槽/运行时灯光等仍单独待验，正式地图部署不由本测试放行。
+
+UI/MCP自动DDS导入在独立 `editor-texture-import` worktree继续收口。新CPU编码接口及局部RenderingDevice修补已编译，并通过实际DDS HTTP/UI 32项检查，见[引擎合同](editor_dds_engine_contract_20261028.md)。任意尺寸限制、首次涂材质同步读取和缩略图共享预算仍在处理，分支尚未合并。完成编辑器后再开始4.8。本记录不产生新的 axel_town 加载、FPS/low 或峰值内存结论。
