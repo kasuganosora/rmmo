@@ -7,6 +7,7 @@ const Pixels=preload("res://scripts/world3d/runtime_texture_cache.gd")
 const Headers=preload("res://scripts/world3d/asset_memory_estimate.gd")
 const Trace=preload("res://scripts/world3d/load_trace.gd")
 const Compressed=preload("res://scripts/world3d/compressed_texture_source.gd")
+const Streamed=preload("res://scripts/world3d/streamed_texture_source.gd")
 const FIELDS=["texture_path","normal_path","roughness_path","metallic_path","ao_path","height_path"]
 ## Diagnostic A/B: ordinary mounted loads share one source identity per pool.
 ## Standalone/strict callers retain the prior per-job read and final check.
@@ -55,6 +56,7 @@ static func _header(path:String,root:String)->Dictionary:
 static func workspace_bytes(row:Dictionary)->int:
 	# One contract for standalone and shared-pool admission. DDS has no PNG
 	# cache envelope or decompression/normal-conversion pixel workspace.
+	if row.get("extension")=="stex":return int(row.output_bytes)*2+65536
 	if row.get("extension")=="dds":return int(row.source_bytes)*2+int(row.output_bytes)*2+4*1024*1024
 	var codec_rows:=int(row.width)*int(row.height)*int(row.get("input_pixel_bytes",4))
 	return int(row.cache_limit)*3+int(row.output_bytes)*4+int(row.source_bytes)*2+codec_rows+4*1024*1024
@@ -67,14 +69,15 @@ static func estimate(requested:Dictionary,root:String,mutable_source:bool=false)
 	for key:String in keys:
 		var source:Array=requested[key]
 		var row:Dictionary={}
+		if not mutable_source:row=Streamed.plan(source[0],source[1],source[2],root)
 		# Editable sources reserve the complete PNG/JPEG route. Only the worker's
 		# actual byte snapshot can establish whether a derived DDS is current.
-		if not mutable_source and preload("res://scripts/world3d/surface_materials.gd").compressed_sidecars_enabled:row=Compressed.plan(source[0],source[1],source[2],root)
+		if row.is_empty() and not mutable_source and preload("res://scripts/world3d/surface_materials.gd").compressed_sidecars_enabled:row=Compressed.plan(source[0],source[1],source[2],root)
 		if row.is_empty():row=_header(source[0],root)
 		if row.is_empty():continue
-		var pixels:int=int(row.output_bytes) if row.extension=="dds" else Headers._mip_bytes(row.width,row.height,4)
+		var pixels:int=int(row.output_bytes) if row.extension in ["dds","stex"] else Headers._mip_bytes(row.width,row.height,4)
 		row.path=source[0];row.flip=source[1];row.normal=source[2];row.output_bytes=pixels
-		if row.extension=="dds":
+		if row.extension in ["dds","stex"]:
 			# DDS is already the upload format. Charge the retained block image,
 			# staging and one bounded file/codec workspace, never an RGBA decode.
 			rows[key]=row;output+=pixels
@@ -220,7 +223,7 @@ static func prepare(requested:Dictionary,plan:Dictionary,root:String,token:RefCo
 		var actual:=estimate(requested,root,mutable_source)
 		if actual!=plan:return _retry("Prefab texture dimensions changed after admission") if not shared.is_empty() else _fail("Prefab texture dimensions changed after admission")
 	_stage(profile,"header",mark,{"sources":requested.size(),"images":plan.rows.size(),"reused":reuse_header})
-	var images:Dictionary={};var identities:Dictionary={};var cache_hits:=0;var decoded:=0;var output:=0;var waiting:=false
+	var images:Dictionary={};var textures:Dictionary={};var identities:Dictionary={};var cache_hits:=0;var decoded:=0;var output:=0;var waiting:=false
 	# One adjacent source snapshot at most: no additional per-source retained
 	# copies beyond the workspace already reserved by estimate().
 	var snapshot_path:="";var snapshot_bytes:=PackedByteArray();var snapshot_digest:=""
@@ -254,9 +257,28 @@ static func prepare(requested:Dictionary,plan:Dictionary,root:String,token:RefCo
 			_stage(profile,"shared_wait",mark,{"path":row.path})
 			if not fetched.error.is_empty():return _retry(fetched.error,identities) if fetched.get("retry_pixels",false) else _fail(fetched.error,fetched.get("cancelled",false))
 			if fetched.get("pending",false):waiting=true;continue
-			images[key]=fetched.image;output+=fetched.image.get_data_size();profile.shared_hits=int(profile.get("shared_hits",0))+1;continue
+			if fetched.image!=null:
+				images[key]=fetched.image;output+=fetched.image.get_data_size()
+			else:
+				textures[key]=fetched.texture;output+=int(row.output_bytes)
+			profile.shared_hits=int(profile.get("shared_hits",0))+1;continue
 		var digest:String=shared.pool.source_identity(shared.consumer,row.path) if reuse_sources else ""
 		var bytes:=PackedByteArray();var image:Image
+		if row.extension=="stex":
+			# Only immutable mounted packages choose this plan. Their path identity
+			# is already authoritative; never open/decode the original PNG or GLB.
+			if digest.is_empty():digest=row.path.sha256_text()
+			if reuse_sources and not shared.pool.remember_source_identity(shared.consumer,row.path,digest):return _fail("Streamed texture consumer cancelled",true)
+			var texture:Texture2D
+			mark=Time.get_ticks_usec()
+			if shared.is_empty():texture=Streamed.read(row,digest)
+			elif not shared.pool.load_stream(shared.consumer,key,digest,row):return _fail("Shared streamed texture failed or consumer cancelled",_cancelled(token))
+			else:texture=shared.pool.fetch(shared.consumer,key,digest,token,false).get("texture")
+			_stage(profile,"streamed_load",mark,{"path":row.path,"product":row.product,"full_bytes":row.output_bytes})
+			if texture==null or _cancelled(token):return _fail("Streamed texture failed or consumer cancelled",_cancelled(token))
+			textures[key]=texture;identities[row.path]=digest;output+=int(row.output_bytes)
+			profile.streamed_loads=int(profile.get("streamed_loads",0))+1
+			continue
 		if row.extension=="dds":
 			if digest.is_empty():digest=identities.get(row.path,"")
 			if digest.is_empty():digest=_source_sha(row.path,root,token,profile)
@@ -338,6 +360,7 @@ static func prepare(requested:Dictionary,plan:Dictionary,root:String,token:RefCo
 		images[key]=image;identities[row.path]=digest;output+=image.get_data_size()
 	profile.merge({"elapsed_us":Time.get_ticks_usec()-began,"cache_hits":cache_hits,"decoded":decoded,"images":images.size(),"output_bytes":output,"estimated_bytes":plan.estimated_bytes},true)
 	var result:Dictionary={"error":"","cancelled":false,"images":images,"sources":identities,"profile":profile,"waiting_pixels":waiting}
+	if not textures.is_empty():result.uploaded_textures=textures
 	if verify_at_end and not verify(result,root,token,shared,mounted_snapshot,mutable_source):return _fail("Prefab texture source changed or preparation cancelled",_cancelled(token))
 	profile.elapsed_us=Time.get_ticks_usec()-began
 	return result

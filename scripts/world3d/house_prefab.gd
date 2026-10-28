@@ -95,7 +95,7 @@ static func texture_tickets(sources:Dictionary,material_pool:Variant=null)->Dict
 		# Live scenes may be the only strong owners after hot-cache eviction.
 		# Capture the weak catalogue too, before admitting decode/upload work.
 		var texture:Texture2D=Cook.Paint.retained_texture(key)
-		var ticket:=_texture_ticket(texture)
+		var ticket:=_texture_ticket(texture,sources[key])
 		if not ticket.is_empty():result[key]=ticket
 	if result.size()==sources.size():return result
 	if material_pool is Dictionary:
@@ -118,8 +118,12 @@ static func _texture_digest_valid(value:Variant)->bool:
 		if character not in "0123456789abcdef":return false
 	return true
 
-static func _texture_ticket(texture:Variant)->Dictionary:
+static func _texture_ticket(texture:Variant,plan:Variant=null)->Dictionary:
 	if not texture is Texture2D:return {}
+	if plan is Dictionary and plan.get("extension")=="stex":
+		# A full ImageTexture can have the same source digest. Reusing it would
+		# silently defeat streaming or select an older product representation.
+		if not texture.is_class("StreamedTexture2D") or texture.get_meta("runtime_texture_representation","")!=plan.get("representation"):return {}
 	var digest:Variant=texture.get_meta("runtime_source_sha256","")
 	return {"texture":texture,"source_sha":digest} if _texture_digest_valid(digest) else {}
 
@@ -135,7 +139,7 @@ static func _material_texture_tickets(materials:Array,sources:Dictionary,result:
 			var flip:bool=field=="normal_path" and definition.get("normal_format","opengl")=="directx"
 			var key:String=Cook.Paint.texture_key(path,flip,field=="normal_path")
 			if not sources.has(key) or result.has(key):continue
-			var ticket:=_texture_ticket(material.get(TEXTURE_PROPERTIES[field]))
+			var ticket:=_texture_ticket(material.get(TEXTURE_PROPERTIES[field]),sources[key])
 			if not ticket.is_empty():result[key]=ticket
 		if result.size()==sources.size():return
 

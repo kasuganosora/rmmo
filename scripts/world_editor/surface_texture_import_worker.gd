@@ -253,23 +253,20 @@ static func encode_publish(prepared:Dictionary,token:RefCounted,root:String="",e
 	if compression=="source":
 		if not DDS.sidecar_path(texture_path,false,false).is_empty():return _fail("保真贴图存在外部压缩副产物，未使用该副产物")
 		result.dds_reason="source_requested"
-		if retain_pixels:result.prepared_image=_prepared_image(image,content_id,"source",image.detect_alpha()!=Image.ALPHA_NONE)
-		return result
+		return _finish_texture_product(result,image,content_id,"source",image.detect_alpha()!=Image.ALPHA_NONE,retain_pixels,token,root)
 	var expected:=Image.FORMAT_DXT5 if image.detect_alpha()!=Image.ALPHA_NONE else Image.FORMAT_DXT1
 	var existing:=DDS.plan_mutable(texture_path,false,false,root,content_id)
 	var existing_image:Image=DDS.read(existing) if not existing.is_empty() and existing.format==expected else null
 	if existing_image!=null:
 		result.dds_ready=true;result.dds_reused=true;result.dds_path=existing.sidecar;result.dds_sha=existing.mutable_dds_sha256
-		if retain_pixels:result.prepared_image=_prepared_image(existing_image,content_id,"dds:"+str(result.dds_sha),expected==Image.FORMAT_DXT5)
-		return result
+		return _finish_texture_product(result,existing_image,content_id,"dds:"+str(result.dds_sha),expected==Image.FORMAT_DXT5,retain_pixels,token,root)
 	# Runtime's trusted reader selects any existing sidecar by name. Do not
 	# advertise PNG fallback when an invalid old file could still be consumed.
 	if not DDS.sidecar_path(texture_path,false,false).is_empty():return _fail("已有 DDS 副产物无效或身份不匹配，请先处理该副产物")
 	var encoded:=encode_dds(image,encoder)
 	if not encoded.ok:
 		result.dds_reason=encoded.reason
-		if retain_pixels:result.prepared_image=_prepared_image(image,content_id,"source",image.detect_alpha()!=Image.ALPHA_NONE)
-		return result
+		return _finish_texture_product(result,image,content_id,"source",image.detect_alpha()!=Image.ALPHA_NONE,retain_pixels,token,root)
 	if _cancelled(token):return _fail("贴图导入已取消")
 	var target:=texture_path+str(encoded.suffix);var identity_path:=target+".source.json"
 	for value:String in [target,identity_path,target+".previous",identity_path+".previous"]:
@@ -286,8 +283,7 @@ static func encode_publish(prepared:Dictionary,token:RefCounted,root:String="",e
 	if error!=OK:
 		if DDS.sidecar_path(texture_path,false,false).is_empty():
 			result.dds_reason="dds_identity_write_failed"
-			if retain_pixels:result.prepared_image=_prepared_image(image,content_id,"source",image.detect_alpha()!=Image.ALPHA_NONE)
-			return result
+			return _finish_texture_product(result,image,content_id,"source",image.detect_alpha()!=Image.ALPHA_NONE,retain_pixels,token,root)
 		return _fail("DDS 身份写入失败且副产物状态不确定："+error_string(error))
 	if _cancelled(token):return _fail("贴图导入已取消")
 	error=_write_immutable(target,bytes,root,token,writer,stage_observer)
@@ -296,8 +292,7 @@ static func encode_publish(prepared:Dictionary,token:RefCounted,root:String="",e
 	if error!=OK:
 		if DDS.sidecar_path(texture_path,false,false).is_empty():
 			result.dds_reason="dds_write_failed"
-			if retain_pixels:result.prepared_image=_prepared_image(image,content_id,"source",image.detect_alpha()!=Image.ALPHA_NONE)
-			return result
+			return _finish_texture_product(result,image,content_id,"source",image.detect_alpha()!=Image.ALPHA_NONE,retain_pixels,token,root)
 		return _fail("DDS 写入失败且副产物状态不确定："+error_string(error))
 	# A competing different representation may have appeared after discovery.
 	# Never hand off our pixels while the ordinary reader selects another file.
@@ -305,7 +300,21 @@ static func encode_publish(prepared:Dictionary,token:RefCounted,root:String="",e
 	# Successful creation or byte-identical reuse proves the in-memory owner.
 	# No post-publication payload reread is needed for a new file.
 	result.dds_ready=true;result.dds_reused=false;result.dds_path=target;result.dds_sha=identity.dds_sha256
-	if retain_pixels:result.prepared_image=_prepared_image(encoded.image,content_id,"dds:"+str(result.dds_sha),expected==Image.FORMAT_DXT5)
+	return _finish_texture_product(result,encoded.image,content_id,"dds:"+str(result.dds_sha),expected==Image.FORMAT_DXT5,retain_pixels,token,root)
+
+static func _finish_texture_product(result:Dictionary,image:Image,source_sha:String,representation:String,alpha:bool,retain_pixels:bool,token:RefCounted,root:String)->Dictionary:
+	var native=preload("res://scripts/world3d/streamed_texture_source.gd")
+	if not retain_pixels and not native.enabled():return result
+	var pixels:=_prepared_image(image,source_sha,representation,alpha)
+	if pixels==null:return _fail("贴图像素准备失败")
+	if native.enabled():
+		# Both UI and HTTP imports use this worker. Reuse its admitted pixels or
+		# existing DDS blocks; never reread the source or encode a second time.
+		var error:Error=native.publish(result.texture_path,pixels,source_sha,representation,root,false,false,token)
+		if error==ERR_SKIP:return _fail("贴图导入已取消")
+		result.streamed_ready=error==OK
+		result.streamed_reason="" if error==OK else error_string(error)
+	if retain_pixels:result.prepared_image=pixels
 	return result
 
 static func _prepared_image(image:Image,source_sha:String,representation:String,alpha:bool)->Image:

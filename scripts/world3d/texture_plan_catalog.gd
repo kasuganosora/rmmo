@@ -27,7 +27,7 @@ func reset()->void:
 	async_reads=0;async_total_us=0;async_max_us=0;start_max_us=0;error="";revision+=1
 
 func _set_context(root:String)->void:
-	var context:Array=[root,Paint.source_generation,Paint.compressed_sidecars_enabled,Prep.Pixels.upload_preparation_enabled]
+	var context:Array=[root,Paint.source_generation,Paint.compressed_sidecars_enabled,Prep.Pixels.upload_preparation_enabled,Prep.Streamed.enabled()]
 	if context!=_context:
 		abandon();_rows.clear();_context=context;revision+=1
 

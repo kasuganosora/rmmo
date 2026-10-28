@@ -18,6 +18,8 @@ static func begin_record_scope(record:Dictionary,packet:Dictionary,owners:Dictio
 		var texture:Texture2D=owners[key]
 		var expected:String=packet.get("sources",{}).get(Paint.texture_source_path(key),"")
 		if not expected.is_empty() and texture.get_meta("runtime_source_sha256","")!=expected:continue
+		var prepared:Resource=Paint._prepared_resource(key)
+		if prepared!=null and not Paint._same_prepared_texture(texture,prepared):continue
 		if Paint.residency_budget_enabled:
 			if not Paint._texture_refs.has(key) or Paint._texture_refs[key].get_ref()!=texture:Paint._remember_weak(Paint._texture_refs,key,texture)
 		else:
@@ -39,7 +41,7 @@ static func step_record_prepared(record:Dictionary,validation:Variant,owners:Dic
 			if key.is_empty():continue
 			# A source identity does not admit every variant or format. Keep the
 			# existing final binding fallback for work outside this worker packet.
-			if not packet.get("images",{}).has(key) and not packet.get("resident_textures",{}).has(key):
+			if not packet.get("images",{}).has(key) and not packet.get("resident_textures",{}).has(key) and not packet.get("uploaded_textures",{}).has(key):
 				if not state.has("unprepared_keys"):state.unprepared_keys={}
 				if state.unprepared_keys.size()<256 and not state.unprepared_keys.has(key):
 					state.unprepared_keys[key]=true

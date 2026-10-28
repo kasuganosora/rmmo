@@ -57,6 +57,9 @@ func gpu_cases()->void:
 	var tickets:=House.texture_tickets(sources,pool)
 	check(tickets.size()==1 and tickets[PATH].texture==a and tickets[PATH].source_sha==SHA_A and a.get_rid().is_valid(),"load material pool alone retains a consumable GPU owner, deduplicated by key")
 	check(Paint._textures.is_empty() and Paint._materials.is_empty() and Paint.prepared_images.get(PATH)==sentinel and pool.size()==3,"ticket lookup does not upload, install, invalidate or consume prepared pixels")
+	# End the sentinel scope before checking ordinary owner precedence. A
+	# prepared Image without source identity must not authorize a cached texture.
+	Paint.prepared_images={}
 	Paint._materials["global"]=owner_b
 	check(House.texture_tickets(sources,pool)[PATH].texture==a,"current caller pool precedes a duplicate global material key")
 	check(House.texture_tickets(sources)[PATH].texture==b,"global material alone supplies the key after texture LRU eviction")

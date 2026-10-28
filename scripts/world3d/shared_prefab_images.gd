@@ -64,7 +64,7 @@ func offer(plan:Dictionary,cached:Dictionary={},revisions:Dictionary={})->Dictio
 		# A follower's observed digest must not create a second binding when the
 		# original producer is cancelled. Mutable diagnostic sources keep revisions.
 		var revision:String="" if Pixels.Policy.trusted() else str(revisions.get(row.path,""))
-		var identity:Array=[key,row.width,row.height,row.source_bytes,row.output_bytes,Pixels.upload_preparation_enabled,preload("res://scripts/world3d/surface_materials.gd").source_generation,revision,_upload_enabled]
+		var identity:Array=[key,row.width,row.height,row.source_bytes,row.output_bytes,Pixels.upload_preparation_enabled,preload("res://scripts/world3d/surface_materials.gd").source_generation,revision,_upload_enabled,row.get("product",""),row.get("representation","")]
 		var binding:String="prefab_pixels:"+var_to_bytes(identity).hex_encode().sha256_text()
 		result.bindings[key]=binding
 		candidates.append({"key":key,"binding":binding,"retained":int(row.output_bytes)*2,"scratch":Preparation.workspace_bytes(row)})
@@ -137,9 +137,34 @@ func _upload(image:Image)->ImageTexture:
 		texture.set_meta("runtime_source_sha256",image.get_meta("runtime_source_sha256",""))
 	return texture
 
+func _load_stream(plan:Dictionary,digest:String)->Texture2D:
+	return Preparation.Streamed.read(plan,digest)
+
+func load_stream(consumer:String,key:String,digest:String,plan:Dictionary)->bool:
+	# Claim before file/GPU work; a duplicate producer cannot even start a load.
+	# Cancellation can transfer ownership while the native call is in flight.
+	_mutex.lock()
+	var binding:String=_consumers.get(consumer,{}).get(key,"");var row:Dictionary=_entries.get(binding,{})
+	var valid:bool=not row.is_empty() and row.owner==consumer and row.state=="pending" and not _cancelled.has(consumer)
+	if not valid:_mutex.unlock();return false
+	row.state="uploading";_mutex.unlock()
+	var began:=Time.get_ticks_usec()
+	var texture:=_load_stream(plan,digest)
+	var elapsed:=Time.get_ticks_usec()-began
+	_mutex.lock()
+	profile.streamed_loads=int(profile.get("streamed_loads",0))+1
+	profile.streamed_load_us=int(profile.get("streamed_load_us",0))+elapsed
+	profile.streamed_load_max_us=maxi(int(profile.get("streamed_load_max_us",0)),elapsed)
+	valid=row.owner==consumer and row.state=="uploading" and not _cancelled.has(consumer) and texture!=null
+	if valid:
+		row.texture=texture;row.digest=digest;row.state="ready";profile.produced+=1
+	else:
+		profile.discarded_uploads+=1
+		if row.owner==consumer and row.state=="uploading":row.state="failed"
+	_mutex.unlock();return valid
+
 func textures(consumer:String)->Dictionary:
 	# Main after join. Explicit ownership, never hidden in Image metadata/arrays.
-	if not _upload_enabled:return {}
 	var result:Dictionary={};_mutex.lock()
 	if not _cancelled.has(consumer):
 		for key:String in _consumers.get(consumer,{}):
@@ -147,15 +172,15 @@ func textures(consumer:String)->Dictionary:
 			if row.get("state")=="ready" and row.get("texture")!=null:result[key]=row.texture
 	_mutex.unlock();return result
 
-func fetch(consumer:String,key:String,digest:String,token:RefCounted)->Dictionary:
+func fetch(consumer:String,key:String,digest:String,token:RefCounted,count_shared_hit:bool=true)->Dictionary:
 	if token!=null and token.is_cancelled():return {"error":"Shared image consumer cancelled","cancelled":true}
 	_mutex.lock()
 	var binding:String=_consumers.get(consumer,{}).get(key,"");var row:Dictionary=_entries.get(binding,{})
 	var answer:Dictionary
 	if _cancelled.has(consumer) or row.is_empty():answer={"error":"Shared image consumer cancelled","cancelled":true}
 	elif row.state=="ready":
-		answer={"error":"","image":row.image} if row.digest==digest else {"error":"Shared image source changed","retry_pixels":true}
-		if answer.error.is_empty():profile.shared_hits+=1
+		answer={"error":"","image":row.image,"texture":row.texture} if row.digest==digest else {"error":"Shared image source changed","retry_pixels":true}
+		if answer.error.is_empty() and count_shared_hit:profile.shared_hits+=1
 	elif row.state=="failed":answer={"error":"Shared image producer retired","retry_pixels":true}
 	else:answer={"error":"","pending":true};profile.waits+=1
 	_mutex.unlock();return answer

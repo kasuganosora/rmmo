@@ -47,6 +47,17 @@ func run()->void:
 	check(image!=null and not image.is_compressed() and image.get_data()==original.get_data(),"actual source GPU pixels preserve alpha and color exactly")
 	check(dds_owner!=null and dds_owner!=owner and dds_owner.get_image().get_format()==Image.FORMAT_DXT5,"actual DDS owner remains independent and DXT5")
 	check(DDS.sidecar_path(a.material.texture_path,false,false).is_empty(),"source variant cannot accidentally pick the sibling DDS")
+	var native=preload("res://scripts/world3d/streamed_texture_source.gd")
+	if native.enabled():
+		for pair:Array in [[a,owner,Image.FORMAT_RGBA8],[compressed,dds_owner,Image.FORMAT_DXT5]]:
+			var imported:Dictionary=pair[0]
+			var native_plan:Dictionary=native.plan(imported.material.texture_path,false,false,Paths.external_root())
+			check(not native_plan.is_empty() and native_plan.format==pair[2],"real HTTP import publishes native product in the requested representation")
+			if native_plan.is_empty():continue
+			var worker:=Thread.new();worker.start(native.read.bind(native_plan,str(imported.material.texture_path).sha256_text()))
+			while worker.is_alive():await process_frame
+			var streamed:Texture2D=worker.wait_to_finish()
+			check(streamed!=null and streamed.get_image().get_data()==pair[1].get_image().get_data(),"published native product retains every source pixel or existing DDS mip block")
 	import_one.call_deferred("collision_source",source,"source","x")
 	import_one.call_deferred("collision_dds",source,"dds","|source|x")
 	deadline=Time.get_ticks_msec()+30000

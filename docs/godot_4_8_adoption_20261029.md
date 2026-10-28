@@ -266,3 +266,32 @@ GLB 仅用于上述显式导入测试，未恢复游戏 GLB 回退。构建 02 �
 | `texture_only_47_01` | 16 | 当前默认 4.7.2 使用已有 ImageTexture 同样直接交接，无新增引擎 API 依赖 |
 
 本轮调整的是游戏与编辑器共用的内部接收协议，没有新增 UI/MCP 操作、改变保存格式或默认压缩选项。原生流式产品由测试显式提供，正式调度器尚未生成这种 packet。GPU 热缓存当前使用完整 mip 链的保守字节上界，不把它写成动态 VRAM 实测。下一步是接上已发布流式产品的共享生产/取消/预算，处理需要 CPU 像素的消费者，再做真实地图与编辑器整体验证；默认引擎和生产流式开关尚未切换。
+
+## 原生流式产品接入共享队列与编辑器导入
+
+用户再次确认：**新增导入默认保留原像素，DDS 有损压缩由用户显式选择**。本轮保留该选择；流式产品只改变读取与驻留方式，不另做有损编码。默认引擎仍为 4.7.2，正式项目的 streaming 开关未启用。
+
+`streamed_texture_source.gd` 从导入 worker 已准备好的 RGBA8 或既有 BC1/BC3/BC5 mip 链发布不可变 `.stex`，最后原子发布小型描述文件。源图不重读、不重编码；活动纹理继续引用旧不可变文件。运行时只为可信资源包选取对应表示，规划阶段读取有界描述及原生头部，以防低估预算；不再次校验完整源图或产品 SHA。不支持的格式、缺失的可选产品、旧引擎和未启用 streaming 的路径沿用原准备流程。
+
+`PrefabTexturePreparation`、`SharedPrefabImages`、`TexturePlanCatalog` 接入同一纹理计划、worker 与预算。producer 在锁内认领后于锁外加载原生纹理；follower 返回 pending，不占住 worker 等待。完成包只有 Texture2D owner，没有为了满足旧接口而产生完整 Image。取消后迟到的结果不能覆盖新 owner，最后释放仍由既有所有权和预算回收路径处理。没有新建另一套线程池。
+
+本轮额外复现了 resident ticket 的表示漏洞：源身份相同的完整 ImageTexture 会让原生流式计划提前跳过加载。`native_ticket_red_01` 仅将 HousePrefab 恢复为 `1074fbe8`，其余候选和测试不变，35 项中唯一失败正是这个断言；保留原失败结果。修正要求 native 计划的 ticket 同时具备实际 StreamedTexture2D 类型和相同表示身份，材质 owner 回填与分片发布也遵守已有表示规则。
+
+最终串行矩阵 `native_streamed_regressions_02/result.json` 的八组运行全部退出 0，冻结的源码、配置、引擎 SHA 前后一致，无非预期引擎/脚本错误：
+
+| 运行 | 检查数 | 证据范围 |
+| --- | ---: | --- |
+| `shared_streamed_02` | 38 | 两变体/两消费者只有 2 次 native load、2 次产生和 2 次 follower 复用；实际材质分片发布无源图回读、无重复 ImageTexture 上传；取消接管、迟到结果隔离、所有 lease 和引擎驻留归零；完整颜色/翻转法线 mip 字节一致 |
+| `native_reference_02` | 29 | 真实 Index/Chunk worker → DeferredAssetLoader → WorldDocument；颜色与 shader 高度共享一个 native owner；首次及零 hot-cache 返回均无回读/重复上传，像素与普通源图路线一致 |
+| `native_background_legacy_01` | 31 | 4.8 原有 Image 后台上传、共享、取消和释放不回退 |
+| `native_prepared_material_01` | 97 | 材质分片、失效与失败回退、嵌套作用域 |
+| `editor_native_import_02` | 43 | 真实 HTTP 和 UI 导入、保真/显式 DDS 两种原生产品、完整像素一致、绘制/撤销/重做/保存重开、lease 归零 |
+| `native_tickets_47_01` | 3 | 4.7 CPU ticket 合同；该运行未传 `--gpu`，不冒称覆盖 GPU owner |
+| `native_background_47_01` | 31 | 默认 4.7 原有后台上传合同 |
+| `editor_native_import_47_01` | 39 | 默认 4.7 编辑器 HTTP/UI 保真与显式 DDS、保存重开 |
+
+编辑器两种入口复用 `SurfaceTextureImportWorker` 的同一业务流程，没有新增 UI/MCP 参数或改变保存语义。编辑器可变源准备仍使用源快照，原生产品供后续可信包加载使用。测试中的完整 `get_image()` 仅用于发布计数完成后的字节对比，不属于运行时发布流程，测试加载微秒数不当作性能收益。
+
+补充 GPU owner 回归：`native_tickets_47_gpu_01` 为 17 通过、1 失败。测试早先用无源身份 Image 验证观察操作无副作用，随后一直保留这个 prepared scope，却期待不相关的热纹理优先；接收端的身份保护会拒绝它。结束该观察作用域后再测试普通优先级，`native_tickets_47_gpu_02` **18/0**、零错误、SHA 稳定。只修正测试作用域，没有为通过旧断言放宽生产身份检查；失败记录保留。
+
+**仍待处理：**当前 app admission/热缓存采用完整 mip 链保守收费，后续 mip 读取由引擎既有 streaming worker 执行，尚不能宣称与项目实现了动态 GPU 驻留及 CPU IO 的统一预算。内嵌在模型原生场景中的纹理尚未转换，本轮覆盖 authored paint/terrain/road/prefab definitions。还须在独立产品目录或新测试资源包中准备 axel_town 产品，保持旧样本与原始包不变，然后完成真实地图加载、卸载、返回、画面和 low 帧对照。独立合同通过不等于整图已加速或 4.8 可以替换生产引擎。
