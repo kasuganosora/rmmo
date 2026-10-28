@@ -47,6 +47,17 @@ message ServerMessage {
   // Receiver's world session, including on world-scoped pushes and resyncs.
   WorldSession world_session = 24;
   uint64 actor_left_generation = 25;
+  // Negotiated peer stream; self state remains in actor_3d.
+  ActorVisibility visibility = 26;
+}
+
+// Hidden is a temporary visibility transition, never a permanent generation tombstone.
+message ActorIdentity { string id = 1; uint64 generation = 2; }
+message ActorVisibility {
+  uint64 revision = 1;
+  bool full_snapshot = 2;
+  repeated Actor3D actors = 3;
+  repeated ActorIdentity hidden = 4;
 }
 
 message RegisterRequest {
@@ -70,6 +81,8 @@ message CreateCharacterRequest {
 
 message EnterWorldRequest {
   uint32 character_id = 1;
+  // 0 preserves map-wide legacy delivery, 1 requests scoped visibility deltas.
+  uint32 visibility_protocol = 2;
 }
 
 message TryMoveRequest {
@@ -108,6 +121,8 @@ message WorldSession {
   bool ready = 6;
   uint64 movement_sequence = 7;
   uint32 protocol_version = 8;
+  // 1 confirms distance AOI; 0 remains compatible with existing clients.
+  uint32 visibility_protocol = 9;
 }
 
 message WorldReadyRequest { string ready_token = 1; }

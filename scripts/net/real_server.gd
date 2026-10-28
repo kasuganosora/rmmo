@@ -23,6 +23,8 @@ var self_actor:Dictionary={}
 var world_session:Dictionary={}
 var actors:Dictionary={}
 var _retired_actors:Dictionary={}
+var _peer_visibility=preload("res://scripts/net/remote/peer_visibility.gd").new()
+var _visibility_recovering:=false
 var business_snapshots:Dictionary={}
 var _peer:WebSocketPeer
 var _token:=""
@@ -98,7 +100,7 @@ func disconnect_server(message:String="")->void:
 	for request:HTTPRequest in requests:
 		requests[request].resolve({"ok":false,"error":"connection_closed"})
 		if is_instance_valid(request):request.cancel_request();request.queue_free()
-	world_session.clear();self_actor.clear();actors.clear();_retired_actors.clear();business_snapshots.clear();_local_loaded_context.clear()
+	world_session.clear();self_actor.clear();actors.clear();_retired_actors.clear();_peer_visibility.clear();_visibility_recovering=false;business_snapshots.clear();_local_loaded_context.clear()
 	_movement.clear();_move_inflight=false;_login_inflight=false
 	_snapshot_inflight=false;_fetch_inflight=false;_create_inflight=false;_enter_inflight=false
 	world3d_authority.release()
@@ -151,7 +153,7 @@ func reconnect()->Dictionary:
 	if _token.is_empty() or _selected_id==0:return {"ok":false,"error":"login_required"}
 	disconnect_server()
 	if not await _connect_socket(true):return {"ok":false,"error":"connection_failed"}
-	var result:Dictionary=await rpc_call("enter_world",{"character_id":_selected_id})
+	var result:Dictionary=await rpc_call("enter_world",{"character_id":_selected_id,"visibility_protocol":1})
 	if result.get("ok",false):result=prepare_authoritative_map()
 	if result.get("ok",false):result=await refresh_world_snapshots()
 	if result.get("ok",false):_project_snapshots();world_changed.emit(world_session.duplicate(true))
@@ -186,7 +188,8 @@ func context()->Dictionary:
 func is_world_ready()->bool:return is_logged_in() and world_session.get("ready",false) and _local_loaded_context==context()
 
 func _valid_session(value:Dictionary)->bool:
-	return value.get("protocol_version",0)==2 and not str(value.get("boot_id","")).is_empty() and int(value.get("session_epoch",0))>0 and int(value.get("session_epoch",0))<=9007199254740991 and int(value.get("map_generation",0))>0 and int(value.get("map_generation",0))<=9007199254740991 and preload("res://scripts/world3d/world_location.gd").map_ref_ok(str(value.get("map_ref",""))) and not str(value.get("ready_token","")).is_empty()
+	var visibility:Variant=value.get("visibility_protocol",0)
+	return _peer_visibility._integer(visibility) and int(visibility)<=1 and value.get("protocol_version",0)==2 and not str(value.get("boot_id","")).is_empty() and int(value.get("session_epoch",0))>0 and int(value.get("session_epoch",0))<=9007199254740991 and int(value.get("map_generation",0))>0 and int(value.get("map_generation",0))<=9007199254740991 and preload("res://scripts/world3d/world_location.gd").map_ref_ok(str(value.get("map_ref",""))) and not str(value.get("ready_token","")).is_empty()
 
 func _receive(data:Dictionary)->void:
 	var id:=int(data.get("request_id",0));var entry:Dictionary=_pending.get(id,{})
@@ -194,7 +197,7 @@ func _receive(data:Dictionary)->void:
 	if not incoming.is_empty():
 		if not _valid_session(incoming):disconnect_server("不支持的服务器世界会话协议");return
 		incoming=incoming.duplicate(true)
-		for key:String in ["session_epoch","map_generation","movement_sequence","protocol_version"]:
+		for key:String in ["session_epoch","map_generation","movement_sequence","protocol_version","visibility_protocol"]:
 			var value:Variant=incoming.get(key,0)
 			if typeof(value) not in [TYPE_INT,TYPE_FLOAT] or not is_finite(float(value)) or float(value)!=floorf(float(value)):
 				disconnect_server("服务器会话序号无效");return
@@ -207,7 +210,7 @@ func _receive(data:Dictionary)->void:
 			if incoming.boot_id!=world_session.boot_id or incoming.session_epoch<world_session.session_epoch or (incoming.session_epoch==world_session.session_epoch and incoming.map_generation<=world_session.map_generation):return
 			if not data.get("resync",false) and entry.get("operation","")!="enter_world":return
 		if changed:
-			_movement.clear();_local_loaded_context.clear();actors.clear();_retired_actors.clear();business_snapshots.clear()
+			_movement.clear();_local_loaded_context.clear();actors.clear();_retired_actors.clear();_peer_visibility.clear();_visibility_recovering=false;business_snapshots.clear()
 			_network_actions.clear()
 			world3d_authority.release()
 			_movement_sequence=int(incoming.get("movement_sequence",0))
@@ -216,17 +219,22 @@ func _receive(data:Dictionary)->void:
 				if old==id or _pending[old].scope.is_empty():continue
 				var cancelled:Dictionary=_pending[old];_pending.erase(old)
 				cancelled.ticket.resolve({"ok":false,"error":"stale_world_response"})
+		if not changed:incoming.ready=incoming.ready or world_session.get("ready",false)
 		world_session=incoming.duplicate(true)
 		_movement_sequence=maxi(_movement_sequence,int(incoming.get("movement_sequence",0)))
-		if data.has("actor_3d"):
+		var old_visibility:bool=not changed and incoming.get("visibility_protocol",0)==1 and data.get("visibility") is Dictionary and int(data.visibility.get("revision",0))<=_peer_visibility.revision
+		if data.has("actor_3d") and not old_visibility:
 			var actor:Dictionary=data.actor_3d
 			if entry.get("operation","")=="enter_world":_session_character_id=str(actor.get("id",""))
-			_accept_actor(actor)
-		if data.has("actors_3d"):
+			if incoming.get("visibility_protocol",0)!=1 or str(actor.get("id",""))==_session_character_id:_accept_actor(actor)
+		if data.has("actors_3d") and incoming.get("visibility_protocol",0)!=1:
 			for actor:Dictionary in data.actors_3d:_accept_actor(actor)
-		if data.get("resync",false):
+		if data.get("resync",false) and (changed or not data.get("visibility") is Dictionary):
 			_movement.clear();_movement_sequence=int(self_actor.get("sequence",incoming.get("movement_sequence",0)))
-		var left:=str(data.get("actor_left",""))
+		if incoming.get("visibility_protocol",0)==1 and data.get("visibility") is Dictionary:
+			_apply_visibility(data.visibility)
+			if world_session.is_empty():return
+		var left:=str(data.get("actor_left","")) if incoming.get("visibility_protocol",0)!=1 else ""
 		if not left.is_empty():_retired_actors[left]=maxi(int(_retired_actors.get(left,0)),int(data.get("actor_left_generation",0)))
 		if actors.has(left) and actors[left].get("generation",0)==data.get("actor_left_generation",0):
 			actors.erase(left);_network_actions.append({"type":"remote_despawn","id":left})
@@ -237,6 +245,31 @@ func _receive(data:Dictionary)->void:
 	if not entry.scope.is_empty() and entry.scope!=context():
 		entry.ticket.resolve({"ok":false,"error":"stale_world_response"});return
 	entry.ticket.resolve(data)
+
+func _apply_visibility(update:Dictionary)->void:
+	var result:Dictionary=_peer_visibility.apply(update,str(world_session.get("map_ref","")),_session_character_id)
+	if not result.ok:disconnect_server("服务器视野同步数据无效");return
+	if result.get("ignored",false):return
+	if result.get("gap",false):
+		if not _visibility_recovering:_recover_visibility()
+		return
+	for id:String in result.get("removed",[]):
+		actors.erase(id);_network_actions.append({"type":"remote_despawn","id":id})
+	for actor:Dictionary in result.get("actors",[]):_accept_actor(actor)
+
+func _recover_visibility()->void:
+	_visibility_recovering=true
+	var scope:=context();var connection:=_connection_revision
+	var result:Dictionary=await rpc_call("snapshot_actors")
+	if connection!=_connection_revision or scope!=context():return
+	_visibility_recovering=false
+	if not result.get("ok",false) or not result.get("visibility",{}).get("full_snapshot",false):
+		disconnect_server("视野同步中断，请重连恢复快照")
+
+func _receive_world_snapshot(body:Dictionary)->void:
+	var message:={"world_session":body.get("data",{}),"actor_3d":body.get("actor_3d",{}),"actors_3d":body.get("actors_3d",[]),"resync":true,"ok":true,"push":true}
+	if body.get("visibility") is Dictionary:message.visibility=body.visibility
+	_receive(message)
 
 func _accept_actor(actor:Dictionary)->void:
 	var id:=str(actor.get("id",""));var location:Dictionary=actor.get("location",{})
@@ -290,7 +323,7 @@ func enter_world(character_id:int)->void:enter_world3d(character_id)
 func enter_world3d(character_id:int)->void:
 	if _enter_inflight:return
 	_enter_inflight=true;_selected_id=character_id
-	var result:Dictionary=await rpc_call("enter_world",{"character_id":character_id})
+	var result:Dictionary=await rpc_call("enter_world",{"character_id":character_id,"visibility_protocol":1})
 	if result.get("ok",false):result=prepare_authoritative_map()
 	if result.get("ok",false):result=await refresh_world_snapshots()
 	_enter_inflight=false
@@ -316,6 +349,7 @@ func refresh_world_snapshots()->Dictionary:
 	snapshots.interactions=interactions.data
 	var final:Dictionary=await request_api("/v1/world/session")
 	if not final.ok or scope!=context() or _http_context(final.body.get("data",{}))!=scope:return {"ok":false,"error":"world_changed_during_snapshot"}
+	_receive_world_snapshot(final.body)
 	business_snapshots=snapshots;_snapshot_revision+=1
 	return await gameplay.projection.hydrate()
 
@@ -477,13 +511,13 @@ func leave_world()->Dictionary:
 	if world_session.is_empty():return {"ok":true}
 	var result:Dictionary=await rpc_call("leave_world")
 	if result.get("ok",false):
-		world_session.clear();self_actor.clear();actors.clear();_local_loaded_context.clear();_session_character_id="";return result
+		world_session.clear();self_actor.clear();actors.clear();_peer_visibility.clear();_local_loaded_context.clear();_session_character_id="";return result
 	# Leave may have committed before a later cleanup error. Query, never replay.
 	var recovery:Dictionary=await request_api("/v1/world/session")
 	if recovery.get("status",0)==403:world_session.clear();self_actor.clear();actors.clear();return {"ok":true,"cleanup_pending":true}
 	if recovery.get("status",0)==200 and recovery.get("body",{}).get("ok",false):
 		var body:Dictionary=recovery.body
-		_receive({"world_session":body.data,"actor_3d":body.actor_3d,"actors_3d":body.get("actors_3d",[]),"resync":true,"ok":true,"push":true})
+		_receive_world_snapshot(body)
 	return result
 
 func request_api(path:String,method:int=HTTPClient.METHOD_GET,body:Dictionary={})->Dictionary:
@@ -517,7 +551,7 @@ func request_api(path:String,method:int=HTTPClient.METHOD_GET,body:Dictionary={}
 		var recovery:Dictionary=await request_api("/v1/world/session")
 		if recovery.ok:
 			var snapshot:Dictionary=recovery.body
-			_receive({"push":true,"ok":true,"resync":true,"world_session":snapshot.get("data",{}),"actor_3d":snapshot.get("actor_3d",{}),"actors_3d":snapshot.get("actors_3d",[])})
+			_receive_world_snapshot(snapshot)
 			if loaded and scope==context() and world_session.get("ready",false):_local_loaded_context=scope
 	return {"ok":ok,"status":int(response[1]),"body":parsed,"error":str(parsed.get("error",""))}
 

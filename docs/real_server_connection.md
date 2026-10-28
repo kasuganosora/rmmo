@@ -1,8 +1,8 @@
 # 真实服务器通信分支
 
 分支：`feat/real-server-transport`，基于客户端 `c333a6466009d910957b2b05d8fc58ad2f81741f`。
-Go 服务端配套分支：`rmmo_server/feat/real-server-transport`。
-协议源 SHA256：`954b9d240cf4a658b89e70f2d9ba8cc571fd2573cfa210405abd68391e8ea05a`。
+Go 服务端配套分支：`rmmo_server/master`。
+协议源 SHA256：`afe728e0ab28e9ca84c44688302be8952a450438fd26f68e039e0857ad2283e8`。
 本分支只修改功能代码、配置和测试；不修改地图、角色、模型或纹理资源。
 
 ## 开关与连接
@@ -62,6 +62,23 @@ gameserver -content /path/to/server-content -map default/editor_yard
 ```
 
 ## 已接通的流程
+
+### 距离视野同步（2026-10-28）
+
+入场/重连请求 `visibility_protocol=1`，以服务端返回值确认是否启用距离 AOI。旧服务端或关闭该能力时保留原有同地图协议。视距、滞回、节流和人数上限由服务端配置，客户端不据本地预测擅自显示远处角色。
+
+`remote/peer_visibility.gd` 维护当前世界上下文的同行集合与单调修订：进入/更新接收完整角色状态，隐藏只移除对应代次的显示，不写永久离开墓碑，因此同一身体可重新进入视野。完整快照替换集合；旧消息忽略，增量跳号通过带上下文的 `snapshot_actors` 恢复。传送、重连清空旧流，旧上下文不能凭更大的修订号覆盖新世界。HTTP 与 WebSocket 的重复快照也不会回退 Ready 或位置。
+
+新增逻辑检查与真实双客户端联调：
+
+```sh
+godot --headless --path . --script res://tools/test_peer_visibility.gd -- --backend=real
+python3 tools/test_real_server_integration.py \
+  --server-bin /absolute/path/to/gameserver \
+  --server-repo /absolute/path/to/rmmo_server --aoi
+```
+
+纯逻辑 18 项、真实双客户端 20 项通过，覆盖双方跨视距隐藏、滞回、同代次重入、晚到 HTTP、修订跳号实际 RPC 恢复、重连与永久离场后新身体入场。双客户端场景仅在临时示例副本移除游走 NPC，防止其碰撞阻断边界行走；不改正式资源。原有真实通信 56 项和玩法 125 项也通过。服务端的完整 tick、带宽及负载边界记录位于配套仓库 `docs/distance-aoi-results-20261028.md`。
 
 - 二进制 Protobuf / WebSocket 注册、登录、角色列表和基础外观建角。
 - `enter_world`、世界会话 v2、地图加载后的 Ready 票据、主动退出及重连。

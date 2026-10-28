@@ -17,6 +17,7 @@ def main():
     parser.add_argument('--server-repo', required=True, type=Path)
     parser.add_argument('--godot', default='godot')
     parser.add_argument('--gameplay', action='store_true', help='Exercise real gameplay with disposable synthetic records and policy')
+    parser.add_argument('--aoi', action='store_true', help='Exercise two real clients crossing distance visibility boundaries')
     args = parser.parse_args()
     with tempfile.TemporaryDirectory(prefix='rmmo-network-') as temporary:
         directory = Path(temporary)
@@ -34,6 +35,13 @@ def main():
             command += configure(content,directory)
         script='res://tools/test_real_gameplay.gd' if args.gameplay else 'res://tools/test_real_server.gd'
         marker='REAL_GAMEPLAY_TESTS failures=0' if args.gameplay else 'REAL_SERVER_TESTS failures=0'
+        if args.aoi:
+            # Keep this disposable fixture focused on player visibility; a
+            # wandering example NPC otherwise blocks the boundary walk.
+            for spawns in content.rglob('spawns.jsonl'):
+                spawns.write_text(spawns.read_text().splitlines()[0]+'\n')
+            command += ['-aoi-radius=8', '-aoi-hysteresis=2', '-aoi-interval=50ms']
+            script, marker = 'res://tools/test_real_visibility.gd', 'REAL_VISIBILITY_TESTS failures=0'
         with (directory/'server.log').open('w+') as log:
             server = subprocess.Popen(command, cwd=directory, stdout=log, stderr=subprocess.STDOUT)
             try:
