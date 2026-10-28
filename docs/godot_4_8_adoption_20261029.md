@@ -138,4 +138,8 @@ profiler 草稿第一次因为两处 `frame_*.set(0)` 的替换断言失败，�
 
 `candidate_build_01` 在 gdscript.cpp 的 profiler 调用者分组处编译失败：OS 没有声明。4.8 的该文件仅在 TESTS_ENABLED 块内 include OS，旧版补丁依赖的传递头文件已变化。完整日志和首版源码 SHA 保留；确认进程退出后，将 core/os/os.h 移到无条件 include，生成 `ports_02` 的完整 patch/逐文件身份，启动 `candidate_build_02` 同配置续编。没有修改冻结基线，不能把这处编译修正当 profiler 运行通过。
 
+`zstd_baseline_cleanup_01` 用冻结基线、外部空项目及 GDB 在上游 `ZstdDecompressorContext` 析构入口捕获线程身份与非空 context。12 个短生命周期 worker 各完成 32 次 256 KiB 解码、逐字节相等，随后捕获 **12 个不同线程的有效 context 析构**，进程正常退出，无错误、输入身份不变。这支持退役旧版全局锁修补并使用上游 TLS；并发速度仍须等编译结束后跑固定工作量对照，不能从这项清理合同推导加速比。
+
+`validate_candidate_02.py` 已排队等待同一候选构建。成功后才会复制产物至 `candidate_engine_02`、核对 SHA/版本，并在 `candidate_contracts_02` 串行跑六组原生合同：CPU surface、CPU concave、debug appearance、GPU surface 数据对照、renderer arrays、LOD hint。进度在 `candidate_validation_02/result.json`；它拥有构建后下一组 GPU 测试时段，接手时不能另开并行 GPU 任务。当前仍待运行；通过这六组也不替代后续 DDS/profiler、CPU 编码、退出与整图验收。写入器旧引擎兼容性另有 `streaming_product_47_parse_01` 的同步 subprocess 结果，0 退出、无错误、源码和引擎身份稳定。
+
 下一步按顺序：完成候选编译并跑 CPU 准备/碰撞/DDS/profiler/退出等合同；补正式表面 shader 反馈及保真/已有 DDS 的流式产品与统一预算对照；最后比较真实地图加载、卸载、返回重载和 low 帧。当前没有更改生产纹理加载路径、正式地图或默认引擎，尚无 4.8 整图性能收益结论。
