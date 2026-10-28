@@ -1,9 +1,10 @@
 extends RefCounted
 ## Reuse native storage-property NAMES, never material values or resource owners.
-## Godot 4.7.2 BaseMaterial3D::_validate_property controls storage with these
-## modes. Other engine versions and scripted materials retain native enumeration.
+## Godot 4.8.0 BaseMaterial3D::_validate_property controls storage with these
+## modes; test_standard_material_schema_48 checks native names and live values.
+## Other engine versions and scripted materials retain native enumeration.
 static var enabled:=true
-static var supported:=int(Engine.get_version_info().get("hex",0))==0x040702
+static var supported:=int(Engine.get_version_info().get("hex",0))==0x040800
 const LIMIT:=64
 static var _schemas:Dictionary={}
 static var _mutex:=Mutex.new()

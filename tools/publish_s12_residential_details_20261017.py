@@ -44,7 +44,7 @@ for row in handoff['items']:
     active = subprocess.check_output(['powershell', '-NoProfile', '-Command', "Get-CimInstance Win32_Process -Filter \"Name LIKE '%Godot%'\" | Where-Object { $_.CommandLine -notmatch '--headless' } | Select-Object -ExpandProperty ProcessId"], text=True).strip()
     if active:
         raise RuntimeError('Other GPU process active: ' + active)
-    cmd = ['D:/tools/godot/Godot_v4.7.2-stable_win64.exe', '--path', str(repo), '--script',
+    cmd = ['D:/tools/godot/godot.windows.editor.x86_64.exe', '--path', str(repo), '--script',
            'res://tools/import_s12_residential_library.gd', '--', '--publish', '--source=' + source['path'],
            '--sha256=' + source['sha256'], '--review=' + proof['path'], '--review-sha256=' + proof['sha256'],
            '--out=' + out.as_posix(), '--id=' + row['id'], '--label=' + row['label'], '--category=' + row['category']]

@@ -11,7 +11,7 @@ ROOT=Path('D:/code/rmmo')
 RUNTIME=Path('D:/code/rmmo_runtime')
 ART=RUNTIME/'art_sources/axel_market_optimization_20261016'
 REVIEW=RUNTIME/'review_artifacts/axel_market_optimization_20261016'
-ENGINE=Path('D:/tools/godot/Godot_v4.7.2-stable_win64.exe')
+ENGINE=Path('D:/tools/godot/godot.windows.editor.x86_64.exe')
 LIBRARY=RUNTIME/'packs/default/assets/library.json'
 SCRIPT='res://tools/review_axel_market_payload_20261016.gd'
 def sha(p):

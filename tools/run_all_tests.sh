@@ -4,14 +4,21 @@ set -u
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 GODOT="${GODOT:-}"
 if [[ -z "$GODOT" ]]; then
-  if [[ -x /workspace/godot/Godot_v4.7.2-stable_linux.x86_64 ]]; then
-    GODOT=/workspace/godot/Godot_v4.7.2-stable_linux.x86_64
+  if [[ -x /workspace/godot/godot ]]; then
+    GODOT=/workspace/godot/godot
   elif [[ -x /home/box/.local/bin/godot ]]; then
     GODOT=/home/box/.local/bin/godot
+  elif command -v godot >/dev/null 2>&1; then
+    GODOT="$(command -v godot)"
   else
     echo "ERROR: Godot binary not found" >&2
     exit 127
   fi
+fi
+GODOT_VERSION="$("$GODOT" --version)" || exit $?
+if [[ "$GODOT_VERSION" != 4.8.* && "$GODOT_VERSION" != 4.8-* ]]; then
+  echo "ERROR: Godot 4.8 required; selected $GODOT_VERSION ($GODOT)" >&2
+  exit 1
 fi
 TIMEOUT_SEC="${TIMEOUT_SEC:-90}"
 OUT_DIR="${OUT_DIR:-/tmp/rmmo_test_logs}"

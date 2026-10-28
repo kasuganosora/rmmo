@@ -13,6 +13,6 @@ for source in sorted(SRC.glob('*.glb')):
     active=subprocess.check_output(['powershell','-NoProfile','-Command',"Get-CimInstance Win32_Process -Filter \"Name LIKE '%Godot%'\" | Where-Object { $_.CommandLine -notmatch '--headless' } | Select-Object -ExpandProperty ProcessId"],text=True).strip()
     if active:raise RuntimeError('Other GPU job active '+active)
     folder.mkdir(parents=True,exist_ok=True)
-    cmd=['D:/tools/godot/Godot_v4.7.2-stable_win64.exe','--path',str(ROOT),'--script','res://tools/review_s2_hanging_textiles_20261017.gd','--','--source='+source.as_posix(),'--out='+folder.as_posix()]
+    cmd=['D:/tools/godot/godot.windows.editor.x86_64.exe','--path',str(ROOT),'--script','res://tools/review_s2_hanging_textiles_20261017.gd','--','--source='+source.as_posix(),'--out='+folder.as_posix()]
     print('Review start',source.stem,flush=True);r=run_background(cmd,cwd=ROOT,timeout=240);(folder/'process.log').write_bytes(r.stdout);print('Review end',source.stem,r.returncode,flush=True)
     if r.returncode:raise SystemExit(r.returncode)

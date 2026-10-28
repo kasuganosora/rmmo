@@ -38,7 +38,7 @@ func run()->void:
 	var material:=StandardMaterial3D.new()
 	for physical:bool in [false,true]:
 		ProjectSettings.set_setting("rendering/lights_and_shadows/use_physical_light_units",physical)
-		for transparency:int in 6:
+		for transparency:int in BaseMaterial3D.TRANSPARENCY_MAX:
 			for aa:int in 3:
 				for billboard:int in 4:
 					for shading:int in 3:
@@ -64,13 +64,15 @@ func run()->void:
 	compare(material,"same owner changes schema")
 	var scripted:=Scripted.new();compare(scripted,"script property")
 	scripted.hide_extra=true;compare(scripted,"script dynamic usage")
-	Schema.supported=false;compare(material,"unreviewed engine fallback");Schema.supported=true
+	var supported_before:=Schema.supported
+	Schema.supported=false;compare(material,"unreviewed engine fallback");Schema.supported=supported_before
 	Schema._schemas.clear()
-	for transparency:int in 6:
+	for transparency:int in BaseMaterial3D.TRANSPARENCY_MAX:
 		for aa:int in 3:
 			for billboard:int in 4:
-				material.transparency=transparency;material.alpha_antialiasing_mode=aa;material.billboard_mode=billboard
-				check(var_to_bytes(Schema.storage_names(material))==var_to_bytes(native_names(material,false)),"bounded schema fallback")
+				for shading:int in 2:
+					material.transparency=transparency;material.alpha_antialiasing_mode=aa;material.billboard_mode=billboard;material.shading_mode=shading
+					check(var_to_bytes(Schema.storage_names(material))==var_to_bytes(native_names(material,false)),"bounded schema fallback")
 	check(Schema._schemas.size()==Schema.LIMIT,"schema cache retains at most 64 name arrays")
 	Schema._schemas.clear()
 	var workers:Array[Thread]=[]

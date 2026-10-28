@@ -16,7 +16,7 @@ for name,kind in jobs:
     active=subprocess.check_output(['powershell','-NoProfile','-Command',"Get-CimInstance Win32_Process -Filter \"Name LIKE '%Godot%'\" | Where-Object { $_.CommandLine -notmatch '--headless' } | Select-Object -ExpandProperty ProcessId"],text=True).strip()
     if active:raise RuntimeError('Other GPU test active: '+active)
     folder.mkdir(parents=True,exist_ok=True)
-    command=['D:/tools/godot/Godot_v4.7.2-stable_win64.exe','--path',str(ROOT),'--script','res://tools/review_s12_residential_details_20261017.gd','--','--source='+str(SRC/(name+'.glb')).replace('\\','/'),'--out='+str(folder).replace('\\','/'),'--kind='+kind]
+    command=['D:/tools/godot/godot.windows.editor.x86_64.exe','--path',str(ROOT),'--script','res://tools/review_s12_residential_details_20261017.gd','--','--source='+str(SRC/(name+'.glb')).replace('\\','/'),'--out='+str(folder).replace('\\','/'),'--kind='+kind]
     print('Review starting',name,flush=True)
     result=run_background(command,cwd=ROOT,timeout=240)
     (folder/'process.log').write_bytes(result.stdout)

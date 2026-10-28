@@ -15,7 +15,7 @@ from run_godot_background import run_background
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / 'review_artifacts/required_street_recheck_20261013'
-GODOT = Path('D:/tools/godot/Godot_v4.7.2-stable_win64.exe')
+GODOT = Path('D:/tools/godot/godot.windows.editor.x86_64.exe')
 MANIFEST = 'D:/code/rmmo_runtime/art_sources/required_street_assets_20261013/review_v2/manifest.json'
 
 def read_json(path):

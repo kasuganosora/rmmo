@@ -20,7 +20,7 @@ def write(p,d,immutable=True):
     if immutable and p.exists():assert read(p)==d,'Immutable evidence differs: '+str(p);return
     p.write_text(json.dumps(d,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
 def gpu(script,args,log,timeout=600):
-    r=run_background(['D:/tools/godot/Godot_v4.7.2-stable_win64.exe','--path',str(ROOT),'--script','res://tools/'+script,'--']+args,cwd=ROOT,timeout=timeout);Path(log).parent.mkdir(parents=True,exist_ok=True);Path(log).write_bytes(r.stdout)
+    r=run_background(['D:/tools/godot/godot.windows.editor.x86_64.exe','--path',str(ROOT),'--script','res://tools/'+script,'--']+args,cwd=ROOT,timeout=timeout);Path(log).parent.mkdir(parents=True,exist_ok=True);Path(log).write_bytes(r.stdout)
     if r.returncode:raise RuntimeError('Failed, inspect '+str(log))
 def image_evidence(folder,views):
     result=[]

@@ -5,7 +5,7 @@ from run_godot_background import run_background
 
 ROOT = Path('D:/code/rmmo')
 REVIEW = ROOT/'review_artifacts/axel_landmarks_20261016'
-ENGINE = 'D:/tools/godot/Godot_v4.7.2-stable_win64.exe'
+ENGINE = 'D:/tools/godot/godot.windows.editor.x86_64.exe'
 MODELS = {'guardhouse': ('v6', '阿克塞尔警卫处'), 'church': ('v8', '厄里斯教团教会'), 'watermill': ('v11', '阿克塞尔水磨坊')}
 
 def sha(p):

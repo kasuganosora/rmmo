@@ -14,7 +14,7 @@ import audit_axel_reused_vegetation_20261017 as audit
 ROOT = audit.ROOT
 REVIEW = audit.OUT
 ART = audit.RUNTIME / 'art_sources/axel_vegetation_optimization_20261017/grass_exact01'
-ENGINE = 'D:/tools/godot/Godot_v4.7.2-stable_win64.exe'
+ENGINE = 'D:/tools/godot/godot.windows.editor.x86_64.exe'
 MAIN = ROOT / 'tools/review_axel_vegetation_candidates_20261017.gd'
 SHADOW = ROOT / 'tools/review_axel_vegetation_shadows_20261017.gd'
 

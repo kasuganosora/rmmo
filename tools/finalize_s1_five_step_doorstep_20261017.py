@@ -29,7 +29,7 @@ elif A.phase=='publish':
     active=subprocess.check_output(['powershell','-NoProfile','-Command',"Get-CimInstance Win32_Process -Filter \"Name LIKE '%Godot%'\" | Where-Object { $_.CommandLine -notmatch '--headless' } | Select-Object -ExpandProperty ProcessId"],text=True).strip();assert not active,'Other GPU '+active
     guards={p.as_posix():sha(p) for p in [ROOT/'packs/default/maps/axel_town/map.gltf',ROOT/'maps/medieval_river_town/map.gltf'] if p.exists()}
     receipt=OUT/'publication_raw.json';assert not receipt.exists()
-    cmd=['D:/tools/godot/Godot_v4.7.2-stable_win64.exe','--path','D:/code/rmmo','--script','res://tools/import_s12_residential_library.gd','--','--publish','--source='+SOURCE.as_posix(),'--sha256='+sha(SOURCE),'--review='+proof.as_posix(),'--review-sha256='+sha(proof),'--out='+receipt.as_posix(),'--id='+ID,'--label=S1 五级门前石阶（0.8米平台）','--category=街景设施']
+    cmd=['D:/tools/godot/godot.windows.editor.x86_64.exe','--path','D:/code/rmmo','--script','res://tools/import_s12_residential_library.gd','--','--publish','--source='+SOURCE.as_posix(),'--sha256='+sha(SOURCE),'--review='+proof.as_posix(),'--review-sha256='+sha(proof),'--out='+receipt.as_posix(),'--id='+ID,'--label=S1 五级门前石阶（0.8米平台）','--category=街景设施']
     r=run_background(cmd,cwd='D:/code/rmmo',timeout=360);(OUT/'publication.log').write_bytes(r.stdout);assert r.returncode==0
     raw=read(receipt);assert raw['ok'] and raw['completed']
     for p,h in guards.items():assert sha(p)==h

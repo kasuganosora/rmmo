@@ -11,7 +11,7 @@ from run_godot_background import run_background
 
 ROOT=Path('D:/code/rmmo')
 REVIEW=Path('D:/code/rmmo_runtime/review_artifacts/axel_market_realism_20261016')
-ENGINE=Path('D:/tools/godot/Godot_v4.7.2-stable_win64.exe')
+ENGINE=Path('D:/tools/godot/godot.windows.editor.x86_64.exe')
 SCRIPT='res://tools/test_axel_market_realism_published_20261016.gd'
 
 def active_gpu():

@@ -22,4 +22,6 @@ The MV image library is a local copy at `{content_root}/packs/mv_img`. Keep it o
 
 ## Run
 
-Godot 4.7+. Open this folder, play `scenes/login.tscn`. Without a local content root, chrome/tiles soft-miss (placeholders).
+Use the project's patched **Godot 4.8 beta1** build. On this Windows workstation the default editor/debug executable is `D:/tools/godot/godot.windows.editor.x86_64.exe`; matching debug symbols and the SHA manifest live beside it. Build/patch details and remaining optimization work are recorded in [the 4.8 migration log](docs/godot_4_8_adoption_20261029.md). Godot 4.7 is no longer an active compatibility target.
+
+Open this folder, play `scenes/login.tscn`. Without a local content root, chrome/tiles soft-miss (placeholders). Native texture streaming is enabled with a 512 MiB streaming-texture budget; this is a mip residency budget, not a limit on total GPU memory or imported assets. Other resource budgets remain separate.

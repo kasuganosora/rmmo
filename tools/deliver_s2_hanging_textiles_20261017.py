@@ -20,7 +20,7 @@ def write(p,d,immutable=False):
     if immutable and p.exists():raise RuntimeError('Existing evidence '+str(p))
     p.write_text(json.dumps(d,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
 def gpu(script,args,log,timeout=360):
-    r=run_background(['D:/tools/godot/Godot_v4.7.2-stable_win64.exe','--path',str(ROOT),'--script','res://tools/'+script,'--']+args,cwd=ROOT,timeout=timeout);Path(log).write_bytes(r.stdout)
+    r=run_background(['D:/tools/godot/godot.windows.editor.x86_64.exe','--path',str(ROOT),'--script','res://tools/'+script,'--']+args,cwd=ROOT,timeout=timeout);Path(log).write_bytes(r.stdout)
     if r.returncode:raise RuntimeError('Failed; see '+str(log))
 if A.stage=='accept':
     decision=read(REV/'visual_decisions.json');assert decision['selected_version']==A.version

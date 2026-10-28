@@ -26,7 +26,7 @@ REVIEW = RUNTIME / 'review_artifacts/axel_market_realism_20261016'
 BASE = RUNTIME / 'review_artifacts/axel_market_optimization_20261016'
 PUBLICATION = BASE / 'publication/publish03/publication.json'
 LIBRARY = RUNTIME / 'packs/default/assets/library.json'
-ENGINE = Path('D:/tools/godot/Godot_v4.7.2-stable_win64.exe')
+ENGINE = Path('D:/tools/godot/godot.windows.editor.x86_64.exe')
 SCRIPT = 'res://tools/review_axel_market_realism_20261016.gd'
 IDS = ['pottery', 'scroll', 'potion', 'ore']
 

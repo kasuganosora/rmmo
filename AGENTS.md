@@ -1,5 +1,9 @@
 # 项目协作约定
 
+## 默认引擎
+
+用户于 2026-10-29 明确：工程与本机默认引擎统一使用 Godot 4.8，不再开展 4.7 适配。Windows 默认入口为 `D:/tools/godot/godot.windows.editor.x86_64.exe`，匹配的调试符号位于同目录；当前是带项目补丁的 4.8 beta1，构建 SHA 见该目录的 `patched_build_manifest.json`。新测试与工具使用此稳定入口或显式指定的 4.8 构建；历史记录保留原版本事实。
+
 ## 每个新模型完成后的自动验收
 
 用户于2026-10-11要求：每个新3D模型制作或导入改造完成后，必须主动执行 `rmmo-model-review` 技能，不等用户另行要求review。已制作模型的几何、材质、LOD、风场、骨骼或导出变更后，复验受影响项；纯文档改动不重复GPU验收。技能入口为 `C:/Users/luna/.codex/skills/rmmo-model-review/SKILL.md`（其他环境从当前skills目录按同名查找）。角色、建筑、道具、家具、植物和装备均适用；专项制作技能继续使用。

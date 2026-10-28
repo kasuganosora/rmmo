@@ -61,7 +61,7 @@ elif A.phase=='publish':
     if active:raise RuntimeError('Other GPU job active: '+active)
     receipt=DELIVERY/('publication_resumed_raw.json' if A.resume_receipt else 'publication_raw.json');assert not receipt.exists()
     label='S1 石桥左侧陡山墙住宅'+({'v3':'（楼层范围修订）','v4':'（石地基版）','v5':'（1.1米石地基）'}.get(A.version,''))
-    cmd=['D:/tools/godot/Godot_v4.7.2-stable_win64.exe','--path','D:/code/rmmo','--script','res://tools/import_s12_residential_library.gd','--','--publish','--source='+SOURCE.as_posix(),'--sha256='+sha(SOURCE),'--review='+proof.as_posix(),'--review-sha256='+sha(proof),'--out='+receipt.as_posix(),'--id='+ID,'--label='+label,'--category=居民住宅']
+    cmd=['D:/tools/godot/godot.windows.editor.x86_64.exe','--path','D:/code/rmmo','--script','res://tools/import_s12_residential_library.gd','--','--publish','--source='+SOURCE.as_posix(),'--sha256='+sha(SOURCE),'--review='+proof.as_posix(),'--review-sha256='+sha(proof),'--out='+receipt.as_posix(),'--id='+ID,'--label='+label,'--category=居民住宅']
     if A.resume_receipt:cmd.append('--resume-receipt='+Path(A.resume_receipt).as_posix())
     result=run_background(cmd,cwd='D:/code/rmmo',timeout=360);(DELIVERY/('publication_resumed.log' if A.resume_receipt else 'publication.log')).write_bytes(result.stdout)
     if result.returncode:raise RuntimeError('Publication failed; inspect immutable receipt')

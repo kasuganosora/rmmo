@@ -18,7 +18,7 @@ from run_godot_background import run_background
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / 'review_artifacts/guild_reference_recheck_20261013'
 ART = Path('D:/code/rmmo_runtime/art_sources/axel_guild/repair_v3')
-GODOT = Path('D:/tools/godot/Godot_v4.7.2-stable_win64.exe')
+GODOT = Path('D:/tools/godot/godot.windows.editor.x86_64.exe')
 OPT = ROOT / 'review_artifacts/axel_guild_finish_20261012/reference_v3_patch_optimization_20261013'
 
 
