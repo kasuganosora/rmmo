@@ -197,7 +197,7 @@ static func prepare(path:String,directory:String,token:RefCounted,root:String=""
 	# publication finish. PNG and image are borrowed, not copied by phase two.
 	return {"ok":true,"texture_path":texture_path,"content_id":content_id,"source_name":path.get_file().get_basename(),"png":png,"image":image}
 
-static func encode_publish(prepared:Dictionary,token:RefCounted,root:String="",encoder:Callable=Callable(),writer:Callable=Callable(),retain_pixels:bool=false)->Dictionary:
+static func encode_publish(prepared:Dictionary,token:RefCounted,root:String="",encoder:Callable=Callable(),writer:Callable=Callable(),retain_pixels:bool=false,stage_observer:Callable=Callable())->Dictionary:
 	if OS.get_thread_caller_id()==OS.get_main_thread_id():return _fail("贴图导入必须在后台执行")
 	if root.is_empty():root=Paths.external_root()
 	if _cancelled(token):return _fail("贴图导入已取消")
@@ -217,8 +217,14 @@ static func encode_publish(prepared:Dictionary,token:RefCounted,root:String="",e
 		if existing_status=="cancelled":return _fail("贴图导入已取消")
 		if existing_status!="match":return _fail("已有材质贴图内容冲突，未覆盖原文件")
 	else:
-		error=_write(texture_path,png,writer)
-		if error!=OK:return _fail("贴图写入失败："+error_string(error))
+		error=_write_new(texture_path,png,root,token,stage_observer)
+		if error==ERR_ALREADY_EXISTS:
+			if not Paths.allowed(texture_path,root):return _fail("材质库路径无效")
+			var status:=_matches_existing(texture_path,png,token)
+			if status=="cancelled":return _fail("贴图导入已取消")
+			if status!="match":return _fail("已有材质贴图内容冲突，未覆盖原文件")
+		elif error==ERR_SKIP:return _fail("贴图导入已取消")
+		elif error!=OK:return _fail("贴图写入失败："+error_string(error))
 	# One content-addressed, disposable thumbnail shared by every label. It is
 	# produced from this already decoded source, before its worker lease retires.
 	# Failure is a cache miss, never a failed or partially published material.
@@ -264,7 +270,9 @@ static func encode_publish(prepared:Dictionary,token:RefCounted,root:String="",e
 	# found no existing target. Publish its identity first: an interrupted write
 	# before the DDS appears is an ordinary PNG cache miss. This avoids deleting
 	# another process's concurrently published sidecar on an identity failure.
-	error=_write(identity_path,JSON.stringify(identity).to_utf8_buffer(),writer)
+	error=_write_immutable(identity_path,JSON.stringify(identity).to_utf8_buffer(),root,token,writer,stage_observer)
+	if error==ERR_ALREADY_EXISTS:return _fail("已有 DDS 身份内容冲突，未覆盖原文件")
+	if error==ERR_SKIP:return _fail("贴图导入已取消")
 	if error!=OK:
 		if DDS.sidecar_path(texture_path,false,false).is_empty():
 			result.dds_reason="dds_identity_write_failed"
@@ -272,15 +280,20 @@ static func encode_publish(prepared:Dictionary,token:RefCounted,root:String="",e
 			return result
 		return _fail("DDS 身份写入失败且副产物状态不确定："+error_string(error))
 	if _cancelled(token):return _fail("贴图导入已取消")
-	error=_write(target,bytes,writer)
+	error=_write_immutable(target,bytes,root,token,writer,stage_observer)
+	if error==ERR_ALREADY_EXISTS:return _fail("已有 DDS 内容冲突，未覆盖原文件")
+	if error==ERR_SKIP:return _fail("贴图导入已取消")
 	if error!=OK:
 		if DDS.sidecar_path(texture_path,false,false).is_empty():
 			result.dds_reason="dds_write_failed"
 			if retain_pixels:result.prepared_image=_prepared_image(image,content_id,"source",image.detect_alpha()!=Image.ALPHA_NONE)
 			return result
 		return _fail("DDS 写入失败且副产物状态不确定："+error_string(error))
-	# The encoded in-memory DDS was checked before publishing, and the initial
-	# sidecar discovery found no competing sibling. Do not reread it here.
+	# A competing different representation may have appeared after discovery.
+	# Never hand off our pixels while the ordinary reader selects another file.
+	if DDS.sidecar_path(texture_path,false,false)!=target:return _fail("DDS 发布期间出现其他优先副产物，请重新导入")
+	# Successful creation or byte-identical reuse proves the in-memory owner.
+	# No post-publication payload reread is needed for a new file.
 	result.dds_ready=true;result.dds_reused=false;result.dds_path=target;result.dds_sha=identity.dds_sha256
 	if retain_pixels:result.prepared_image=_prepared_image(encoded.image,content_id,"dds:"+str(result.dds_sha),expected==Image.FORMAT_DXT5)
 	return result
@@ -319,8 +332,31 @@ static func _matches_existing(path:String,expected:PackedByteArray,token:RefCoun
 	file.close()
 	return "cancelled" if _cancelled(token) else "match"
 
-static func _write(path:String,bytes:PackedByteArray,writer:Callable)->Error:
-	return writer.call(path,bytes) if writer.is_valid() else Library._write(path,bytes)
+# Canonical PNG and its immutable DDS artifacts use no-replace publication.
+# The optional path callback is a deterministic test gate after staging closes.
+static func _write_new(path:String,bytes:PackedByteArray,root:String,token:RefCounted,stage_observer:Callable=Callable())->Error:
+	if _cancelled(token):return ERR_SKIP
+	var staging:=path+".tmp_"+Crypto.new().generate_random_bytes(8).hex_encode()
+	if not Paths.allowed(staging,root):return ERR_INVALID_PARAMETER
+	var file:=FileAccess.open(staging,FileAccess.WRITE)
+	if file==null:return FileAccess.get_open_error()
+	file.store_buffer(bytes);file.flush()
+	var error:=file.get_error();file.close()
+	if error==OK and stage_observer.is_valid():stage_observer.call(staging,path)
+	if error==OK:
+		if _cancelled(token):error=ERR_SKIP
+		else:error=preload("res://scripts/world3d/atomic_file.gd").publish_new(staging,path)
+	if FileAccess.file_exists(staging):DirAccess.remove_absolute(staging)
+	return error
+
+static func _write_immutable(path:String,bytes:PackedByteArray,root:String,token:RefCounted,writer:Callable,stage_observer:Callable)->Error:
+	# writer is a test-only I/O failure seam; normal imports always create-only.
+	var error:int=writer.call(path,bytes) if writer.is_valid() else _write_new(path,bytes,root,token,stage_observer)
+	if error!=ERR_ALREADY_EXISTS:return error
+	if not Paths.allowed(path,root):return ERR_INVALID_PARAMETER
+	var status:=_matches_existing(path,bytes,token)
+	if status=="cancelled":return ERR_SKIP
+	return OK if status=="match" else ERR_ALREADY_EXISTS
 
 static func prepare_label(prepared:Dictionary,label:String,token:RefCounted,fallback_name:String="")->Dictionary:
 	if OS.get_thread_caller_id()==OS.get_main_thread_id():return _fail("材质名称准备必须在后台执行")
