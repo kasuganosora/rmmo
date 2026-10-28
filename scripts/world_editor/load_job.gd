@@ -435,16 +435,17 @@ func _begin_asset_lookahead(records:Array)->void:
 				legacy_skipped+=1
 				if native.is_empty():
 					_asset_failures[value]=true
-					continue
-				_model_candidates[value]=native.duplicate(true)
-				if AssetLibrary._native_cached(value,native):
-					var cached:PackedScene=AssetLibrary._scenes[value]
-					_verified_asset_versions[value]={"owner":weakref(cached),"source_digest":native.source_sha}
-					continue
-				var native_estimate:={"estimated_bytes":int(native.estimated_bytes),"exclusive":bool(native.exclusive),"stage":"compiled_read"}
-				native_bytes+=native_estimate.estimated_bytes
-				_preparation.enqueue("model:"+value,_parse_native_asset.bind(value,root_,native,""),native_estimate,"model")
-		if not record.has("terrain_mesh") and not record.has("house_prefab"):continue
+				else:
+					_model_candidates[value]=native.duplicate(true)
+					if AssetLibrary._native_cached(value,native):
+						var cached:PackedScene=AssetLibrary._scenes[value]
+						_verified_asset_versions[value]={"owner":weakref(cached),"source_digest":native.source_sha}
+					else:
+						var native_estimate:={"estimated_bytes":int(native.estimated_bytes),"exclusive":bool(native.exclusive),"stage":"compiled_read"}
+						native_bytes+=native_estimate.estimated_bytes
+						_preparation.enqueue("model:"+value,_parse_native_asset.bind(value,root_,native,""),native_estimate,"model")
+		# Surface paint and generated structures use the same material definitions
+		# as terrain/prefabs. Include them even when their model is already cached.
 		var requested:=TerrainTextures.requests(record,{})
 		for key:String in requested.keys():
 			if queued_textures.has(key):requested.erase(key)
@@ -574,7 +575,6 @@ func _publish_owned_native(asset_path:String,packet:Dictionary,envelope_bytes:in
 	return AssetLibrary._instantiate(packet.packed)
 
 func _prepare_record_textures(record:Dictionary)->Dictionary:
-	if not record.has("terrain_mesh") and not record.has("house_prefab"):return {}
 	var owners:Dictionary={}
 	var requested:=TerrainTextures.requests(record,_terrain_texture_checked,owners)
 	if requested.is_empty():return {"images":{},"failed":[],"owners":owners} if not owners.is_empty() else {}
@@ -610,7 +610,7 @@ func _prepare_record_textures(record:Dictionary)->Dictionary:
 		prepared=_preparation.acquire(key)
 	if not prepared.has("images"):prepared.images={};prepared.failed=complete_requested.keys()
 	if not prepared.has("failed"):prepared.failed=[]
-	var timing_prefix:="prefab_texture" if record.has("house_prefab") else "terrain_texture"
+	var timing_prefix:="prefab_texture" if record.has("house_prefab") else ("terrain_texture" if record.has("terrain_mesh") else "surface_texture")
 	_build_timing(timing_prefix+"_wait",wait_started,uuid)
 	_build_elapsed(timing_prefix+"_worker",prepared.elapsed_us,uuid)
 	for image_key:String in prepared.images:_terrain_texture_checked[image_key]=true
