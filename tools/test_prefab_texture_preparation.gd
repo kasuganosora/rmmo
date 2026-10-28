@@ -100,7 +100,7 @@ func run()->void:
 	for i:int in range(6,-1,-1):
 		var large_path:String=files.folder.path_join("header_%d.png"%i);reversed[large_path]=[large_path,false,false]
 	var bounded:=Prep.estimate(ordered,files.content_root)
-	check(bounded.rows.size()==6 and bounded==Prep.estimate(reversed,files.content_root),"bounded image subset is deterministic across request and author ordering")
+	check(bounded.rows.size()==7 and bounded.output_bytes==Prep.Headers._mip_bytes(4096,4096,4)*7 and bounded==Prep.estimate(reversed,files.content_root),"complete image union remains deterministic beyond the old 512 MiB cutoff")
 	var old_textures:=Paint._textures.duplicate();var old_materials:=Paint._materials.duplicate();var old_prepared:=Paint.prepared_images.duplicate()
 	var packet:=await prepare_worker(requests,plan)
 	check(packet.error.is_empty() and packet.images.size()==2 and packet.sources.size()==1,"worker prepares two orientations and binds one exact source digest")
@@ -178,10 +178,13 @@ func run()->void:
 		queue._demand_revision+=1;queue._estimate_job({"native_reference":true},entries)
 		check(queue.profile.prefab_texture_plan_builds==attempts+1,"new demand performs a fresh bounded header attempt")
 		var oversized:Dictionary={}
-		for i:int in 257:oversized[path+str(i)]=[path+str(i),false,false]
+		for i:int in 257:
+			var extra_path:String=files.folder.path_join("union_%d.png"%i)
+			files.write_bytes(extra_path,author_bytes);oversized[extra_path]=[extra_path,false,false]
 		var oversized_index:=read.duplicate(true);oversized_index.rows[0].prefab_textures=oversized
 		queue.configure_references(oversized_index,source.path,files.content_root)
-		check(queue._estimate_job({"native_reference":true},entries).prefab_texture_plan.is_empty(),"overlarge optional image union retains ordinary loading without a new failure")
+		var complete_union:Dictionary=queue._estimate_job({"native_reference":true},entries).prefab_texture_plan
+		check(complete_union.get("rows",{}).size()==oversized.size()+requests.size() and complete_union.output_bytes==Prep.Headers._mip_bytes(19,13,4)*(oversized.size()+requests.size()) and complete_union.estimated_bytes>complete_union.output_bytes*2,"more than 256 sources stay in the complete budgeted plan without forcing main-thread fallback")
 		queue.configure_references(read,source.path,files.content_root)
 		check(queue._admission.reserve("bridge",current) and queue._admission.reserved_bytes==current.estimated_bytes,"pixel outputs and scratch enter the same model/reference ledger")
 		var worker:=Thread.new();worker.start(Chunk.prepare.bind(read,entries,source.path,files.content_root,null,null,current.prefab_texture_plan))

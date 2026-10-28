@@ -402,6 +402,13 @@ func _begin_asset_lookahead(records:Array)->void:
 			_preparation.lanes_enabled=preparation_lanes_enabled
 	_preparation.diagnostics_enabled=preload("res://scripts/world3d/load_trace.gd").enabled
 	_preparation.byte_limit=preload("res://scripts/world3d/definition_cache_policy.gd").work_budget(_preparation.byte_limit)
+	# LoadJob is also used with lightweight test hosts without an editor ledger.
+	# A real editor shares the budget with its concurrent import coordinator.
+	if is_instance_valid(editor) and "_shared_preparation_ledger" in editor:
+		_preparation.ledger=editor._shared_preparation_ledger
+		_preparation.shared_ledger_enabled=true
+		_preparation.ledger.worker_limit=_preparation.worker_limit
+		_preparation.ledger.byte_limit=_preparation.byte_limit
 	add_child(_preparation)
 	var seen:Dictionary={};var queued_textures:Dictionary={};var root_:String=Paths.external_root()
 	var native_bytes:=0;var legacy_bytes:=0;var legacy_skipped:=0

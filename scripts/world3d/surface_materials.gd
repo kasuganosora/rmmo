@@ -153,6 +153,30 @@ static func retained_texture(key:String)->Texture2D:
 	if texture==null and residency_budget_enabled and _texture_refs.has(key):texture=_texture_refs[key].get_ref()
 	if texture!=null and prepared_images.has(key) and not _same_prepared_texture(texture,prepared_images[key]):return null
 	return texture
+
+static func publish_import_texture(path:String,image:Image)->bool:
+	# Called on main only after the import worker joined, while its CPU Image
+	# remains covered by the queue lease. No file read or hidden mesh prewarm.
+	if not Thread.is_main_thread() or path.is_empty() or image==null or image.is_empty():return false
+	var key:=texture_key(path)
+	var current:=retained_texture(key)
+	if current!=null and _same_prepared_texture(current,image):return true
+	var began:=Time.get_ticks_usec() if texture_profile_enabled else 0
+	var texture:=ImageTexture.create_from_image(image)
+	if texture==null or texture.get_width()!=image.get_width() or texture.get_height()!=image.get_height():return false
+	texture.set_meta("runtime_upload_bytes",image.get_data_size())
+	texture.set_meta("surface_has_alpha",bool(image.get_meta("runtime_upload_has_alpha",false)))
+	texture.set_meta("runtime_normal_xy",image.get_format()==Image.FORMAT_RGTC_RG)
+	texture.set_meta("runtime_source_sha256",image.get_meta("runtime_source_sha256",""))
+	texture.set_meta("runtime_texture_representation",image.get_meta("runtime_texture_representation",""))
+	var retired_id:=0
+	if not _textures.has(key) and _textures.size()>=64:
+		var oldest:String=_textures.keys()[0]
+		if capacity_eviction_accounting_enabled:retired_id=_textures[oldest].get_instance_id()
+		_textures.erase(oldest);_cache_use.erase("t:"+oldest)
+	_textures[key]=texture;_touch_cache("t:",key);_remember_weak(_texture_refs,key,texture);_trim_after_insert(texture,retired_id)
+	if texture_profile_enabled:TextureCache._profile_elapsed("paint.texture.import_upload",began,{"path":path,"bytes":image.get_data_size()})
+	return true
 static func trim_cached_resources()->Dictionary:
 	if not residency_budget_enabled:return {}
 	if texture_profile_enabled:
@@ -242,6 +266,40 @@ static var texture_profile_enabled:=false
 ## material upload a block-compressed texture without decoding/uploading RGBA.
 static var compressed_sidecars_enabled:=true
 static var _sidecar_cache:Dictionary={}
+
+static func refresh_texture_source_if_needed(path:String,sidecar:String,dds_sha:String,changed:bool=false)->void:
+	var key:=texture_key(path)
+	var cached:Texture2D=_textures.get(key)
+	if cached==null and _texture_refs.has(key):cached=_texture_refs[key].get_ref()
+	var negative:bool=_sidecar_cache.has(key) and str(_sidecar_cache[key])!=sidecar
+	var representation:String=cached.get_meta("runtime_texture_representation","") if cached!=null else ""
+	# Direct runtime reads use their immutable sidecar path, while mutable editor
+	# preparation records a verified byte digest; both describe the same file.
+	if changed or negative or (cached!=null and representation not in ["dds:"+sidecar,"dds:"+dds_sha]):
+		refresh_texture_source(path)
+
+static func refresh_texture_source(path:String)->void:
+	# New sidecars must invalidate this source's old PNG/negative-cache entries.
+	# Existing scene owners keep their resources; no material is mutated.
+	for normal:bool in [false,true]:
+		for flip:bool in ([false,true] if normal else [false]):
+			var key:=texture_key(path,flip,normal)
+			_sidecar_cache.erase(key);_textures.erase(key);_texture_refs.erase(key)
+			prepared_images.erase(key);prepared_textures.erase(key);_cache_use.erase("t:"+key)
+	var affected:Dictionary={texture_key(path):true,texture_key(path,false,true):true,texture_key(path,true,true):true}
+	load("res://scripts/world3d/river_materials.gd").invalidate_texture_source(path)
+	load("res://scripts/world3d/house_prefab.gd").invalidate_texture_materials(affected)
+	for catalogue:Dictionary in [_materials,_material_refs]:
+		for key:String in catalogue.keys():
+			var material:Variant=catalogue[key]
+			if material is WeakRef:material=material.get_ref()
+			if not material is Material:continue
+			var definition:Variant=material.get_meta("runtime_paint_definition",{})
+			if not definition is Dictionary:continue
+			for field:String in MAP_FIELDS:
+				if definition.get(field,"")==path:
+					catalogue.erase(key);_cache_use.erase("m:"+key);break
+	_cache_estimate_valid=false
 
 static func reset_profile()->void:TextureCache.reset_profile()
 static func profile_snapshot()->Dictionary:return TextureCache.profile_snapshot("paint.")
@@ -525,6 +583,7 @@ static func _texture(material:Dictionary,field:String,path_checks:Variant)->Text
 		if not side.is_empty():
 			var side_started:=Time.get_ticks_usec() if texture_profile_enabled else 0
 			var side_texture:=ImageTexture.create_from_image(side.image)
+			side_texture.set_meta("runtime_texture_representation","dds:"+str(side.path))
 			side_texture.set_meta("surface_has_alpha",bool(side.alpha))
 			side_texture.set_meta("runtime_upload_bytes",side.image.get_data_size())
 			side_texture.set_meta("runtime_normal_xy",side.image.get_format()==Image.FORMAT_RGTC_RG)
@@ -730,7 +789,7 @@ static func source_material(node: MeshInstance3D, slot: int) -> Material:
 		return node.mesh.surface_get_material(slot)
 	return node.get_active_material(slot)
 
-static func paint_texture_error(entries:Array,texture_checks:Variant=null)->String:
+static func paint_texture_error(entries:Array,texture_checks:Variant=null,texture_owners:Variant=null)->String:
 	var checked:Array=[]
 	for entry:Dictionary in entries:
 		if entry.material in checked:continue
@@ -738,9 +797,39 @@ static func paint_texture_error(entries:Array,texture_checks:Variant=null)->Stri
 		var key:=var_to_str(entry.material)
 		if texture_checks!=null and texture_checks.has(key):continue
 		for field:String in MAP_FIELDS:
-			if not preload("res://scripts/world3d/runtime_probe_controls.gd").discard_map_textures and not str(entry.material.get(field,"")).is_empty() and texture(entry.material,field)==null:return "表面贴图缺失或损坏："+field
+			if preload("res://scripts/world3d/runtime_probe_controls.gd").discard_map_textures or str(entry.material.get(field,"")).is_empty():continue
+			var owner:=texture(entry.material,field)
+			if owner==null:return "表面贴图缺失或损坏："+field
+			if texture_owners!=null:texture_owners.append(owner)
 		if texture_checks!=null:texture_checks[key]=true
 	return ""
+
+static func validate_paint(node:MeshInstance3D,entries:Array,texture_checks:Variant=null)->Dictionary:
+	# An editor transaction needs these checks before changing the document,
+	# not a temporary GPU mesh/material that is immediately discarded.
+	var first_only:bool=not entries.is_empty() and entries.all(func(entry):return int(entry.surface)==0)
+	var geo := geometry(node,first_only)
+	if not geo.ok: return geo
+	var mesh := source(node)
+	var overrides := {}
+	var checked_materials: Array = []
+	var texture_owners:Array[Texture2D]=[]
+	for entry in entries:
+		var slot := int(entry.surface)
+		if slot >= geo.surfaces.size() or not geo.surfaces[slot].faces.has(int(entry.face)) or geo.surfaces[slot].signature != entry.geometry: return fail("模型几何已改变，请先清除旧面材质再重新绘制")
+		# The optional cache belongs to one immutable runtime load. Ordinary
+		# editor paint operations still check paths/textures afresh every time.
+		if not entry.material in checked_materials:
+			var texture_issue:=paint_texture_error([entry],texture_checks,texture_owners)
+			if not texture_issue.is_empty():return fail(texture_issue)
+			checked_materials.append(entry.material)
+		var source_uv: Variant = geo.surfaces[slot].arrays[Mesh.ARRAY_TEX_UV]
+		if entry.mapping == "uv" and (source_uv == null or source_uv.size() != geo.surfaces[slot].arrays[Mesh.ARRAY_VERTEX].size()): return fail("这个模型没有原始 UV，请选择平面投影")
+		overrides["%d:%d" % [slot, entry.face]] = entry
+	if mesh.get_surface_count() + entries.size() > 256: return fail("绘制后材质槽超过 256 个，请拆分模型")
+	# Transaction-scoped GPU owners survive cache eviction until the final mesh
+	# owns them. This does not increase the retained-cache budget or copy pixels.
+	return {"ok":true,"geometry":geo,"overrides":overrides,"texture_owners":texture_owners}
 
 static func painted_mesh(node: MeshInstance3D, entries: Array, keep_cpu: bool=false, texture_checks: Variant=null, defer_upload:bool=false, prepared_paint:Dictionary={}) -> Dictionary:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.surface_materials.painted_mesh") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
@@ -748,25 +837,11 @@ static func painted_mesh(node: MeshInstance3D, entries: Array, keep_cpu: bool=fa
 		var prepared:Dictionary=load("res://scripts/world3d/surface_paint_preparation.gd").publish(node,entries,prepared_paint,texture_checks)
 		if not prepared.is_empty():return prepared
 	if keep_cpu: CpuMesh.capture(source(node))
-	var first_only:bool=not entries.is_empty() and entries.all(func(entry):return int(entry.surface)==0)
-	var geo := geometry(node,first_only)
-	if not geo.ok: return geo
-	var mesh := source(node)
-	var overrides := {}
-	var checked_materials: Array = []
-	for entry in entries:
-		var slot := int(entry.surface)
-		if slot >= geo.surfaces.size() or not geo.surfaces[slot].faces.has(int(entry.face)) or geo.surfaces[slot].signature != entry.geometry: return fail("模型几何已改变，请先清除旧面材质再重新绘制")
-		# The optional cache belongs to one immutable runtime load. Ordinary
-		# editor paint operations still check paths/textures afresh every time.
-		if not entry.material in checked_materials:
-			var texture_issue:=paint_texture_error([entry],texture_checks)
-			if not texture_issue.is_empty():return fail(texture_issue)
-			checked_materials.append(entry.material)
-		var source_uv: Variant = geo.surfaces[slot].arrays[Mesh.ARRAY_TEX_UV]
-		if entry.mapping == "uv" and (source_uv == null or source_uv.size() != geo.surfaces[slot].arrays[Mesh.ARRAY_VERTEX].size()): return fail("这个模型没有原始 UV，请选择平面投影")
-		overrides["%d:%d" % [slot, entry.face]] = entry
-	if mesh.get_surface_count() + entries.size() > 256: return fail("绘制后材质槽超过 256 个，请拆分模型")
+	var validation:=validate_paint(node,entries,texture_checks)
+	if not validation.ok:return validation
+	var geo:Dictionary=validation.geometry
+	var overrides:Dictionary=validation.overrides
+	var mesh:=source(node)
 	var output:Mesh
 	var cpu_arrays: Array=[]
 	var output_materials:Array=[]

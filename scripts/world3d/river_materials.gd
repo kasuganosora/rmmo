@@ -20,6 +20,26 @@ static var terrain_height_fallback_generations:=0
 static var cache: Dictionary={}
 static var hidden_slab: ShaderMaterial
 
+static func invalidate_texture_source(path:String)->void:
+	# Terrain signatures contain the authored material definitions. Remove only
+	# matching derived cache entries; existing scene owners retain old materials.
+	for key:String in cache.keys():
+		if not key.begins_with("terrain:"):continue
+		var signature:Variant=cache[key].get_meta("terrain_signature",[])
+		var pending:Array=[signature];var found:=false
+		while not pending.is_empty() and not found:
+			var value:Variant=pending.pop_back()
+			if value is Dictionary:
+				for field:String in Paint.MAP_FIELDS:
+					if value.get(field,"")==path:found=true;break
+				if not found:
+					for child:Variant in value.values():
+						if child is Dictionary or child is Array:pending.append(child)
+			elif value is Array:
+				for child:Variant in value:
+					if child is Dictionary or child is Array:pending.append(child)
+		if found:cache.erase(key)
+
 static func reset_index_profile()->void:
 	cpu_index_override_count=0;cpu_index_legacy_restore_count=0
 	water_cpu_normal_hits=0

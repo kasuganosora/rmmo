@@ -208,9 +208,7 @@ func _execute(name: String, args: Dictionary) -> Dictionary:
 			var entries: Array = editor._material_tool.library.search(str(args.get("query", "")), str(args.get("category", "")))
 			return ok({"materials": page(entries, args), "total": entries.size(), "categories": editor._material_tool.library.categories()})
 		"import_surface_material":
-			var result: Dictionary = editor._material_tool.library.import_texture(args.path, args.get("name", ""))
-			if result.ok: editor._material_panel.refresh(result.material_id)
-			return result
+			return editor._surface_texture_imports.submit(editor._material_tool.library,args.path,args.get("name", ""))
 		"list_object_surfaces": return editor._material_tool.list_faces(args.id, int(args.get("offset", 0)), int(args.get("limit", 50)))
 		"pick_surface": return editor._material_tool.pick(Vector2(args.screen[0], args.screen[1]))
 		"paint_surface": return editor._material_tool.paint(args.id, args.target, args.material_id, args)

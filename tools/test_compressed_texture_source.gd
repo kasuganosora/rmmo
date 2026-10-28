@@ -17,7 +17,7 @@ func _initialize()->void:run.call_deferred()
 func put(path:String,bytes:PackedByteArray)->void:
 	var file:=FileAccess.open(path,FileAccess.WRITE);file.store_buffer(bytes);file.close()
 
-func dds(width:int,height:int,kind:String,dx10:bool=false)->PackedByteArray:
+func dds_header(width:int,height:int,kind:String,dx10:bool=false)->Dictionary:
 	var bytes:=PackedByteArray();bytes.resize(148 if dx10 else 128)
 	for i:int in 4:bytes[i]="DDS ".to_ascii_buffer()[i]
 	bytes.encode_u32(4,124);bytes.encode_u32(8,0x000A1007)
@@ -36,6 +36,11 @@ func dds(width:int,height:int,kind:String,dx10:bool=false)->PackedByteArray:
 		w=maxi(1,w/2);h=maxi(1,h/2);mip_count+=1
 	bytes.encode_u32(20,maxi(1,(width+3)/4)*maxi(1,(height+3)/4)*block_bytes)
 	bytes.encode_u32(28,mip_count)
+	return {"header":bytes,"output_bytes":output}
+
+func dds(width:int,height:int,kind:String,dx10:bool=false)->PackedByteArray:
+	var info:=dds_header(width,height,kind,dx10)
+	var bytes:PackedByteArray=info.header;var output:int=info.output_bytes
 	var offset:=bytes.size();bytes.resize(offset+output)
 	for i:int in output:bytes[offset+i]=(i*29+17)%256
 	return bytes
@@ -46,7 +51,7 @@ func source_file(name:String)->String:
 	return path
 
 func helper_cases()->void:
-	for dims:Vector2i in [Vector2i(1,1),Vector2i(7,11),Vector2i(16,8),Vector2i(1254,1254)]:
+	for dims:Vector2i in [Vector2i(1,1),Vector2i(7,11),Vector2i(16,8),Vector2i(1254,1254),Vector2i(4097,4)]:
 		for kind:String in ["DXT1","DXT5","ATI2"]:
 			for dx10:bool in [false,true]:
 				var path:=source_file("case_%d_%d_%s_%s"%[dims.x,dims.y,kind,dx10])
@@ -88,7 +93,7 @@ func malformed_cases()->void:
 	changed=valid.duplicate();changed.encode_u32(4,125);cases.append(["header size",changed])
 	changed=valid.duplicate();changed.encode_u32(76,0);cases.append(["pixel header size",changed])
 	changed=valid.duplicate();changed.encode_u32(16,0);cases.append(["zero width",changed])
-	changed=valid.duplicate();changed.encode_u32(12,4097);cases.append(["oversize height",changed])
+	changed=valid.duplicate();changed.encode_u32(12,4097);cases.append(["changed height and incomplete payload",changed])
 	changed=valid.duplicate();changed.encode_u32(16,0xffffffff);cases.append(["overflow width",changed])
 	changed=valid.duplicate();changed.encode_u32(24,2);cases.append(["volume",changed])
 	changed=valid.duplicate();changed.encode_u32(112,512);cases.append(["cube",changed])
@@ -104,7 +109,7 @@ func malformed_cases()->void:
 	changed=dds(16,8,"DXT1",true);changed.encode_u32(128,84);cases.append(["signed BC5 unsupported",changed])
 	for item:Array in cases:
 		put(target,item[1]);check(Source.plan(path,false,false,directory).is_empty(),"reject "+item[0])
-	check(Source._header(valid,Source.MAX_SOURCE_BYTES+1,false).is_empty(),"length bound before allocation")
+	check(Source._header(valid,valid.size()+1,false).is_empty(),"mismatched file length rejected before allocation")
 	for item:Array in cases:
 		put(target,valid);var row:=Source.plan(path,false,false,directory)
 		put(target,item[1]);check(Source.read(row)==null,"recheck changed "+item[0]+" before Image allocation")
@@ -112,6 +117,23 @@ func malformed_cases()->void:
 	put(target,valid);var row:=Source.plan(path,false,false,directory)
 	changed=valid.duplicate();changed.encode_u32(16,15);put(target,changed)
 	check(Source.read(row)==null,"same-size changed dimensions cannot bypass admission")
+
+func large_header_cases()->void:
+	# Validate full DDS lengths without creating hundreds of MiB of fixture data.
+	# Actual compressed read on 4097x4 is covered by helper_cases above.
+	for test:Array in [[8192,8192,"DXT1"],[8192,8192,"DXT5"],[16384,16384,"DXT5"]]:
+		var info:=dds_header(test[0],test[1],test[2]);var bytes:PackedByteArray=info.header
+		var length:int=bytes.size()+info.output_bytes
+		var row:=Source._header(bytes,length,false)
+		check(not row.is_empty() and row.width==test[0] and row.height==test[1] and row.output_bytes==info.output_bytes,"header accepts supported dimensions and exact complete mip length %s"%[test])
+		check(Source._header(bytes,length-1,false).is_empty(),"large truncated payload fails before allocation %s"%[test])
+		check(Source._header(bytes,length+1,false).is_empty(),"large trailing payload fails before allocation %s"%[test])
+	var maximum:=dds_header(16384,16384,"DXT5")
+	check(int(maximum.output_bytes)>128*1024*1024,"test includes DDS larger than previous 128 MiB limit")
+	var bad:PackedByteArray=maximum.header.duplicate();bad.encode_u32(16,16385)
+	check(Source._header(bad,bad.size()+int(maximum.output_bytes),false).is_empty(),"pixel count beyond Image limit is rejected")
+	bad=maximum.header.duplicate();bad.encode_u32(16,0xffffffff)
+	check(Source._header(bad,bad.size()+int(maximum.output_bytes),false).is_empty(),"untrusted uint32 width fails Image limit before multiplication")
 
 func editor_cases()->void:
 	var path:=source_file("editor_shared")
@@ -154,6 +176,6 @@ func run()->void:
 		if arg.begins_with("--output="):directory=arg.trim_prefix("--output=").replace("\\","/")
 	if directory.is_empty() or not directory.is_absolute_path():push_error("--output=<external temporary directory> required");quit(2);return
 	DirAccess.make_dir_recursive_absolute(directory)
-	helper_cases();malformed_cases();await editor_cases()
+	helper_cases();malformed_cases();large_header_cases();await editor_cases()
 	print("COMPRESSED_TEXTURE_SOURCE ",JSON.stringify({"checks":checks,"failures":failures}))
 	quit(0 if failures.is_empty() else 1)

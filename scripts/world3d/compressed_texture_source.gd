@@ -3,8 +3,12 @@ extends RefCounted
 ## Trusted game plan/read never hash package bytes. The explicit mutable-source
 ## editor route binds derived DDS bytes to an already-read authored snapshot.
 const Paths=preload("res://scripts/world3d/map_paths.gd")
-const MAX_DIMENSION=4096
-const MAX_SOURCE_BYTES=128*1024*1024
+# Image::MAX_PIXELS in core/io/image.h is not exposed as a GDScript constant.
+# Unlike the old cache policy limits, this is an actual Image allocation limit.
+const IMAGE_MAX_PIXELS:=1<<28
+# JSON numbers are parsed as floats; values above this are not all exactly
+# representable, so they cannot safely identify a source byte count.
+const JSON_MAX_EXACT_INTEGER:=9007199254740991
 
 static func sidecar_path(path:String,flip:bool=false,normal:bool=false)->String:
 	var suffixes:=([".flip.dxt5.dds",".flip.dxt1.dds"] if flip else [".dxt5.dds",".dxt1.dds"])
@@ -14,10 +18,13 @@ static func sidecar_path(path:String,flip:bool=false,normal:bool=false)->String:
 	return ""
 
 static func _header(bytes:PackedByteArray,length:int,normal:bool)->Dictionary:
-	if length<128 or length>MAX_SOURCE_BYTES or bytes.size()<128:return {}
+	if length<128 or bytes.size()<128:return {}
 	if bytes.slice(0,4).get_string_from_ascii()!="DDS " or bytes.decode_u32(4)!=124 or bytes.decode_u32(76)!=32:return {}
 	var width:=int(bytes.decode_u32(16));var height:=int(bytes.decode_u32(12))
-	if width<1 or height<1 or width>MAX_DIMENSION or height>MAX_DIMENSION:return {}
+	# decode_u32 fits in a signed 64-bit integer. Reject the Image engine limits
+	# before multiplication, so the product and all BC mip sizes fit in int64.
+	if width<1 or height<1 or width>Image.MAX_WIDTH or height>Image.MAX_HEIGHT:return {}
+	if width*height>IMAGE_MAX_PIXELS:return {}
 	# Volumes, cube maps and arrays have a different ownership/allocation contract.
 	if bytes.decode_u32(24)>1 or bytes.decode_u32(112)!=0 or (bytes.decode_u32(80)&4)==0:return {}
 	var fourcc:=bytes.slice(84,88).get_string_from_ascii()
@@ -54,7 +61,7 @@ static func plan(path:String,flip:bool,normal:bool,root:String)->Dictionary:
 	var file:=FileAccess.open(sidecar,FileAccess.READ)
 	if file==null:return {}
 	var length:=file.get_length()
-	if length<128 or length>MAX_SOURCE_BYTES:return {}
+	if length<128:return {}
 	var row:=_header(file.get_buffer(mini(length,148)),length,normal)
 	if row.is_empty():return {}
 	row.path=path;row.sidecar=sidecar;row.flip=flip;row.normal=normal;row.root=root
@@ -85,7 +92,7 @@ static func plan_mutable(path:String,flip:bool,normal:bool,root:String,source_sh
 	if metadata.get("source_sha256")!=source_sha256 or not _sha(metadata.get("dds_sha256")):return {}
 	var source_bytes:Variant=metadata.get("source_bytes")
 	if not source_bytes is float and not source_bytes is int:return {}
-	if source_bytes<=0 or source_bytes>MAX_SOURCE_BYTES or source_bytes!=int(source_bytes):return {}
+	if source_bytes<=0 or source_bytes>JSON_MAX_EXACT_INTEGER or source_bytes!=int(source_bytes):return {}
 	if metadata.get("dds_bytes")!=row.source_bytes:return {}
 	row.mutable_source=true
 	row.mutable_source_sha256=source_sha256
@@ -99,7 +106,7 @@ static func read(row:Dictionary)->Image:
 	var file:=FileAccess.open(sidecar,FileAccess.READ)
 	if file==null or file.get_length()!=int(row.get("source_bytes",0)):return null
 	var length:=file.get_length()
-	if length<128 or length>MAX_SOURCE_BYTES:return null
+	if length<128:return null
 	var header:=file.get_buffer(mini(length,148))
 	var actual:=_header(header,length,bool(row.get("normal",false)))
 	if actual.is_empty():return null

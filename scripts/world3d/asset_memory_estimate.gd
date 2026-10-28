@@ -7,7 +7,7 @@ const MAX_JSON := 4 * 1024 * 1024
 const MAX_ITEMS := 65536
 const MAX_IMAGES := 4096
 const MAX_HEADER := 1024 * 1024
-const MAX_DIMENSION := 32768
+const IMAGE_MAX_PIXELS := 268435456 # Image::MAX_PIXELS; not bound in GDScript.
 const MAX_ESTIMATE := 1024 * 1024 * 1024 * 1024
 const UNKNOWN_BYTES := 8 * 1024 * 1024 * 1024
 const EXCLUSIVE_BYTES := 4 * 1024 * 1024 * 1024
@@ -172,7 +172,7 @@ static func _image_header(file: FileAccess, offset: int, length: int, mime: Stri
 	return {}
 
 static func _dimensions(width: int, height: int, pixel_bytes: int) -> Dictionary:
-	if width <= 0 or height <= 0 or width > MAX_DIMENSION or height > MAX_DIMENSION: return {}
+	if width <= 0 or height <= 0 or width > Image.MAX_WIDTH or height > Image.MAX_HEIGHT or width > IMAGE_MAX_PIXELS / height: return {}
 	return {"width":width,"height":height,"pixel_bytes":pixel_bytes}
 
 static func _mip_bytes(width: int, height: int, pixel_bytes: int) -> int:

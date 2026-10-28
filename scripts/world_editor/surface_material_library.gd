@@ -37,6 +37,9 @@ func _collect(path: String, base: String, prefix: String, origin: String, result
 		for file:String in dir.get_files():
 			var full:=current.path_join(file)
 			if not file.ends_with(".json") or dir.is_link(file) or not Paths.allowed(full,content_root):continue
+			# Producer metadata is not a material descriptor. Skip these reserved
+			# compound suffixes before opening/decoding every sidecar in the catalog.
+			if file.ends_with(".dds.source.json") or file.ends_with(".png.thumbnail.json"):continue
 			var entry:=_read_entry(full,current,base,prefix,origin,content_root)
 			if not entry.is_empty():result.append(entry)
 		var folders:=dir.get_directories()
@@ -144,10 +147,10 @@ func _candidate_paths(path: String, base: String, prefix: String, origin: String
 func import_texture(path: String, label: String = "") -> Dictionary:
 	if not Paths.allowed(path) or path.get_extension().to_lower() not in ["png", "jpg", "jpeg", "webp"] or not FileAccess.file_exists(path): return Paint.fail("请选择内容目录内的 PNG / JPEG / WebP 贴图")
 	var file := FileAccess.open(path, FileAccess.READ)
-	if file == null or file.get_length() > 16777216: return Paint.fail("贴图文件不可读或超过 16 MiB")
+	if file == null or file.get_length() <= 0: return Paint.fail("贴图文件不可读或为空")
 	file.close()
 	var image := Image.load_from_file(path)
-	if image == null or image.is_empty() or image.get_width() > 4096 or image.get_height() > 4096: return Paint.fail("贴图无效，最大支持 4096 × 4096")
+	if image == null or image.is_empty(): return Paint.fail("贴图无效或引擎无法解码")
 	var png := image.save_png_to_buffer()
 	var hash := HashingContext.new()
 	hash.start(HashingContext.HASH_SHA256); hash.update(png)

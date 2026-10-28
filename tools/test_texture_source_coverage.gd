@@ -21,8 +21,8 @@ func _initialize()->void:
 	check(Prep.sources({"bridge_materials":{"deck":base},"rock_bank_materials":{"stone":extra},"fortification_materials":{"wall":base}})==expected,"procedural structural material dictionaries are covered")
 	check(Prep.sources({}).is_empty(),"unpainted records require no texture work")
 	var many:Array=[]
-	for index:int in Prep.MAX_SOURCES+1:many.append({"texture_path":"image_%d.png"%index})
-	check(Prep.sources({"prefab_materials":many,"house_prefab":{}}).is_empty(),"optional preparation retains its bounded source count")
+	for index:int in 257:many.append({"texture_path":"image_%d.png"%index})
+	check(Prep.sources({"prefab_materials":many,"house_prefab":{}}).size()==257,"all sources beyond the former 256 limit retain their preparation plan")
 	check(Prep.valid_sources(expected),"expanded dependencies retain the existing source key contract")
 	print("TEXTURE_SOURCE_COVERAGE ",passed," passed, ",failed," failed")
 	quit(1 if failed else 0)
