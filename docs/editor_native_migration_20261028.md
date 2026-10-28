@@ -56,3 +56,5 @@
 每件 `per_model_status` 已追加editor操作通过状态；图审、精确LOD及适用的旗槽/运行时灯光等仍单独待验，正式地图部署不由本测试放行。
 
 UI/MCP自动DDS导入在独立 `editor-texture-import` worktree继续收口。新CPU编码接口及局部RenderingDevice修补已编译，并通过实际DDS HTTP/UI 32项检查，见[引擎合同](editor_dds_engine_contract_20261028.md)。任意尺寸限制、首次涂材质同步读取和缩略图共享预算仍在处理，分支尚未合并。完成编辑器后再开始4.8。本记录不产生新的 axel_town 加载、FPS/low 或峰值内存结论。
+
+后续更新：DDS/PNG异步导入、尺寸准入、导入像素交接、共享缩略图与单次涂材质构建已由 `adda3ee3` 合并，并通过合并后真实 UI 回归；具体证据及冷 shader/跨进程发布/画质未完成边界见[首次涂材质记录](editor_first_paint_preparation_20261028.md)。本迁移的54件剩余图审与适用LOD验证仍须完成，没有由材质代码回归替代。
