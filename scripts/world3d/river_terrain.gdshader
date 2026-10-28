@@ -1,6 +1,9 @@
 shader_type spatial;
 render_mode cull_back, diffuse_burley, specular_schlick_ggx;
 #include "res://scripts/world3d/normal_texture_decode.gdshaderinc"
+#ifdef RMMO_TEXTURE_STREAMING
+#include "res://scripts/world3d/streaming_surface_feedback.gdshaderinc"
+#endif
 uniform float terrain_saturation = 1.;
 uniform float wet_height = .3;
 uniform float wet_darkening = 0.;
@@ -151,6 +154,17 @@ vec3 projection_weights(vec3 geometric_normal) {
 	vec3 w=pow(abs(geometric_normal),vec3(8.));
 	return w/max(.00001,w.x+w.y+w.z);
 }
+#ifdef RMMO_TEXTURE_STREAMING
+float surface_streaming_footprint(vec2 tile,vec3 dx,vec3 dy,vec3 projections) {
+	float footprint=1e30;
+	if (!slope_aware || projections.y>.00001) { footprint=rmmo_streaming_footprint(dx.xz/tile,dy.xz/tile); }
+	if (slope_aware) {
+		if (projections.x>.00001) { footprint=min(footprint,rmmo_streaming_footprint(dx.zy/tile,dy.zy/tile)); }
+		if (projections.z>.00001) { footprint=min(footprint,rmmo_streaming_footprint(dx.xy/tile,dy.xy/tile)); }
+	}
+	return footprint;
+}
+#endif
 vec4 sample_surface(sampler2D tex, vec2 tile, vec3 geometric_normal) {
 	if (!slope_aware) { return texture(tex,world_position.xz/tile); }
 	vec3 w=projection_weights(geometric_normal); vec4 result=vec4(0.);
@@ -205,9 +219,14 @@ vec4 height_weights(vec4 weights,vec3 n) {
 }
 void fragment() {
 	vec3 up=normalize(world_normal);
+#ifdef RMMO_TEXTURE_STREAMING
+	// Height samples can affect coverage even when a layer later disappears.
+	vec4 sampled_height_weights=vec4(0.);
+#endif
 	// At near-vertical cuts, interpolated crest normals stretch grass and XZ UVs
 	// down long triangles. Use the true face normal increasingly on steep faces.
-	vec3 face_normal=normalize(cross(dFdx(world_position),dFdy(world_position)));
+	vec3 world_dx=dFdx(world_position),world_dy=dFdy(world_position);
+	vec3 face_normal=normalize(cross(world_dx,world_dy));
 	if (dot(face_normal,up)<0.) { face_normal=-face_normal; }
 	float face_steep=1.-smoothstep(cos(radians(steep_end)),cos(radians(steep_start)),abs(face_normal.y));
 	vec3 projection_normal=normalize(mix(up,face_normal,face_steep));
@@ -262,6 +281,11 @@ void fragment() {
 			weights.z-=min(weights.z,soil_cover+grass_cover);
 			weights.w+=soil_cover; weights.x+=grass_cover;
 			weights/=max(.00001,weights.x+weights.y+weights.z+weights.w);
+#ifdef RMMO_TEXTURE_STREAMING
+			if (height_blend_strength>0. && max(max(weights.x,weights.y),max(weights.z,weights.w))<=.99999) {
+				sampled_height_weights=weights*vec4(base_has_height?1.:0.,sand_has_height?1.:0.,rock_has_height?1.:0.,soil_has_height?1.:0.);
+			}
+#endif
 			weights=height_weights(weights,projection_normal);
 		}
 	}
@@ -373,5 +397,19 @@ void fragment() {
 		ALBEDO*=1.-wet*wet_darkening;
 		ROUGHNESS*=1.-wet*.25;
 	}
+#ifdef RMMO_TEXTURE_STREAMING
+	// One feedback value applies to the material's streamed samplers. Preserve
+	// the finest demand of sampled layers/projections, not unused layer tiles.
+	vec3 projections=projection_weights(projection_normal);
+	vec4 demand=max(weights,sampled_height_weights);
+	float footprint=1e30;
+	if (demand.x>.00001) { footprint=min(footprint,surface_streaming_footprint(base_tile,world_dx,world_dy,projections)); }
+	if (demand.y>.00001) { footprint=min(footprint,surface_streaming_footprint(sand_tile,world_dx,world_dy,projections)); }
+	if (demand.z>.00001) { footprint=min(footprint,surface_streaming_footprint(rock_tile,world_dx,world_dy,projections)); }
+	if (demand.w>.00001) { footprint=min(footprint,surface_streaming_footprint(soil_tile,world_dx,world_dy,projections)); }
+	if (region_weights.x>.00001) { footprint=min(footprint,surface_streaming_footprint(region_a_tile,world_dx,world_dy,projections)); }
+	if (region_weights.y>.00001) { footprint=min(footprint,surface_streaming_footprint(region_b_tile,world_dx,world_dy,projections)); }
+	STREAMING_LOD=rmmo_streaming_lod(footprint);
+#endif
 	NORMAL=normalize((VIEW_MATRIX*vec4(surface,0.)).xyz);
 }

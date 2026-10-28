@@ -143,3 +143,40 @@ profiler 草稿第一次因为两处 `frame_*.set(0)` 的替换断言失败，�
 `validate_candidate_02.py` 已排队等待同一候选构建。成功后才会复制产物至 `candidate_engine_02`、核对 SHA/版本，并在 `candidate_contracts_02` 串行跑六组原生合同：CPU surface、CPU concave、debug appearance、GPU surface 数据对照、renderer arrays、LOD hint。进度在 `candidate_validation_02/result.json`；它拥有构建后下一组 GPU 测试时段，接手时不能另开并行 GPU 任务。当前仍待运行；通过这六组也不替代后续 DDS/profiler、CPU 编码、退出与整图验收。写入器旧引擎兼容性另有 `streaming_product_47_parse_01` 的同步 subprocess 结果，0 退出、无错误、源码和引擎身份稳定。
 
 下一步按顺序：完成候选编译并跑 CPU 准备/碰撞/DDS/profiler/退出等合同；补正式表面 shader 反馈及保真/已有 DDS 的流式产品与统一预算对照；最后比较真实地图加载、卸载、返回重载和 low 帧。当前没有更改生产纹理加载路径、正式地图或默认引擎，尚无 4.8 整图性能收益结论。
+
+## 正式地形/河岸 shader 反馈与材质合批复验
+
+新增 `streaming_surface_shader.gd`，只在支持 TextureStreaming、项目显式启用且使用 Forward+/Mobile 时构造两个共用 shader 变体。4.7.2 或未开启流式时继续使用原 shader。`RiverMaterials.terrain/bank` 共用这个选择，`GroundBatchGeometry` 识别两个地形身份；未开启生产纹理流式，也没有改地图记录或源图片。
+
+反馈来自真实采样坐标：地形按世界坐标、tile 尺寸、三平面有效投影及实际层权重计算；河岸使用缩放后的 UV。高度图可能先参与混合、最后被覆盖权重消去，所以另外保留混合前实际采样的高度层需求。未参与采样的层不以其大 tile 值强迫升 mip。上游一个材质仍只有一个反馈 LOD，本轮没有宣称实现逐 sampler 独立反馈。
+
+`surface_contracts_02` 使用真正的项目 shader 和只读石铺源图，官方 4.8 **49/0**、当前 4.7.2 **21/0**。七种场景包含基础色、法线、三平面岩石、区域覆盖、高度混合后消失的层、无用层大 tile 和河岸 UV 缩放。适用的流式样本自动升到 2048²，完整 mip 链逐字节一致；无用层测试维持 256²。七种同镜头 ImageTexture 原 shader / 完整驻留流式变体画面逐字节一致。没有强制 LOD 或 flush，最终 owner 释放后账本归零；无引擎/脚本错误、输入身份稳定。
+
+`surface_contracts_01` 的像素/驻留断言仍保留，但其预览写入误用了 `save_webp(path,false,.9)`，实际为 VP8L 无损，不能将当时写入的 lossy 元数据当作编码证明。已在该目录保存纠正记录；`02` 使用 `save_webp(path,true,.9)`，runner 检查 RIFF 的 VP8/VP8L 块、质量参数和实际 SHA，七张图均为真正有损 Q90。发送查看的是校正后的 Q90 副本，原本用于本地对照的证据未覆盖。
+
+### 发现并修复原有的重复分组
+
+真实 `RiverMaterials → GroundBatchGeometry.build/upload` 集成测试发现，第一次计算材质键后，`ShaderMaterial.duplicate()` 会补齐尚未设置的 shader 默认值。相同外观由 null 变为 `.3`、`-1.5` 等明确值，导致同一个材质前后甚至与自己的副本分到不同批次。`surface_batch_02` 在原 shader 和流式 shader 中均复现；Godot `ShaderMaterial::_get_property_list` 的惰性 `param_cache` 填充与逐参数证据吻合。
+
+现在按实际生效的 shader 默认值归一化。参数名称和默认值按两个固定地形 shader 缓存、只读共享，`Shader.changed` 时失效；不缓存材质当前值，不额外修改材质，也不在每个实例上反复枚举默认值。禁用的区域层仍忽略，启用或真实外观修改仍拆分批次。
+
+首轮合批截图的像素不等也没有直接当成 shader 回归：完整测试项目原本开启 TAA，两个 shader 的差异图完全相同，均只涉及边缘 3,844 像素。后续精确像素 fixture 明确关闭 TAA，并先验证未改变场景的连续截图完全相等；没有放宽 MAE 阈值。`surface_batch_03` 原/流式两组各 **12/0**，合批前后逐字节相等。最终 `surface_batch_04` 官方 4.8 **17/0**，独立初始化旧版类缓存的 `surface_batch_47_01` 当前 4.7.2 **17/0**，同时验证：
+
+- 等效复制、Inspector 默认填充不改变键，真正外观/启用区域变化仍改变键；
+- shader 默认值编辑会使缓存失效，恢复后重现原键；
+- 两份源表面实际合成一份渲染表面，保留选定 shader 和 layered 参数；
+- 同镜头确定性画面逐字节一致，源记录和源几何数组不变。
+
+均正常退出、无引擎/脚本错误、文件前后身份一致。这是材质管线及派生合批的受影响项复验：资源像素/运行管线通过，七种固定镜头及简化合批画面通过；没有新模型交付或正式地图部署，不替代整城、所有视角和连续动态画面验收，也不把断言数量或有编译器/GDB 并行的秒数当性能收益。
+
+### 候选编译后的首个阻断项
+
+`candidate_build_02` 已完成：退出 0、耗时 2078.359s、全部候选源码身份不变。冻结到 `candidate_engine_02`，exe SHA `fbfe5ecc3bb2e3b63ab70e46b4896dcf3df518c5481f1b3edc5606c3c9829c4b`，符号 SHA `4ce3ba47f9fad367589a08f1f714cd43ac875bd2f0df0fc7ee49b0101dfd3bac`。仍未安装默认引擎。
+
+自动 `candidate_contracts_02` 第一项 CPU surface 的 48 jobs × 9 组（1/3/12 worker 正反顺序）数据全部一致、12 个断言通过，但日志出现 `GDType::bind_method: init_state != MUTABLE`，因此严格记为失败，剩余五项没有运行。不能用脚本返回 0 掩盖原生注册错误。
+
+`gdtype_diagnosis_03` 使用冻结候选和 GDB 18.1 捕获到：`initialize_godot_physics_3d_module → ClassDB::bind_static_method<GodotConcavePreparedData3D::prepare> → GDType::bind_method`，此时类型状态明确为 `FINALIZED`。恢复后复现同一原生错误、进程正常退出、引擎和命令文件身份不变。这是旧补丁在新类型系统下的注册时机不兼容，不是证明上游碰撞算法有 bug。首个诊断因在每次类型绑定处检查条件而 180 秒超时；第二个空项目没有 main scene，未进入目标模块，终止了已核对身份的自有进程。失败边界和日志均保留，第三次改用精确模块断点及最小 SceneTree 脚本才取得上述栈。
+
+修正将 `prepare_concave_shape_data` 绑定移到 `PhysicsServer3D::_bind_methods` 的正常初始化期；模块仅设置 CPU 实现函数指针，卸载时清空。保留原项目 API 和数据格式，不让类型重新变为可修改，也没有引入逐任务互斥。无 Godot 物理模块时返回空准备结果；现有正常构建保留该模块。新加入的两个 physics_server 文件均与已验证官方 archive 的原始字节核对。
+
+`ports_03/critical_runtime.patch` 共 29 文件，SHA `f709dd84d021491ce10f618bdb51fcabd66a6edf85b3746b73b547bc7c7e9ebe`。`candidate_build_03` 正在以同配置、低优先级续编；`validate_candidate_03.py` 等待同一构建，成功后冻结至 `candidate_engine_03` 并串行重跑六组原生合同，拥有构建完成后的下一组 GPU 测试时段。当前只完成复现和源码修正，**未宣称候选 03 已通过编译或运行**。接手先读取这两组 result.json，不重复开启编译，不修改正在编译的源码。

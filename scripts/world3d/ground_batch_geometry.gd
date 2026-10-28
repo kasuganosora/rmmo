@@ -7,6 +7,32 @@ const MAX_VERTICES := 65536
 const MAX_FORTIFICATION_MEMBERS := 256
 static var prepared_surfaces_enabled:=true
 const PREPARE_SURFACE_METHOD:=&"mesh_prepare_surface_from_arrays"
+static var _terrain_schemas:Dictionary={}
+static var _terrain_schema_mutex:=Mutex.new()
+
+static func _invalidate_terrain_schema(shader:Shader)->void:
+	_terrain_schema_mutex.lock()
+	_terrain_schemas.erase(shader)
+	_terrain_schema_mutex.unlock()
+
+static func _terrain_schema(shader:Shader)->Array:
+	# Only the two shared terrain shaders reach here. Cache immutable names and
+	# native defaults, never material values. Missing parameters render with these
+	# defaults; duplicate()/Inspector may populate them lazily without an edit.
+	_terrain_schema_mutex.lock()
+	if not _terrain_schemas.has(shader):
+		var schema:Array=[]
+		for property:Dictionary in shader.get_shader_uniform_list():
+			var name:String=property.name
+			if name in ["terrain_heights","terrain_span","ground_mask"] or name.begins_with("batch_"):continue
+			var entry:Array=[name,RenderingServer.shader_get_parameter_default(shader.get_rid(),name)]
+			entry.make_read_only();schema.append(entry)
+		schema.make_read_only();_terrain_schemas[shader]=schema
+		var invalidate:=_invalidate_terrain_schema.bind(shader)
+		if not shader.changed.is_connected(invalidate):shader.changed.connect(invalidate)
+	var result:Array=_terrain_schemas[shader]
+	_terrain_schema_mutex.unlock()
+	return result
 
 static func category(record: Dictionary) -> String:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.ground_batch_geometry.category") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
@@ -43,14 +69,14 @@ static func material_key(material: Material) -> String:
 	if material.next_pass != null: return ""
 	var values: Array = []
 	if material is ShaderMaterial:
-		if material.shader != TERRAIN_SHADER: return ""
-		for property in material.shader.get_shader_uniform_list():
-			var name: String = property.name
-			if name in ["terrain_heights", "terrain_span", "ground_mask"] or name.begins_with("batch_"): continue
+		if not preload("res://scripts/world3d/streaming_surface_shader.gd").is_terrain(material.shader): return ""
+		for entry:Array in _terrain_schema(material.shader):
+			var name:String=entry[0]
 			# Disabled layers are unused. Godot may lazily populate their defaults
 			# when duplicating a material; that must not invalidate an existing batch.
 			if not material.get_shader_parameter("ground_enabled") and (name.begins_with("region_a_") or name.begins_with("region_b_")): continue
 			var value: Variant = material.get_shader_parameter(name)
+			if value==null:value=entry[1]
 			values.append([name, value.get_instance_id() if value is Resource else value])
 	elif material is StandardMaterial3D:
 		if material.transparency != BaseMaterial3D.TRANSPARENCY_DISABLED or material.billboard_mode != BaseMaterial3D.BILLBOARD_DISABLED: return ""

@@ -3,6 +3,7 @@ const Paint=preload("res://scripts/world3d/surface_materials.gd")
 const Data=preload("res://scripts/world3d/river_material_data.gd")
 const Cpu=preload("res://scripts/world3d/ground_cpu_mesh.gd")
 const Trace=preload("res://scripts/world3d/load_trace.gd")
+const StreamingShader=preload("res://scripts/world3d/streaming_surface_shader.gd")
 const CPU_SURFACE_OVERRIDES_META=&"runtime_cpu_surface_overrides"
 static var cpu_index_overrides_enabled:=true # Probe-only old/new comparison.
 static var water_cpu_normals_enabled:=true # Probe-only old/new comparison.
@@ -126,7 +127,7 @@ static func terrain(record: Dictionary, context: Dictionary={}) -> ShaderMateria
 		if _terrain_textures_current(cache[key],record,base,config,depth_enabled):return cached(key)
 		cache.erase(key)
 	var started:=Time.get_ticks_usec() if Trace.enabled else 0
-	var result:=ShaderMaterial.new(); result.shader=preload("res://scripts/world3d/river_terrain.gdshader")
+	var result:=ShaderMaterial.new(); result.shader=StreamingShader.terrain()
 	if Trace.enabled:Trace.elapsed("river.terrain_create",started)
 	result.set_meta("terrain_signature",signature.duplicate(true))
 	result.resource_name="River depth blend" if depth_enabled else ("Terrain slope blend" if record.has("terrain_slope_blend") else "Terrain PBR")
@@ -178,7 +179,7 @@ static func water(config: Dictionary, source: Material) -> ShaderMaterial:
 static func bank(config: Dictionary, source: StandardMaterial3D) -> ShaderMaterial:
 	var key:="bank:"+JSON.stringify(config)+":"+str(source.get_instance_id())
 	if cache.has(key): return cached(key)
-	var result:=ShaderMaterial.new(); result.shader=preload("res://scripts/world3d/river_bank.gdshader")
+	var result:=ShaderMaterial.new(); result.shader=StreamingShader.bank()
 	result.resource_name="Canal lining wetness"
 	var params:={"tint":source.albedo_color,"roughness":source.roughness,"metallic":source.metallic,"normal_strength":source.normal_scale if source.normal_enabled else 0.0,"uv_scale":source.uv1_scale,"uv_offset":source.uv1_offset,"water_level":config.water_level,"wet_height":config.wet_height}
 	for key_ in params: result.set_shader_parameter(key_,params[key_])
