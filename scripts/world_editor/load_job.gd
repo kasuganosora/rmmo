@@ -59,6 +59,7 @@ var _asset_failures:Dictionary={}
 var _terrain_surfaces:Dictionary={}
 var _terrain_masks:Dictionary={}
 var _terrain_texture_checked:Dictionary={}
+var _texture_pool_sources:Dictionary={}
 var loading_batch_budget_us:=16000
 var _batch_budget_token:=0
 var _budget_batches:Node
@@ -160,21 +161,29 @@ func _run() -> void:
 		var prepared_asset:Dictionary=await _prepare_asset(record)
 		if not _operation_current(operation) or prepared_asset.get("cancelled",false):
 			Drainer.dispose_result(prepared_asset);return
-		var texture_payload:Dictionary=await _prepare_record_textures(record)
-		if not _operation_current(operation) or texture_payload.get("cancelled",false):
-			Drainer.dispose_result(prepared_asset);return
-		if prepared_asset.get("yielded",false) or not texture_payload.is_empty():slice=Time.get_ticks_usec();slice_first_uuid=""
-		if not await _publication_slot():Drainer.dispose_result(prepared_asset);return
+		var texture_payload:Dictionary={}
+		var texture_frame:=Engine.get_process_frames()
+		while true:
+			texture_payload=await _prepare_record_textures(record)
+			if not _operation_current(operation) or texture_payload.get("cancelled",false):
+				_release_texture_payload(texture_payload);Drainer.dispose_result(prepared_asset);return
+			if not await _publication_slot():
+				_release_texture_payload(texture_payload);Drainer.dispose_result(prepared_asset);return
+			if TerrainTextures.owners_current(texture_payload):break
+			# Source refresh during an await invalidated a borrowed owner. Return
+			# the current pixel lease before asynchronously preparing replacements.
+			_release_texture_payload(texture_payload)
+		var prepared_pixels:bool=not str(texture_payload.get("queue_key","")).is_empty()
+		if prepared_asset.get("yielded",false) or prepared_pixels or Engine.get_process_frames()!=texture_frame:slice=Time.get_ticks_usec();slice_first_uuid=""
 		if slice_first_uuid.is_empty():slice_first_uuid=uuid
 		var record_started:=Time.get_ticks_usec()
-		var image_scope:Dictionary=TerrainTextures.install(texture_payload) if not texture_payload.is_empty() else {}
+		TerrainTextures.reconcile_pool(texture_payload,document.load_material_pool,_texture_pool_sources)
+		var image_scope:Dictionary=TerrainTextures.install(texture_payload) if prepared_pixels else {}
 		var visual: Node3D=document._asset(record,prepared_asset) if record.get("kind")=="asset" else _prepared_mesh(document,record)
-		if not texture_payload.is_empty():
+		if prepared_pixels:
 			TerrainTextures.restore(image_scope,texture_payload.failed)
 			if not texture_payload.failed.is_empty():visual.set_meta("paint_error","材质贴图缺失或损坏")
-			var texture_key:String=texture_payload.get("queue_key","")
-			if not texture_key.is_empty() and is_instance_valid(_preparation):_preparation.release(texture_key)
-			else:texture_payload.clear()
+		_release_texture_payload(texture_payload)
 		FrameBudget.charge("publication",record_started)
 		_build_timing("asset" if record.get("kind")=="asset" else "mesh",record_started,uuid)
 		mark=Time.get_ticks_usec();editor._view.add_child(visual)
@@ -479,7 +488,7 @@ func _clear_asset_lookahead()->void:
 	if is_instance_valid(_preparation):
 		_timings.preparation=_preparation.snapshot()
 		_preparation.cancel();_preparation.queue_free()
-	_preparation=null;_asset_paths.clear();_model_candidates.clear();_cached_asset_candidates.clear();_verified_asset_versions.clear();_texture_tasks.clear();_texture_requests.clear();_texture_retry=0
+	_preparation=null;_asset_paths.clear();_model_candidates.clear();_cached_asset_candidates.clear();_verified_asset_versions.clear();_texture_tasks.clear();_texture_requests.clear();_texture_retry=0;_texture_pool_sources.clear()
 	if is_instance_valid(_model_ownership):_timings.published_models=_model_ownership.report()
 
 func _operation_current(operation:int)->bool:return is_inside_tree() and operation==_serial
@@ -563,8 +572,9 @@ func _publish_owned_native(asset_path:String,packet:Dictionary,envelope_bytes:in
 
 func _prepare_record_textures(record:Dictionary)->Dictionary:
 	if not record.has("terrain_mesh") and not record.has("house_prefab"):return {}
-	var requested:=TerrainTextures.requests(record,_terrain_texture_checked)
-	if requested.is_empty():return {}
+	var owners:Dictionary={}
+	var requested:=TerrainTextures.requests(record,_terrain_texture_checked,owners)
+	if requested.is_empty():return {"images":{},"failed":[],"owners":owners} if not owners.is_empty() else {}
 	var complete_requested:Dictionary=requested.duplicate()
 	var queue:Node=_preparation;var operation:=_serial
 	if not _queue_current(queue,operation):return {"cancelled":true}
@@ -572,7 +582,7 @@ func _prepare_record_textures(record:Dictionary)->Dictionary:
 	report("textures",done,count);var wait_started:=Time.get_ticks_usec()
 	var key:String=_texture_tasks.get(uuid,"")
 	var prepared:Dictionary={}
-	if not key.is_empty() and is_instance_valid(_preparation) and _preparation.has(key):
+	if not key.is_empty() and _preparation.has(key) and _preparation.rows[key].state in ["pending","running","ready","resident"]:
 		_preparation.demand(key)
 		while not _preparation.is_ready(key):
 			await get_tree().process_frame
@@ -585,7 +595,9 @@ func _prepare_record_textures(record:Dictionary)->Dictionary:
 			# Re-admit the complete request. Dropping this joined packet first
 			# prevents an exclusive repair waiting on its own retained pixels.
 			_preparation.release(key);prepared={}
-			requested=TerrainTextures.requests(record,_terrain_texture_checked)
+			owners.clear()
+			requested=TerrainTextures.requests(record,_terrain_texture_checked,owners)
+			complete_requested=requested.duplicate()
 	if prepared.is_empty():
 		_texture_retry+=1;key="textures:repair:%d"%_texture_retry
 		_enqueue_textures(key,requested,Paths.external_root());_preparation.demand(key)
@@ -595,14 +607,20 @@ func _prepare_record_textures(record:Dictionary)->Dictionary:
 		prepared=_preparation.acquire(key)
 	if not prepared.has("images"):prepared.images={};prepared.failed=complete_requested.keys()
 	if not prepared.has("failed"):prepared.failed=[]
-	prepared.queue_key=key
 	var timing_prefix:="prefab_texture" if record.has("house_prefab") else "terrain_texture"
 	_build_timing(timing_prefix+"_wait",wait_started,uuid)
 	_build_elapsed(timing_prefix+"_worker",prepared.elapsed_us,uuid)
 	for image_key:String in prepared.images:_terrain_texture_checked[image_key]=true
 	for image_key:String in prepared.failed:_terrain_texture_checked[image_key]=true
 	report("build",done,count)
-	return prepared
+	# Do not add GPU owners to the queue's CPU-only packet. Both aliases are
+	# released together by the caller, immediately after publication/cancellation.
+	return {"images":prepared.images,"failed":prepared.failed,"queue_key":key,"owners":owners}
+
+func _release_texture_payload(payload:Dictionary)->void:
+	var key:String=payload.get("queue_key","")
+	if not key.is_empty() and is_instance_valid(_preparation):_preparation.release(key)
+	payload.clear()
 
 func _show_overlay() -> void:
 	var viewports: Array=[editor.get_viewport()]
