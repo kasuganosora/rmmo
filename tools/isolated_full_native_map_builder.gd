@@ -95,7 +95,7 @@ static func _copy(source:String,target:String,target_root:String)->Dictionary:
 static func build(source_map:String,source_root:String,target_root:String,audit_path:String,target_name:String="")->Dictionary:
 	source_map=_norm(source_map);source_root=_norm(source_root);target_root=_norm(target_root);audit_path=_norm(audit_path)
 	if not Thread.is_main_thread():return _fail("builder requires main thread")
-	if Controls.white_materials or Controls.native_geometry_only or Controls.discard_map_textures:return _fail("full material mode required")
+	if Controls.discard_map_textures:return _fail("full material mode required")
 	if _relative(source_map,source_root).is_empty() or not FileAccess.file_exists(source_map):return _fail("source map is invalid")
 	if _relative(target_root,REVIEW_ROOT).is_empty() or not DirAccess.dir_exists_absolute(target_root) or not Paths.allowed(audit_path,REVIEW_ROOT):return _fail("staging or audit outside review root")
 	var target_map:=target_root.path_join(_relative(source_map,source_root));var manifest_path:=target_root.path_join("full_fixture_manifest.json")

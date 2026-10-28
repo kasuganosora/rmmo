@@ -10,7 +10,6 @@ const TerrainTextures=preload("res://scripts/world_editor/terrain_texture_prepar
 const PickingPreparation=preload("res://scripts/world_editor/picking_load_preparation.gd")
 const SourceSnapshot=preload("res://scripts/world3d/document_source_snapshot.gd")
 const PreparationQueue=preload("res://scripts/world_editor/load_preparation_queue.gd")
-const ModelPreparation=preload("res://scripts/world3d/model_parse_preparation.gd")
 const NativeFootprint=preload("res://scripts/world3d/compiled_asset_footprint.gd")
 const NativePreparation=preload("res://scripts/world3d/compiled_asset_preparation.gd")
 const MemoryEstimate=preload("res://scripts/world3d/asset_memory_estimate.gd")
@@ -18,11 +17,9 @@ const PrefabPixels=preload("res://scripts/world3d/prefab_texture_preparation.gd"
 const Drainer=preload("res://scripts/world3d/asset_worker_drainer.gd")
 const FrameBudget=preload("res://scripts/world3d/frame_work_budget.gd")
 const ModelOwnership=preload("res://scripts/world_editor/prepared_model_ownership.gd")
-const CACHE_HASH_BYTES:=1024*1024
-const CACHE_CLOSURE_BYTES:=128*1024*1024 # Includes bounded 4 MiB JSON/container expansion for unclassified raw templates.
 static var parallel_preparation_enabled:=true # HTTP roundtrip + fixed-town 1/2-worker ABBA validated.
 static var preparation_worker_limit:=2 # One is a conservative comparison control.
-static var native_model_footprints_enabled:=true # Full-town ABBA validated; false retains the full raw-envelope control.
+static var native_model_footprints_enabled:=true # Legacy diagnostic; cannot disable native-only consumption.
 static var preparation_lanes_enabled:=false # Controlled model/texture scheduling candidate; full-town ABBA before enabling.
 static var prepared_model_residency_enabled:=false # Controlled private resident window; full-town comparison before enabling.
 var editor: Node3D
@@ -39,7 +36,6 @@ var _thread: Thread
 var _validation:RefCounted
 var _asset_paths: Array[String]=[]
 var _model_candidates:Dictionary={}
-var _product_generator_snapshot:=""
 var _cached_asset_candidates:Dictionary={}
 var _verified_asset_versions:Dictionary={}
 var _preparation:Node
@@ -149,8 +145,8 @@ func _run() -> void:
 	editor._begin_rebuild(begin_steps)
 	_timings.build.begin_rebuild_steps=begin_steps
 	_build_timing("begin_rebuild",mark)
-	var context: Array=[document.load_paint_validation,document.load_texture_checks,document.load_box_meshes,document.load_model_signatures,document.load_material_pool]
-	document.load_paint_validation={}; document.load_texture_checks={}; document.load_box_meshes={}; document.load_model_signatures={}; document.load_material_pool={}
+	var context: Array=[document.load_paint_validation,document.load_texture_checks,document.load_box_meshes,document.load_model_signatures,document.load_material_pool,document.load_native_model_identities]
+	document.load_paint_validation={}; document.load_texture_checks={}; document.load_box_meshes={}; document.load_model_signatures={}; document.load_material_pool={}; document.load_native_model_identities={}
 	mark=Time.get_ticks_usec()
 	document.terrain_neighbors=await _prepare_terrain(document.records)
 	if not _operation_current(operation):return
@@ -200,7 +196,7 @@ func _run() -> void:
 			await get_tree().process_frame; slice=Time.get_ticks_usec();slice_first_uuid=""
 			if not _operation_current(operation):return
 	mark=Time.get_ticks_usec()
-	document.load_paint_validation=context[0]; document.load_texture_checks=context[1]; document.load_box_meshes=context[2]; document.load_model_signatures=context[3]; document.load_material_pool=context[4]
+	document.load_paint_validation=context[0]; document.load_texture_checks=context[1]; document.load_box_meshes=context[2]; document.load_model_signatures=context[3]; document.load_material_pool=context[4]; document.load_native_model_identities=context[5]
 	_build_timing("context_restore",mark)
 	report("batch"); await get_tree().process_frame
 	if not _operation_current(operation):return
@@ -323,28 +319,12 @@ func _prepared_mesh(document:RefCounted,record:Dictionary)->MeshInstance3D:
 	_terrain_surfaces.erase(uuid);_terrain_masks.erase(uuid)
 	return visual
 
-static func _parse_asset(value:String,content_root:String="")->Dictionary:
-	# Shared source transaction and raw importer mutex; neither private parse nor
-	# compiled reads may publish into the editor's scene cache from a worker.
-	var started:=preload("res://scripts/world3d/load_trace.gd").begin("editor.model_parse")
-	var parsed:=ModelPreparation.parse_gltf(value,content_root,"",preload("res://scripts/world3d/runtime_package_policy.gd").trusted())
-	preload("res://scripts/world3d/load_trace.gd").elapsed("editor.model_parse",started,{"path":value})
-	parsed.elapsed_us=Time.get_ticks_usec()-started
-	return parsed
-
 static func _parse_native_asset(value:String,content_root:String,candidate:Dictionary,product_generator:String="")->Dictionary:
 	# This reader binds the exact product behind the admitted footprint and has
 	# no raw fallback. Package identity replaces repeated source authentication.
 	var started:=preload("res://scripts/world3d/load_trace.gd").begin("editor.model_parse")
-	var parsed:=NativePreparation.read(value,candidate,content_root,Callable(),preload("res://scripts/world3d/runtime_package_policy.gd").trusted(),true,product_generator)
+	var parsed:=NativePreparation.read(value,candidate,content_root,Callable(),preload("res://scripts/world3d/runtime_package_policy.gd").trusted(),false,product_generator,true)
 	preload("res://scripts/world3d/load_trace.gd").elapsed("editor.model_parse",started,{"path":value,"stage":"compiled_read"})
-	return parsed
-
-static func _parse_raw_asset(value:String,content_root:String)->Dictionary:
-	# A freshly admitted retry must not consult a changed native manifest again.
-	var started:=preload("res://scripts/world3d/load_trace.gd").begin("editor.model_parse")
-	var parsed:=ModelPreparation._parse_fallback(value,content_root,"",false,preload("res://scripts/world3d/runtime_package_policy.gd").trusted())
-	preload("res://scripts/world3d/load_trace.gd").elapsed("editor.model_parse",started,{"path":value,"stage":"raw_import"})
 	return parsed
 
 static func _native_result_action(candidate:Dictionary,parsed:Dictionary)->String:
@@ -401,9 +381,13 @@ func _prepare_terrain(records:Array)->RefCounted:
 	report("build",0,records.size())
 	return prepared.context
 
-func _editor_product_generator()->String:
-	if _product_generator_snapshot.is_empty():_product_generator_snapshot=NativePreparation.Compiled.generator()
-	return _product_generator_snapshot
+func _native_model_candidate(asset_path:String,root_:String)->Dictionary:
+	return AssetLibrary.native_candidate(asset_path,root_)
+
+func _asset_load_estimate(asset_path:String,root_:String)->Dictionary:
+	var native:=_native_model_candidate(asset_path,root_)
+	if native.is_empty():return {"candidate":{},"estimate":{},"raw_computed":false}
+	return {"candidate":native,"estimate":{"estimated_bytes":int(native.estimated_bytes),"exclusive":bool(native.exclusive)},"raw_computed":false}
 
 func _begin_asset_lookahead(records:Array)->void:
 	_clear_asset_lookahead()
@@ -420,41 +404,27 @@ func _begin_asset_lookahead(records:Array)->void:
 	_preparation.byte_limit=preload("res://scripts/world3d/definition_cache_policy.gd").work_budget(_preparation.byte_limit)
 	add_child(_preparation)
 	var seen:Dictionary={};var queued_textures:Dictionary={};var root_:String=Paths.external_root()
-	var native_bytes:=0;var legacy_bytes:=0
+	var native_bytes:=0;var legacy_bytes:=0;var legacy_skipped:=0
 	var began:=Time.get_ticks_usec()
 	for record:Dictionary in records:
 		if record.get("kind")=="asset" and not record.has("house_prefab") and not record.has("bridge_mesh"):
 			var value:=str(record.get("asset_path",""))
-			if not seen.has(value) and FileAccess.file_exists(value):
+			if not seen.has(value) and Paths.asset_key_allowed(value,root_):
 				seen[value]=true;_asset_paths.append(value)
-				var cached:PackedScene=AssetLibrary._scenes.get(value)
-				var cached_sha:Variant=cached.get_meta("_rmmo_source_digest","") if cached!=null else ""
-				if NativePreparation.Compiled._sha(cached_sha):
-					_cached_asset_candidates[value]={"owner":weakref(cached),"source_digest":cached_sha}
-					# A validated native product already proves closed dependencies for
-					# this source digest. Raw templates require bounded closure parsing.
-					var closed_marker:Variant=cached.get_meta("compiled_asset_validated",false)
-					var known_closed:bool=closed_marker is bool and closed_marker
-					var check_estimate:={"estimated_bytes":CACHE_HASH_BYTES if known_closed else CACHE_CLOSURE_BYTES,"exclusive":false,"cpu_only":true,"stage":"cache_check"}
-					_preparation.enqueue("model:"+value,_check_cached_source.bind(value,root_,known_closed),check_estimate,"model")
-					native_bytes+=check_estimate.estimated_bytes;legacy_bytes+=check_estimate.estimated_bytes
+				var plan:=_asset_load_estimate(value,root_)
+				var native:Dictionary=plan.candidate
+				legacy_skipped+=1
+				if native.is_empty():
+					_asset_failures[value]=true
 					continue
-				# Baseline/unknown footprints retain the complete raw envelope.
-				# The candidate route only loads this exact native product; any raw
-				# fallback is retired and re-admitted separately on main.
-				var estimate:=MemoryEstimate.estimate(value)
-				var native:=NativeFootprint.candidate(value,root_,"",preload("res://scripts/world3d/runtime_package_policy.gd").trusted(),_editor_product_generator())
-				if not native.is_empty():estimate.estimated_bytes=maxi(estimate.estimated_bytes,native.estimated_bytes);estimate.exclusive=estimate.exclusive or native.exclusive
-				legacy_bytes+=int(estimate.estimated_bytes)
-				if native_model_footprints_enabled and not native.is_empty():
-					_model_candidates[value]=native.duplicate(true)
-					var native_estimate:={"estimated_bytes":int(native.estimated_bytes),"exclusive":bool(native.exclusive),"stage":"compiled_read"}
-					native_bytes+=native_estimate.estimated_bytes
-					_preparation.enqueue("model:"+value,_parse_native_asset.bind(value,root_,native,_product_generator_snapshot),native_estimate,"model")
-				else:
-					native_bytes+=int(estimate.estimated_bytes)
-					estimate.stage="legacy_model"
-					_preparation.enqueue("model:"+value,_parse_asset.bind(value,root_),estimate,"model")
+				_model_candidates[value]=native.duplicate(true)
+				if AssetLibrary._native_cached(value,native):
+					var cached:PackedScene=AssetLibrary._scenes[value]
+					_verified_asset_versions[value]={"owner":weakref(cached),"source_digest":native.source_sha}
+					continue
+				var native_estimate:={"estimated_bytes":int(native.estimated_bytes),"exclusive":bool(native.exclusive),"stage":"compiled_read"}
+				native_bytes+=native_estimate.estimated_bytes
+				_preparation.enqueue("model:"+value,_parse_native_asset.bind(value,root_,native,""),native_estimate,"model")
 		if not record.has("terrain_mesh") and not record.has("house_prefab"):continue
 		var requested:=TerrainTextures.requests(record,{})
 		for key:String in requested.keys():
@@ -465,46 +435,17 @@ func _begin_asset_lookahead(records:Array)->void:
 		_texture_tasks[str(record.uuid)]=key;_texture_requests[key]=requested
 		_enqueue_textures(key,requested,root_)
 	_timings.asset_lookahead={"unique_paths":_asset_paths.size(),"started":0,"consumed":0,"start_failures":0,"ready_on_consume":0,"peak_unconsumed":0,"compiled_hits":0,"compiled_misses":0}
-	_timings.asset_lookahead.merge({"native_footprints_enabled":native_model_footprints_enabled,"native_candidates":_model_candidates.size(),"native_retries":0,"native_retry_reasons":{},"planned_model_reservation_bytes":native_bytes,"legacy_model_reservation_bytes":legacy_bytes})
+	_timings.asset_lookahead.merge({"native_footprints_enabled":true,"legacy_native_diagnostic":native_model_footprints_enabled,"native_candidates":_model_candidates.size(),"native_retries":0,"native_retry_reasons":{},"planned_model_reservation_bytes":native_bytes,"legacy_model_reservation_bytes":legacy_bytes if legacy_skipped==0 else null,"legacy_model_known_reservation_bytes":legacy_bytes,"legacy_estimate_skipped_paths":legacy_skipped})
 	_timings.asset_lookahead.lanes_enabled=_preparation.lanes_enabled
 	_timings.asset_lookahead.residency_enabled=_preparation.resident_enabled
 	_timings.asset_lookahead.ownership_rejections={}
 	_timings.preparation_plan_ms=(Time.get_ticks_usec()-began)/1000.
-	_timings.preparation_policy=("ordered first-use; source-bound native product then separately admitted raw retry; completed packets charged until publication" if native_model_footprints_enabled else "ordered first-use; full raw fallback reservation; completed packets charged until publication")
+	_timings.preparation_policy="ordered first-use; published native only; completed packets charged until publication"
 	if _preparation.lanes_enabled:
 		_timings.preparation_policy=_timings.preparation_policy.replace("ordered first-use","document-order publication")+"; model/texture lane heads with borrowed speculative shares; actual demand first; same global worker/byte/retained window"
 	if _preparation.resident_enabled:
 		_timings.preparation_policy=_timings.preparation_policy.replace("same global worker/byte/retained window","%d workers; 4 inflight plus 8 private residents share full transient byte envelope; successful cache handoff separately tracks published native envelopes until resource retirement; not a total process memory cap; reader-completion source snapshot"%_preparation.worker_limit)
 	_preparation.pump()
-
-static func _check_cached_source(value:String,content_root:String,known_closed:bool=false)->Dictionary:
-	# One full hash per unique cached model per open, on the preparation worker.
-	# Never trust a content-addressed name, timestamp or the cache path alone.
-	if not Paths.allowed(value,content_root):return {"error":ERR_FILE_CANT_READ,"cache_checked":true,"source_digest":""}
-	var closed:=known_closed or preload("res://scripts/world3d/embedded_glb.gd").can_copy(value)
-	var digest:=FileAccess.get_sha256(value)
-	if not Paths.allowed(value,content_root) or not NativePreparation.Compiled._sha(digest):return {"error":ERR_FILE_CANT_READ,"cache_checked":true,"source_digest":""}
-	return {"error":OK,"cache_checked":true,"source_digest":digest,"cache_closed":closed}
-
-func _cached_result_matches(asset_path:String,packet:Dictionary)->bool:
-	var candidate:Dictionary=_cached_asset_candidates.get(asset_path,{})
-	if candidate.is_empty() or packet.get("error",FAILED)!=OK or not packet.get("cache_checked",false) or packet.get("cache_closed")!=true:return false
-	var owner:Variant=candidate.owner.get_ref()
-	return owner!=null and AssetLibrary._scenes.get(asset_path)==owner and packet.get("source_digest")==candidate.source_digest and AssetLibrary.has_cached_scene(asset_path,candidate.source_digest)
-
-func _retry_cached_asset(queue:Node,key:String,asset_path:String)->bool:
-	var root_:=Paths.external_root()
-	var estimate:=MemoryEstimate.estimate(asset_path)
-	var candidate:=NativeFootprint.candidate(asset_path,root_,"",preload("res://scripts/world3d/runtime_package_policy.gd").trusted(),_editor_product_generator())
-	if not candidate.is_empty():estimate.estimated_bytes=maxi(estimate.estimated_bytes,candidate.estimated_bytes);estimate.exclusive=estimate.exclusive or candidate.exclusive
-	var task:=_parse_asset.bind(asset_path,root_)
-	estimate.stage="legacy_model"
-	_model_candidates.erase(asset_path)
-	if native_model_footprints_enabled and not candidate.is_empty():
-		_model_candidates[asset_path]=candidate.duplicate(true)
-		estimate={"estimated_bytes":int(candidate.estimated_bytes),"exclusive":bool(candidate.exclusive),"stage":"compiled_read"}
-		task=_parse_native_asset.bind(asset_path,root_,candidate,_product_generator_snapshot)
-	return queue.retry_cached_model(key,task,estimate)
 
 func _can_reside_native(key:String,packet:Dictionary)->bool:
 	if not key.begins_with("model:"):return false
@@ -513,7 +454,7 @@ func _can_reside_native(key:String,packet:Dictionary)->bool:
 	return not candidate.is_empty() and _native_result_action(candidate,packet)=="ready"
 
 func _enqueue_textures(key:String,requested:Dictionary,root_:String)->void:
-	var plan:=PrefabPixels.estimate(requested,root_)
+	var plan:=PrefabPixels.estimate(requested,root_,true)
 	var bounded:bool=plan.rows.size()==requested.size()
 	var estimate:Dictionary={"estimated_bytes":maxi(1,int(plan.estimated_bytes)),"exclusive":false} if bounded else MemoryEstimate._unknown("editor_texture_format")
 	estimate.cpu_only=true
@@ -521,9 +462,9 @@ func _enqueue_textures(key:String,requested:Dictionary,root_:String)->void:
 
 static func _decode_textures(requested:Dictionary,root_:String,plan:Dictionary)->Dictionary:
 	if plan.is_empty():return TerrainTextures.decode(requested,root_)
-	# The bounded shared pixel path verifies immutable source bytes and the final
-	# SHA. Unsupported formats retain the old decoder under an exclusive lease.
-	var packet:=PrefabPixels.prepare(requested,plan,root_)
+	# Editor files may change in place. Reuse the admitted snapshot decoder with
+	# content identity, without flipping the process-wide game package policy.
+	var packet:=PrefabPixels.prepare(requested,plan,root_,null,true,{},false,true)
 	if not packet.error.is_empty():return {"images":{},"failed":requested.keys(),"error":packet.error}
 	return {"images":packet.images,"failed":[],"source_proof":packet.sources}
 
@@ -531,7 +472,7 @@ func _clear_asset_lookahead()->void:
 	if is_instance_valid(_preparation):
 		_timings.preparation=_preparation.snapshot()
 		_preparation.cancel();_preparation.queue_free()
-	_preparation=null;_product_generator_snapshot="";_asset_paths.clear();_model_candidates.clear();_cached_asset_candidates.clear();_verified_asset_versions.clear();_texture_tasks.clear();_texture_requests.clear();_texture_retry=0
+	_preparation=null;_asset_paths.clear();_model_candidates.clear();_cached_asset_candidates.clear();_verified_asset_versions.clear();_texture_tasks.clear();_texture_requests.clear();_texture_retry=0
 	if is_instance_valid(_model_ownership):_timings.published_models=_model_ownership.report()
 
 func _operation_current(operation:int)->bool:return is_inside_tree() and operation==_serial
@@ -560,85 +501,33 @@ func _prepare_asset(record:Dictionary)->Dictionary:
 	var wait_started:=Time.get_ticks_usec();var yielded:=false
 	if queue.is_ready(key):_timings.asset_lookahead.ready_on_consume+=1
 	queue.demand(key)
-	var parsed:Dictionary={};var worker_us:=0
-	while true:
-		while not queue.is_ready(key):
-			yielded=true;await get_tree().process_frame
-			if not _queue_current(queue,operation):return {"cancelled":true,"scene":null}
-		parsed=queue.acquire(key);worker_us+=int(parsed.get("elapsed_us",0))
-		if queue.rows[key].estimate.get("stage")=="cache_check":
-			if _cached_result_matches(asset_path,parsed):break
-			if _retry_cached_asset(queue,key,asset_path):yielded=true;continue
-			parsed.error=ERR_INVALID_DATA
-		if queue.rows[key].estimate.get("stage")=="legacy_model" and ModelPreparation.is_legacy_source_retry(parsed):
-			var estimate:=MemoryEstimate.estimate(asset_path)
-			if queue.retry_as_raw(key,_parse_raw_asset.bind(asset_path,Paths.external_root()),estimate):
-				_timings.asset_lookahead.native_retries+=1
-				var reasons:Dictionary=_timings.asset_lookahead.native_retry_reasons
-				reasons["legacy_source_changed"]=int(reasons.get("legacy_source_changed",0))+1
-				yielded=true;continue
-			parsed.error=ERR_INVALID_DATA
-		if queue.rows[key].estimate.get("stage")=="compiled_read":
-			var action:=_native_result_action(_model_candidates.get(asset_path,{}),parsed)
-			if action=="retry":
-				var reason:String=str(parsed.get("cache_reason","native_miss"))
-				# Header estimation makes no resource allocation. Refresh from the
-				# current raw source, then dispose/joined-release before dispatch.
-				var estimate:=MemoryEstimate.estimate(asset_path)
-				if queue.retry_as_raw(key,_parse_raw_asset.bind(asset_path,Paths.external_root()),estimate):
-					_timings.asset_lookahead.native_retries+=1
-					var reasons:Dictionary=_timings.asset_lookahead.native_retry_reasons
-					reasons[reason]=int(reasons.get(reason,0))+1
-					yielded=true;continue
-				parsed.error=ERR_INVALID_DATA
-			elif action=="reject":parsed.error=ERR_INVALID_DATA
-		break
+	while not queue.is_ready(key):
+		yielded=true;await get_tree().process_frame
+		if not _queue_current(queue,operation):return {"cancelled":true,"scene":null}
+	var parsed:Dictionary=queue.acquire(key)
+	var worker_us:int=int(parsed.get("elapsed_us",0))
+	var candidate:Dictionary=_model_candidates.get(asset_path,{})
+	if _native_result_action(candidate,parsed)!="ready":parsed.error=ERR_INVALID_DATA
 	_timings.asset_lookahead.consumed+=1
 	_timings.asset_lookahead.started+=1
 	if parsed.get("start_failed",false):_timings.asset_lookahead.start_failures+=1
 	_timings.asset_lookahead.peak_unconsumed=_preparation.metrics.peak_unconsumed
-	if queue.rows[key].estimate.get("stage")=="cache_check":_timings.asset_lookahead.cache_checks=int(_timings.asset_lookahead.get("cache_checks",0))+1
-	else:_timings.asset_lookahead["compiled_hits" if parsed.get("compiled",false) else "compiled_misses"]+=1
+	_timings.asset_lookahead["compiled_hits" if parsed.get("error",FAILED)==OK else "compiled_misses"]+=1
 	_build_timing("asset_wait",wait_started,uuid)
 	_build_elapsed("asset_parse_worker",worker_us,uuid)
-	var needs_raw_generation:bool=parsed.get("error",FAILED)==OK and not parsed.has("packed") and queue.rows[key].estimate.get("stage")!="cache_check"
-	var raw_locked:=false
 	if not await _publication_slot() or not _queue_current(queue,operation):return {"cancelled":true,"scene":null}
-	if queue.rows[key].estimate.get("stage")=="cache_check":
-		# Publication may have yielded after hashing. Another loader/preview can
-		# replace the global template during that wait; never borrow it blindly.
-		if not _cached_result_matches(asset_path,parsed):
-			if _retry_cached_asset(queue,key,asset_path):return await _prepare_asset(record)
-			parsed.error=ERR_INVALID_DATA
-	if needs_raw_generation:
-		# A main-thread wait on a raw-import mutex can deadlock GPU callbacks.
-		# Yield until the shared importer is free, then hold it through generate.
-		while not ModelPreparation.try_enter_raw_import(false):
-			yielded=true;await get_tree().process_frame
-			if not _queue_current(queue,operation):return {"cancelled":true,"scene":null}
-			if not await _publication_slot() or not _queue_current(queue,operation):return {"cancelled":true,"scene":null}
-		raw_locked=true
 	var mark:=Time.get_ticks_usec();var scene:Node3D
 	var source_digest:String=str(parsed.get("source_digest",""))
-	# A raw root-file SHA does not cover external .bin/images. Once that route
-	# parsed fresh dependencies, publish its result instead of discarding it in
-	# favour of an old template with the same (unchanged) root-file digest.
-	var cache_authorized:bool=_cached_result_matches(asset_path,parsed) if queue.rows[key].estimate.get("stage")=="cache_check" else parsed.get("compiled",false)==true
-	var already_cached:bool=cache_authorized and parsed.get("error",FAILED)==OK and NativePreparation.Compiled._sha(source_digest) and AssetLibrary.has_cached_scene(asset_path,source_digest)
+	var already_cached:bool=parsed.get("error",FAILED)==OK and AssetLibrary._native_cached(asset_path,candidate)
 	var cached_template:PackedScene=AssetLibrary._scenes.get(asset_path) if already_cached else null
 	if already_cached:_verified_asset_versions[asset_path]={"source_digest":source_digest,"owner":weakref(cached_template)}
-	if not already_cached and FileAccess.file_exists(asset_path):
+	if not already_cached:
 		if parsed.get("error",FAILED)==OK:
-			if parsed.has("packed"):
-				if queue.resident_enabled and queue.rows[key].estimate.get("stage")=="compiled_read":
-					scene=_publish_owned_native(asset_path,parsed,int(queue.rows[key].estimate.estimated_bytes))
-				elif AssetLibrary.cache_packed(asset_path,parsed.packed,str(parsed.get("source_digest",""))):scene=AssetLibrary.instantiate(asset_path)
-			else:
-				var imported:Node=Io.generate_scene(parsed.document,parsed.state)
-				if imported!=null and AssetLibrary.cache_scene(asset_path,imported,str(parsed.get("source_digest",""))):scene=AssetLibrary.instantiate(asset_path)
+			if queue.resident_enabled:
+				scene=_publish_owned_native(asset_path,parsed,int(queue.rows[key].estimate.estimated_bytes))
+			elif AssetLibrary.cache_packed(asset_path,parsed.packed,source_digest,candidate):scene=AssetLibrary._instantiate(parsed.packed)
 		if scene==null:_asset_failures[asset_path]=true
 		else:_verified_asset_versions[asset_path]={"source_digest":source_digest,"owner":weakref(AssetLibrary._scenes[asset_path])}
-	if raw_locked:ModelPreparation.leave_raw_import()
 	_build_timing("asset_prepare_main",mark,uuid)
 	FrameBudget.charge("publication",mark)
 	mark=Time.get_ticks_usec();queue.release(key)
@@ -655,7 +544,7 @@ func _publish_owned_native(asset_path:String,packet:Dictionary,envelope_bytes:in
 	if not receipt.get("ok",false):
 		_timings.asset_lookahead.ownership_rejections[asset_path]=receipt.get("reason","preflight_failed")
 		return null
-	if not AssetLibrary.cache_packed(asset_path,packet.packed,str(packet.get("source_digest",""))):return null
+	if not AssetLibrary.cache_packed(asset_path,packet.packed,str(packet.get("source_digest","")),_model_candidates.get(asset_path,{})):return null
 	var adopted:Dictionary=_model_ownership.adopt(receipt.ticket)
 	if not adopted.get("ok",false):
 		# Roll back only this allocation, never a replacement owned by another
@@ -663,7 +552,7 @@ func _publish_owned_native(asset_path:String,packet:Dictionary,envelope_bytes:in
 		if AssetLibrary._scenes.get(asset_path)==packet.packed:AssetLibrary._scenes.erase(asset_path)
 		_timings.asset_lookahead.ownership_rejections[asset_path]=adopted.get("reason","adoption_failed")
 		return null
-	return AssetLibrary.instantiate(asset_path)
+	return AssetLibrary._instantiate(packet.packed)
 
 func _prepare_record_textures(record:Dictionary)->Dictionary:
 	if not record.has("terrain_mesh") and not record.has("house_prefab"):return {}

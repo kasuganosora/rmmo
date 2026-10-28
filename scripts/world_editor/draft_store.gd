@@ -229,5 +229,5 @@ static func validate_record(record: Variant, state: Dictionary, ids: Dictionary)
 		if not record.skills is Array: return "草稿技能列表无效"
 		for skill in record.skills:
 			if not skill is String: return "草稿技能列表无效"
-	if record.kind == "asset" and (not record.get("asset_path") is String or not Paths.allowed(record.asset_path)): return "草稿模型引用超出内容目录"
+	if record.kind == "asset" and (not record.get("asset_path") is String or not Paths.asset_key_allowed(record.asset_path)): return "草稿模型引用超出内容目录"
 	return ""

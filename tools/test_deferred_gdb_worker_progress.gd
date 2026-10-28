@@ -59,8 +59,6 @@ func run()->void:
 	if output.is_empty():push_error("--output external directory is required");quit(2);return
 	DirAccess.make_dir_recursive_absolute(output)
 	var logger:=Errors.new();OS.add_logger(logger)
-	preload("res://scripts/world3d/runtime_probe_controls.gd").enable_white_materials()
-	preload("res://scripts/world3d/runtime_probe_controls.gd").discard_map_textures=true
 	var helper:=Fixture.new();helper.folder=output.path_join("resources");helper.content_root=Paths.external_root()
 	DirAccess.make_dir_recursive_absolute(helper.folder)
 	var records:Array=[];var buildings:Dictionary={}

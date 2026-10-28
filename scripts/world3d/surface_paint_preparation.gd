@@ -13,7 +13,7 @@ static var fallback_count:=0
 
 static func active()->bool:
 	var controls=preload("res://scripts/world3d/runtime_probe_controls.gd")
-	return enabled and not controls.white_materials and not controls.discard_map_textures
+	return enabled and not controls.discard_map_textures
 
 static func for_road(record:Dictionary,arrays:Array,budget:Dictionary,token:RefCounted=null,cached_source_bounds:Variant=null)->Dictionary:
 	if not active() or record.get("surface_paint",[]).is_empty() or record.has("terrain_grade"):return {}
@@ -134,7 +134,7 @@ static func publish(node:MeshInstance3D,entries:Array,packet:Dictionary,texture_
 		var material:Material=node.get_meta("paint_source_materials")[slot] if node.has_meta("paint_source_materials") else Paint.source_material(node,slot)
 		if not fragment.entry.is_empty():
 			material=Paint.make_material(fragment.entry.material,material.cull_mode if material is BaseMaterial3D else BaseMaterial3D.CULL_BACK)
-			if bool(material.normal_enabled)!=bool(fragment.normal):fallback_count+=1;return {} # Changed material/white probe: use ordinary geometry.
+			if bool(material.normal_enabled)!=bool(fragment.normal):fallback_count+=1;return {} # Changed material: use ordinary geometry.
 		var key:=str(material.get_instance_id() if material!=null else 0)+":"+str(fragment.layout)
 		if not merged.has(key):
 			merged[key]={"builder":null,"arrays":fragment.arrays,"material":material}

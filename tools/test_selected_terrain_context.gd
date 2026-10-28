@@ -20,9 +20,7 @@ func records()->Array:
 func run()->void:
 	var source:=records();var original:=var_to_bytes(source);var reference:=Neighbors.new();reference.update(source)
 	var trials:Array=[]
-	for white:bool in [false,true,true,false]:
-		if white:Controls.enable_white_materials()
-		else:Controls.white_materials=false
+	for iteration:int in 4:
 		var current:=Neighbors.new();var began:=Time.get_ticks_usec()
 		if current.has_method("prepare_selected"):current.call("prepare_selected",source,{"tile11":true})
 		else:current.update(source)
@@ -32,9 +30,8 @@ func run()->void:
 		var images:=0
 		for row:Dictionary in current.data.values():
 			if row.get("image") is Image:images+=1
-		check(current.data.size()==1 and images==(0 if white else 1),"only requested geometry context and needed material halo are produced")
-		if not white:check(actual.image.get_data()==expected.image.get_data() and actual.padding==expected.padding,"ordinary height halo remains exact")
-		trials.append({"white":white,"us":elapsed,"contexts":current.last_work.contexts,"images":images})
+		check(current.data.size()==1 and images==1,"only requested geometry context and needed material halo are produced")
+		check(actual.image.get_data()==expected.image.get_data() and actual.padding==expected.padding,"ordinary height halo remains exact")
+		trials.append({"iteration":iteration,"us":elapsed,"contexts":current.last_work.contexts,"images":images})
 	check(var_to_bytes(source)==original,"authoring heights and holes remain untouched")
-	Controls.white_materials=false
 	print("SELECTED_TERRAIN_CONTEXT ",JSON.stringify({"trials":trials,"failures":failures}));quit(1 if failures else 0)

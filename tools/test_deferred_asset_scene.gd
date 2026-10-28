@@ -231,19 +231,6 @@ func run() -> void:
 		service=Deferred.new();root.add_child(service);service._jobs[red]={"result":{"scene":node},"token":Drainer.CancelToken.new()};service.free()
 		check(not is_instance_id_valid(id),"service exit frees already joined unpublished scene")
 	else:check(false,"staged cleanup fixture prepared")
-	# The same leaf/grass metadata must not rebuild optical material overrides
-	# after the white importer bound shared materials. Keep visibility semantics.
-	var controls=preload("res://scripts/world3d/runtime_probe_controls.gd")
-	controls.discard_map_textures=true;controls.enable_white_materials()
-	var white:Dictionary=await worker_result(red,FileAccess.get_sha256(red))
-	check(white.error.is_empty() and white.get("scene") is Node,"white optical fixture imports")
-	if white.get("scene") is Node:
-		var grass:MeshInstance3D=white.scene.find_child("Grass",true,false)
-		var plain:MeshInstance3D=white.scene.find_child("Plain",true,false)
-		var canonical:Material=controls.white_material(BaseMaterial3D.CULL_DISABLED)
-		check(grass.get_surface_override_material(0)==null and plain.get_surface_override_material(0)==null and grass.get_active_material(0)==canonical and plain.get_active_material(0)==canonical,"white leaf/grass nodes retain canonical material without unused optical overrides")
-		check(grass.visibility_range_end==150 and grass.custom_aabb==AABB(Vector3(-2,-1,-2),Vector3(5,5,5)),"white import still applies authored visibility range")
-	Drainer.dispose_result(white)
 	for path in [blue,red,broken,native]:DirAccess.remove_absolute(path)
 	DirAccess.remove_absolute(directory)
 	print("DEFERRED_ASSET_SCENE failures=",failures);quit(0 if failures==0 else 1)

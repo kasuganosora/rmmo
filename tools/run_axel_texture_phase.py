@@ -68,8 +68,6 @@ def stage_arguments(stage, full_native_worker_prepack=False, full_native_templat
         raise ValueError("native template reuse and worker prepack are separate experiments")
     if without_full_native_material_plan and not full_native_template_reuse:
         raise ValueError("material plan baseline requires full native template reuse")
-    if stage == "white": return ["--white-material", "--without-map-textures"]
-    if stage == "map": return ["--map-texture-stage"]
     if stage == "full":
         return (["--full-material-stage"]
                 + (["--full-native-worker-prepack"] if full_native_worker_prepack else [])
@@ -89,9 +87,8 @@ def full_stage_controls_match(report, expected_prepack=False, expected_template_
     return (controls.get("full_native_worker_prepack") is expected_prepack
             and controls.get("full_native_template_reuse") is expected_template_reuse
             and controls.get("full_native_material_plan") is expected_material_plan
-            and controls.get("full_material_stage") is True and controls.get("map_texture_stage") is False
-            and controls.get("map_textures") is True and controls.get("white_material") is False
-            and controls.get("white_native") is False and controls.get("native_geometry_only") is False
+            and controls.get("full_material_stage") is True
+            and controls.get("map_textures") is True
             and controls.get("compiled") is True
             and audit.get("after_real_draw") is True and meshes > 0 and surfaces > 0)
 
@@ -102,7 +99,7 @@ def main():
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--map-path", type=Path, help="Explicit isolated test map; requires --content-root")
     parser.add_argument("--content-root", type=Path, help="Owned isolated fixture root; requires --map-path")
-    parser.add_argument("--stage", choices=("white", "map", "full"), default="map")
+    parser.add_argument("--stage", choices=("full",), default="full")
     parser.add_argument("--full-native-worker-prepack", action="store_true")
     parser.add_argument("--full-native-template-reuse", action="store_true")
     parser.add_argument("--without-full-native-material-plan", action="store_true")
@@ -121,9 +118,6 @@ def main():
     closed_building = parser.add_mutually_exclusive_group()
     closed_building.add_argument("--closed-building-preparation", action="store_true")
     closed_building.add_argument("--without-closed-building-preparation", action="store_true")
-    building_arrivals = parser.add_mutually_exclusive_group()
-    building_arrivals.add_argument("--closed-building-arrivals", action="store_true")
-    building_arrivals.add_argument("--without-closed-building-arrivals", action="store_true")
     parser.add_argument("--without-covered-source-coalescing", action="store_true")
     parser.add_argument("--without-prepared-road-paint", action="store_true")
     parser.add_argument("--without-covered-batch-borrow", action="store_true")
@@ -223,10 +217,6 @@ def main():
         cmd.append("--closed-building-preparation")
     if args.without_closed_building_preparation:
         cmd.append("--without-closed-building-preparation")
-    if args.closed_building_arrivals:
-        cmd.append("--closed-building-arrivals")
-    if args.without_closed_building_arrivals:
-        cmd.append("--without-closed-building-arrivals")
     if args.without_covered_source_coalescing:
         cmd.append("--without-covered-source-coalescing")
     if args.without_prepared_road_paint:
@@ -294,7 +284,6 @@ def main():
               "batch_timeline": args.batch_timeline,
               "profile_procedural_uploads": args.profile_procedural_uploads,
               "closed_building_preparation": not args.without_closed_building_preparation,
-              "closed_building_arrivals_override": True if args.closed_building_arrivals else (False if args.without_closed_building_arrivals else None),
               "covered_source_coalescing": not args.without_covered_source_coalescing,
               "prepared_road_paint": not args.without_prepared_road_paint,
               "covered_batch_borrow": not args.without_covered_batch_borrow,

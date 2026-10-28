@@ -434,7 +434,8 @@ func repair_thumbnails(ids: Array) -> Dictionary:
 	for id in ids:
 		var found:=entries.filter(func(entry):return asset_id(entry)==id)
 		if found.is_empty() or not (found[0].has("asset_path") or found[0].has("prefab_path")): return error("请选择库内模型或预制件")
-		if not allowed_path(str(id)) or not FileAccess.file_exists(str(id)) or editor._thumbnails.thumbnail_path(found[0]).is_empty(): return error("缩略图资源路径不可用")
+		var available:bool=(allowed_path(str(id)) and FileAccess.file_exists(str(id))) if found[0].has("prefab_path") else Library.native_available(str(id))
+		if not available or editor._thumbnails.thumbnail_path(found[0]).is_empty(): return error("缩略图资源缺失或缺少原生产物，请重新导入")
 		jobs.append(found[0])
 	for entry in jobs: editor._thumbnails.queue_import(entry)
 	return ok({"queued":jobs.size(),"asset_ids":ids})
@@ -479,11 +480,11 @@ func place_asset(args: Dictionary) -> Dictionary:
 		if not editor._place_prefab(entry, position): return error(editor._status.text)
 	else:
 		if editor._gravity.enabled:
-			if entry.has("asset_path") and (not allowed_path(str(entry.asset_path)) or not FileAccess.file_exists(str(entry.asset_path))): return error("Asset path unavailable or outside allowed content root")
+			if entry.has("asset_path") and not Library.native_available(str(entry.asset_path)): return error("Native asset unavailable; reimport the model")
 			return editor._gravity.place(entry, position)
 		var id := ""
 		if entry.has("asset_path"):
-			if not allowed_path(str(entry.asset_path)) or not FileAccess.file_exists(str(entry.asset_path)): return error("Asset path unavailable or outside allowed content root")
+			if not Library.native_available(str(entry.asset_path)): return error("Native asset unavailable; reimport the model")
 			id = editor._doc.add_asset(entry, position - Vector3(0, float(entry.get("bounds_position", [0, 0, 0])[1]), 0))
 		else:
 			var size_: Vector3 = entry.get("size", Vector3.ONE)

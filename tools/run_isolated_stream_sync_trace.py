@@ -1,4 +1,4 @@
-"""Diagnostic Stream.sync capture against a verified A-state private fixture.
+"""Diagnostic Stream.sync capture against a verified full-native private fixture.
 
 The sample runner inherits a private environment in a separate process; GPU runs
 use the existing hidden-desktop runner. File verification warms the OS cache.
@@ -12,7 +12,8 @@ import subprocess
 import sys
 
 from isolated_fixture_lock import fixture_lock
-from isolated_sidecar_switch import load_fixture, check_state
+from full_native_fixture_audit import verify_full_fixture
+from run_axel_texture_phase import full_stage_controls_match
 from run_isolated_axel_sample import inside
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -34,10 +35,44 @@ def write_json(path, obj):
         json.dump(obj, f, ensure_ascii=False, indent=2)
 
 
+def require_full_template(command):
+    required = ('--mesh-only', '--native-only', '--full-material-stage')
+    if any(command.count(flag) != 1 for flag in required):
+        raise ValueError('template must name the full-native material stage exactly once')
+    retired = ('--white-material', '--map-texture-stage', '--without-map-textures', '--without-compiled')
+    if any(flag in command for flag in retired):
+        raise ValueError('retired white/map or non-native template is not supported')
+    if '--full-native-worker-prepack' in command and '--full-native-template-reuse' in command:
+        raise ValueError('native template experiments cannot be combined')
+    if '--without-full-native-material-plan' in command and '--full-native-template-reuse' not in command:
+        raise ValueError('material-plan baseline requires native template reuse')
+
+
+def verify_template_sources(template, snapshot):
+    expected = template.get('source_before')
+    actual = snapshot.get('original', snapshot)
+    if not isinstance(expected, dict) or not expected or not isinstance(actual, dict):
+        raise ValueError('template source identities missing')
+    if any(actual.get(path) != digest for path, digest in expected.items()):
+        raise ValueError('template source differs from current source')
+
+
+def full_capture_status(path, command):
+    try:
+        data = json.loads(Path(path).read_text(encoding='utf-8'))
+        return full_stage_controls_match(data,
+            '--full-native-worker-prepack' in command,
+            '--full-native-template-reuse' in command,
+            '--without-full-native-material-plan' not in command)
+    except (OSError, ValueError, TypeError, AttributeError):
+        return False
+
+
 def make_command(template, sample, target, content, map_path, suppress_slow_logs=False):
     if target not in PHASES:
         raise ValueError('invalid capture phase')
     cmd = list(template)
+    require_full_template(cmd)
     # The private-desktop launcher substitutes a GUI executable for a console
     # path. Reject that indirection so the hashed executable is the one run.
     if not cmd or '_console.exe' in cmd[0]:
@@ -68,7 +103,8 @@ def source_snapshot(template):
     paths.update(p.relative_to(ROOT).as_posix() for p in (ROOT / 'scripts').rglob('*.gd'))
     paths.update(('tools/profile_axel_stream_sync_trace.gd', 'tools/run_isolated_stream_sync_trace.py',
                   'tools/profile_axel_predictive_streaming.gd',
-                  'tools/run_godot_background.py', 'tools/isolated_sidecar_switch.py',
+                  'tools/run_godot_background.py', 'tools/full_native_fixture_audit.py',
+                  'tools/run_axel_texture_phase.py',
                   'tools/isolated_fixture_lock.py', 'tools/run_isolated_axel_sample.py'))
     result = {}
     for rel in sorted(paths):
@@ -119,7 +155,9 @@ def run(args):
     if settings.is_relative_to(user) or settings.is_relative_to(sample):
         raise ValueError('settings must be outside mutable directories')
     if args.timeout <= 0: raise ValueError('positive timeout required')
-    template = json.loads(template_path.read_text(encoding='utf-8'))
+    template_bytes = template_path.read_bytes()
+    template_sha = hashlib.sha256(template_bytes).hexdigest()
+    template = json.loads(template_bytes)
     map_path = Path(template['map_path']).resolve(strict=True)
     if not map_path.is_relative_to(content): raise ValueError('map not inside fixture')
     engine = Path(template['command'][0]).resolve(strict=True)
@@ -128,14 +166,25 @@ def run(args):
     settings_sha = hashlib.sha256(settings_bytes).hexdigest()
     if settings_sha != args.settings_sha256.lower(): raise ValueError('settings SHA mismatch')
     command = make_command(template['command'], sample, args.phase, content, map_path, args.suppress_slow_logs)
-    with fixture_lock(content):
-        verified_root, manifest, stable = load_fixture(content, args.manifest_sha256.lower(), args.expected_candidates)
-        if Path(manifest['target_map']).resolve(strict=True) != map_path: raise ValueError('manifest map mismatch')
-        before_state, before_variants = check_state(verified_root, manifest, stable)
-        if before_state != 'A': raise ValueError('A state required, no automatic switching')
+    sample.mkdir(parents=True, exist_ok=False)
+    try:
+        lock = fixture_lock(content, manifest_name='full_fixture_manifest.json')
+        with lock:
+            return run_locked(args, sample, user, content, settings, settings_sha, settings_bytes,
+                              template_path, template_sha, template, map_path, engine, command)
+    except Exception as exc:
+        if not (sample / 'result.json').exists():
+            write_json(sample / 'result.json', {'exit_code':None, 'fixture_unchanged':False,
+                       'preflight_error':str(exc)})
+        raise
+
+
+def run_locked(args, sample, user, content, settings, settings_sha, settings_bytes,
+               template_path, template_sha, template, map_path, engine, command):
+        before_fixture = verify_full_fixture(content, map_path, args.manifest_sha256.lower(), args.expected_full_models)
         if sha(map_path) != template['map_sha256']: raise ValueError('map SHA mismatch')
         before_source = source_snapshot(template)
-        sample.mkdir(parents=True, exist_ok=False)
+        verify_template_sources(template, before_source)
         user.mkdir(parents=True, exist_ok=False)
         roaming, local, temporary = user / 'roaming', user / 'local', sample / 'temp'
         for p in (roaming, local, temporary): p.mkdir()
@@ -147,23 +196,25 @@ def run(args):
         for key in list(env):
             if key.startswith(('RMMO_WAIT','RMMO_RELEASE')) or key in ('RMMO_FILE_TRACE','RMMO_PROFILE_NATIVE_CALLERS'):
                 env.pop(key)
-        before = {'state':before_state, 'variants':before_variants, 'stable_files':{str(p):v for p,v in stable.items()}, 'sources':before_source, 'map_sha256':sha(map_path)}
+        before = {'fixture':before_fixture, 'sources':before_source, 'map_sha256':sha(map_path)}
         write_json(sample / 'before.json', before)
         write_json(sample / 'command.json', command)
-        write_json(sample / 'launch.json', {'template':str(template_path), 'template_sha256':sha(template_path), 'engine_sha256':sha(engine), 'manifest_sha256':args.manifest_sha256.lower(), 'phase':args.phase, 'suppress_slow_logs':args.suppress_slow_logs, 'settings_sha256':settings_sha, 'appdata':str(roaming), 'localappdata':str(local), 'temp':str(temporary), 'contract':'Diagnostic only; fixture verification warms OS cache; lock only protects cooperating processes.'})
+        write_json(sample / 'launch.json', {'template':str(template_path), 'template_sha256':template_sha, 'engine_sha256':sha(engine), 'manifest_sha256':args.manifest_sha256.lower(), 'phase':args.phase, 'suppress_slow_logs':args.suppress_slow_logs, 'settings_sha256':settings_sha, 'appdata':str(roaming), 'localappdata':str(local), 'temp':str(temporary), 'contract':'Diagnostic only; fixture verification warms OS cache; lock only protects cooperating processes.'})
         result = {'exit_code':None}
         try:
             proc = subprocess.run([sys.executable, str(Path(__file__).resolve()), '--child', str(sample / 'command.json'), '--timeout', str(args.timeout)], cwd=ROOT, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, check=False)
             (sample / 'engine.log').write_bytes(proc.stdout)
             result['exit_code'] = proc.returncode
             result['capture'] = capture_status(sample / 'sample.json', args.suppress_slow_logs)
+            result['capture']['full_material_valid'] = full_capture_status(sample / 'sample.json', command)
+            result['capture']['valid'] = result['capture']['valid'] and result['capture']['full_material_valid']
         finally:
             try:
-                after_state, after_variants = check_state(verified_root, manifest, stable)
+                after_fixture = verify_full_fixture(content, map_path, args.manifest_sha256.lower(), args.expected_full_models)
                 after_source = source_snapshot(template)
-                after = {'state':after_state, 'variants':after_variants, 'stable_files':{str(p):v for p,v in stable.items()}, 'sources':after_source, 'map_sha256':sha(map_path)}
+                after = {'fixture':after_fixture, 'sources':after_source, 'map_sha256':sha(map_path)}
                 write_json(sample / 'after.json', after)
-                result.update(fixture_unchanged=after == before and sha(content / 'fixture_manifest.json') == args.manifest_sha256.lower(), settings_unchanged=sha(settings) == settings_sha and sha(private_settings) == settings_sha, engine_unchanged=sha(engine) == template['engine_sha256'])
+                result.update(fixture_unchanged=after == before, settings_unchanged=sha(settings) == settings_sha and sha(private_settings) == settings_sha, engine_unchanged=sha(engine) == template['engine_sha256'], template_unchanged=sha(template_path) == template_sha)
             except Exception as exc:
                 result.update(fixture_unchanged=False, postcheck_error=str(exc))
             write_json(sample / 'result.json', result)
@@ -178,7 +229,7 @@ def main():
         p.add_argument('--'+name, type=Path)
     p.add_argument('--settings-sha256')
     p.add_argument('--manifest-sha256')
-    p.add_argument('--expected-candidates', type=int, default=11)
+    p.add_argument('--expected-full-models', type=int, default=49)
     p.add_argument('--phase', choices=PHASES)
     p.add_argument('--suppress-slow-logs', action='store_true', help='Suppress selected synchronous slow prints only; keep profile_frame and tracing enabled')
     a = p.parse_args()
@@ -187,7 +238,7 @@ def main():
         p.error('all fixture, settings, template and phase arguments are required')
     r = run(a)
     print(json.dumps(r), flush=True)
-    return 0 if r.get('exit_code') == 0 and r.get('fixture_unchanged') and r.get('settings_unchanged') and r.get('engine_unchanged') and r.get('capture', {}).get('valid') else 1
+    return 0 if r.get('exit_code') == 0 and r.get('fixture_unchanged') and r.get('settings_unchanged') and r.get('engine_unchanged') and r.get('template_unchanged') and r.get('capture', {}).get('valid') else 1
 
 if __name__ == '__main__':
     raise SystemExit(main())

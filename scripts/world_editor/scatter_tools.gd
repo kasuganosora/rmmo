@@ -51,10 +51,14 @@ func prepare(args: Dictionary) -> Dictionary:
 	var assets: Array=[]; var hashes: Array=[]; var by_id:={}
 	for entry in entries(): by_id[entry.asset_path]=entry
 	for id in settings.asset_ids:
-		if not by_id.has(id) or not Data.Paths.allowed(id) or not FileAccess.file_exists(id): return Data.fail("散布素材不在当前资源库、已丢失或超出资源根")
-		var hash_:=FileAccess.get_sha256(id); hashes.append(hash_)
+		if not by_id.has(id) or not Data.Paths.asset_key_allowed(id): return Data.fail("散布素材不在当前资源库或超出资源根")
+		var native:=Library.native_validation_candidate(id)
+		if native.is_empty():return Data.fail("散布素材缺少原生产物，请重新导入")
+		# Preview validity includes the native product generation, not only the
+		# logical model path. Identical source with a rebuilt product is distinct.
+		var hash_:String=Data.token([native.native_product_kind,native.source_sha,native.payload_sha,native.generator]); hashes.append(hash_)
 		if not _bounds_cache.has(hash_):
-			var node=Library.Io.load_scene(id) as Node3D
+			var node=Library.instantiate_preview(id,true)
 			if node==null: return Data.fail("散布模型无法读取")
 			var bounds:=Library.bounds_of(node); node.free()
 			if not bounds.position.is_finite() or not bounds.size.is_finite() or bounds.size.x<.01 or bounds.size.y<.01 or bounds.size.z<.01: return Data.fail("散布模型缺少有效三维包围盒")

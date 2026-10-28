@@ -8,7 +8,6 @@ const Store = preload("res://scripts/world3d/map_resource_store.gd")
 const Cursor = preload("res://scripts/world3d/document_open_cursor.gd")
 const Snapshot = preload("res://scripts/world3d/document_source_snapshot.gd")
 const Manifest = preload("res://scripts/world3d/asset_bounds_manifest.gd")
-const Native = preload("res://scripts/world3d/white_native_asset_cache.gd")
 const NativeMetadata = preload("res://scripts/world3d/native_model_product.gd")
 const Memory = preload("res://scripts/world3d/asset_memory_estimate.gd")
 const Blueprint = preload("res://scripts/world3d/building_blueprint.gd")
@@ -29,7 +28,7 @@ static var classification_path_batching:=true # Scope is one synchronous build o
 static var parallel_native_classification:=true # CPU-only jobs; models keep one manifest observation per path.
 static var parallel_imported_sources:=true # Bounded streaming SHA/metadata checks, never cached across opens.
 static var early_stale_rejection:=true # Reject obsolete identities before traversing disposable rows.
-const VERSION := 6
+const VERSION := 7
 const MAGIC := "RMMODEPS1"
 const MAX_BYTES := 64 * 1024 * 1024
 const CHUNK_M := 32.0
@@ -98,18 +97,18 @@ static func _compact_closure(extra: Dictionary, path: String, content_root: Stri
 ## The caller supplies its fully hydrated, semantically validated snapshot.
 ## Strict callers re-encode definitions to reject a different edited snapshot.
 ## Gameplay explicitly trusts package references and supplies decoded raw sizes.
-static func build(path: String, content_root: String, hydrated_records: Array, source_sha: String = "", worker_limit:int=Store.READ_WORKERS, source_limit:int=Snapshot.RETAIN_LIMIT, trusted_package:bool=false, definition_sizes:Dictionary={}, source_manifests:Dictionary={}) -> Dictionary:
-	return _build(path,content_root,hydrated_records,source_sha,worker_limit,source_limit,false,trusted_package,definition_sizes,source_manifests)
+static func build(path: String, content_root: String, hydrated_records: Array, source_sha: String = "", worker_limit:int=Store.READ_WORKERS, source_limit:int=Snapshot.RETAIN_LIMIT, trusted_package:bool=false, definition_sizes:Dictionary={}, source_manifests:Dictionary={},native_only:bool=false) -> Dictionary:
+	return _build(path,content_root,hydrated_records,source_sha,worker_limit,source_limit,false,trusted_package,definition_sizes,source_manifests,null,native_only)
 
 ## The build owns a freshly read author snapshot and newly generated rows.
 ## Validate and seal those private containers before they escape, instead of
 ## writing, discarding, reading and authenticating the same data a second time.
 ## Public build() remains mutable; callers cannot certify an arbitrary result.
-static func build_for_loading(path:String,content_root:String,hydrated_records:Array,source_sha:String="",worker_limit:int=Store.READ_WORKERS,source_limit:int=Snapshot.RETAIN_LIMIT,trusted_package:bool=false,definition_sizes:Dictionary={},source_manifests:Dictionary={},mounted_source:Snapshot=null)->Dictionary:
-	var built:=_build(path,content_root,hydrated_records,source_sha,worker_limit,source_limit,true,trusted_package,definition_sizes,source_manifests,mounted_source)
+static func build_for_loading(path:String,content_root:String,hydrated_records:Array,source_sha:String="",worker_limit:int=Store.READ_WORKERS,source_limit:int=Snapshot.RETAIN_LIMIT,trusted_package:bool=false,definition_sizes:Dictionary={},source_manifests:Dictionary={},mounted_source:Snapshot=null,native_only:bool=false)->Dictionary:
+	var built:=_build(path,content_root,hydrated_records,source_sha,worker_limit,source_limit,true,trusted_package,definition_sizes,source_manifests,mounted_source,native_only)
 	return built if built.ok else {"ok":false,"reason":built.reason,"index":{},"proof":null}
 
-static func _build(path:String,content_root:String,hydrated_records:Array,source_sha:String,worker_limit:int,source_limit:int,for_loading:bool,trusted_package:bool,definition_sizes:Dictionary,source_manifests:Dictionary,mounted_source:Snapshot=null)->Dictionary:
+static func _build(path:String,content_root:String,hydrated_records:Array,source_sha:String,worker_limit:int,source_limit:int,for_loading:bool,trusted_package:bool,definition_sizes:Dictionary,source_manifests:Dictionary,mounted_source:Snapshot=null,native_only:bool=false)->Dictionary:
 	var opened := _source(path, content_root, source_sha,source_limit,trusted_package,mounted_source)
 	if not opened.ok: return opened
 	var compact: Array = opened.extras.rmmo_records
@@ -156,7 +155,7 @@ static func _build(path:String,content_root:String,hydrated_records:Array,source
 		var job:Dictionary=definition_jobs[i];var encoded:Dictionary=encoded_batch.entries[i]
 		if encoded.sha256!=job.sha256 or encoded.length!=job.length:return _fail("hydrated_definition_mismatch")
 		definition_bytes[job.sha256]=encoded.serialized_raw_bytes
-	var classified:=_build_rows(hydrated_records,compact,definition_bytes,content_root,worker_limit,Callable(),source_manifests if trusted_package else {},trusted_package)
+	var classified:=_build_rows(hydrated_records,compact,definition_bytes,content_root,worker_limit,Callable(),source_manifests if trusted_package else {},trusted_package,native_only)
 	if not classified.ok:return _fail("classification_failed")
 	rows=classified.rows;models=classified.models
 	var fort_owners := _fortification_owners(opened.extras, rows,trusted_package)
@@ -170,16 +169,19 @@ static func _build(path:String,content_root:String,hydrated_records:Array,source
 			if row.group_id.begins_with("building:"): row.reason = "building_group"
 	var payload := {"version": VERSION, "source_sha256": opened.source._signature, "generator": generator_key(), "rows": rows, "models": models, "groups": groups}
 	# The in-memory handoff must satisfy the same serialized-directory contract.
-	if for_loading and not trusted_package and not _valid_payload(payload,compact,content_root):return _fail("invalid_index_schema")
+	if for_loading and not trusted_package and not _valid_payload(payload,compact,content_root,native_only):return _fail("invalid_index_schema")
 	if not trusted_package and not _ownership_valid(opened.extras, rows, groups): return _fail("invalid_ownership_directory")
-	if not trusted_package and not _imported_sources_valid(opened.extras, rows,worker_limit): return _fail("imported_building_source_mismatch")
+	if not trusted_package and not _imported_sources_valid(opened.extras, rows,worker_limit,Callable(),content_root): return _fail("imported_building_source_mismatch")
 	if (not trusted_package and not Store.verify_dependencies(opened.dependencies, path, content_root,worker_limit)) or not opened.source.matches_disk(): return _fail("source_changed_during_build")
-	var native_package:bool=trusted_package
+	var native_package:bool=trusted_package or native_only
 	for model_path: String in models:
 		if not (Paths.asset_key_allowed(model_path,content_root) if native_package else Paths.allowed(model_path,content_root)):return _fail("model_path_changed_during_build")
-		if trusted_package:continue
-		var current: Dictionary = Manifest.read(model_path)
-		if not current.get("known",false) or current.get("json_sha256") != models[model_path].json_sha256 or current.get("file_length") != models[model_path].file_length: return _fail("model_changed_during_build")
+		if native_package and not trusted_package:
+			var current:=NativeMetadata.read(model_path,content_root,"",-1)
+			if not current.get("known",false) or _model_entry(model_path,current,true)!=models[model_path]:return _fail("native_model_changed_during_build")
+		elif not native_package and not trusted_package:
+			var current:=Manifest.read(model_path)
+			if not current.get("known",false) or current.get("json_sha256") != models[model_path].json_sha256 or current.get("file_length") != models[model_path].file_length: return _fail("model_changed_during_build")
 	var target := cache_path(path, content_root)
 	var bytes := var_to_bytes(payload)
 	if bytes.is_empty() or bytes.size() > MAX_BYTES: return _fail("index_too_large")
@@ -214,9 +216,9 @@ static func _encode_index_definition(job:Dictionary,_decode:bool)->Dictionary:
 ## Each native row owns its output and temporary geometry arrays. Read-only
 ## authored inputs stay on the caller until every worker is joined. Model rows
 ## stay together so repeated instances share exactly one manifest/path check.
-static func _build_rows(records:Array,compact:Array,definition_bytes:Dictionary,root:String,worker_limit:int=Store.READ_WORKERS,thread_starter:Callable=Callable(),source_manifests:Dictionary={},trusted_package:bool=false)->Dictionary:
+static func _build_rows(records:Array,compact:Array,definition_bytes:Dictionary,root:String,worker_limit:int=Store.READ_WORKERS,thread_starter:Callable=Callable(),source_manifests:Dictionary={},trusted_package:bool=false,native_only:bool=false)->Dictionary:
 	var started:=Time.get_ticks_usec()
-	var native_package:bool=trusted_package
+	var native_package:bool=trusted_package or native_only
 	var prefab_metadata:RefCounted=preload("res://scripts/world3d/prefab_bounds_metadata.gd").new(root) if trusted_package and preload("res://scripts/world3d/runtime_package_policy.gd").trusted() and Prefab.trusted_metadata_reuse_enabled else null
 	var rows:Array=[];rows.resize(records.size())
 	var models:Dictionary={};var paths:Dictionary={};var jobs:Array=[]
@@ -241,7 +243,7 @@ static func _build_rows(records:Array,compact:Array,definition_bytes:Dictionary,
 				var entry:=_model_entry(path,source,true)
 				if entry.is_empty():return _fail("native_model_memory_missing")
 				models[path]=entry
-		var job:={"record":record,"reference":compact[i].rmmo_ref,"order":i,"root":root,"raw_bytes":definition_bytes[compact[i].rmmo_ref.sha256],"trusted_package":trusted_package}
+		var job:={"record":record,"reference":compact[i].rmmo_ref,"order":i,"root":root,"raw_bytes":definition_bytes[compact[i].rmmo_ref.sha256],"trusted_package":trusted_package,"native_only":native_package}
 		if prefab_metadata!=null:job.prefab_metadata=prefab_metadata
 		if not parallel_native_classification or record.has("model_building") or (record.get("kind")=="asset" and not record.has("house_prefab")):
 			rows[i]=_index_row(job,models,paths if classification_path_batching else {})
@@ -261,7 +263,7 @@ static func _native_index_row(job:Dictionary,_decode:bool)->Dictionary:
 static func _index_row(job:Dictionary,models:Dictionary,paths:Dictionary)->Dictionary:
 	var record:Dictionary=job.record
 	var started:=Time.get_ticks_usec()
-	var row:=_classify(record,job.root,models,paths,bool(job.get("trusted_package",false)),job.get("prefab_metadata"))
+	var row:=_classify(record,job.root,models,paths,bool(job.get("trusted_package",false)),job.get("prefab_metadata"),bool(job.get("native_only",false)))
 	Trace.elapsed("index.build_classify",started,{"kind":record.get("kind",""),"prefab":record.has("house_prefab"),"reason":row.reason})
 	row.uuid=record.uuid;row.order=job.order;row.reference=job.reference.duplicate(true)
 	row.prefab_locked=record.get("prefab_locked",false)==true
@@ -276,7 +278,7 @@ static func _index_row(job:Dictionary,models:Dictionary,paths:Dictionary)->Dicti
 		else:row.classification="global";row.reason="road_preparation_unknown"
 	return row
 
-static func read(path: String, content_root: String, expected_source_sha: String = "", source_limit:int=Snapshot.RETAIN_LIMIT, index_limit:int=MAX_BYTES, worker_limit:int=Store.READ_WORKERS,trusted_package:bool=false,mounted_source:Snapshot=null) -> Dictionary:
+static func read(path: String, content_root: String, expected_source_sha: String = "", source_limit:int=Snapshot.RETAIN_LIMIT, index_limit:int=MAX_BYTES, worker_limit:int=Store.READ_WORKERS,trusted_package:bool=false,mounted_source:Snapshot=null,native_only:bool=false) -> Dictionary:
 	var observed:=Time.get_ticks_usec()
 	var opened := _source(path, content_root, expected_source_sha,source_limit,trusted_package,mounted_source)
 	Trace.elapsed("index.source",observed)
@@ -295,7 +297,7 @@ static func read(path: String, content_root: String, expected_source_sha: String
 		if not data is Dictionary or not Store._digest(data.get("source_sha256")) or not Store._digest(data.get("generator")):return _fail("invalid_index_schema")
 		if data.source_sha256!=opened.source._signature or data.generator!=generator_key():return _fail("stale_index")
 	observed=Time.get_ticks_usec()
-	var valid:bool=data is Dictionary and (_valid_payload_header(data,opened.extras.rmmo_records) if trusted_package else _valid_payload(data, opened.extras.rmmo_records, content_root))
+	var valid:bool=data is Dictionary and (_valid_payload_header(data,opened.extras.rmmo_records) if trusted_package else _valid_payload(data, opened.extras.rmmo_records, content_root,native_only))
 	Trace.elapsed("index.schema",observed)
 	if not valid:return _fail("invalid_index_schema")
 	observed=Time.get_ticks_usec()
@@ -304,7 +306,7 @@ static func read(path: String, content_root: String, expected_source_sha: String
 	if not valid:return _fail("invalid_index_schema")
 	if not early_stale_rejection and (data.source_sha256 != opened.source._signature or data.generator != generator_key()): return _fail("stale_index")
 	observed=Time.get_ticks_usec()
-	valid=trusted_package or _imported_sources_valid(opened.extras,data.rows,worker_limit)
+	valid=trusted_package or _imported_sources_valid(opened.extras,data.rows,worker_limit,Callable(),content_root)
 	Trace.elapsed("index.imported",observed)
 	if not valid:return _fail("imported_building_source_mismatch")
 	# Bounds refer to the source accessor JSON. A changed or missing model cannot
@@ -312,7 +314,10 @@ static func read(path: String, content_root: String, expected_source_sha: String
 	var changed_models := {}
 	observed=Time.get_ticks_usec()
 	for model_path: String in data.models:
-		if trusted_package:continue # Package changes update authored identities and invalidate the source key.
+		if native_only or trusted_package:
+			var current:=NativeMetadata.read(model_path,content_root,"",-1)
+			if not current.get("known",false) or _model_entry(model_path,current,true)!=data.models[model_path]:return _fail("native_model_changed")
+			continue
 		var current: Dictionary = Manifest.read(model_path) if Paths.allowed(model_path, content_root) else {}
 		var expected: Dictionary = data.models[model_path]
 		if not current.get("known", false) or current.get("json_sha256") != expected.json_sha256 or current.get("file_length") != expected.file_length or current.get("local_bounds") != expected.local_bounds:
@@ -329,8 +334,8 @@ static func _result(data: Dictionary, extras: Dictionary, path: String) -> Dicti
 
 ## Only the read/build factories issue a process-local proof from their own
 ## private snapshot. Ordinary read()/build() keep the original mutable API.
-static func read_for_loading(path: String, content_root: String, expected_source_sha: String = "", source_limit:int=Snapshot.RETAIN_LIMIT, index_limit:int=MAX_BYTES, worker_limit:int=Store.READ_WORKERS,trusted_package:bool=false,mounted_source:Snapshot=null) -> Dictionary:
-	var index := read(path, content_root, expected_source_sha,source_limit,index_limit,worker_limit,trusted_package,mounted_source)
+static func read_for_loading(path: String, content_root: String, expected_source_sha: String = "", source_limit:int=Snapshot.RETAIN_LIMIT, index_limit:int=MAX_BYTES, worker_limit:int=Store.READ_WORKERS,trusted_package:bool=false,mounted_source:Snapshot=null,native_only:bool=false) -> Dictionary:
+	var index := read(path, content_root, expected_source_sha,source_limit,index_limit,worker_limit,trusted_package,mounted_source,native_only)
 	if not index.ok: return {"ok": false, "reason": index.reason, "index": {}, "proof": null}
 	return _seal_for_loading(index,path,content_root,trusted_package)
 
@@ -372,7 +377,7 @@ static func _json_equal(a: Variant, b: Variant, depth: int, budget: Array) -> bo
 static func _finite_bounds(bounds: AABB) -> bool:
 	return Manifest._finite_box(bounds)
 
-static func _classify(record: Dictionary, root: String, models: Dictionary, checked_paths:Dictionary={},trusted_package:bool=false,prefab_metadata:RefCounted=null) -> Dictionary:
+static func _classify(record: Dictionary, root: String, models: Dictionary, checked_paths:Dictionary={},trusted_package:bool=false,prefab_metadata:RefCounted=null,native_only:bool=false) -> Dictionary:
 	var result := {"classification": "global", "reason": "unknown_geometry", "bounds_known": false, "bounds": AABB(), "chunk_min": Vector2i.ZERO, "chunk_max": Vector2i.ZERO, "terrain_halo": 0.0, "asset_path": "", "owner_keys": []}
 	for owner in ["building", "fortification"]:
 		if record.get(owner) is Dictionary: result.owner_keys.append(owner + ":" + str(record[owner].get("id", "")))
@@ -405,7 +410,7 @@ static func _classify(record: Dictionary, root: String, models: Dictionary, chec
 	elif record.has("model_building"):
 		result.asset_path=str(record.get("asset_path",""))
 		if (trusted_package or Imported.valid_record(record)) and _fields_allowed(record,COMMON_FIELDS+ASSET_FIELDS):
-			_classify_model(record,root,models,result,checked_paths,trusted_package)
+			_classify_model(record,root,models,result,checked_paths,trusted_package or native_only)
 	elif not result.owner_keys.is_empty() or record.has("fixture"):
 		result.reason = "ownership_global"
 	# The package already supplies its authored road topology. Classification
@@ -422,7 +427,7 @@ static func _classify(record: Dictionary, root: String, models: Dictionary, chec
 		result.bounds_known = _finite_bounds(result.bounds); result.reason = "native_box"
 		if result.bounds_known: result.classification = "spatial"
 	elif record.get("kind") == "asset" and _fields_allowed(record, COMMON_FIELDS + ASSET_FIELDS):
-		_classify_model(record,root,models,result,checked_paths,trusted_package)
+		_classify_model(record,root,models,result,checked_paths,trusted_package or native_only)
 	if record.has("building") and not _fields_allowed(record, COMMON_FIELDS + ["building", "fixture", "house_prefab", "prefab_locked", "prefab_materials", "window_design", "building_shape"]):
 		result.bounds_known = false; result.reason = "unsupported_building_behavior"
 	if result.bounds_known:
@@ -439,6 +444,9 @@ static func _model_entry(path:String,source:Dictionary,native_package:bool=false
 		var envelope:Variant=source.get("memory")
 		if not envelope is Dictionary or not envelope.get("estimated_bytes") is int or envelope.estimated_bytes<=0 or envelope.estimated_bytes>Memory.MAX_ESTIMATE or not envelope.get("exclusive") is bool or envelope.get("source_bytes")!=source.get("file_length"):return {}
 		memory=envelope.duplicate()
+		if not Store._digest(source.get("native_source_sha")) or not Store._digest(source.get("native_payload_sha")):return {}
+		memory.native_source_sha=source.native_source_sha
+		memory.native_payload_sha=source.native_payload_sha
 	else:memory=Memory.from_manifest(path,source)
 	return {"json_sha256":source.json_sha256,"file_length":source.file_length,"local_bounds":source.local_bounds,"memory":memory}
 
@@ -461,23 +469,23 @@ static func _classify_model(record:Dictionary,root:String,models:Dictionary,resu
 
 # Bind exact source annotations and complete bytes, not a claimed record volume
 # or an unchanged accessor header hiding replaced mesh/material binary data.
-static func _imported_sources_valid(extras:Dictionary,rows:Array,worker_limit:int=Store.READ_WORKERS,thread_starter:Callable=Callable())->bool:
+static func _imported_sources_valid(extras:Dictionary,rows:Array,worker_limit:int=Store.READ_WORKERS,thread_starter:Callable=Callable(),content_root:String="")->bool:
 	var started:=Time.get_ticks_usec()
 	var by_path:Dictionary={};var jobs:Array=[]
 	for row:Dictionary in rows:
 		var state:Dictionary=extras.rmmo_records[row.order].rmmo_state
 		if not state.has("model_building"):continue
 		var path:String=row.asset_path
-		if path.is_empty() or not FileAccess.file_exists(path):return false
+		if path.is_empty() or not Paths.asset_key_allowed(path,content_root):return false
 		if not by_path.has(path):
-			by_path[path]=jobs.size();jobs.append({"path":path,"expected":[]})
+			by_path[path]=jobs.size();jobs.append({"path":path,"expected":[],"root":content_root})
 		jobs[by_path[path]].expected.append(state.model_building)
 	var batch:=Store._read_many(jobs,false,worker_limit if parallel_imported_sources else 1,_imported_source_job,thread_starter)
 	Trace.elapsed("index.imported_batch",started,batch.get("read_profile",{}))
 	return batch.ok
 
 static func _imported_source_job(job:Dictionary,_decode:bool)->Dictionary:
-	var descriptor:Dictionary=Imported.read_source_descriptor(job.path,job.expected[0].source_sha)
+	var descriptor:Dictionary=Imported.read_source_descriptor(job.path,job.expected[0].source_sha,job.get("root",""))
 	if descriptor.is_empty():return {"ok":false,"error":ERR_INVALID_DATA}
 	for expected:Dictionary in job.expected:
 		if not Imported.same(descriptor,expected):return {"ok":false,"error":ERR_INVALID_DATA}
@@ -663,18 +671,19 @@ static func _valid_payload_header(data:Dictionary,compact:Array)->bool:
 	if not data.get("rows") is Array or data.rows.size() != compact.size() or not data.get("models") is Dictionary or data.models.size() > Store.MAX_RECORDS or not data.get("groups") is Dictionary or data.groups.size() > 4096: return false
 	return true
 
-static func _valid_payload(data: Dictionary, compact: Array, root: String) -> bool:
+static func _valid_payload(data: Dictionary, compact: Array, root: String,native_only:bool=false) -> bool:
 	if not _valid_payload_header(data,compact):return false
 	# A directory contains many instances of a small set of models. Resolve
 	# each exact path once in this validation call, then recheck the whole set
 	# before returning. Never persist this filesystem observation across loads.
-	var checked_paths:Dictionary={}
+	var checked_paths:Dictionary={};var model_keys:Dictionary={}
 	for path in data.models:
 		var model: Variant = data.models[path]
-		if not path is String or not Paths.allowed(path, root) or not model is Dictionary or model.size() != 4: return false
+		if not path is String or not (Paths.asset_key_allowed(path,root) if native_only else Paths.allowed(path,root)) or not model is Dictionary or model.size() != 4: return false
 		var memory:Variant=model.get("memory")
 		if not memory is Dictionary or not memory.get("estimated_bytes") is int or memory.estimated_bytes<=0 or memory.estimated_bytes>preload("res://scripts/world3d/asset_memory_estimate.gd").MAX_ESTIMATE or not memory.get("exclusive") is bool or memory.get("source_bytes")!=model.get("file_length"):return false
-		checked_paths[path]=true
+		if native_only and (not Store._digest(memory.get("native_source_sha")) or not Store._digest(memory.get("native_payload_sha"))):return false
+		model_keys[path]=true
 		if not Store._digest(model.get("json_sha256")) or not model.get("file_length") is int or model.file_length < 28 or not model.get("local_bounds") is AABB or not _finite_bounds(model.local_bounds): return false
 	for i in data.rows.size():
 		var row: Variant = data.rows[i]
@@ -691,9 +700,9 @@ static func _valid_payload(data: Dictionary, compact: Array, root: String) -> bo
 		if not row.get("chunk_min") is Vector2i or not row.get("chunk_max") is Vector2i: return false
 		if not row.get("terrain_halo") is float or not is_finite(row.terrain_halo) or row.terrain_halo < 0 or row.terrain_halo > 100000: return false
 		if not row.get("asset_path") is String:return false
-		if not row.asset_path.is_empty() and (not batch_path_validation or not checked_paths.has(row.asset_path)):
-			if not Paths.allowed(row.asset_path,root):return false
-			checked_paths[row.asset_path]=true
+		if not row.asset_path.is_empty() and (not batch_path_validation or not model_keys.has(row.asset_path)):
+			if not (Paths.asset_key_allowed(row.asset_path,root) if native_only else Paths.allowed(row.asset_path,root)):return false
+			model_keys[row.asset_path]=true
 		if not row.get("owner_keys") is Array or row.owner_keys.size() > 2: return false
 		for owner in row.owner_keys:
 			if not owner is String or owner.length() > 2048: return false

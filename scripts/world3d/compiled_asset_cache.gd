@@ -7,7 +7,9 @@ const Paths=preload("res://scripts/world3d/map_paths.gd")
 const Manifest=preload("res://scripts/world3d/asset_bounds_manifest.gd")
 const Trace=preload("res://scripts/world3d/load_trace.gd")
 const VERSION=1
-const MAX_FILE_BYTES=1024*1024*1024
+# JSON metadata stores numbers as doubles. This is an exact-integer encoding
+# boundary, not a native file quota or a memory-admission allowance.
+const MAX_JSON_INTEGER=9007199254740991
 static var enabled:=true # Probe-only A/B switch; ordinary entry points leave enabled.
 
 static func directory(content_root:String="")->String:
@@ -27,6 +29,10 @@ static func _sha(value:Variant)->bool:
 	for ch in value:
 		if ch not in "0123456789abcdef":return false
 	return true
+
+static func valid_payload_size(value:Variant)->bool:
+	if value is int:return value>0 and value<=MAX_JSON_INTEGER
+	return value is float and is_finite(value) and value>0 and value<=MAX_JSON_INTEGER and value==floor(value)
 
 static func _miss(reason:String,started:int)->Dictionary:
 	return {"hit":false,"reason":reason,"elapsed_us":Time.get_ticks_usec()-started}
@@ -57,10 +63,6 @@ static func read(path:String,verified_digest:String="",content_root:String="",ca
 	if content_root.is_empty():
 		if OS.get_thread_caller_id()!=OS.get_main_thread_id():return _miss("missing_root_snapshot",started)
 		content_root=Paths.external_root()
-	if preload("res://scripts/world3d/white_native_asset_cache.gd").active():
-		var white:=preload("res://scripts/world3d/white_native_asset_cache.gd").read(path,verified_digest,content_root,trusted_package)
-		white.elapsed_us=Time.get_ticks_usec()-started
-		return white
 	var folder:=directory(content_root)
 	if not Paths.allowed(path,content_root) or not FileAccess.file_exists(path):return _miss("source_missing_or_outside_root",started)
 	var index:=index_path(path,content_root)
@@ -70,8 +72,7 @@ static func read(path:String,verified_digest:String="",content_root:String="",ca
 	var data:Variant=JSON.parse_string(file.get_as_text());file.close()
 	if not data is Dictionary or data.get("version")!=VERSION or data.get("generator")!=generator():return _miss("version",started)
 	if not _sha(data.get("source_sha")) or not _sha(data.get("payload_sha")):return _miss("invalid_manifest",started)
-	if not data.get("bytes") is float and not data.get("bytes") is int:return _miss("invalid_size",started)
-	if data.bytes<=0 or data.bytes>MAX_FILE_BYTES:return _miss("invalid_size",started)
+	if not valid_payload_size(data.get("bytes")):return _miss("invalid_size",started)
 	# Strict reads bind this candidate to a final source scan. Gameplay binds it
 	# to the authored package identity. Both validate the derived native product.
 	var digest:=verified_digest if _sha(verified_digest) else str(data.source_sha)
@@ -231,8 +232,8 @@ static func _build_prepared(prepared:PreparedSource,started:int)->Dictionary:
 	var file:=FileAccess.open(temporary,FileAccess.READ)
 	if file==null:_remove(temporary);return {"ok":false,"reason":"product_read"}
 	var size:=file.get_length();file.close()
-	if size>MAX_FILE_BYTES or not ResourceLoader.get_dependencies(temporary).is_empty():
-		_remove(temporary);return {"ok":false,"reason":"unbounded_or_external_product"}
+	if not valid_payload_size(size) or not ResourceLoader.get_dependencies(temporary).is_empty():
+		_remove(temporary);return {"ok":false,"reason":"invalid_or_external_product"}
 	if not Paths.allowed(path) or FileAccess.get_sha256(path)!=source_digest:
 		_remove(temporary);return {"ok":false,"reason":"source_changed"}
 	var payload_digest:=FileAccess.get_sha256(temporary)
@@ -265,9 +266,8 @@ static func instantiate(packed:PackedScene)->Node3D:
 	if scene!=null and packed.get_meta("compiled_asset_validated",false):
 		# The verified product retains the pixel identity computed at build time.
 		# Restore cross-GLB sharing without GPU image readback on the warm path.
-		if not packed.get_meta("white_native_geometry",false):
-			preload("res://scripts/world3d/grass_texture_cache.gd").apply(scene,true)
-			preload("res://scripts/world3d/model_texture_cache.gd").apply(scene)
+		preload("res://scripts/world3d/grass_texture_cache.gd").apply(scene,true)
+		preload("res://scripts/world3d/model_texture_cache.gd").apply(scene)
 		# A preview has no shared-library owner. Retain resources on the root
 		# until every child instance has queued its renderer destruction first.
 		scene.set_meta("_compiled_resource_owner",packed)
@@ -281,7 +281,7 @@ static func _remove(path:String)->void:
 
 static func _valid_packed(packed:PackedScene)->bool:
 	var state:=packed.get_state();var seen:Dictionary={}
-	if state.get_node_count()==0 or state.get_node_count()>65536:return false
+	if state.get_node_count()==0:return false
 	for i in state.get_node_count():
 		if state.get_node_type(i) not in [&"Node3D",&"MeshInstance3D"]:return false
 		if state.get_node_instance(i)!=null:return false

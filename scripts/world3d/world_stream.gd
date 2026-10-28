@@ -27,13 +27,8 @@ static var collision_priority_reuse_enabled:=true # Per reorder only; live geome
 static var bounded_collision_priority_enabled:=true
 static var incremental_collision_priority_enabled:=true
 static var reuse_job_classification_enabled:=true
-static var progressive_white_batches_enabled:=false # Diagnostic only: partial groups currently increase rebuild work.
-static var closed_building_arrivals_enabled:=false # Candidate: exact complete units before the global source barrier.
-const BATCH_ARRIVALS:=&"stream_batch_arrivals"
 static var sliced_loading_batches_enabled:=true # Diagnostic control; synchronous editor calls keep their existing contract.
-static var white_time_slice_enabled:=true # Same interactive time bound without the legacy twelve-object ceiling.
-static var white_collision_prefetch_enabled:=true # Same bounded face queue after the covered entry handoff.
-static var ready_collision_bypass_enabled:=true # White runtime only; ready independent work may pass a pending shape.
+static var interactive_time_slice_enabled:=true # Preserves the covered stationary work allowance.
 static var legacy_retirement_validation_enabled:=false # Same-code diagnostic of the previous scan order/repeated validation.
 static var sliced_retirement_schema_enabled:=true
 static var resident_retirement_catalog_enabled:=true # Runtime index owns membership; false retains the diagnostic full-directory proof.
@@ -78,55 +73,30 @@ static func sync(map_root: Node, host: Node, origin: Vector3, budget: int = 0) -
 	var slice_usec:=24000 if budget>=LOAD_BUDGET else interactive_work_budget_usec(map_root,origin,budget)
 	map_root.set_meta("stream_budget_origin",origin)
 	if budget<=0 or not FrameBudget.enabled:
-		if budget>0:_dispatch_batch_arrivals(map_root,budget)
-		else:_invalidate_batch_arrivals(map_root)
 		_sync_work(map_root,host,origin,budget,Time.get_ticks_usec()+slice_usec if slice_usec>3000 and budget==FRAME_BUDGET else 0,slice_usec)
 		return
 	var allowed:=FrameBudget.allowance("collision",slice_usec,budget>=LOAD_BUDGET)
 	if allowed<=0:return
 	var started:=Time.get_ticks_usec()
-	_dispatch_batch_arrivals(map_root,budget)
 	_sync_work(map_root,host,origin,budget,started+allowed,slice_usec)
 	FrameBudget.charge("collision",started)
-
-static func _batch_arrivals(map_root:Node,budget:int)->RefCounted:
-	if not closed_building_arrivals_enabled or budget<=0 or not preload("res://scripts/world3d/white_native_asset_cache.gd").active():return null
-	if not map_root.has_meta(BATCH_ARRIVALS):map_root.set_meta(BATCH_ARRIVALS,preload("res://scripts/world3d/stream_batch_arrivals.gd").new(_dict(map_root,&"stream_meshes")))
-	return map_root.get_meta(BATCH_ARRIVALS)
-
-static func _dispatch_batch_arrivals(map_root:Node,budget:int)->void:
-	var arrivals:=_batch_arrivals(map_root,budget)
-	if arrivals==null or arrivals.needs_full or arrivals.ready.is_empty():return
-	# Source edits/adoption must reconcile first; do not publish an old closure.
-	if map_root.get_meta("stream_source_revision",0)!=map_root.get_meta("stream_applied_source_revision",0):arrivals.invalidate();return
-	var adoption:Variant=map_root.get_meta("runtime_adoption_changes") if map_root.has_meta("runtime_adoption_changes") else null
-	# Let the existing adoption pass classify the change. A slow owned spawn
-	# may yield before updating the child count without changing any source.
-	if not _child_count_is(map_root,map_root.get_child_count(true)) or (adoption!=null and adoption.dirty()):return
-	var batcher:Node=map_root.get_node_or_null("GroundRenderBatches")
-	if batcher==null:return
-	arrivals.dispatch(batcher,_dict(map_root,&"stream_meshes"),_dict(map_root,&"stream_building_groups"),_dict(map_root,&"stream_by_id"))
-
-static func _invalidate_batch_arrivals(map_root:Node)->void:
-	if map_root.has_meta(BATCH_ARRIVALS):map_root.get_meta(BATCH_ARRIVALS).invalidate(not _dict(map_root,&"stream_meshes").is_empty())
 
 static func interactive_work_budget_usec(map_root:Node,origin:Vector3,budget:int=FRAME_BUDGET)->int:
 	# A stationary tail can reuse idle publication time. Moving focus, new
 	# source transactions and explicit caller limits retain the ordinary slice.
-	if budget!=FRAME_BUDGET or not white_time_slice_enabled:return 3000
+	if budget!=FRAME_BUDGET or not interactive_time_slice_enabled:return 3000
 	if map_root.get_meta("stream_budget_origin",Vector3(INF,INF,INF))!=origin:return 3000
 	if map_root.get_meta("stream_target",null)!=chunk_key(origin):return 3000
 	if map_root.get_meta("stream_source_revision",0)!=map_root.get_meta("stream_applied_source_revision",0):return 3000
-	return GroundBatcher.SETTLED_WHITE_WORK_BUDGET_USEC if GroundBatcher.can_borrow_publication_budget(map_root) else 3000
+	return GroundBatcher.COVERED_IDLE_WORK_BUDGET_USEC if GroundBatcher.can_borrow_publication_budget(map_root) else 3000
 
 static func _sync_work(map_root:Node,host:Node,origin:Vector3,budget:int,deadline:int=0,slice_usec:int=0)->void:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.world_stream._sync_work") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	var sync_started:=Time.get_ticks_usec()
 	if slice_usec<=0:slice_usec=24000 if budget>=LOAD_BUDGET else 3000
-	var face_lookahead:bool=budget>=LOAD_BUDGET or (budget==FRAME_BUDGET and white_collision_prefetch_enabled and preload("res://scripts/world3d/white_native_asset_cache.gd").active())
+	var face_lookahead:bool=budget>=LOAD_BUDGET
 	var source_revision:=int(map_root.get_meta("stream_source_revision",0))
 	if int(map_root.get_meta("stream_applied_source_revision",0))!=source_revision:
-		_invalidate_batch_arrivals(map_root)
 		# A source transaction changes residency independently of player position.
 		# Reconsider live + requested cells, never the rectangle between sources.
 		map_root.remove_meta("stream_target");map_root.remove_meta("stream_chunk")
@@ -201,7 +171,6 @@ static func _sync_work(map_root:Node,host:Node,origin:Vector3,budget:int,deadlin
 		_adopt(map_root, library, known,roots)
 		var changed:bool=not incremental_adoption_enabled or explicit_rebuild or previous_size!=library.size() or lost_owner
 		if changed:
-			_invalidate_batch_arrivals(map_root)
 			previous_chunk=null
 			map_root.remove_meta("stream_candidate_work")
 			_index_buildings(map_root,library)
@@ -220,7 +189,6 @@ static func _sync_work(map_root:Node,host:Node,origin:Vector3,budget:int,deadlin
 		map_root.remove_meta(&"stream_chunk")
 		jobs.clear()
 		map_root.remove_meta("stream_job_catalog")
-		map_root.remove_meta("stream_ready_bypass_scan")
 		map_root.remove_meta("stream_collision_priority_work")
 		map_root.remove_meta("stream_collision_priority_partition")
 		if previous_chunk is Vector2i and budget>0 and budget<LOAD_BUDGET and map_root.get_meta("stream_sources",{}).is_empty() and _entry_clip(map_root)==null:
@@ -285,21 +253,13 @@ static func _sync_work(map_root:Node,host:Node,origin:Vector3,budget:int,deadlin
 				map_root.set_meta("stream_collision_priority_partition",work.partition)
 				for field:String in ["classified_rows","reused_rows","bulk_reused_rows"]:map_root.set_meta("stream_priority_"+field,int(map_root.get_meta("stream_priority_"+field,0))+int(work.profile[field]))
 				map_root.remove_meta("stream_collision_priority_work")
-				map_root.remove_meta("stream_ready_bypass_scan")
 				# Keep progress even if movement requests another reorder next frame.
 		else:
 			if appended_now or not priority_origin is Vector3 or Vector2(priority_origin.x,priority_origin.z).distance_squared_to(Vector2(origin.x,origin.z))>=1.0:
 				prioritize_local_collisions(jobs,cursor,origin,bodies,draw,meshes)
-				map_root.remove_meta("stream_ready_bypass_scan")
 				map_root.set_meta("stream_collision_priority_origin",origin)
 	var initial_cursor:=cursor
 	var left := 1000000 if budget <= 0 else budget
-	# Cheap cached instances/removals used to stop after twelve objects even
-	# with most of the existing 3 ms allowance unused. Only the measured white
-	# runtime uses time-based throughput; explicit small caller budgets and the
-	# ordinary textured route retain their count limits. The checks below still
-	# stop after each indivisible collision/apply operation, including deadlines.
-	if budget==FRAME_BUDGET and white_time_slice_enabled and preload("res://scripts/world3d/white_native_asset_cache.gd").active():left=1000000
 	var wrapper_profile:Variant=_collision_wrapper_slots(map_root) if detailed else null
 	var apply_started := Time.get_ticks_usec()
 	# The actual loading plan already bounds demand. Legacy/unclipped loading
@@ -328,35 +288,13 @@ static func _sync_work(map_root:Node,host:Node,origin:Vector3,budget:int,deadlin
 		# inside the interval whose unexplained tail is being investigated.
 		if not detailed and map_root.has_meta("profile_frame") and Time.get_ticks_usec()-prepare_started>10000 and _slow_log_enabled(map_root):
 			print("COLLISION_PREP_SLOW ",jobs[cursor].uuid," ",(Time.get_ticks_usec()-prepare_started)/1000.0," ",map_root.get_meta("collision_prepare_timing",{}) if map_root.get_meta("profile_collision_details",false) else {})
-		var apply_index:=cursor
-		if not collision_ready:
-			if ready_collision_bypass_enabled and budget>0 and preload("res://scripts/world3d/white_native_asset_cache.gd").active():
-				var bypass_deadline:=apply_started+slice_usec
-				if deadline>0:bypass_deadline=mini(bypass_deadline,deadline)
-				apply_index=_ready_collision_bypass(map_root,jobs,cursor,draw,solid,meshes,bodies,bypass_deadline)
-			if apply_index<=cursor:break
-			# Selection is read-only. Only the chosen ready item may acquire its
-			# cached shape; no other sliced terrain is passed to the active cursor.
-			prepare_started=Time.get_ticks_usec()
-			if not _prepare_collision(map_root,host,jobs[apply_index],solid,bodies,null,collision_budget):break
+		if not collision_ready:break
 		# Finishing a large terrain shape can consume this frame's budget by
 		# itself. Keep the prepared shape and attach its body on the next frame.
 		# Optional planning/lookahead cannot monopolise every frame before a
 		# ready head is attached. A genuinely slow shape still yields here; its
 		# cached result gets one attachment on the next turn before yielding.
 		if budget>0 and Time.get_ticks_usec()-apply_started>=slice_usec and (cursor>initial_cursor or Time.get_ticks_usec()-prepare_started>=slice_usec):break
-		if apply_index!=cursor:
-			if Time.get_ticks_usec()-apply_started>=slice_usec or (deadline>0 and Time.get_ticks_usec()>=deadline):break
-			# Stable insertion leaves the held source first next turn. Swapping
-			# would bury it behind unrelated entries and could switch its terrain
-			# owner. Priority ranges describe the old order and cannot be reused.
-			var ready:Dictionary=jobs[apply_index]
-			# The scan may have advanced through several bounded windows. Move
-			# references natively instead of a script loop across that whole prefix.
-			jobs.remove_at(apply_index);jobs.insert(cursor,ready)
-			map_root.remove_meta("stream_collision_priority_partition")
-			map_root.remove_meta("stream_ready_bypass_scan")
-			map_root.set_meta("stream_ready_bypass_applied",int(map_root.get_meta("stream_ready_bypass_applied",0))+1)
 		var item_started:=Time.get_ticks_usec()
 		if _apply(map_root, host, jobs[cursor], draw, solid, meshes, bodies):
 			map_root.set_meta("stream_visibility_revision",int(map_root.get_meta("stream_visibility_revision",0))+1)
@@ -381,33 +319,19 @@ static func _sync_work(map_root:Node,host:Node,origin:Vector3,budget:int,deadlin
 	if batcher == null:
 		batcher = GroundBatcher.new(); batcher.name = "GroundRenderBatches"; batcher.set_meta("stream_instance",true); map_root.add_child(batcher)
 	batcher.work_budget_usec=24000 if budget>=LOAD_BUDGET else 2000
-	# Source visuals are visible while residency jobs are applied. A long queue
-	# used to postpone every new batch until all collisions/sources completed.
-	# The batcher now resumes exact root prefixes and retains completed bins:
-	# allow bounded growth checkpoints, never a rescan for every twelve objects.
 	var revision:int=map_root.get_meta("stream_visibility_revision",0)
 	var sliced_loading:bool=budget>=LOAD_BUDGET and sliced_loading_batches_enabled
-	var checkpoint:=false
-	if progressive_white_batches_enabled and budget>0 and budget<LOAD_BUDGET and cursor<jobs.size() and preload("res://scripts/world3d/white_native_asset_cache.gd").active():
-		var added:int=meshes.size()-int(map_root.get_meta("stream_batch_source_count",0))
-		checkpoint=added>=64 and Time.get_ticks_msec()-int(map_root.get_meta("stream_batch_checkpoint_msec",0))>=250
-	var arrivals:=_batch_arrivals(map_root,budget)
-	var batch_sources:Variant=null
-	# A departure can retire sources through the index owner without increasing
-	# the visual revision. Its completed plan still establishes the next prefix.
-	if cursor>=jobs.size() and arrivals!=null and arrivals.needs_full:batch_sources=arrivals.all_sources(meshes)
-	if (cursor>=jobs.size() or checkpoint) and int(map_root.get_meta("stream_batch_revision",-1))!=revision:
-		if batch_sources==null:batch_sources=arrivals.all_sources(meshes) if arrivals!=null else meshes.values()
-		if (budget>0 and budget<LOAD_BUDGET) or sliced_loading:batcher.request_residency_sync(batch_sources,[],preload("res://scripts/world3d/white_native_asset_cache.gd").active())
+	if cursor>=jobs.size() and int(map_root.get_meta("stream_batch_revision",-1))!=revision:
+		var batch_sources:Array=meshes.values()
+		if (budget>0 and budget<LOAD_BUDGET) or sliced_loading:batcher.request_residency_sync(batch_sources,[],false)
 		else:batcher.sync(batch_sources)
 		map_root.set_meta("stream_batch_revision",revision)
 		map_root.set_meta("stream_batch_source_count",meshes.size())
 		map_root.set_meta("stream_batch_checkpoint_msec",Time.get_ticks_msec())
-		if checkpoint:map_root.set_meta("stream_batch_checkpoints",int(map_root.get_meta("stream_batch_checkpoints",0))+1)
 	var batches_prepared:=true
 	if sliced_loading and cursor>=jobs.size():
 		batches_prepared=_finish_loading_sources(map_root,batcher,deadline if deadline>0 else sync_started+24000)
-	elif not sliced_loading and (cursor>=jobs.size() or checkpoint):
+	elif not sliced_loading and cursor>=jobs.size():
 		_finish_loading_sources(map_root,batcher,0,false)
 	if budget <= 0: batcher.flush()
 	var collision_batches=map_root.get_node_or_null("FortificationCollisionBatches")
@@ -436,7 +360,6 @@ static func _sync_work(map_root:Node,host:Node,origin:Vector3,budget:int,deadlin
 	if collision_preparer!=null:collision_preparer._face_prefetch.cancel()
 	jobs.clear()
 	map_root.remove_meta("stream_job_catalog")
-	map_root.remove_meta("stream_ready_bypass_scan")
 	map_root.remove_meta("stream_collision_priority_classes")
 	map_root.remove_meta("stream_collision_priority_partition")
 	map_root.remove_meta("stream_collision_priority_dirty")
@@ -455,8 +378,6 @@ static func prepare_map_disposal(map_root:Node,tree:SceneTree=null)->void:
 	# exit callbacks before ANY source exits. Otherwise the first dying member
 	# restores all surviving CPU sources just before the whole map is destroyed.
 	# Temporary tree detach and individual source removal keep their restore path.
-	map_root.remove_meta("stream_ready_bypass_scan")
-	map_root.remove_meta(BATCH_ARRIVALS)
 	for service:String in ["GroundRenderBatches","StreamCollisionPreparer"]:
 		var outgoing:Node=map_root.get_node_or_null(service)
 		if outgoing==null:continue
@@ -733,7 +654,6 @@ static func _retire_specs(map_root:Node,ids:Array,complete_unit:bool,navigation:
 	if legacy_retirement_validation_enabled:result=index.retire_owned(checked.data,checked.library,ids) if complete_unit else index.retire(checked.data,checked.library,ids)
 	else:result=index._commit_owned_retire(checked.data,checked.library,ids,checked.plan) if complete_unit else index._commit_retire(checked.data,checked.library,checked.plan)
 	if not result.ok:return result
-	_invalidate_batch_arrivals(map_root)
 	if checked.preparation!=null:
 		checked.preparation.retired(ids)
 		var profile:Dictionary=map_root.get_meta("retirement_schema_profile",{})
@@ -763,7 +683,6 @@ static func _retire_specs(map_root:Node,ids:Array,complete_unit:bool,navigation:
 	# Index retirement cannot leave transient planning or debug ownership.
 	map_root.remove_meta("stream_candidates");map_root.remove_meta("stream_plan_bins")
 	map_root.remove_meta("stream_plan_ids");map_root.remove_meta("stream_job_catalog")
-	map_root.remove_meta("stream_ready_bypass_scan")
 	map_root.remove_meta("stream_collision_priority_classes");map_root.remove_meta("stream_collision_priority_origin")
 	map_root.remove_meta("stream_collision_priority_partition")
 	map_root.set_meta("stream_children",map_root.get_child_count(true))
@@ -1147,78 +1066,6 @@ static func _prefetch_collisions(map_root:Node,host:Node,jobs:Array,cursor:int,s
 		if seen.has(id):continue
 		seen[id]=true;requests.append(request)
 	preparer._face_prefetch.request(requests,host.get_tree(),budget_usec<=0)
-
-static func _ready_collision_bypass(map_root:Node,jobs:Array,cursor:int,draw:Dictionary,solid:Dictionary,meshes:Dictionary,bodies:Dictionary,deadline:int)->int:
-	# A bounded readiness scan only. Never call prepare to probe other terrain:
-	# its single private cursor cancels when presented with a different spec.
-	var scan_started:=Time.get_ticks_usec()
-	var scan_deadline:=mini(deadline,scan_started+500)
-	var head:Dictionary=jobs[cursor]
-	var head_visual:Variant=meshes.get(str(head.uuid))
-	var head_ground:bool=Landscape.ground(head) and _draws(head,draw) and (not is_instance_valid(head_visual) or head_visual.has_meta(GroundBatcher.SUSPENDED_DRAW)) and not head.get("native_visual",false)
-	var target:Variant=map_root.get_meta("stream_target",null)
-	var state:Dictionary=map_root.get_meta("stream_ready_bypass_scan",{})
-	var reusable:bool=not state.is_empty() and is_same(state.jobs,jobs) and is_same(state.head,head) and state.cursor==cursor and state.target==target and state.count<=jobs.size()
-	if not reusable:
-		state={"jobs":jobs,"head":head,"cursor":cursor,"next":cursor+1,"count":jobs.size(),"target":target,"pending_ground":head_ground}
-		map_root.set_meta("stream_ready_bypass_scan",state)
-	# Visibility can become suspended without changing the pending Array owner.
-	# Re-read the head every turn, even while continuing an earlier scan window.
-	var pending_ground:bool=bool(state.pending_ground) or head_ground
-	var begin:int=clampi(int(state.next),cursor+1,jobs.size())
-	var scanned:=0
-	var selected:=-1
-	for at:int in range(begin,mini(jobs.size(),begin+64)):
-		if Time.get_ticks_usec()>=scan_deadline:break
-		state.next=at+1
-		var spec:Dictionary=jobs[at]
-		var draws:=_draws(spec,draw)
-		var visual:Variant=meshes.get(str(spec.uuid))
-		var ground:=Landscape.ground(spec)
-		# Restoring a retained CPU source changes visibility just like creation.
-		# Its mere node presence is not proof that supporting land is ready.
-		var adding:bool=draws and (not is_instance_valid(visual) or visual.has_meta(GroundBatcher.SUSPENDED_DRAW)) and not spec.get("native_visual",false)
-		scanned+=1
-		# Source support must remain visible during departure. The ordinary
-		# ordered path owns ground removal, even if its collider is already ready.
-		if ground and not draws:continue
-		var supports:Array=spec.get("render_supports",[])
-		var support_ready:=true
-		if adding:
-			if not ground and pending_ground and supports.is_empty():support_ready=false
-			for support:Dictionary in supports:
-				var node:Variant=meshes.get(str(support.uuid))
-				if not is_instance_valid(node) or node.is_queued_for_deletion() or node.has_meta(GroundBatcher.SUSPENDED_DRAW):support_ready=false;break
-		if support_ready and _collision_ready_without_preparation(spec,solid,bodies):selected=at;break
-		if ground and adding:pending_ground=true
-	state.count=jobs.size();state.pending_ground=pending_ground
-	# Append-only arrivals extend this sweep. A completed sweep revisits earlier
-	# candidates next turn, so a formerly missing support/shape can become ready.
-	# Target changes, reorders and successful bypasses invalidate the owner above.
-	if state.next>=jobs.size():state.next=cursor+1;state.pending_ground=head_ground
-	map_root.set_meta("stream_ready_bypass_scanned",int(map_root.get_meta("stream_ready_bypass_scanned",0))+scanned)
-	var ended:=Time.get_ticks_usec();var elapsed:=ended-scan_started
-	map_root.set_meta("stream_ready_bypass_scan_us",int(map_root.get_meta("stream_ready_bypass_scan_us",0))+elapsed)
-	map_root.set_meta("stream_ready_bypass_max_scan_us",maxi(int(map_root.get_meta("stream_ready_bypass_max_scan_us",0)),elapsed))
-	return selected if ended<deadline else -1
-
-
-static func _collision_ready_without_preparation(spec:Dictionary,solid:Dictionary,bodies:Dictionary)->bool:
-	var body:Variant=bodies.get(str(spec.uuid))
-	if is_instance_valid(body) or not _overlaps(spec,solid):return true
-	var extras:Dictionary=spec.get("extras",{})
-	if extras.get("rmmo_collision","")=="none" or extras.get("hostile",false) or extras.get("ally",false):return true
-	# Geometry specs are immutable; edits replace the spec. descriptor() returns
-	# this existing product verbatim. Do not cook/cache a missing product here.
-	if not spec.get("flat_terrain_collision",{}).is_empty():return true
-	var mesh:Mesh=spec.get("collision_mesh",spec.get("mesh"))
-	if mesh==null:return false
-	if mesh is BoxMesh or (mesh is CpuMesh and mesh.box_size!=Vector3.ZERO):return true
-	# Even a spec retaining an old monolithic shape must use its sliced route.
-	# Calling prepare for that spec would cancel the current private terrain.
-	if preload("res://scripts/world3d/stream_collision_preparer.gd")._needs_slices(spec,mesh):return false
-	return spec.get("shape") is Shape3D or (mesh.has_meta("runtime_concave_shape") and mesh.get_meta("runtime_concave_shape") is Shape3D)
-
 
 static func _prepare_collision_impl(map_root:Node,host:Node,spec:Dictionary,solid:Dictionary,bodies:Dictionary,work_budget_usec:int=1500)->bool:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.world_stream._prepare_collision_impl") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
@@ -1678,7 +1525,6 @@ static func _apply(map_root: Node, host: Node, spec: Dictionary, draw: Dictionar
 			map_root.add_child(inst)
 			inst.global_transform = spec["transform"]
 			meshes[uuid] = inst
-			if closed_building_arrivals_enabled and map_root.has_meta(BATCH_ARRIVALS):map_root.get_meta(BATCH_ARRIVALS).arrived(spec,inst,_dict(map_root,&"stream_building_groups"))
 			_track_deferred_source(map_root,inst)
 			changed=true
 		elif inst.has_meta(GroundBatcher.SUSPENDED_DRAW):
@@ -1726,7 +1572,6 @@ static func _ring_at(chunk: Vector2i, radius: int) -> Dictionary:
 static func _drop(bag: Dictionary, uuid: String, node: Node, map_root:Node=null) -> void:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.world_stream._drop") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	if node != null and is_instance_valid(node):
-		if map_root!=null and node is MeshInstance3D:_invalidate_batch_arrivals(map_root)
 		if owned_removal_accounting_enabled and map_root!=null and node.get_parent()==map_root:
 			var count:=map_root.get_child_count(true)
 			# Only this residency transaction owns the removal. A slow _apply can

@@ -8,6 +8,7 @@ const Store=preload("res://scripts/world3d/map_resource_store.gd")
 const Cursor=preload("res://scripts/world3d/document_open_cursor.gd")
 const Proof=preload("res://scripts/world3d/dependency_index_proof.gd")
 const Paths=preload("res://scripts/world3d/map_paths.gd")
+const Native=preload("res://scripts/world3d/native_model_product.gd")
 const MAX_RECORDS:=32
 const MAX_ASSETS:=8
 const MAX_ROWS:=8192
@@ -30,6 +31,35 @@ class Batch extends RefCounted:
 static func _fail(reason:String,cancelled:bool=false)->Dictionary:
 	return {"ok":false,"reason":reason,"cancelled":cancelled,"fallback_required":not cancelled}
 static func _cancelled(token:RefCounted)->bool:return token!=null and token.is_cancelled()
+
+## Map authority is separate from model identity. Keep bounded map hashing
+## here so the producer-only GLB audit helper is never called by consumers.
+static func checked_map_identity(path:String,root:String,token:RefCounted)->Dictionary:
+	if _cancelled(token):return _fail("cancelled",true)
+	if path.get_extension().to_lower()!="gltf" or not Paths.allowed(path,root):return _fail("map_path")
+	var file:=FileAccess.open(path,FileAccess.READ)
+	if file==null:return _fail("map_missing")
+	var length:=file.get_length();var left:=length
+	var hash_:=HashingContext.new();hash_.start(HashingContext.HASH_SHA256)
+	while left>0:
+		if _cancelled(token):return _fail("cancelled",true)
+		var bytes:=file.get_buffer(mini(left,Descriptor.HASH_BLOCK_BYTES))
+		if bytes.is_empty():return _fail("map_read")
+		hash_.update(bytes);left-=bytes.size()
+	if file.get_length()!=length or file.get_error() not in [OK,ERR_FILE_EOF]:return _fail("map_changed")
+	file.close()
+	if _cancelled(token):return _fail("cancelled",true)
+	if not Paths.allowed(path,root):return _fail("map_path")
+	return {"ok":true,"sha":hash_.finish().hex_encode()}
+
+## Small published facts only. Shared by geometry and explicit-none workers;
+## no optional source GLB or graphical resource is opened here.
+static func published_model(path:String,root:String)->Dictionary:
+	var metadata:=Native.read(path,root)
+	if metadata.is_empty():return {}
+	return {"source_sha":metadata.native_source_sha,"payload_sha":metadata.native_payload_sha,
+		"json_sha256":metadata.json_sha256,"file_length":metadata.file_length,"local_bounds":metadata.local_bounds,
+		"none_safe":bool(metadata.get("native_candidate",{}).get("collision_none_safe",false))}
 
 static func _positions(index:Dictionary,requested:Array,path:String,root:String,proof:Proof)->Dictionary:
 	# A dictionary with a matching checksum is not an ownership receipt. Only
@@ -75,7 +105,7 @@ static func plan(index:Dictionary,requested_entries:Array,path:String,root:Strin
 	if not Descriptor.Products._worker():return _fail("worker_required")
 	var checked:=_positions(index,requested_entries,path,root,ownership_proof)
 	if not checked.ok:return checked
-	var compact:Array=[];var candidates:Dictionary={};var retained:=0;var metadata_bytes:=0
+	var compact:Array=[];var candidates:Dictionary={};var models:Dictionary={};var retained:=0;var metadata_bytes:=0
 	for at:int in checked.positions:
 		compact.append(index.extras.rmmo_records[at])
 		var asset:String=index.rows[at].asset_path
@@ -83,6 +113,9 @@ static func plan(index:Dictionary,requested_entries:Array,path:String,root:Strin
 			if candidates.size()>=MAX_ASSETS:return _fail("asset_limit")
 			var candidate:=Descriptor.candidate(asset,root)
 			if candidate.is_empty():return _fail("collision_asset_missing")
+			var model:=published_model(asset,root)
+			if model.is_empty() or model.source_sha!=candidate.source_sha:return _fail("native_product_missing_or_changed")
+			models[asset]=model
 			candidates[asset]=candidate;retained+=int(candidate.retained_bytes)
 		# Descriptor byte length bounds its names, selectors and pose rows. Charge
 		# expanded containers and copied instance metadata per placement, even
@@ -97,7 +130,7 @@ static func plan(index:Dictionary,requested_entries:Array,path:String,root:Strin
 	if estimate>MAX_ESTIMATED_BYTES:return _fail("batch_budget")
 	return {"ok":true,"index":index,"proof":ownership_proof,"path":path,"root":root,
 		"requested":requested_entries.duplicate(true),"positions":checked.positions,
-		"candidates":candidates,"reference_headers":references.headers,
+		"candidates":candidates,"native_models":models,"reference_headers":references.headers,
 		"estimated_bytes":estimate,"retained_upper_bytes":retained+int(references.bytes)+metadata_bytes}
 
 static func _supported_record(record:Dictionary)->bool:
@@ -119,10 +152,10 @@ static func prepare(prepared_plan:Dictionary,admitted_bytes:int,token:RefCounted
 	# changing a scalar estimate or a dictionary hint never grants a budget.
 	var current:=plan(index,prepared_plan.requested,path,root,proof)
 	if not current.ok:return current
-	for key:String in ["positions","candidates","reference_headers","estimated_bytes","retained_upper_bytes"]:
+	for key:String in ["positions","candidates","native_models","reference_headers","estimated_bytes","retained_upper_bytes"]:
 		if current[key]!=prepared_plan.get(key):return _fail("plan_changed")
 	if admitted_bytes<int(current.estimated_bytes):return _fail("budget_not_admitted")
-	var map_source:=Descriptor._hash_source(path,root,token)
+	var map_source:=checked_map_identity(path,root,token)
 	if not map_source.ok:return map_source
 	if map_source.sha!=index.source_sha256:return _fail("map_changed")
 	var compact:Array=[];var dependencies:Dictionary={}
@@ -133,14 +166,15 @@ static func prepare(prepared_plan:Dictionary,admitted_bytes:int,token:RefCounted
 	var restored:=Store.read_records(compact,path,root,dependencies,1,trusted_package)
 	if not restored.get("ok",false):return _fail("reference:"+str(restored.get("reason","")))
 	if _cancelled(token):return _fail("cancelled",true)
-	var material_checks:Dictionary={};var asset_paths:Dictionary={};var ids:Dictionary={};var manifests:Dictionary={}
+	var material_checks:Dictionary={};var asset_paths:Dictionary={};var ids:Dictionary={};var manifests:Dictionary=current.native_models.duplicate()
+	for asset_path:String in current.native_models:asset_paths[asset_path]=true
 	for i:int in restored.records.size():
 		var record:Dictionary=restored.records[i];var expected:Dictionary=index.rows[current.positions[i]]
 		if not _supported_record(record):return _fail("unsupported_record_semantics")
 		var issue:=Cursor.asset_record_issue(record,material_checks,compact[i].rmmo_ref.sha256,asset_paths,root)
 		if issue.is_empty():issue=Cursor.document_record_issue(record,ids)
 		if not issue.is_empty():return _fail("record:"+issue)
-		var actual:=Index._classify(record,root,manifests)
+		var actual:=Index._classify(record,root,manifests,{},true)
 		if actual.reason!="model_accessor_bounds" or not actual.owner_keys.is_empty() or not actual.bounds_known or not actual.bounds.is_equal_approx(expected.bounds) or actual.asset_path!=expected.asset_path:return _fail("record_geometry_identity")
 	var ownership:=Index.validate_selected(index,restored.records,root,proof)
 	if not ownership.ok:return _fail("selected_closure:"+str(ownership.reason))
@@ -173,15 +207,13 @@ static func prepare(prepared_plan:Dictionary,admitted_bytes:int,token:RefCounted
 		instances.append({"uuid":record.uuid,"record_index":current.positions[i],"record_sha":compact[i].rmmo_ref.sha256,
 			"asset_path":record.asset_path,"source_sha":asset.source_sha(),"pose":pose,
 			"record_identity":compact[i].duplicate(true),"rows":rows})
-	# Asset source checks alone grant no map authority. Only after real selected
-	# rmres closure, every original GLB and the map have their final full SHA do
-	# we seal a typed map-bound handoff. No render resource can enter this Batch.
+	# Recheck one published source/payload identity per unique model. Never open
+	# authoring GLB; selected rmres/map authority remains separately required.
 	for asset_path:String in assets:
-		var source:=Descriptor._hash_source(asset_path,root,token)
-		if not source.ok:return source
-		if source.sha!=assets[asset_path].source_sha():return _fail("asset_changed")
+		if _cancelled(token):return _fail("cancelled",true)
+		if published_model(asset_path,root)!=current.native_models[asset_path]:return _fail("native_product_changed")
 	if not trusted_package and not Store.verify_dependencies(dependencies,path,root,1):return _fail("reference_changed")
-	map_source=Descriptor._hash_source(path,root,token)
+	map_source=checked_map_identity(path,root,token)
 	if not map_source.ok:return map_source
 	if map_source.sha!=index.source_sha256 or not Index.validate_index_ownership(index,root,proof,path):return _fail("map_changed")
 	if _cancelled(token):return _fail("cancelled",true)

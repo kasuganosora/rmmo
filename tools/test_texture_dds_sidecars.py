@@ -210,6 +210,112 @@ class SidecarTests(unittest.TestCase):
         self.assertEqual(package.process(source, False), (0, 1, 0))
         self.assertEqual(digest(sidecar), before)
 
+    def test_source_identity_binds_each_role_to_exact_encoded_bytes(self):
+        source = self.source("mutable_shared.png")
+        for normal in (False, True):
+            self.assertEqual(package.process(source, True, normal=normal)[2], 0)
+        for suffix, normal, flip in ((".dxt1.dds", False, False), (".bc5.dds", True, False),
+                                     (".flip.bc5.dds", True, True)):
+            target = source.with_name(source.name + suffix)
+            record = json.loads(package.identity_path(target).read_text())
+            self.assertEqual(record, {"version": 1, "encoder_version": 1,
+                                     "source_sha256": digest(source), "source_bytes": source.stat().st_size,
+                                     "dds_sha256": digest(target), "dds_bytes": target.stat().st_size,
+                                     "normal": normal, "flip": flip})
+
+    def test_same_length_source_rebuild_replaces_identity_and_owned_obsolete_metadata(self):
+        source = self.source("mutable_same_length.png")
+        Image.new("RGBA", (16, 8), (220, 10, 30, 255)).save(source, compress_level=0)
+        first_size, first_sha = source.stat().st_size, digest(source)
+        self.assertEqual(package.process(source, True), (1, 0, 0))
+        target = source.with_name(source.name + ".dxt1.dds")
+        Image.new("RGBA", (16, 8), (10, 180, 90, 255)).save(source, compress_level=0)
+        self.assertEqual(source.stat().st_size, first_size)
+        self.assertNotEqual(digest(source), first_sha)
+        self.assertEqual(package.process(source, True), (1, 0, 0))
+        record = json.loads(package.identity_path(target).read_text())
+        self.assertEqual(record["source_sha256"], digest(source))
+        self.assertEqual(record["dds_sha256"], digest(target))
+        Image.new("RGBA", (16, 8), (10, 180, 90, 80)).save(source)
+        self.assertEqual(package.process(source, True), (1, 0, 0))
+        self.assertFalse(target.exists())
+        self.assertFalse(package.identity_path(target).exists())
+
+    def test_no_overwrite_does_not_certify_legacy_or_stale_dds(self):
+        source = self.source("mutable_legacy.png")
+        target = source.with_name(source.name + ".dxt1.dds")
+        with Image.open(source) as image:
+            self.assertTrue(package.save_dds(image, target, False))
+        self.assertEqual(package.process(source, False), (0, 1, 0))
+        self.assertFalse(package.identity_path(target).exists())
+        self.assertEqual(package.process(source, True), (1, 0, 0))
+        previous = package.identity_path(target).read_bytes()
+        Image.new("RGBA", (16, 8), (220, 10, 30, 255)).save(source)
+        self.assertEqual(package.process(source, False), (0, 1, 0))
+        self.assertEqual(package.identity_path(target).read_bytes(), previous)
+        self.assertNotEqual(json.loads(previous)["source_sha256"], digest(source))
+
+    def test_identity_publish_failure_cannot_certify_replaced_dds(self):
+        source = self.source("mutable_interrupted.png")
+        self.assertEqual(package.process(source, True), (1, 0, 0))
+        target = source.with_name(source.name + ".dxt1.dds")
+        previous = package.identity_path(target).read_bytes()
+        Image.new("RGBA", (16, 8), (220, 10, 30, 255)).save(source)
+        replace = Path.replace
+        def interrupt(path, destination):
+            if Path(destination) == package.identity_path(target):
+                raise OSError("injected after DDS publication")
+            return replace(path, destination)
+        with patch.object(Path, "replace", interrupt):
+            self.assertEqual(package.process(source, True), (0, 0, 1))
+        self.assertEqual(package.identity_path(target).read_bytes(), previous)
+        self.assertNotEqual(json.loads(previous)["source_sha256"], digest(source))
+        self.assertNotEqual(json.loads(previous)["dds_sha256"], digest(target))
+        self.assertEqual(list(OUTPUT.glob(target.name + ".*.tmp")), [])
+
+    def test_partial_normal_failure_leaves_uncertified_old_variant(self):
+        source = self.source("mutable_normal.png")
+        self.assertEqual(package.process(source, True, normal=True), (2, 0, 0))
+        target = source.with_name(source.name + ".bc5.dds")
+        flipped = source.with_name(source.name + ".flip.bc5.dds")
+        old = package.identity_path(flipped).read_bytes()
+        Image.new("RGBA", (16, 8), (220, 10, 30, 255)).save(source)
+        save = package.save_dds
+        def fail_second(image, destination, alpha, **kwargs):
+            return False if destination == flipped else save(image, destination, alpha, **kwargs)
+        with patch.object(package, "save_dds", fail_second):
+            self.assertEqual(package.process(source, True, normal=True), (1, 0, 1))
+        self.assertEqual(json.loads(package.identity_path(target).read_text())["source_sha256"], digest(source))
+        self.assertEqual(package.identity_path(flipped).read_bytes(), old)
+        self.assertNotEqual(json.loads(old)["source_sha256"], digest(source))
+
+    def test_source_replacement_during_encode_keeps_snapshot_identity(self):
+        source = self.source("mutable_snapshot.png")
+        snapshot = digest(source)
+        encode = package.encode_dds
+        def replace_source(image, alpha, **kwargs):
+            Image.new("RGBA", (16, 8), (220, 10, 30, 255)).save(source)
+            return encode(image, alpha, **kwargs)
+        with patch.object(package, "encode_dds", replace_source):
+            self.assertEqual(package.process(source, True), (1, 0, 0))
+        target = source.with_name(source.name + ".dxt1.dds")
+        record = json.loads(package.identity_path(target).read_text())
+        self.assertEqual(record["source_sha256"], snapshot)
+        self.assertNotEqual(record["source_sha256"], digest(source))
+        self.assertEqual(record["dds_sha256"], digest(target))
+
+    def test_concurrent_staging_names_are_independently_owned(self):
+        target = OUTPUT / "unique.dds"
+        first = package._stage_bytes(target, b"first")
+        second = package._stage_bytes(target, b"second")
+        try:
+            self.assertNotEqual(first, second)
+            self.assertEqual(first.read_bytes(), b"first")
+            self.assertEqual(second.read_bytes(), b"second")
+        finally:
+            first.unlink()
+            second.unlink()
+
 
 def main():
     global OUTPUT

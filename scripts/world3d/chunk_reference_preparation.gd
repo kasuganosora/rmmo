@@ -73,13 +73,6 @@ static func prepare(index: Dictionary, requested_entries: Array, path: String, c
 	if _cancelled(token): return _fail("区块引用准备已取消", true)
 	var material_checks := {}; var asset_paths := {}; var ids := {}; var manifests := {}; var recomputed: Array = []
 	var validation_started := Time.get_ticks_usec(); var prefabs := 0; var prefab_cpu := {}; var texture_sources := {}
-	# A packet is shared by SHA; collect all requested consumers before the
-	# first definition is prepared (a nonbuilding record may come first).
-	var shadow_consumers:Dictionary={}
-	if trusted_package and Prefab.source_collision_faces_enabled and Prefab.shadow_face_preparation_enabled and preload("res://scripts/world3d/runtime_probe_controls.gd").white_materials and preload("res://scripts/world3d/runtime_probe_controls.gd").discard_map_textures and preload("res://scripts/world3d/building_shadow_proxy.gd").enabled:
-		for consumer:Dictionary in restored.records:
-			if consumer.has("house_prefab") and consumer.has("building") and not bool(consumer.get("invisible",false)):
-				shadow_consumers[consumer.house_prefab.sha256]=true
 	var roads: Array = [];var terrain_positions:Array=[]
 	var collision_candidates:Dictionary={};var collision_metrics:Dictionary={"hits":0,"misses":0,"writes":0,"write_skips":0,"bytes":0,"workspace_bytes":collision_workspace}
 	for i in restored.records.size():
@@ -111,7 +104,7 @@ static func prepare(index: Dictionary, requested_entries: Array, path: String, c
 							var candidate:=CollisionProducts.read_candidate(collision_identity,content_root,token)
 							if candidate.get("ok",false) and candidate.kind=="faces":cached_faces[source_id]=candidate;collision_metrics.hits+=1
 							else:collision_metrics.misses+=1
-				prefab_cpu[key]=Prefab.prepare_cpu(record,cached_faces,true,shadow_consumers.has(key))
+				prefab_cpu[key]=Prefab.prepare_cpu(record,cached_faces)
 				if not collision_identity.is_empty() and not prefab_cpu[key].is_empty():
 					var candidate:Dictionary=cached_faces.get(source_id,{})
 					if candidate.is_empty():
@@ -158,13 +151,8 @@ static func prepare(index: Dictionary, requested_entries: Array, path: String, c
 		var requested_terrain:Dictionary={}
 		for record:Dictionary in restored.records:
 			if record.has("terrain_mesh"):requested_terrain[record.uuid]=true
-		var context_data:Dictionary
-		if preload("res://scripts/world3d/selected_terrain_context.gd").enabled and preload("res://scripts/world3d/runtime_probe_controls.gd").white_materials:
-			var prepared_context:=preload("res://scripts/world3d/selected_terrain_context.gd").prepare(terrain_data.records,requested_terrain)
-			context_data=prepared_context.data;terrain_boundary_normals=prepared_context.work.boundary_normals
-		else:
-			var context:=preload("res://scripts/world3d/terrain_neighbors.gd").new();context.prepare_selected(terrain_data.records,requested_terrain)
-			context_data=context.data;terrain_boundary_normals=context.last_work.boundary_vertices
+		var context:=preload("res://scripts/world3d/terrain_neighbors.gd").new();context.prepare_selected(terrain_data.records,requested_terrain)
+		var context_data:Dictionary=context.data;terrain_boundary_normals=context.last_work.boundary_vertices
 		for record:Dictionary in restored.records:
 			if not record.has("terrain_mesh"):continue
 			if _cancelled(token):return _fail("区块引用准备已取消",true)
@@ -172,7 +160,7 @@ static func prepare(index: Dictionary, requested_entries: Array, path: String, c
 			surface_arrays[record.uuid]=preload("res://scripts/world3d/terrain_surface.gd").arrays(record,current)
 			# Keep only the requested tile's rendered halo, never decoded neighbors.
 			current=current.duplicate();current.signature=[]
-			if record.has("terrain_regions") and not Controls.white_materials and not Controls.discard_map_textures:
+			if record.has("terrain_regions") and not Controls.discard_map_textures:
 				# Initial loading already prepares this CPU image off-thread. Streamed
 				# tiles need the same handoff or River.terrain rebuilds it at publication.
 				# Its fixed 257x257 RG8 payload fits the existing terrain 1 MiB reserve.
@@ -188,7 +176,7 @@ static func prepare(index: Dictionary, requested_entries: Array, path: String, c
 	var surface_uploads:Dictionary={};var upload_bytes:=0;var upload_us:=0
 	for item: Dictionary in roads:
 		var record:Dictionary=item.record
-		var road := RoadPreparation.prepare(record, token,trusted_package,content_root,item.budget,item.definition_sha,preload("res://scripts/world3d/runtime_probe_controls.gd").white_materials)
+		var road := RoadPreparation.prepare(record, token,trusted_package,content_root,item.budget,item.definition_sha)
 		if not road.error.is_empty(): return _fail(str(road.error), bool(road.cancelled), str(record.uuid))
 		if road.get("cache_hit",false):road_cache_hits+=1
 		surface_arrays[record.uuid] = road.arrays

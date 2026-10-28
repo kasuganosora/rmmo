@@ -51,11 +51,4 @@ func run()->void:
 	check(not color.get_image().is_compressed() and normal.get_image().get_format()==Image.FORMAT_RGTC_RG,"BC5-only normal sidecar never hijacks same-source albedo")
 	check(EditorPrep.requests(record,{}).keys()==[source],"same-source albedo still prepares PNG when only normal has a DDS")
 	var file:=FileAccess.open(source+".dxt1.dds",FileAccess.WRITE);file.store_buffer(compressed_color);file.close()
-	var controls=preload("res://scripts/world3d/runtime_probe_controls.gd")
-	var white:bool=controls.white_materials;var discard:bool=controls.discard_map_textures
-	controls.enable_white_materials();controls.discard_map_textures=true;Paint.texture_profile_enabled=true;Paint.reset_profile()
-	check(Paint.make_material(definition)!=null and Prep.sources(record)==requested and Prep.estimate(requested,source.get_base_dir()).rows.is_empty(),"white/discard preserves dependencies but prepares no textures")
-	check(not Paint.has_compressed_sidecar(source,false,true),"white/discard bypasses sidecar filesystem lookup")
-	check(Paint.profile_snapshot().counters.is_empty(),"white/discard performs no texture lookup, decode or upload")
-	controls.white_materials=white;controls.discard_map_textures=discard;Paint.texture_profile_enabled=false
 	print(JSON.stringify({"checks":checks,"failures":failures}));quit(0 if failures.is_empty() else 1)

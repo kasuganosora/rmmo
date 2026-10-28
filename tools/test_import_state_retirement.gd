@@ -31,7 +31,7 @@ func fixture()->Dictionary:
 		json_nodes.append({"mesh":i,"extras":{"tags":["retire",{"payload":[i,i+1]}]}})
 	state.nodes=nodes;state.meshes=meshes;state.materials=[material];state.images=[texture]
 	state.buffers=[PackedByteArray([1,2,3,4])];state.json={"nodes":json_nodes}
-	state.set_meta("white_materials",[material,{"shared":texture}])
+	state.set_meta("test_materials",[material,{"shared":texture}])
 	return {"state":state,"watches":watches}
 func run()->void:
 	create_timer(90).timeout.connect(func():quit(2))

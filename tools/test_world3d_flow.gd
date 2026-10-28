@@ -9,6 +9,24 @@ func check(ok: bool, label: String) -> void:
 	if not ok:
 		failed += 1
 
+func readiness_snapshot(world:Node,session:Node)->Dictionary:
+	var result:Dictionary={"transition_active":session._world_transition_active,"viewport_disabled":root.disable_3d,"selected_map":session.world3d_map_path,"session_profile":session.last_loading_profile.duplicate()}
+	if not is_instance_valid(world) or not world.has_method("is_world_ready"):
+		result.scene=world.name if is_instance_valid(world) else "none"
+		return result
+	result.world_ready=world.is_world_ready();result.ready_for_play=world._ready_for_play
+	result.entry_error=str(world.get_meta("entry_loading_error",""));result.loading=world.loading_progress().duplicate()
+	result.geometry_wait_locked=world._geometry_wait_locked;result.transfer_pending=world._transfer_pending
+	result.building_readiness_enabled=world.building_readiness_enabled
+	if is_instance_valid(world._player):
+		result.player_locked=world._player.input_locked;result.geometry_blocked=world._player.geometry_blocked
+	if is_instance_valid(world._map_root):
+		var map:Node=world._map_root
+		result.stream_chunk=str(map.get_meta("stream_chunk",null));result.stream_target=str(map.get_meta("stream_target",null));result.stream_jobs=map.get_meta("stream_jobs",[]).size()
+		var queue:Node=map.get_node_or_null("DeferredAssets")
+		if queue!=null:result.queue={"idle":queue.is_idle(),"error":queue.error,"pending":queue.pending_count(),"jobs":queue._jobs.size(),"demanded":queue._demanded_by_id.size()}
+	return result
+
 func run() -> void:
 	create_timer(240).timeout.connect(func():push_error("World flow timeout");quit(2))
 	var axis_body:bool=OS.get_cmdline_user_args().has("--axis-body")
@@ -24,7 +42,20 @@ func run() -> void:
 	check(bool(created[0]), "create real account character")
 	var ch: Dictionary = created[2]
 	session.selected_character = ch
-	session.world3d_map_path = ""
+	# This flow must not depend on or modify the user's cached default yard.
+	var paths=preload("res://scripts/world3d/map_paths.gd")
+	var fixture_dir:String=paths.external_root().path_join("review_artifacts").path_join("world3d_flow_%d_%d"%[OS.get_process_id(),Time.get_ticks_usec()])
+	if not paths.allowed(fixture_dir) or DirAccess.make_dir_recursive_absolute(fixture_dir)!=OK:
+		check(false,"create isolated external flow fixture");quit(1);return
+	var fixture_map:=fixture_dir.path_join("map.gltf");var fixture_inn:=fixture_dir.path_join("inn.gltf")
+	var document=preload("res://scripts/world3d/world_document.gd")
+	var yard_error:int=document.sample_yard(fixture_inn).save(fixture_map)
+	var inn_error:int=document.make_inn(fixture_map).save(fixture_inn) if yard_error==OK else ERR_CANT_CREATE
+	check(yard_error==OK and inn_error==OK,"create isolated yard and inn maps")
+	if yard_error!=OK or inn_error!=OK:quit(1);return
+	var fixture_sha:=FileAccess.get_sha256(fixture_map)
+	print("FLOW_FIXTURE ",JSON.stringify({"map":fixture_map,"sha256":fixture_sha,"inn":fixture_inn}))
+	session.world3d_map_path = fixture_map
 	session.world3d_spawn = Vector3(0, 0.9, 4)
 	session.loading_mode = ""
 	change_scene_to_file("res://scenes/loading.tscn")
@@ -36,6 +67,14 @@ func run() -> void:
 	var world = current_scene
 	check(world != null and world.has_method("is_world_ready"), "login Loading hands off to 3D world")
 	if world == null or not world.has_method("is_world_ready"):
+		print("FLOW_READINESS ",JSON.stringify(readiness_snapshot(world,session)))
+		quit(1)
+		return
+	var ready:bool=world.is_world_ready() and not session._world_transition_active
+	print("FLOW_READINESS ",JSON.stringify(readiness_snapshot(world,session)))
+	check(ready,"world readiness and session transition complete within 30 seconds")
+	check(session.world3d_map_path==fixture_map and FileAccess.get_sha256(fixture_map)==fixture_sha,"flow used the unchanged isolated map")
+	if not ready:
 		quit(1)
 		return
 	check(world._player != null and not world._player.input_locked, "controls unlock after prepared world")

@@ -169,9 +169,9 @@ static func build_record(document: RefCounted, record: Dictionary, io: Script) -
 	document._save_meshes.remove(str(record.uuid))
 	if record.has("house_prefab"):return document._mesh(record,false)
 	if record.get("kind")=="asset" and not record.has("bridge_mesh") and not record.has("house_prefab"):
-		# Fresh imported mesh IDs also bypass parametric_tree / streetlamp_banner
-		# recipe caches, whose keys contain the source mesh instance ID.
-		return document._asset(record,{"scene":io.load_scene(str(record.get("asset_path","")))})
+		# Save consumes the same published native version as preview/gameplay.
+		# It must never silently reimport an optional or modified GLB source.
+		return document._asset(record,{"scene":preload("res://scripts/world_editor/asset_library.gd").instantiate_preview(str(record.get("asset_path","")))})
 	return document._asset(record) if record.get("kind")=="asset" else document._mesh(record,false)
 
 static func export_and_publish(plan_: Dictionary, view: Node3D, path: String, expected: String,

@@ -48,10 +48,9 @@ static func capture(records: Array, library, label: String, registry:Dictionary=
 		for key in kit.get("pieces", {}):
 			var source: String = kit.pieces[key]
 			if not Rules.Kits.check_model(source).is_empty(): return {"ok": false, "error": "预制件拼接套件模型无效"}
-			var destination: String = library.directory.path_join("tile_models").path_join(FileAccess.get_sha256(source) + ".glb")
-			if not MapPaths.allowed(destination): return {"ok": false, "error": "预制件拼接套件目录无效"}
-			if DirAccess.make_dir_recursive_absolute(destination.get_base_dir()) != OK or Rules.Kits.write_immutable(destination, FileAccess.get_file_as_bytes(source)) != OK: return {"ok": false, "error": "预制件拼接模型打包失败"}
-			kit.pieces[key] = "tile_models/" + destination.get_file()
+			# Capture references an already imported native model. Re-importing or
+			# copying its GLB makes saving depend on an optional authoring source.
+			kit.pieces[key] = source.trim_prefix(library.directory.trim_suffix("/") + "/")
 		for definition in SurfacePaint.definitions(record):
 			for field in SurfacePaint.MAP_FIELDS:
 				var source := str(definition.get(field, ""))
@@ -66,23 +65,11 @@ static func capture(records: Array, library, label: String, registry:Dictionary=
 		if not baked.is_empty():baked[record.building.id].signatures[record.building.part]=preload("res://scripts/world3d/building_blueprint.gd").geometry_signature(record)
 		if record.get("kind") == "asset":
 			var original_path := str(record.get("asset_path", ""))
-			var imported: Dictionary = library.import_file(original_path)
-			if not imported.ok: return imported
-			if record.has("surface_paint"):
-				var before := Node3D.new(); var after := Node3D.new()
-				var old_model: Node3D = library.instantiate_preview(original_path)
-				var new_model: Node3D = library.instantiate_preview(str(imported.entry.asset_path))
-				if old_model == null or new_model == null:
-					if old_model != null: old_model.free()
-					if new_model != null: new_model.free()
-					before.free(); after.free()
-					return {"ok": false, "error": "打包后的模型无法读取"}
-				before.add_child(old_model); after.add_child(new_model)
-				var mapped := SurfacePaint.remap(record.surface_paint, before, after)
-				before.free(); after.free()
-				if not mapped.ok: return mapped
-				record.surface_paint = mapped.entries
-			record.asset_path = str(imported.entry.asset_path).trim_prefix(library.directory.trim_suffix("/") + "/")
+			# Derived inline geometry has no source-model dependency. All other
+			# assets keep the same native identity and painted surface paths.
+			if not record.has("house_prefab") and not preload("res://scripts/world_editor/asset_library.gd").native_available(original_path):
+				return {"ok":false,"error":"预制件模型缺少原生产物，请重新导入："+original_path}
+			record.asset_path = original_path.trim_prefix(library.directory.trim_suffix("/") + "/")
 			record.erase("thumbnail_path")
 	var payload := JSON.stringify({"format": "rmmo_prefab", "version": 1, "records": copies,"building_instances":baked}, "\t")
 	var hash := (label + "\n" + payload).sha256_text()
@@ -153,7 +140,7 @@ static func read(entry: Dictionary) -> Dictionary:
 		if record.kind == "asset":
 			var asset := str(record.get("asset_path", ""))
 			if not asset.is_absolute_path(): asset = path.get_base_dir().get_base_dir().path_join(asset).simplify_path()
-			if not FileAccess.file_exists(asset): return {"ok": false, "error": "预制件模型缺失：" + asset.get_file()}
+			if not record.has("house_prefab") and not preload("res://scripts/world_editor/asset_library.gd").native_available(asset): return {"ok": false, "error": "预制件模型缺少原生产物，请重新导入：" + asset.get_file()}
 			record.asset_path = asset
 	var registry:Dictionary=raw.get("building_instances",{})
 	var meta:={"building_instances":registry}

@@ -335,6 +335,8 @@ static func _plan_task(index:Dictionary,entries:Array,path:String,root:String,pr
 	var result:Dictionary={"ok":false,"reason":"collision_asset_missing"} if known_missing else Adapter.plan(index,[entries[0]],path,root,proof)
 	var missing:bool=not result.ok and result.get("reason","")=="collision_asset_missing"
 	var none:bool=allow_none and missing
+	# Missing/unsafe offline absence metadata is an ordinary full-native render
+	# fallback. Neither the coordinator nor its worker retries an authoring GLB.
 	if none:result=NoCollision.plan(index,entries,path,root,proof)
 	if token.is_cancelled():result.clear();return {"ok":false,"reason":"cancelled","cancelled":true}
 	return {"ok":result.ok,"reason":str(result.get("reason","")),"plan":result,"no_collision":none,"sidecar_missing":missing,"elapsed_us":Time.get_ticks_usec()-began}
@@ -406,7 +408,7 @@ func _poll()->void:
 		else:
 			if job.get("no_collision",false):
 				var measured:Dictionary=result.get("profile",{})
-				for counter:String in ["source_sha_calls","map_sha_calls","records","proofs","fallbacks"]:
+				for counter:String in ["source_sha_calls","native_identity_reads","map_sha_calls","records","proofs","fallbacks"]:
 					var field:="none_"+counter
 					profile[field]=int(profile.get(field,0))+int(measured.get(counter,0))
 			job.erase("plan");job.result=result;job.stage="ready"

@@ -44,7 +44,7 @@ static func _offline_descriptor(asset:String,source_root:String,generator:String
 	var footprint:=Footprint.descriptor_path(asset,source_root)
 	if not Paths.allowed(index,folder) or not Paths.allowed(footprint,folder):return fail("source_path")
 	var info:=_json(index,8192)
-	if info.get("version")!=Compiled.VERSION or info.get("generator")!=generator or not Compiled._sha(info.get("source_sha")) or not Compiled._sha(info.get("payload_sha")) or not _integer(info.get("bytes"),1,Compiled.MAX_FILE_BYTES):return fail("old_index")
+	if info.get("version")!=Compiled.VERSION or info.get("generator")!=generator or not Compiled._sha(info.get("source_sha")) or not Compiled._sha(info.get("payload_sha")) or not _integer(info.get("bytes"),1,Compiled.MAX_JSON_INTEGER):return fail("old_index")
 	var envelope:=_json(footprint,Footprint.MAX_DESCRIPTOR_BYTES)
 	var body:Variant=envelope.get("body")
 	if envelope.get("version")!=Footprint.VERSION or not body is String or not Compiled._sha(envelope.get("sha256")) or body.sha256_text()!=envelope.sha256:return fail("old_footprint")
@@ -52,7 +52,7 @@ static func _offline_descriptor(asset:String,source_root:String,generator:String
 	if not desc is Dictionary or desc.get("version")!=Footprint.VERSION or desc.get("footprint_generator")!=footprint_generator:return fail("old_footprint_version")
 	for field:String in ["source_sha","payload_sha","generator","bytes"]:
 		if desc.get(field)!=info.get(field):return fail("old_identity")
-	if str(desc.get("source_path",""))!=asset or not _integer(desc.get("source_bytes"),1,Compiled.MAX_FILE_BYTES):return fail("old_source")
+	if str(desc.get("source_path",""))!=asset or not _integer(desc.get("source_bytes"),1,Compiled.MAX_JSON_INTEGER):return fail("old_source")
 	var stats:Variant=desc.get("stats")
 	if not stats is Dictionary:return fail("old_budget")
 	var estimate:=Footprint.estimate_stats(stats)
@@ -152,9 +152,9 @@ static func open_snapshot(root_:String,budget:int)->Dictionary:
 	if not Compiled._sha(data.get("old_generator")):return fail("generator_identity")
 	for sha:Variant in data.products:
 		var row:Variant=data.products[sha]
-		if not Compiled._sha(sha) or not row is Dictionary or not _integer(row.get("bytes"),1,Compiled.MAX_FILE_BYTES) or not _integer(row.get("estimated_bytes"),1,Footprint.MAX_BYTES):return fail("product_manifest")
+		if not Compiled._sha(sha) or not row is Dictionary or not _integer(row.get("bytes"),1,Compiled.MAX_JSON_INTEGER) or not _integer(row.get("estimated_bytes"),1,Footprint.MAX_BYTES):return fail("product_manifest")
 	for key:Variant in data.models:
 		var row:Variant=data.models[key]
-		if not key is String or not _key(key) or not row is Dictionary or not Compiled._sha(row.get("source_sha")) or not Compiled._sha(row.get("payload_sha")) or not data.products.has(row.payload_sha) or not _integer(row.get("source_bytes"),1,Compiled.MAX_FILE_BYTES):return fail("model_manifest")
+		if not key is String or not _key(key) or not row is Dictionary or not Compiled._sha(row.get("source_sha")) or not Compiled._sha(row.get("payload_sha")) or not data.products.has(row.payload_sha) or not _integer(row.get("source_bytes"),1,Compiled.MAX_JSON_INTEGER):return fail("model_manifest")
 	var snapshot:=Snapshot.new();snapshot.root=root;snapshot.manifest=data;snapshot.budget=budget
 	return {"ok":true,"snapshot":snapshot}

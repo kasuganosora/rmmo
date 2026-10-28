@@ -156,7 +156,7 @@ static func _validate_identity(candidate: Dictionary, packet: Dictionary, envelo
 		if not candidate.get(key) is String or candidate[key].is_empty(): return "candidate_path"
 	for key: String in ["source_sha", "payload_sha", "generator"]:
 		if not Compiled._sha(candidate.get(key)): return "candidate_identity"
-	if not candidate.get("bytes") is int or candidate.bytes <= 0 or candidate.bytes > Compiled.MAX_FILE_BYTES or candidate.product.get_file() != candidate.payload_sha + ".scn": return "candidate_payload"
+	if not candidate.get("bytes") is int or not Compiled.valid_payload_size(candidate.bytes) or candidate.product.get_file() != candidate.payload_sha + ".scn": return "candidate_payload"
 	for key: Variant in packet:
 		if key not in SUCCESS_FIELDS: return "unexpected_packet_field:" + str(key)
 	if not packet.get("error") is int or packet.error != OK or not packet.get("compiled") is bool or not packet.compiled: return "native_success_required"
@@ -183,7 +183,7 @@ static func _collect_graph(packed: PackedScene) -> Dictionary:
 	var state := packed.get_state()
 	_remember(state, context)
 	_walk_metadata(state, context, 0)
-	if state.get_node_count() < 1 or state.get_node_count() > 65536: _reject_graph(context, "native_node_count")
+	if state.get_node_count() < 1: _reject_graph(context, "native_node_count")
 	for node in state.get_node_count():
 		if not context.ok: break
 		if state.get_node_type(node) not in [&"Node3D", &"MeshInstance3D"] or state.get_node_instance(node) != null:

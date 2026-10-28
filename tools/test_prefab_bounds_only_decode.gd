@@ -1,9 +1,6 @@
 extends "res://tools/test_house_geometry_identity_reuse.gd"
 func run()->void:
 	var policy=preload("res://scripts/world3d/runtime_package_policy.gd");policy.verify_packages=false
-	preload("res://scripts/world3d/prefab_binary_cache.gd").enabled=false
-	var controls=preload("res://scripts/world3d/runtime_probe_controls.gd")
-	controls.enable_white_materials();controls.discard_map_textures=true
 	var data:=fixture();var vertices:=PackedVector3Array();vertices.resize(240000)
 	for i in vertices.size():vertices[i]=Vector3(i%3,(i/3)%2,0)
 	data.meshes[0].surfaces[0][Mesh.ARRAY_VERTEX]=vertices

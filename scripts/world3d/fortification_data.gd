@@ -59,6 +59,6 @@ static func valid_record(r: Dictionary) -> bool:
 	if r.has("fortification_art"):
 		var schema:=W.obj({"version":S.number(1,1,true),"module":{"type":"string","enum":["wall","parapet","battlement","gate_lintel","door","round_tower","corner_tower","joint","hinge","hinge_mount","embrasure","tower_stair"]},"asset_path":W.text(2048)},["version","module","asset_path"])
 		if r.get("kind")!="box" or not S.validate(r.fortification_art,schema).is_empty(): return false
-		if not preload("res://scripts/world3d/map_paths.gd").allowed(r.fortification_art.asset_path): return false
+		if not preload("res://scripts/world3d/map_paths.gd").asset_key_allowed(r.fortification_art.asset_path): return false
 	if not r.has("fortification"): return true
 	return r.get("kind")=="box" and not r.has("building") and S.validate(r.fortification,W.obj({"id":W.text(80),"part":W.text(100),"role":W.text(40)},["id","part","role"])).is_empty()

@@ -45,7 +45,7 @@ func start(position: Variant = null) -> Dictionary:
 	var error := preload("res://scripts/world3d/document_schema.gd").validate(raw,preload("res://scripts/world3d/document_schema.gd").vector(-100000,100000))
 	if not error.is_empty(): return {"ok":false,"error":error}
 	for record in editor._doc.records:
-		if record.get("kind") == "asset" and not Paths.allowed(str(record.get("asset_path",""))): return {"ok":false,"error":"模型路径不在授权内容根内"}
+		if record.get("kind") == "asset" and not Paths.asset_key_allowed(str(record.get("asset_path",""))): return {"ok":false,"error":"模型路径不在授权内容根内"}
 	var character: Dictionary = Net.session().active_character()
 	if character.is_empty(): character = {"id":-100,"name":"试玩角色","class_id":"adventurer","gender":"male","level":1,"customization":{}}
 	if not preload("res://scripts/char/character_model_3d.gd").source_available(str(character.gender),character.get("customization",{})): return {"ok":false,"error":"试玩角色资源缺失，请先配置角色资源包"}

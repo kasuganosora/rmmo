@@ -20,20 +20,36 @@ func write_fixture(path:String,bytes:PackedByteArray)->bool:
 	file.close()
 	return written_ok and FileAccess.get_file_as_bytes(path)==bytes
 
+func write_native_fixture(path:String)->bool:
+	# Closed static GLB in the converter's supported format. This fixture has
+	# real triangle bounds and no exporter-specific glTF extension.
+	var binary:=PackedFloat32Array([0,0,0,1,0,0,0,1,0.5]).to_byte_array()
+	var data:={"asset":{"version":"2.0"},"scene":0,"scenes":[{"nodes":[0]}],"nodes":[{"name":"Fixture","mesh":0}],"meshes":[{"primitives":[{"attributes":{"POSITION":0}}]}],"accessors":[{"bufferView":0,"componentType":5126,"count":3,"type":"VEC3","min":[0,0,0],"max":[1,1,0.5]}],"bufferViews":[{"buffer":0,"byteOffset":0,"byteLength":binary.size()}],"buffers":[{"byteLength":binary.size()}]}
+	var json:=JSON.stringify(data).to_utf8_buffer()
+	while json.size()%4:json.append(32)
+	var file:=FileAccess.open(path,FileAccess.WRITE)
+	if file==null:return false
+	file.store_32(0x46546c67);file.store_32(2);file.store_32(28+json.size()+binary.size())
+	file.store_32(json.size());file.store_32(0x4e4f534a);file.store_buffer(json)
+	file.store_32(binary.size());file.store_32(0x004e4942);file.store_buffer(binary);file.flush()
+	var ok:=file.get_error()==OK;file.close();return ok
+
 func run()->void:
 	Engine.max_fps=60
 	Job.parallel_preparation_enabled=not OS.get_cmdline_user_args().has("--without-parallel-preparation")
 	create_timer(90).timeout.connect(func():quit(2))
 	var directory:=Paths.cache_directory("asset_prepare_%d"%Time.get_ticks_usec())
 	DirAccess.make_dir_recursive_absolute(directory)
+	var manager:=root.get_node("AssetManager");var old_root:String=manager.content_root_override;manager.content_root_override=directory
 	var asset_path:=directory.path_join("fixture.glb")
-	var model:=Node3D.new();model.name="Fixture"
-	var mesh:=MeshInstance3D.new();mesh.name="Mesh";mesh.mesh=BoxMesh.new();mesh.owner=null
-	model.add_child(mesh);mesh.owner=model
-	check(Io.save_scene(model,asset_path)==OK,"tiny model fixture exported")
-	model.free()
+	check(write_native_fixture(asset_path),"tiny supported model fixture exported")
 	var original:=FileAccess.get_file_as_bytes(asset_path)
 	check(original.size()>20 and original.slice(0,4).get_string_from_ascii()=="glTF","exported fixture contains a complete binary GLB")
+	var native:=preload("res://scripts/world3d/compiled_asset_cache.gd").build(asset_path)
+	var first_footprint:Dictionary=Library._compile_footprint(asset_path) if native.get("ok",false) else {}
+	check(native.get("ok",false) and first_footprint.get("ok",false),"first source explicitly converted to native")
+	if not native.get("ok",false) or not first_footprint.get("ok",false):
+		print("NATIVE_FIXTURE_FAILURE ",JSON.stringify({"build":native,"footprint":first_footprint}));manager.content_root_override=old_root;quit(1);return
 	var doc:=Doc.new();var first:String=doc.add_asset({"asset_path":asset_path},Vector3.ZERO)
 	var second:String=doc.add_asset({"asset_path":asset_path},Vector3(5,0,0))
 	var terrain_id:String=doc.add_box("ground",Vector3(20,0,0),Vector3(8,1,8))
@@ -46,6 +62,12 @@ func run()->void:
 	var next_asset_path:=directory.path_join("second_fixture.glb")
 	if not write_fixture(next_asset_path,original):check(false,"second fixture bytes persisted before editor open");quit(1);return
 	check(FileAccess.get_sha256(next_asset_path)==FileAccess.get_sha256(asset_path),"second fixture is closed and byte-identical before synchronous editor build")
+	native=preload("res://scripts/world3d/compiled_asset_cache.gd").build(next_asset_path)
+	var second_footprint:Dictionary=Library._compile_footprint(next_asset_path) if native.get("ok",false) else {}
+	check(native.get("ok",false) and second_footprint.get("ok",false),"second source explicitly converted to native")
+	if not native.get("ok",false) or not second_footprint.get("ok",false):
+		print("NATIVE_FIXTURE_FAILURE ",JSON.stringify({"build":native,"footprint":second_footprint}));manager.content_root_override=old_root;quit(1);return
+	check(DirAccess.remove_absolute(asset_path)==OK and DirAccess.remove_absolute(next_asset_path)==OK,"editor fixture removes both import sources after conversion")
 	var third:String=doc.add_asset({"asset_path":next_asset_path},Vector3(10,0,0))
 	var path:=directory.path_join("map.gltf");check(doc.save(path)==OK,"isolated asset and terrain map saved")
 	var session=preload("res://scripts/net/net.gd").session();session.world3d_editor_doc=doc;session.world3d_editor_path=path
@@ -97,20 +119,21 @@ func run()->void:
 	await call_tool("open_world",{"path":path})
 	check(terrain_vertices(terrain_id)==raised_vertices and terrain_mask(terrain_id)==new_mask,"edited terrain geometry and region survive save reopen")
 	check(not editor._load_job.state().timings.build.units.has("asset_parse_worker"),"cached asset skips redundant background parse")
-	# Deliberately broken bytes produce expected native parser diagnostics.
+	# A missing native index must not fall back to an authoring source.
 	Library._scenes.clear()
-	if not write_fixture(asset_path,"invalid glb".to_utf8_buffer()):check(false,"broken fixture bytes persisted");quit(1);return
+	var index:=preload("res://scripts/world3d/compiled_asset_cache.gd").index_path(asset_path,directory)
+	var index_bytes:=FileAccess.get_file_as_bytes(index)
+	check(not index_bytes.is_empty() and DirAccess.remove_absolute(index)==OK,"fixture removes first native index")
 	await call_tool("open_world",{"path":path})
-	check(editor._view.get_node(first).has_meta("missing_asset") and not Library._scenes.has(asset_path),"failed background import uses normal missing placeholder without negative cache")
-	if not write_fixture(asset_path,original):check(false,"repaired fixture bytes persisted before reimport");quit(1);return
-	check(FileAccess.get_sha256(asset_path)==FileAccess.get_sha256(next_asset_path),"repaired GLB is closed and byte-identical before background parser starts")
+	check(editor._view.get_node(first).has_meta("missing_asset") and not Library._scenes.has(asset_path),"missing native product uses recoverable placeholder without raw fallback")
+	if not write_fixture(index,index_bytes):check(false,"native index repair failed");quit(1);return
 	await call_tool("open_world",{"path":path})
-	check(not editor._view.get_node(first).has_meta("missing_asset") and editor._load_job.state().timings.build.units.asset_parse_worker.count==1,"repaired resource is parsed on next load")
+	check(not editor._view.get_node(first).has_meta("missing_asset") and editor._load_job.state().timings.build.units.asset_parse_worker.count==1,"repaired native index is read on next load")
 	var retained:Node3D=editor._view
 	await call_tool("open_world",{"path":directory.path_join("absent.gltf")},false)
 	check(editor._view==retained and not editor._load_job.active,"illegal open leaves the completed view available")
 	var drainer:=preload("res://scripts/world3d/asset_worker_drainer.gd").for_tree(self)
-	var job:=Job.new();root.add_child(job);job._thread=Thread.new();job._thread.start(Job._parse_asset.bind(asset_path));var owned_thread:Thread=job._thread
+	var job:=Job.new();root.add_child(job);job._thread=Thread.new();job._thread.start(Job._parse_native_asset.bind(asset_path,directory,Library.native_candidate(asset_path,directory)));var owned_thread:Thread=job._thread
 	job.free()
 	var deadline:=Time.get_ticks_msec()+10000
 	while owned_thread.is_started() and Time.get_ticks_msec()<deadline:await process_frame
@@ -127,4 +150,5 @@ func run()->void:
 	while lease.count()>0 and Time.get_ticks_msec()<deadline:await process_frame
 	check(lease.count()==0 and drainer.drained>=drained_before and not Library._scenes.has(asset_path),"exit drains unconsumed lookahead without publishing a shared scene")
 	editor.queue_free();await settle()
+	manager.content_root_override=old_root
 	print("EDITOR_ASSET_PREPARATION_FAILED=",failed);quit(1 if failed else 0)

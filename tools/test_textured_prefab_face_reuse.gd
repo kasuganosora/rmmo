@@ -2,11 +2,10 @@ extends "res://tools/test_house_geometry_identity_reuse.gd"
 ## Triangle expansion is independent of material projection. Exercise real
 ## textured-mode controls, mixed coverage upgrades and private worker outputs.
 const Controls=preload("res://scripts/world3d/runtime_probe_controls.gd")
-const Binary=preload("res://scripts/world3d/prefab_binary_cache.gd")
 const Faces=preload("res://scripts/world3d/prefab_face_arrays.gd")
 func run()->void:
 	preload("res://scripts/world3d/runtime_package_policy.gd").verify_packages=false
-	Binary.enabled=false;Controls.white_materials=false;Controls.discard_map_textures=false
+	Controls.discard_map_textures=false
 	var data:=fixture();var indices:=PackedInt32Array();indices.resize(120000)
 	for i:int in indices.size():indices[i]=i%3
 	data.meshes[0].surfaces[0][Mesh.ARRAY_INDEX]=indices
@@ -38,17 +37,12 @@ func run()->void:
 	House.evict_geometry({value.sha256:true})
 	check(House._decoded_bytes==0 and House._decoding.is_empty(),"logical eviction releases shared face accounting and flights")
 	check(results[1].collision_faces==expected,"admitted worker results survive canonical eviction")
-	Controls.enable_white_materials();Controls.discard_map_textures=true
-	var white:=House.prepare_cpu(source,{},true,false)
-	check(white.collision_faces[0].is_empty() and white.collision_faces[1]==expected[1],"white source-only preparation remains selective")
-	Controls.white_materials=false;Controls.discard_map_textures=false
 	House.raw_face_reuse_enabled=false
-	var uncached:=House.prepare_cpu(source,{},true,false)
-	check(uncached.collision_faces==expected,"disabled reuse still fills slots missing from a prior white partial packet")
+	var uncached:=House.prepare_cpu(source)
+	check(uncached.collision_faces==expected,"disabled reuse preserves every full-material face slot")
 	House.raw_face_reuse_enabled=true
-	var full:=House.prepare_cpu(source,{},true,false)
-	check(full.collision_faces==expected and full.data.materials==data.materials,"textured consumer upgrades a white partial packet to every face slot")
-	check(House._decoded[value.sha256].get("collision_face_slots",{}).size()==2,"coverage upgrade is retained for following textured consumers")
+	var full:=House.prepare_cpu(source)
+	check(full.collision_faces==expected and full.data.materials==data.materials,"full-material consumer retains every face slot and material")
 	var queue:=preload("res://scripts/world3d/deferred_asset_loader.gd").new();queue._configure_admission_budget()
 	check(queue.profile.prefab_decode_reserved_bytes==House.DECODE_BUDGET,"textured task admission reserves the bounded shared decode ceiling")
 	queue.free()

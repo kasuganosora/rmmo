@@ -117,6 +117,11 @@ func editor_cases()->void:
 	var path:=source_file("editor_shared")
 	var color:=dds(16,8,"DXT1");var normal:=dds(16,8,"ATI2")
 	put(path+".dxt1.dds",color);put(path+".bc5.dds",normal)
+	# Editable DDS products must identify the source snapshot and actual block
+	# bytes; legacy unbound sidecars are covered by the trusted game cases above.
+	for role:Array in [[".dxt1.dds",color,false],[".bc5.dds",normal,true]]:
+		var hash_:=HashingContext.new();hash_.start(HashingContext.HASH_SHA256);hash_.update(role[1])
+		put(path+role[0]+".source.json",JSON.stringify({"version":1,"encoder_version":1,"source_sha256":FileAccess.get_sha256(path),"source_bytes":FileAccess.get_file_as_bytes(path).size(),"dds_sha256":hash_.finish().hex_encode(),"dds_bytes":role[1].size(),"normal":role[2],"flip":false}).to_utf8_buffer())
 	var record:={"terrain_material":{"texture_path":path,"normal_path":path}}
 	Paint.refresh_sources();Paint._sidecar_cache={"sentinel":"main-owned"}
 	var requested:=Editor.requests(record,{})
@@ -130,7 +135,7 @@ func editor_cases()->void:
 		if not prepared.images.has(key):check(false,"prepared image exists "+key);continue
 		var image:Image=prepared.images[key]
 		check(image.is_compressed() and image.get_data()==(normal if key.ends_with("|normal") else color).slice(128),"editor preserves compressed role bytes")
-		check(image.get_meta("runtime_source_sha256","")==path.sha256_text(),"editor uses trusted source identity")
+		check(image.get_meta("runtime_source_sha256","")==FileAccess.get_sha256(path),"editor uses mutable source snapshot identity under default package policy")
 	Editor.TextureCache.Policy.verify_packages=true
 	prepared=Editor.decode({path:[path,false,false]},directory)
 	check(prepared.images.has(path) and prepared.images[path].get_meta("runtime_source_sha256","")==FileAccess.get_sha256(path),"strict editor retains authored source identity")

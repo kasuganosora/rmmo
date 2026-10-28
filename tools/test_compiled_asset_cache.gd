@@ -56,7 +56,9 @@ func run()->void:
 	check(not Compiled.read(path,"",Paths.external_root(),true).hit,"deferred verification requires an already verified digest")
 	var parsed:=preload("res://scripts/world3d/model_parse_preparation.gd").parse_gltf(path)
 	check(parsed.get("compiled",false) and parsed.has("packed"),"game parser consumes private packed result")
-	var editor_parsed:=preload("res://scripts/world_editor/load_job.gd")._parse_asset(path)
+	check(Library._compile_footprint(path).get("ok",false),"editor native product has a bounded footprint")
+	var candidate:=Library.native_candidate(path)
+	var editor_parsed:=preload("res://scripts/world_editor/load_job.gd")._parse_native_asset(path,Paths.external_root(),candidate)
 	check(editor_parsed.get("compiled",false),"editor parser consumes same compiled product")
 	Library._scenes.erase(path)
 	var preview:Node=Library.instantiate_preview(path)
@@ -65,6 +67,7 @@ func run()->void:
 	var second_path:=folder.path_join("same_pixels.glb")
 	static_fixture(second_path,Color(.2,.6,.3,1),false,2)
 	check(Compiled.build(second_path).ok,"second source with identical grass pixels compiles")
+	check(Library._compile_footprint(second_path).get("ok",false),"second native product has a bounded footprint")
 	var shared_a:Node=Library.instantiate(path);var shared_b:Node=Library.instantiate(second_path)
 	var repeated:Node=Library.instantiate(path)
 	check(Library._scenes[path].get_meta("compiled_grass_rebound",false),"library marks a compiled template prepared once")
@@ -113,8 +116,13 @@ func run()->void:
 	var packed:=PackedScene.new();packed.pack(dangerous)
 	check(not Compiled._valid_packed(packed),"scripted nodes cannot enter compiled product")
 	dangerous.free()
+	# This fixture reimported changed source bytes above. Ordinary editor loads
+	# require the newly published native product's accounting, never raw retry.
+	check(Library._compile_footprint(path).get("ok",false),"changed import has a fresh native footprint before editor exit coverage")
+	Library.evict_cached_scene(path)
 	var job:=preload("res://scripts/world_editor/load_job.gd").new();root.add_child(job)
 	job._begin_asset_lookahead([{"kind":"asset","asset_path":path}])
+	check(job._preparation.metrics.started==1 and job._preparation.has("model:"+path),"exit fixture actually starts an admitted native reader")
 	var drainer:=Drainer.for_tree(self);var drained_before:int=drainer.drained
 	job.free()
 	var deadline:=Time.get_ticks_msec()+10000

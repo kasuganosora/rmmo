@@ -7,7 +7,6 @@ const MAX_TRIANGLES := 50000
 const MAX_OVERRIDES := 128
 const MAP_FIELDS := ["texture_path", "normal_path", "roughness_path", "metallic_path", "ao_path", "height_path"]
 static var preserve_complete_surfaces_enabled:=true
-static var white_face_mapping_elision_enabled:=true
 static var uv_projection_elision_enabled:=true
 static var _textures := {}
 static var prepared_images:Dictionary={}
@@ -143,10 +142,16 @@ static func remember_texture_owner(key:String,texture:Texture2D)->void:
 	if not _textures.has(key) and _textures.size()>=64:_textures.erase(_textures.keys()[0])
 	_textures[key]=texture
 	_cache_estimate_valid=false
+static func _same_prepared_texture(texture:Texture2D,prepared:Resource)->bool:
+	if texture==null or prepared==null:return false
+	if texture.get_meta("runtime_source_sha256","")!=prepared.get_meta("runtime_source_sha256",""):return false
+	# Immutable game packets have no representation identity and retain their
+	# previous cache behavior; editor snapshots distinguish DDS/PNG generations.
+	return not prepared.has_meta("runtime_texture_representation") or texture.get_meta("runtime_texture_representation","")==prepared.get_meta("runtime_texture_representation")
 static func retained_texture(key:String)->Texture2D:
 	var texture:Texture2D=_textures.get(key)
 	if texture==null and residency_budget_enabled and _texture_refs.has(key):texture=_texture_refs[key].get_ref()
-	if texture!=null and prepared_images.has(key) and texture.get_meta("runtime_source_sha256","")!=prepared_images[key].get_meta("runtime_source_sha256",""):return null
+	if texture!=null and prepared_images.has(key) and not _same_prepared_texture(texture,prepared_images[key]):return null
 	return texture
 static func trim_cached_resources()->Dictionary:
 	if not residency_budget_enabled:return {}
@@ -226,9 +231,8 @@ static func _material_current(material:StandardMaterial3D)->bool:
 		if path.is_empty():continue
 		var key:=definition_texture_key(definition,MAP_FIELDS[i])
 		var texture:Texture2D=material.get(TEXTURE_PROPERTIES[i])
-		var digest:String=texture.get_meta("runtime_source_sha256","") if texture!=null else ""
-		if prepared_images.has(key) and digest!=prepared_images[key].get_meta("runtime_source_sha256",""):return false
-		if _textures.has(key) and digest!=_textures[key].get_meta("runtime_source_sha256",""):return false
+		if prepared_images.has(key) and not _same_prepared_texture(texture,prepared_images[key]):return false
+		if _textures.has(key) and not _same_prepared_texture(texture,_textures[key]):return false
 	return true
 
 # Enable before starting the measured operation. Uses Pixels' mutex-protected
@@ -248,8 +252,8 @@ static func prepare_images(images:Dictionary)->void:
 		var weak:Variant=_texture_refs.get(key)
 		if weak!=null:
 			var texture:Texture2D=weak.get_ref()
-			if texture!=null and texture.get_meta("runtime_source_sha256","")!=images[key].get_meta("runtime_source_sha256",""):_texture_refs.erase(key);changed=true
-		if _textures.has(key) and _textures[key].get_meta("runtime_source_sha256","")!=images[key].get_meta("runtime_source_sha256",""):
+			if texture!=null and not _same_prepared_texture(texture,images[key]):_texture_refs.erase(key);changed=true
+		if _textures.has(key) and not _same_prepared_texture(_textures[key],images[key]):
 			_textures.erase(key);changed=true
 	if changed:_materials.clear();_material_refs.clear()
 	prepared_images.merge(images,true)
@@ -502,7 +506,7 @@ static func _texture(material:Dictionary,field:String,path_checks:Variant)->Text
 	var capacity_retired_id:=0
 	if not _textures.has(cache_key) and residency_budget_enabled and _texture_refs.has(cache_key):
 		var retained:Texture2D=_texture_refs[cache_key].get_ref()
-		if retained!=null and (not prepared_images.has(cache_key) or retained.get_meta("runtime_source_sha256","")==prepared_images[cache_key].get_meta("runtime_source_sha256","")):
+		if retained!=null and (not prepared_images.has(cache_key) or _same_prepared_texture(retained,prepared_images[cache_key])):
 			if _textures.size()>=64:
 				var oldest:String=_textures.keys()[0]
 				if capacity_eviction_accounting_enabled:capacity_retired_id=_textures[oldest].get_instance_id()
@@ -565,7 +569,7 @@ static func _texture(material:Dictionary,field:String,path_checks:Variant)->Text
 	began=Time.get_ticks_usec() if texture_profile_enabled else 0
 	var result:Texture2D=prepared_textures.get(cache_key)
 	# Use the exact prepared variant only while its source identity still matches.
-	if result!=null and result.get_meta("runtime_source_sha256","")!=image.get_meta("runtime_source_sha256",""):result=null
+	if result!=null and not _same_prepared_texture(result,image):result=null
 	var uploaded:=result!=null
 	if not uploaded:result=ImageTexture.create_from_image(image)
 	if texture_profile_enabled:
@@ -580,6 +584,7 @@ static func _texture(material:Dictionary,field:String,path_checks:Variant)->Text
 	result.set_meta("surface_has_alpha",has_alpha)
 	result.set_meta("runtime_normal_xy",image.get_format()==Image.FORMAT_RGTC_RG)
 	result.set_meta("runtime_source_sha256",image.get_meta("runtime_source_sha256",""))
+	if image.has_meta("runtime_texture_representation"):result.set_meta("runtime_texture_representation",image.get_meta("runtime_texture_representation"))
 	if _textures.size() >= 64:
 		var oldest:String=_textures.keys()[0]
 		if capacity_eviction_accounting_enabled:capacity_retired_id=_textures[oldest].get_instance_id()
@@ -607,7 +612,6 @@ static func texture_error(record: Dictionary, checks: Variant = null) -> String:
 
 static func make_material(value: Dictionary, cull_mode: int = BaseMaterial3D.CULL_BACK) -> StandardMaterial3D:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.surface_materials.make_material") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
-	if preload("res://scripts/world3d/runtime_probe_controls.gd").white_materials:return preload("res://scripts/world3d/runtime_probe_controls.gd").white_material(cull_mode)
 	var began:=Time.get_ticks_usec() if texture_profile_enabled else 0
 	var result:=_make_material(value,cull_mode)
 	if texture_profile_enabled:TextureCache._profile_elapsed("paint.material",began,{"name":str(value.get("name","")),"cull":cull_mode})
@@ -858,10 +862,6 @@ static func painted_mesh(node: MeshInstance3D, entries: Array, keep_cpu: bool=fa
 static func apply(root: Node3D, record: Dictionary, validation_cache: Variant=null, texture_checks: Variant=null, defer_upload:bool=false, prepared_paint:Dictionary={}) -> void:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.surface_materials.apply") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	if not record.has("surface_paint"): return
-	# White isolation has no visible face color/UV/tangent differences. Keep
-	# the original oriented geometry instead of repartitioning it only to bind
-	# the same white material again. Ordinary painting retains its full path.
-	if white_face_mapping_elision_enabled and preload("res://scripts/world3d/runtime_probe_controls.gd").white_materials:return
 	if not valid(record,false,"",validation_cache): root.set_meta("paint_error", "表面材质记录损坏"); return
 	var unresolved: Array = record.surface_paint.duplicate()
 	for node in meshes(root):
@@ -912,7 +912,7 @@ static func missing(records: Array) -> Array:
 	for record in records:
 		if record.has("fortification_art"):
 			var model_path:String=record.fortification_art.asset_path
-			if not checked.has(model_path):checked[model_path]=FileAccess.file_exists(model_path)
+			if not checked.has(model_path):checked[model_path]=preload("res://scripts/world_editor/asset_library.gd").native_available(model_path)
 			if not checked[model_path]:paths.append(model_path)
 		for definition in definitions(record):
 			for field in MAP_FIELDS:

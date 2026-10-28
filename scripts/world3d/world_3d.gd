@@ -56,7 +56,6 @@ var _transfer_loader: Node
 var _transfer_request_serial := 0
 var _local_transfer: Dictionary = {}
 var _ready_for_play := false
-var _initial_loading_cover:CanvasLayer
 var _entry_readiness_shadow:RefCounted
 var _entry_shadow_waiting_physics:=false
 var loading_profile: Dictionary={}
@@ -84,7 +83,7 @@ func building_entry_protocol_enabled()->bool:return building_readiness_enabled
 
 func _building_entry_failure(reason:String)->bool:
 	if _building_entry!=null:_building_entry.cancel(reason)
-	_release_initial_loading_cover()
+	_abort_initial_entry()
 	set_meta("entry_loading_error","建筑就绪校验未通过："+reason)
 	_loading_stage(str(get_meta("entry_loading_error")))
 	if is_instance_valid(_player):_player.input_locked=true
@@ -302,7 +301,7 @@ func request_world_map_move(point:Vector2)->bool:
 
 
 func is_world_ready() -> bool:
-	return _ready_for_play and _initial_loading_cover==null and not has_meta("entry_loading_error")
+	return _ready_for_play and not has_meta("entry_loading_error")
 
 
 var _geometry_wait_locked:=false
@@ -371,10 +370,7 @@ func _bind_deferred_geometry(map_root:Node,navigation:Node)->void:
 
 func _guard_deferred_geometry()->void:
 	if _transfer_pending:return
-	# Streaming may run while the initial cover waits for full readiness or its
-	# first presented 3D frame. Local collision readiness cannot unlock that gate.
-	var initial_cover_waiting:=_initial_loading_cover!=null
-	if initial_cover_waiting or has_meta("entry_loading_error"):_player.input_locked=true
+	if has_meta("entry_loading_error"):_player.input_locked=true
 	if has_meta("entry_loading_error"):return
 	if building_readiness_enabled and (_building_entry==null or not _building_entry.gate.can_play()):
 		_player.input_locked=true;return
@@ -389,19 +385,18 @@ func _guard_deferred_geometry()->void:
 	_player.geometry_blocked=not ready
 	if not ready and not _player.input_locked:
 		_geometry_wait_locked=true;_player.input_locked=true;_player.velocity=Vector3.ZERO
-	if not ready and _geometry_wait_locked and not initial_cover_waiting:
+	if not ready and _geometry_wait_locked:
 		var local_error:String=deferred.error_for_clip(clip)
 		if local_error.is_empty():local_error=deferred.error
 		_status.text="正在准备附近区块…" if local_error.is_empty() else local_error
 	var planned:Vector2i=_map_root.get_meta("stream_target",_map_root.get_meta("stream_chunk",Vector2i(2147483647,2147483647)))
 	if _geometry_wait_locked and ready and planned==Stream.chunk_key(origin):
 		_geometry_wait_locked=false
-		if not initial_cover_waiting and not _transfer_pending and not Net.session()._world_transition_active and not Net.server().awaiting_respawn and Net.server().combat_stats.player_alive():_player.input_locked=false
-		if not initial_cover_waiting:_status.text="WASD 走 · 空格跳跃 · 右键转动 · E 对话"
+		if not _transfer_pending and not Net.session()._world_transition_active and not Net.server().awaiting_respawn and Net.server().combat_stats.player_alive():_player.input_locked=false
+		_status.text="WASD 走 · 空格跳跃 · 右键转动 · E 对话"
 
 
 func _exit_tree() -> void:
-	if _initial_loading_cover!=null:_release_initial_loading_cover()
 	_approach_preparation.release()
 	if _transfer_viewport_restore!=null:get_viewport().disable_3d=bool(_transfer_viewport_restore)
 	_retire_building_traversal()
@@ -444,28 +439,16 @@ func _ready() -> void:
 		return
 	add_child(map_root)
 	_map_root = map_root
-	var white_controls=preload("res://scripts/world3d/runtime_probe_controls.gd")
-	if white_controls.white_materials and white_controls.discard_map_textures and not _transfer_pending and _local_transfer.is_empty():
-		# White-model entry: keep an opaque 2D cover and disable 3D until the
-		# current demand, stream and render-batch queues are all settled. The
-		# covered budget (16 ms) is for a loading screen, not interactive play.
-		_initial_loading_cover=preload("res://scripts/world3d/initial_loading_cover.gd").new()
-		add_child(_initial_loading_cover)
-		set_meta("initial_loading_cover_started",true)
-		await get_tree().process_frame
-		get_viewport().disable_3d=true
-		var deferred:=map_root.get_node_or_null("DeferredAssets")
-		if deferred!=null:deferred.begin_loading_cover(self,_initial_loading_cover)
 	_begin_entry_readiness_shadow(map_root)
 	if building_readiness_enabled:
 		_building_entry=_new_building_entry(map_root,_map_path,Net.session().world3d_spawn,"entry")
 		if _building_entry.has_meta("error"):
 			_building_entry_failure(str(_building_entry.get_meta("error")));return
 	if map_root.has_meta("entry_plan"):
-		var entry_error:String=await _prepare_entry_geometry(map_root,self,Net.session().world3d_spawn,_initial_loading_cover)
+		var entry_error:String=await _prepare_entry_geometry(map_root,self,Net.session().world3d_spawn)
 		if not entry_error.is_empty():
 			_entry_readiness_shadow.failed(entry_error)
-			_release_initial_loading_cover()
+			_abort_initial_entry()
 			set_meta("entry_loading_error",entry_error);_loading_stage(entry_error);return
 	if Net.session().world3d_loading:
 		map_root.set_meta("defer_source_upload",true)
@@ -491,7 +474,7 @@ func _ready() -> void:
 		await get_tree().physics_frame
 		if not _physical_destination_fits(map_root,get_world_3d().direct_space_state,Net.session().world3d_spawn,[_player.get_rid()]):
 			var reason:="出生点碰撞或支撑尚未就绪；未放行角色"
-			_release_initial_loading_cover()
+			_abort_initial_entry()
 			set_meta("entry_loading_error",reason);_loading_stage(reason);return
 	_player.movement_intent.connect(_on_movement_intent)
 	loading_profile.player=Time.get_ticks_msec()
@@ -537,7 +520,7 @@ func _ready() -> void:
 	if building_readiness_enabled:
 		_building_entry.gameplay_ready()
 		Net.server().world3d_authority.movement_allowed=_building_movement_allowed
-	_player.input_locked = Net.session()._world_transition_active or building_readiness_enabled or _initial_loading_cover!=null
+	_player.input_locked = Net.session()._world_transition_active or building_readiness_enabled
 	_ready_for_play = true
 	if map_root.has_meta("entry_plan"):
 		loading_profile.entry_playable_ready_us=Time.get_ticks_usec()
@@ -552,114 +535,32 @@ func _ready() -> void:
 
 
 func _prepare_world_first_frame()->void:
-	# The initial cover owns the disabled viewport until full readiness. Both
-	# environment and navigation preparation must respect that ownership.
-	if is_instance_valid(_initial_loading_cover):return
 	Net.session().prepare_world_first_frame()
 
 
-func _complete_initial_entry(map_root:Node,timeout_msec:int=30000)->bool:
-	var covered:=_initial_loading_cover!=null
-	if covered:
-		_player.input_locked=true
-		# Direct entry must publish its ordinary demand while movement remains
-		# locked. GameSession retains ownership of its own transition handoff.
-		if not Net.session()._world_transition_active:activate_entry_neighbours()
-		if not await _settle_initial_white_load(map_root,timeout_msec):return false
+func _complete_initial_entry(map_root:Node)->bool:
 	if not is_inside_tree() or not is_instance_valid(map_root) or has_meta("entry_loading_error"):return false
 	if not Net.session()._world_transition_active:
 		if building_readiness_enabled:
-			if not covered:await _await_initial_loading_presentation()
+			await _await_initial_loading_presentation()
 			if not is_inside_tree() or not is_instance_valid(map_root):return false
 			if not note_entry_first_frame(DisplayServer.get_name()!="headless"):return false
 			_player.input_locked=false;_player.set_physics_process(true)
-		elif covered:
-			_player.input_locked=false
 		activate_entry_neighbours()
 	return true
 
-
-func _initial_white_load_ready(map_root:Node)->bool:
-	if not is_instance_valid(map_root):return false
-	var deferred:=map_root.get_node_or_null("DeferredAssets")
-	if deferred==null or not deferred.is_idle():return false
-	if not map_root.get_meta("stream_jobs",[]).is_empty():return false
-	if not map_root.get_meta("stream_append_pending",[]).is_empty():return false
-	var batches:=map_root.get_node_or_null("GroundRenderBatches")
-	return batches==null or (batches._preparation.is_empty() and batches.pending.is_empty() and batches._workers.is_empty())
-
-func _settle_initial_white_load(map_root:Node,timeout_msec:int=30000)->bool:
-	# Keep the cover until the current geometry is fully ready. Only an actual
-	# full-ready count reveals the world; a timeout hands off to an opaque error
-	# UI and keeps gameplay locked instead of revealing an unfinished world.
-	if _initial_loading_cover==null:return false
-	var cover:CanvasLayer=_initial_loading_cover
-	var deadline:=Time.get_ticks_msec()+maxi(0,timeout_msec)
-	var stable:=0
-	while is_inside_tree() and is_instance_valid(map_root) and is_instance_valid(cover) and cover==_initial_loading_cover and Time.get_ticks_msec()<deadline and stable<3:
-		await get_tree().process_frame
-		stable=stable+1 if is_instance_valid(map_root) and is_instance_valid(cover) and cover==_initial_loading_cover and _initial_white_load_ready(map_root) else 0
-	if not is_inside_tree() or not is_instance_valid(map_root) or not is_instance_valid(cover) or cover!=_initial_loading_cover:return false
-	if stable<3:
-		_fail_initial_loading("白模全细节就绪超时；未放行角色")
-		return false
-	return await _finish_initial_loading_cover(map_root)
-
-func _fail_initial_loading(reason:String)->void:
-	set_meta("entry_loading_error",reason)
-	_loading_stage(reason)
-	_ready_for_play=false
-	if is_instance_valid(_player):_player.input_locked=true
-	Input.mouse_mode=Input.MOUSE_MODE_VISIBLE
-	var session:=Net.session()
-	var outer:CanvasLayer=session.get_node_or_null("WorldTransition")
-	if session._world_transition_active and is_instance_valid(outer) and outer.is_visible():
-		# GameSession already owns an opaque error/return surface. Retiring this
-		# inner layer also stops it consuming input destined for that return UI.
-		_release_initial_loading_cover()
-		return
-	var deferred:=_map_root.get_node_or_null("DeferredAssets") if is_instance_valid(_map_root) else null
-	if deferred!=null:deferred.end_loading_cover()
-	if is_instance_valid(_initial_loading_cover):
-		_initial_loading_cover.show_failure(reason,_return_from_initial_loading_failure)
-
-func _return_from_initial_loading_failure()->void:
-	Net.session().go_character_select()
-
-func _finish_initial_loading_cover(map_root:Node)->bool:
-	var cover:CanvasLayer=_initial_loading_cover
-	if not is_inside_tree() or not is_instance_valid(map_root) or not is_instance_valid(cover):return false
-	var deferred:=map_root.get_node_or_null("DeferredAssets") if is_instance_valid(map_root) else null
-	if deferred!=null:deferred.end_loading_cover()
-	var viewport:=get_viewport() if is_instance_valid(get_viewport()) else null
-	if viewport!=null:viewport.disable_3d=false
-	# The cover stays opaque until a real 3D frame containing the restored
-	# viewport has been presented. Never reveal on the same frame as disable_3d.
-	await _await_initial_loading_presentation()
-	# Cancellation/exit can revoke the cover while presentation is pending.
-	# A resumed coroutine must never stamp an aborted world as revealed.
-	if not is_inside_tree() or not is_instance_valid(map_root) or not is_instance_valid(cover) or cover!=_initial_loading_cover:return false
-	cover.retire()
-	_initial_loading_cover=null
-	set_meta("initial_loading_cover_released",true)
-	loading_profile.initial_loading_cover_released_us=Time.get_ticks_usec()
-	return true
 
 func _await_initial_loading_presentation()->void:
 	if DisplayServer.get_name()!="headless":await preload("res://scripts/util/frame_presentation.gd").drawn()
 	else:await get_tree().process_frame
 
-func _release_initial_loading_cover()->void:
-	# Abort path only. It intentionally does not wait for a 3D frame because the
-	# world is not being revealed.
+func _abort_initial_entry()->void:
+	# Error cleanup is still required even when no initial cover exists.
 	var deferred:=_map_root.get_node_or_null("DeferredAssets") if is_instance_valid(_map_root) else null
 	if deferred!=null:deferred.end_loading_cover()
 	if is_instance_valid(get_viewport()):get_viewport().disable_3d=false
-	if is_instance_valid(_initial_loading_cover):_initial_loading_cover.retire()
-	_initial_loading_cover=null
 	_ready_for_play=false
 	if is_instance_valid(_player):_player.input_locked=true
-	set_meta("initial_loading_cover_aborted",true)
 
 func _unhandled_input(event: InputEvent) -> void:
 	if _player == null or _player.input_locked:

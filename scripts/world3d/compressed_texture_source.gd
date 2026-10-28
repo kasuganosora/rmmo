@@ -1,6 +1,7 @@
 extends RefCounted
 ## CPU-only admission and reading of complete BC1/BC3/BC5 2D DDS mip chains.
-## Never touches render caches, hashes package bytes, expands pixels or builds mips.
+## Trusted game plan/read never hash package bytes. The explicit mutable-source
+## editor route binds derived DDS bytes to an already-read authored snapshot.
 const Paths=preload("res://scripts/world3d/map_paths.gd")
 const MAX_DIMENSION=4096
 const MAX_SOURCE_BYTES=128*1024*1024
@@ -59,6 +60,38 @@ static func plan(path:String,flip:bool,normal:bool,root:String)->Dictionary:
 	row.path=path;row.sidecar=sidecar;row.flip=flip;row.normal=normal;row.root=root
 	return row
 
+static func _sha(value:Variant)->bool:
+	if not value is String or value.length()!=64:return false
+	for character:String in value:
+		if not character in "0123456789abcdef":return false
+	return true
+
+static func plan_mutable(path:String,flip:bool,normal:bool,root:String,source_sha256:String)->Dictionary:
+	# Caller owns the already-read PNG snapshot and its full fallback reservation.
+	# Old sidecars without producer identity stay usable for trusted game packages
+	# but cannot establish freshness for an editable same-path source.
+	if not _sha(source_sha256):return {}
+	var row:=plan(path,flip,normal,root)
+	if row.is_empty():return {}
+	var metadata_path:=str(row.sidecar)+".source.json"
+	if not Paths.allowed(metadata_path,root):return {}
+	var file:=FileAccess.open(metadata_path,FileAccess.READ)
+	if file==null or file.get_length()<=0 or file.get_length()>2048:return {}
+	var parser:=JSON.new()
+	if parser.parse(file.get_as_text())!=OK:return {}
+	var metadata:Variant=parser.data
+	if not metadata is Dictionary or metadata.get("version")!=1 or metadata.get("encoder_version")!=1:return {}
+	if metadata.get("normal")!=normal or metadata.get("flip")!=flip:return {}
+	if metadata.get("source_sha256")!=source_sha256 or not _sha(metadata.get("dds_sha256")):return {}
+	var source_bytes:Variant=metadata.get("source_bytes")
+	if not source_bytes is float and not source_bytes is int:return {}
+	if source_bytes<=0 or source_bytes>MAX_SOURCE_BYTES or source_bytes!=int(source_bytes):return {}
+	if metadata.get("dds_bytes")!=row.source_bytes:return {}
+	row.mutable_source=true
+	row.mutable_source_sha256=source_sha256
+	row.mutable_dds_sha256=metadata.dds_sha256
+	return row
+
 static func read(row:Dictionary)->Image:
 	if preload("res://scripts/world3d/runtime_probe_controls.gd").discard_map_textures:return null
 	var sidecar:=str(row.get("sidecar",""));var root:=str(row.get("root",""))
@@ -67,13 +100,19 @@ static func read(row:Dictionary)->Image:
 	if file==null or file.get_length()!=int(row.get("source_bytes",0)):return null
 	var length:=file.get_length()
 	if length<128 or length>MAX_SOURCE_BYTES:return null
-	var actual:=_header(file.get_buffer(mini(length,148)),length,bool(row.get("normal",false)))
+	var header:=file.get_buffer(mini(length,148))
+	var actual:=_header(header,length,bool(row.get("normal",false)))
 	if actual.is_empty():return null
 	for field:String in actual:
 		if actual[field]!=row.get(field):return null
 	file.seek(actual.header_bytes)
 	var payload:=file.get_buffer(actual.output_bytes)
 	if payload.size()!=actual.output_bytes:return null
+	if row.get("mutable_source",false):
+		if not _sha(row.get("mutable_source_sha256")) or not _sha(row.get("mutable_dds_sha256")):return null
+		var hash_:=HashingContext.new();hash_.start(HashingContext.HASH_SHA256)
+		hash_.update(header.slice(0,actual.header_bytes));hash_.update(payload)
+		if hash_.finish().hex_encode()!=row.mutable_dds_sha256:return null
 	var image:=Image.create_from_data(actual.width,actual.height,actual.mip_count>1,actual.format,payload)
 	if image==null or image.is_empty() or image.get_data_size()!=actual.output_bytes:return null
 	image.set_meta("runtime_upload_has_alpha",actual.alpha)

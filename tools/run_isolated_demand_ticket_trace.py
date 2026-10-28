@@ -39,6 +39,7 @@ def make_command(template, sample, target, content, map_path, _suppressed):
     if target not in PHASES:
         raise ValueError('invalid ticket trace phase')
     command = list(template)
+    base.require_full_template(command)
     if not command or '_console.exe' in command[0]:
         raise ValueError('template must name GUI executable directly')
     if command.count('--script') != 1 or command[command.index('--script') + 1] != 'res://tools/profile_axel_worker_capacity.gd':
@@ -143,7 +144,7 @@ def main():
     parser.add_argument('--manifest-sha256', required=True)
     parser.add_argument('--phase', required=True, choices=PHASES)
     parser.add_argument('--timeout', type=int, default=420)
-    parser.add_argument('--expected-candidates', type=int, default=11)
+    parser.add_argument('--expected-full-models', type=int, default=49)
     args = parser.parse_args()
     args.overlay = base.inside(args.overlay, base.ARTIFACTS.resolve(strict=True)).resolve(strict=True)
     disjoint_roots(args.overlay, args.sample_dir, args.user_dir, args.content_root)
@@ -154,7 +155,7 @@ def main():
     base.source_snapshot = checked_sources
     result = base.run(args)
     print(json.dumps(result), flush=True)
-    return 0 if result.get('exit_code') == 0 and result.get('fixture_unchanged') and result.get('settings_unchanged') and result.get('engine_unchanged') and result.get('capture', {}).get('valid') else 1
+    return 0 if result.get('exit_code') == 0 and result.get('fixture_unchanged') and result.get('settings_unchanged') and result.get('engine_unchanged') and result.get('template_unchanged') and result.get('capture', {}).get('valid') else 1
 
 
 if __name__ == '__main__':

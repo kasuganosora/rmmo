@@ -2,7 +2,6 @@ extends RefCounted
 ## Read-only source accessor bounds, not an importer or vertex-buffer validator.
 ## Unknown is deliberately eager. No nodes, image decoding, or resource caches.
 const MAX_JSON := 4 * 1024 * 1024
-const MAX_NODES := 65536
 const MAX_COORD := 1.0e12
 const MATERIAL_EXTENSIONS := ["KHR_materials_specular", "KHR_materials_transmission", "KHR_materials_unlit", "KHR_materials_emissive_strength", "KHR_materials_pbrSpecularGlossiness", "KHR_materials_clearcoat", "KHR_materials_ior"]
 
@@ -49,7 +48,7 @@ static func from_json(data: Dictionary, bin_size: int) -> Dictionary:
 	var accessors: Variant = data.get("accessors")
 	var views: Variant = data.get("bufferViews")
 	var scenes: Variant = data.get("scenes")
-	if not nodes is Array or nodes.is_empty() or nodes.size() > MAX_NODES: return unknown("nodes")
+	if not nodes is Array or nodes.is_empty(): return unknown("nodes")
 	if not meshes is Array or not accessors is Array or not views is Array or not scenes is Array or scenes.is_empty(): return unknown("arrays")
 	for view in views:
 		if not view is Dictionary or not _index(view.get("buffer"),1) or not _uint(view.get("byteOffset", 0)) or not _uint(view.get("byteLength")): return unknown("buffer_view")

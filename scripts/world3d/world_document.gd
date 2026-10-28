@@ -6,7 +6,6 @@ const GltfMapIo = preload("res://scripts/world3d/gltf_map_io.gd")
 const SurfaceMaterials = preload("res://scripts/world3d/surface_materials.gd")
 const CpuMesh = preload("res://scripts/world3d/ground_cpu_mesh.gd")
 static var legacy_mesh_placeholder_enabled:=false # Same-code measurement of superseded GPU bindings.
-static var white_entry_material_reuse_enabled:=true # Diagnostic old white-entry fallback material control.
 
 var records: Array = []
 var map_meta: Dictionary = {}
@@ -24,6 +23,7 @@ var load_texture_checks: Variant=null
 var load_box_meshes: Variant=null
 var load_box_hits:=0
 var load_model_signatures:Dictionary={}
+var load_native_model_identities:Dictionary={}
 var load_immutable_records:=false
 var load_require_native_products:=false # Game-owned documents prohibit raw imports; editor documents can import.
 var load_surface_arrays:Dictionary={}
@@ -186,8 +186,8 @@ func build(effects: bool=true) -> Node3D:
 	# effects=false is the off-screen export view; cached meshes can be CPU-only.
 	# One immutable rebuild shares validation and painted primitive geometry;
 	# restore the ordinary edit context afterwards so later edits revalidate files.
-	var previous_context:Array=[load_paint_validation,load_texture_checks,load_box_meshes,load_model_signatures,load_material_pool]
-	load_paint_validation={};load_texture_checks={};load_box_meshes={};load_model_signatures={};load_material_pool={}
+	var previous_context:Array=[load_paint_validation,load_texture_checks,load_box_meshes,load_model_signatures,load_material_pool,load_native_model_identities]
+	load_paint_validation={};load_texture_checks={};load_box_meshes={};load_model_signatures={};load_material_pool={};load_native_model_identities={}
 	var world := export_root()
 	terrain_neighbors.update(records)
 	if not effects: _save_meshes.begin(records)
@@ -195,7 +195,7 @@ func build(effects: bool=true) -> Node3D:
 		world.add_child(_asset(record) if record.get("kind") == "asset" else _mesh(record,effects))
 	load_paint_validation=previous_context[0];load_texture_checks=previous_context[1];load_box_meshes=previous_context[2]
 	load_model_signatures=previous_context[3]
-	load_material_pool=previous_context[4]
+	load_material_pool=previous_context[4];load_native_model_identities=previous_context[5]
 	return world
 
 
@@ -276,8 +276,7 @@ func validate_save_record(record: Dictionary, material_validation:Variant=null, 
 		# A caller-owned cache lasts for this immutable validation only. A forest
 		# of instances should not reopen the same path's ancestors per instance.
 		if asset_validation==null or not asset_validation.has(path):
-			if not preload("res://scripts/world3d/map_paths.gd").allowed(path):return ERR_INVALID_DATA
-		if not preload("res://scripts/world3d/runtime_package_policy.gd").trusted() and not preload("res://scripts/world3d/imported_building.gd").verify_source(record):return ERR_FILE_CORRUPT
+			if not preload("res://scripts/world3d/map_paths.gd").asset_key_allowed(path):return ERR_INVALID_DATA
 		if asset_validation!=null:
 			var required:=preload("res://scripts/world3d/house_prefab.gd").requires_source_model(record)
 			asset_validation[path]=bool(asset_validation.get(path,false)) or required
@@ -285,11 +284,14 @@ func validate_save_record(record: Dictionary, material_validation:Variant=null, 
 
 
 func validate_save_asset_paths(asset_validation:Dictionary) -> Error:
-	# Repeat path authority and existence after any sliced validation yields;
-	# neither a previous save nor a stale in-pass cache authorizes publication.
+	# Model paths are logical keys after import; saving never opens authoring GLB.
+	# Repeat published-product checks after any sliced validation yields.
+	var published:Dictionary={}
 	for path:String in asset_validation:
-		if not preload("res://scripts/world3d/map_paths.gd").allowed(path):return ERR_INVALID_DATA
-		if asset_validation[path] and not FileAccess.file_exists(path):return ERR_FILE_NOT_FOUND
+		if not preload("res://scripts/world3d/map_paths.gd").asset_key_allowed(path):return ERR_INVALID_DATA
+		if asset_validation[path]:
+			published[path]=preload("res://scripts/world_editor/asset_library.gd").native_validation_candidate(path)
+			if published[path].is_empty():return ERR_FILE_NOT_FOUND
 	# Room/member proofs checked before a sliced yield must still refer to the
 	# same immutable bytes immediately before publication.
 	var verified:Dictionary={}
@@ -297,14 +299,17 @@ func validate_save_asset_paths(asset_validation:Dictionary) -> Error:
 		if not record.has("model_building"):continue
 		var path:String=str(record.get("asset_path",""))
 		if not asset_validation.has(path):return ERR_INVALID_DATA
-		if not verified.has(path):verified[path]=FileAccess.get_sha256(path)
+		if not verified.has(path):
+			var candidate:Dictionary=published.get(path,{})
+			if candidate.is_empty():candidate=preload("res://scripts/world_editor/asset_library.gd").native_validation_candidate(path)
+			verified[path]=str(candidate.get("source_sha",""))
 		if verified[path]!=record.model_building.source_sha:return ERR_FILE_CORRUPT
 	return OK
 
 
 func save_signature(gltf_path: String) -> Variant:
-	var canonical := ProjectSettings.globalize_path(gltf_path).simplify_path()
-	return _disk_signature if canonical == _disk_path else null
+	var canonical := ProjectSettings.globalize_path(gltf_path).replace("\\", "/").simplify_path()
+	return _disk_signature if canonical == _disk_path.replace("\\", "/").simplify_path() else null
 
 
 func accept_save(gltf_path: String, signature: String) -> void:
@@ -425,10 +430,6 @@ func _mesh(record: Dictionary, effects: bool=true, timings: Variant=null) -> Mes
 	# Mounted package declarations were prepared by the loader. Actual material
 	# construction still resolves its textures; editing/strict calls keep preflight.
 	var trusted_texture_load:bool=effects and load_immutable_records and preload("res://scripts/world3d/runtime_package_policy.gd").trusted()
-	# This immutable white entry is never used for authored material restoration.
-	# Its effective material was already the global white override; retain that
-	# exact shared material in the CPU slots instead of constructing hidden colors.
-	var white_prepared:bool=white_entry_material_reuse_enabled and cpu_index and preload("res://scripts/world3d/runtime_probe_controls.gd").white_materials and load_surface_arrays.has(str(record.get("uuid","")))
 	if record.has("house_prefab"):
 		var prefab=preload("res://scripts/world3d/house_prefab.gd")
 		# Runtime indexing consumes immutable CPU geometry. Upload only when the
@@ -471,15 +472,15 @@ func _mesh(record: Dictionary, effects: bool=true, timings: Variant=null) -> Mes
 		if load_box_meshes.has(box_key): cached=load_box_meshes[box_key].mesh; load_box_hits+=1
 	if effects and load_box_meshes!=null and record.has("fortification_art") and str(record.fortification_art.asset_path).get_extension().to_lower()=="glb":
 		var model_path:String=record.fortification_art.asset_path
-		if not load_model_signatures.has(model_path):
-			if load_require_native_products and preload("res://scripts/world3d/runtime_package_policy.gd").trusted():
-				var metadata:=preload("res://scripts/world3d/native_model_product.gd").read(model_path,preload("res://scripts/world3d/map_paths.gd").external_root(),"",-1)
-				if metadata.is_empty():
-					mesh_node.set_meta("paint_error","游戏模型缺少可用原生描述，请在内容编辑器重新导出："+model_path)
-					return mesh_node
-				load_model_signatures[model_path]=metadata.native_source_sha
-			else:load_model_signatures[model_path]=FileAccess.get_sha256(model_path)
-		box_key=["fortification",record.size,record.get("channel_mesh",{}),record.get("terrain_grade",[]),record.get("water_gate",{}),record.fortification_art,record.fortification_materials,record.get("surface_paint",[]),load_model_signatures[model_path]]
+		var candidate:Dictionary=load_native_model_identities.get(model_path,{})
+		if candidate.is_empty():
+			candidate=preload("res://scripts/world_editor/asset_library.gd").native_validation_candidate(model_path)
+			if not candidate.is_empty():load_native_model_identities[model_path]=candidate
+		if candidate.is_empty():
+			mesh_node.set_meta("paint_error","模型缺少可用原生描述，请在内容编辑器重新导出："+model_path)
+			return mesh_node
+		load_model_signatures[model_path]=candidate.source_sha
+		box_key=["fortification",record.size,record.get("channel_mesh",{}),record.get("terrain_grade",[]),record.get("water_gate",{}),record.fortification_art,record.fortification_materials,record.get("surface_paint",[]),[candidate.source_sha,candidate.payload_sha]]
 		if load_box_meshes.has(box_key):cached=load_box_meshes[box_key].mesh;load_box_hits+=1
 	var box:BoxMesh
 	var size: Array = record.get("size", [1, 1, 1])
@@ -487,9 +488,7 @@ func _mesh(record: Dictionary, effects: bool=true, timings: Variant=null) -> Mes
 		box=BoxMesh.new()
 		box.size=Vector3(float(size[0]),float(size[1]),float(size[2]))
 	var color: Array = record.get("color", [])
-	if white_prepared and cached==null:
-		box.material=preload("res://scripts/world3d/runtime_probe_controls.gd").white_material()
-	elif color.size() >= 3 and cached==null:
+	if color.size() >= 3 and cached==null:
 		var mat := StandardMaterial3D.new()
 		mat.roughness = 0.92
 		mat.albedo_color = Color(float(color[0]), float(color[1]), float(color[2]))
@@ -497,7 +496,7 @@ func _mesh(record: Dictionary, effects: bool=true, timings: Variant=null) -> Mes
 			mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 			mat.albedo_color.a = 0.0
 		box.material = mat
-	if not white_prepared and record.has("channel_mesh") and not record.has("fortification_art") and record.get("surface_id")=="water" and box!=null and box.material is StandardMaterial3D:
+	if record.has("channel_mesh") and not record.has("fortification_art") and record.get("surface_id")=="water" and box!=null and box.material is StandardMaterial3D:
 		box.material.roughness=.22;box.material.metallic=.15
 	var geometry_started:int=Time.get_ticks_usec() if timings!=null else 0
 	if cached != null:
@@ -513,11 +512,11 @@ func _mesh(record: Dictionary, effects: bool=true, timings: Variant=null) -> Mes
 		var prepared:Mesh
 		if timings!=null:timings.setup_ms=(Time.get_ticks_usec()-profile_mark)/1000.;profile_mark=Time.get_ticks_usec()
 		var channel_geometry:bool=preload("res://scripts/world3d/channel_mesh_preparation.gd").supports(record)
-		var material:Material=preload("res://scripts/world3d/runtime_probe_controls.gd").white_material() if white_prepared else (SurfaceMaterials.make_material(record.terrain_material,BaseMaterial3D.CULL_BACK) if record.has("terrain_material") and not channel_geometry else box.material)
+		var material:Material=SurfaceMaterials.make_material(record.terrain_material,BaseMaterial3D.CULL_BACK) if record.has("terrain_material") and not channel_geometry else box.material
 		if timings!=null:timings.material_ms=(Time.get_ticks_usec()-profile_mark)/1000.;profile_mark=Time.get_ticks_usec()
 		var arrays:Array=load_surface_arrays[str(record.uuid)]
 		var slot_materials:Array=[]
-		for slot in arrays.size():slot_materials.append(preload("res://scripts/world3d/road_surface.gd").kerb_material(record) if not white_prepared and (record.has("road_mesh") or channel_geometry) and slot==3 else material)
+		for slot in arrays.size():slot_materials.append(preload("res://scripts/world3d/road_surface.gd").kerb_material(record) if (record.has("road_mesh") or channel_geometry) and slot==3 else material)
 		if cpu_index and load_surface_bounds.has(str(record.uuid)):
 			prepared=preload("res://scripts/world3d/procedural_surface_bounds.gd").make_cpu(arrays,slot_materials,load_surface_bounds[str(record.uuid)])
 		elif cpu_index:prepared=preload("res://scripts/world3d/ground_cpu_mesh.gd").from_surfaces(arrays,slot_materials)
@@ -626,14 +625,6 @@ func _mesh(record: Dictionary, effects: bool=true, timings: Variant=null) -> Mes
 		# Water keeps separate rendering/transparency, but its directory entry
 		# can retain CPU geometry and slot materials until the actual stream spawn.
 		preload("res://scripts/world3d/river_materials.gd").apply(mesh_node,record,river_context,load_paint_validation,load_immutable_records,cpu_index)
-		if white_prepared and mesh_node.mesh is CpuMesh:
-			var white:Material=preload("res://scripts/world3d/runtime_probe_controls.gd").white_material()
-			var redundant:bool=mesh_node.material_override==white and not mesh_node.mesh.materials.is_empty()
-			for slot in mesh_node.mesh.materials.size():
-				redundant=redundant and mesh_node.mesh.materials[slot]==white and mesh_node.get_surface_override_material(slot)==null
-			# A redundant override would make every cooked spec fall back to _mesh
-			# on the next load. Only erase it when all effective slots are identical.
-			if redundant:mesh_node.material_override=null
 		if timings!=null:timings.river_ms=(Time.get_ticks_usec()-profile_mark)/1000.;profile_mark=Time.get_ticks_usec()
 	preload("res://scripts/world3d/wind_response.gd").annotate(mesh_node,record)
 	if effects and preload("res://scripts/world3d/ground_batch_geometry.gd").candidate(record): mesh_node.set_meta("ground_batch_record", (record if load_immutable_records else record.duplicate(true)))
@@ -660,7 +651,7 @@ func missing_assets() -> Array:
 		if record.get("kind")!="asset":continue
 		if not preload("res://scripts/world3d/house_prefab.gd").requires_source_model(record):continue
 		var path:=str(record.get("asset_path",""))
-		if not checked.has(path):checked[path]=FileAccess.file_exists(path)
+		if not checked.has(path):checked[path]=preload("res://scripts/world_editor/asset_library.gd").native_available(path)
 		if not checked[path]:missing.append(path)
 	return missing
 
@@ -705,7 +696,7 @@ func _begin_asset_instance(record:Dictionary,prepared:Dictionary)->Dictionary:
 		fallback.material_override = material
 		holder.add_child(fallback)
 		holder.set_meta("missing_asset", true)
-		if load_require_native_products:holder.set_meta("paint_error","游戏模型缺少可用原生产物，请在内容编辑器重新导出："+str(record.get("asset_path","")))
+		holder.set_meta("paint_error","模型缺少可用原生产物，请在内容编辑器重新导入或转换："+str(record.get("asset_path","")))
 	else:
 		holder.add_child(model)
 		var tree_error:=preload("res://scripts/world3d/parametric_tree.gd").apply(model,record)

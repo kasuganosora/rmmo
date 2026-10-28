@@ -1,9 +1,7 @@
 extends "res://tools/test_house_geometry_identity_reuse.gd"
 func run()->void:
 	preload("res://scripts/world3d/runtime_package_policy.gd").verify_packages=false
-	preload("res://scripts/world3d/prefab_binary_cache.gd").enabled=false
 	var controls=preload("res://scripts/world3d/runtime_probe_controls.gd")
-	controls.enable_white_materials();controls.discard_map_textures=true
 	var data:=fixture();var indices:=PackedInt32Array();indices.resize(120000)
 	for i in indices.size():indices[i]=i%3
 	data.meshes[0].surfaces[0][Mesh.ARRAY_INDEX]=indices
@@ -36,10 +34,8 @@ func run()->void:
 		for i in 24:House.prepare_cpu(source)
 		timings.append({"reuse":reuse,"calls":24,"us":Time.get_ticks_usec()-began})
 	House.raw_face_reuse_enabled=true;evict(value.sha256)
-	controls.discard_map_textures=false;House.prepare_cpu(source)
-	check(House._decoded[value.sha256].has("collision_faces"),"ordinary texture path shares the same geometry-only face cache")
-	controls.discard_map_textures=true;House.prepare_cpu(source)
-	check(House._decoded[value.sha256].has("collision_faces"),"white consumers retain complete face coverage from the textured packet")
+	House.prepare_cpu(source)
+	check(House._decoded[value.sha256].has("collision_faces"),"full-material path shares the same geometry-only face cache")
 	var queue:=preload("res://scripts/world3d/deferred_asset_loader.gd").new();queue._configure_admission_budget()
 	check(queue.profile.prefab_decode_reserved_bytes==House.DECODE_BUDGET,"full shared decode ceiling is reserved outside task workspace")
 	queue.free();House.evict_geometry({value.sha256:true})

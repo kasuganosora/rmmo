@@ -65,7 +65,7 @@ static func _node_path(value:Variant)->bool:
 	return true
 
 static func _valid_candidate(value:Dictionary,path:String,root:String,expected:String="")->bool:
-	if value.size()!=9 or root.is_empty() or not Paths.allowed(path,root) or value.get("version")!=VERSION or value.get("source_path")!=path or value.get("generator")!=generator():return false
+	if value.size()!=9 or root.is_empty() or not Paths.asset_key_allowed(path,root) or value.get("version")!=VERSION or value.get("source_path")!=path or value.get("generator")!=generator():return false
 	if not Products._sha(value.get("source_sha")) or not Products._sha(value.get("descriptor_sha")):return false
 	if not expected.is_empty() and value.source_sha!=expected:return false
 	if not _uint(value.get("descriptor_bytes"),MAX_DESCRIPTOR_BYTES) or value.descriptor_bytes<=0 or not _uint(value.get("retained_bytes"),MAX_RETAINED_BYTES):return false
@@ -75,7 +75,7 @@ static func _valid_candidate(value:Dictionary,path:String,root:String,expected:S
 static func candidate(path:String,root:String,expected_source:String="")->Dictionary:
 	# Small bounded admission descriptor only; no payload/source read or geometry
 	# authority. Freeze this exact envelope and never re-read the mutable index.
-	if root.is_empty() or not Paths.allowed(path,root) or not FileAccess.file_exists(path):return {}
+	if root.is_empty() or not Paths.asset_key_allowed(path,root):return {}
 	if not expected_source.is_empty() and not Products._sha(expected_source):return {}
 	var index:=_index_path(path,root)
 	if not Paths.allowed(index,directory(root)):return {}
@@ -140,11 +140,12 @@ static func read(value:Dictionary,root:String,admitted_bytes:int,token:RefCounte
 		geometries.append({"kind":product.kind,"faces":product.faces,"box":product.box,"bounds":bounds,"identity":product.identity})
 	if retained!=int(value.retained_bytes):return _miss("product_bytes")
 	var products_end:=Time.get_ticks_usec()
-	# No GLTF/PackedScene/material/image APIs above. The full current author hash
-	# remains the final gate, after every frozen payload has been read/validated.
-	var source:=_hash_source(path,root,token)
+	# Collision consumers bind to the published native identity. Only the
+	# explicit offline producer below may read the optional GLB import source.
+	var native:=preload("res://scripts/world3d/native_model_product.gd").read(path,root)
+	var source:={"ok":not native.is_empty(),"sha":str(native.get("native_source_sha",""))}
 	var source_end:=Time.get_ticks_usec()
-	if not source.ok:return source
+	if not source.ok:return _miss("native_product_missing")
 	if source.sha!=value.source_sha:return _miss("source_changed")
 	if not Paths.allowed(blob,directory(root)) or _cancelled(token):return _miss("path_or_cancel",_cancelled(token))
 	var asset:=Asset.new();asset._source_path=path;asset._source_sha=value.source_sha;asset._entries=data.entries;asset._products=geometries;asset._bytes=retained

@@ -38,3 +38,22 @@
 - 红绿及旧断言失败证据保留于 `D:/code/rmmo_runtime/review_artifacts/editor_material_catalog_limits_20261028_01/`。
 
 本轮未新增文件监视或后台扫描取消接口；现有材质面板退出仍等待后台目录任务完成，该调度边界与静默丢内容问题分开记录。
+
+## 已修复：单产品 1GiB 与 65536 节点门槛
+
+继续检查发现，producer、固定候选 reader、footprint、编辑器 ownership 和预取身份共用了单个 SCN 的 1GiB 配额；producer 的场景检查、ownership 图遍历、几何复用和显式导入 bounds 又各自限制了 65536 节点。这些数量不代表已测得的内存成本。特别是几何复用已经持有完整模板，却仍按节点数量拒用，会使合法产品走额外准备路径。
+
+已去掉上述门槛。文件长度继续要求是正数、与实际文件相等，并能由 JSON 数字精确表达；`MAX_JSON_INTEGER=2^53-1` 是索引编码的精确整数边界，不是新的存储配额。实际内存准入 envelope、去重、图类型约束、来源/产物身份和严格 native 审计均保留。没有取消 worker 或显存预算。
+
+引擎源码核对：`core/io/resource_format_binary.cpp` 使用 64 位资源偏移；`scene/resources/packed_scene.h` 的名称索引为 18 位，节点引用采用另一套标志编码，并无这两处项目门槛。另有真实限制必须区分：`FileAccessCompressed::_close` 将解压长度写入 32 位字段，`open_after_magic` 同样读取 32 位；本轮没有改造该压缩格式，不能据此声称任意大场景都可压缩或装入内存。
+
+证据目录：`D:/code/rmmo_runtime/review_artifacts/native_product_boundaries_20261028_01/`。
+
+- 同一 `tools/test_native_product_boundaries.gd`：旧逻辑 **5 通过 / 8 失败**；新逻辑 **14/0**，各自运行期间 scripts/tools 身份不变。
+- 文件夹具由引擎保存真实小型未压缩 SCN，再追加 sparse 零填充至 **1,074,790,400 bytes**，实际分配 **131,072 bytes**；内容寻址 SHA 与索引匹配。严格读取、实际实例化、ownership 和预取全部通过，逻辑 GLB 路径不存在。它证明旧文件尺寸 gate 的问题，不代表已经压测等量真实几何、GPU 上传或 RSS。
+- 另一个实际 SCN 包含 **65537 节点**，保存、读回、实例化到最后一个子节点均通过；producer schema、ownership、几何复用不再拒绝。显式导入 bounds 能包含超过旧门槛位置的最后一个 mesh。
+- 使用同一 GREEN 引擎；headless 无图形资源。首次 seed 夹具函数名与 GDScript 内建 `seed` 冲突，parse 失败保留；改名后的 seed 才用于红绿，不将该夹具失败归为产品问题。
+
+白模专项退役后扩展并重跑为 **23/0**（`white_mode_retirement_20261028_01/boundaries_02`）：增加小数、负数、非有限值、字符串和 JSON 不精确整数拒绝；用实际含 65537 节点的 GLB 经过 `Manifest.read` 验证最后一个 mesh 的 bounds。该 GLB 的 JSON 在既有字节合同内，未宣称取消了 GLB JSON 的 4MiB 上限，也未将空节点场景的成功当作大型网格性能结果。
+
+其余审查：贴图导入的 16MiB/4096 限制与 consumer 的 4096 解码、DDS 和缓存合同相连，尚未完成整链跨阈值验证；地图记录/建筑上限也属于持久化合同，不能仅放开某个 UI 入口。缩略图 LRU、运行内存准入和每帧调度预算用于控制资源占用，与静默隐藏内容的目录限额分开评估。以上未处理项不宣称已解决。

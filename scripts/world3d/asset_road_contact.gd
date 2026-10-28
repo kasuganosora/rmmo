@@ -36,20 +36,21 @@ static func collect(node:Node,parent:Transform3D,result:Dictionary)->void:
 static func geometry(asset:Dictionary,cache:Dictionary)->Dictionary:
 	if asset.get("kind")!="asset" or asset.has("house_prefab") or asset.has("fixture") or asset.has("wind_response") or asset.has("parametric_tree"):return {"known":false}
 	var path:String=asset.get("asset_path","")
-	# External-buffer glTF needs a dependency digest; until then keep its bounds.
-	if path.get_extension().to_lower()!="glb" or not FileAccess.file_exists(path):return {"known":false}
-	# Full source digest, not mtime: even same-length replacements invalidate.
-	var digest:=FileAccess.get_sha256(path)
-	var key:=City.token([path,digest,asset.get("position"),asset.get("rotation"),asset.get("size")])
+	var library=preload("res://scripts/world_editor/asset_library.gd")
+	if not preload("res://scripts/world3d/map_paths.gd").asset_key_allowed(path):return {"known":false}
+	var candidate:Dictionary=library.native_validation_candidate(path)
+	if candidate.is_empty():return {"known":false}
+	var digest:String=candidate.source_sha
+	var key:=City.token([path,candidate.native_product_kind,digest,candidate.payload_sha,candidate.generator,asset.get("position"),asset.get("rotation"),asset.get("size")])
 	if cache.has(key):return cache[key]
 	var result:={"known":true,"faces":[],"solids":[],"source_sha256":digest}
-	var scene=preload("res://scripts/world3d/gltf_map_io.gd").load_scene(path)
+	var scene=library.instantiate_preview(path,true)
 	if scene==null:return {"known":false}
 	var size:=City.vec(asset.size)
 	if minf(absf(size.x),minf(absf(size.y),absf(size.z)))<.000001:scene.free();return {"known":false}
 	collect(scene,Transform3D(Basis.from_euler(City.vec(asset.rotation)*PI/180)*Basis.from_scale(size),City.vec(asset.position)),result)
 	scene.free()
-	if result.faces.is_empty() or FileAccess.get_sha256(path)!=digest:result.known=false
+	if result.faces.is_empty():result.known=false
 	cache[key]=result;return result
 static func inside(point:Vector3,faces:Array)->bool:
 	# Signed crossings preserve adjacent solids' coincident exit/entry faces.

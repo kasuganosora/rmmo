@@ -26,13 +26,17 @@ class TicketOverlayTest(unittest.TestCase):
             map_path = content / 'map.gltf'
             template = ['D:/godot.exe', '--path', str(runner.SOURCE_ROOT), '--script',
                         'res://tools/profile_axel_worker_capacity.gd', '--test-map='+str(map_path),
-                        '--test-content-root='+str(content), '--output=old.json']
+                        '--test-content-root='+str(content), '--output=old.json', '--mesh-only', '--native-only', '--full-material-stage']
             cmd = runner.make_command(template, Path('D:/sample'), 'white_native_return', content, map_path, False)
             self.assertEqual(cmd[cmd.index('--path')+1], str(runner.base.ROOT))
             self.assertIn('res://tools/profile_axel_demand_tickets.gd', cmd)
             self.assertIn('--demand-ticket-capacity=16384', cmd)
             with self.assertRaises(ValueError):
                 runner.make_command(template + ['--demand-ticket-trace'], Path('D:/sample'), 'white_native_return', content, map_path, False)
+            with self.assertRaises(ValueError):
+                runner.make_command(template + ['--white-material'], Path('D:/sample'), 'white_native_return', content, map_path, False)
+            with self.assertRaises(ValueError):
+                runner.make_command([value for value in template if value != '--full-material-stage'], Path('D:/sample'), 'white_native_return', content, map_path, False)
         finally:
             runner.base.ROOT = old_root
 

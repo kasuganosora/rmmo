@@ -38,7 +38,7 @@ static func _cancelled(token: RefCounted) -> bool:
 static func _fail(reason: String, cancelled: bool = false) -> Dictionary:
 	return {"error": reason, "cancelled": cancelled, "arrays": [], "estimated_bytes": 0, "output_bytes": 0, "elapsed_us": 0}
 
-static func prepare(record: Dictionary, token: RefCounted = null,trusted_package:bool=false,content_root:String="",prepared_budget:Dictionary={},definition_sha:String="",prepare_upload:bool=false) -> Dictionary:
+static func prepare(record: Dictionary, token: RefCounted = null,trusted_package:bool=false,_content_root:String="",prepared_budget:Dictionary={},_definition_sha:String="",prepare_upload:bool=false) -> Dictionary:
 	if _cancelled(token): return _fail("Native road preparation cancelled", true)
 	var budget := estimate(record,trusted_package) if prepared_budget.is_empty() else prepared_budget
 	if not budget.ok: return _fail(budget.reason)
@@ -48,13 +48,9 @@ static func prepare(record: Dictionary, token: RefCounted = null,trusted_package
 	# Node or GPU resources. SurfaceTool's bounded single-road operation is not
 	# interruptible; a cancelled result is discarded before it can be published.
 	# The chunk preflight supplies its already computed admission estimate.
-	# Only the trusted white package path consumes the offline projection.
-	var cached:Dictionary={}
-	if trusted_package and not content_root.is_empty():cached=preload("res://scripts/world3d/road_array_cache.gd").read(record,content_root,budget.output_bytes,definition_sha)
-	var arrays: Array = cached.arrays if not cached.is_empty() else Road.arrays(record)
+	var arrays:Array=Road.arrays(record)
 	if _cancelled(token): return _fail("Native road preparation cancelled", true)
-	var result:={"error": "", "cancelled": false, "arrays": arrays, "estimated_bytes": budget.estimated_bytes, "output_bytes": budget.output_bytes, "elapsed_us": Time.get_ticks_usec() - started,"cache_hit":not cached.is_empty()}
-	if cached.has("bounds"):result.bounds=cached.bounds
+	var result:={"error": "", "cancelled": false, "arrays": arrays, "estimated_bytes": budget.estimated_bytes, "output_bytes": budget.output_bytes, "elapsed_us": Time.get_ticks_usec() - started,"cache_hit":false}
 	var upload_started:=Time.get_ticks_usec()
 	# The existing second output allowance covers the packed upload buffer.
 	# Even a small road's first native upload can stall. The existing worker

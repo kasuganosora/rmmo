@@ -4,7 +4,7 @@ extends SceneTree
 const Paths=preload("res://scripts/world3d/map_paths.gd")
 const Store=preload("res://scripts/world3d/map_resource_store.gd")
 const Index=preload("res://scripts/world3d/map_dependency_index.gd")
-const Writer=preload("res://scripts/world3d/white_native_asset_writer.gd")
+const Writer=preload("res://scripts/world3d/compiled_asset_cache.gd")
 const REVIEW="D:/code/rmmo_runtime/review_artifacts"
 var folder:=""
 var checks:=0

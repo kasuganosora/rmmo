@@ -109,8 +109,10 @@ class FullFixtureTest(unittest.TestCase):
         with self.assertRaises(ValueError):self.verify()
 
 class FullStageTest(unittest.TestCase):
-    def test_old_stage_flags_unchanged(self):
-        self.assertEqual(stage_arguments('white'),['--white-material','--without-map-textures']);self.assertEqual(stage_arguments('map'),['--map-texture-stage']);self.assertEqual(stage_arguments('full'),['--full-material-stage'])
+    def test_retired_stages_rejected(self):
+        self.assertEqual(stage_arguments('full'),['--full-material-stage'])
+        for retired in ('white','map'):
+            with self.assertRaises(ValueError):stage_arguments(retired)
         self.assertEqual(stage_arguments('full',True),['--full-material-stage','--full-native-worker-prepack'])
         self.assertEqual(stage_arguments('full',False,True),['--full-material-stage','--full-native-template-reuse'])
         self.assertEqual(stage_arguments('full',False,True,True),['--full-material-stage','--full-native-template-reuse','--without-full-native-material-plan'])
@@ -120,7 +122,7 @@ class FullStageTest(unittest.TestCase):
         with self.assertRaises(ValueError):stage_arguments('full',True,True)
         with self.assertRaises(ValueError):stage_arguments('unsupported')
     def test_full_controls_and_actual_model_texture_evidence_required(self):
-        c={'full_native_worker_prepack':False,'full_native_template_reuse':False,'full_native_material_plan':True,'full_material_stage':True,'map_texture_stage':False,'map_textures':True,'white_material':False,'white_native':False,'native_geometry_only':False,'compiled':True}
+        c={'full_native_worker_prepack':False,'full_native_template_reuse':False,'full_native_material_plan':True,'full_material_stage':True,'map_textures':True,'compiled':True}
         report={'controls':c,'full_model_material_audit':{'after_real_draw':True,'visible_model_meshes':1,'base_textured_surfaces':1}}
         self.assertTrue(full_stage_controls_match(report))
         for k in c:

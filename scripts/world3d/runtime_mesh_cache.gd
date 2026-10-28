@@ -257,13 +257,6 @@ static func pack(cache:Dictionary,digest:String,generator:String,library:Array=[
 static func restore_material(value:Dictionary,paint_validation:Variant,material_pool:Dictionary)->bool:
 	var identity:Array=[value]
 	if material_pool.has(identity):return true
-	var controls=preload("res://scripts/world3d/runtime_probe_controls.gd")
-	if controls.white_materials:
-		# White geometry must not first rebuild discarded shader/property state.
-		# Keep the same culling as the later diagnostic surface projection.
-		var cull:int=int(value.get("cull",BaseMaterial3D.CULL_BACK)) if value.has("paint") else int(value.get("values",{}).get("cull_mode",BaseMaterial3D.CULL_BACK))
-		material_pool[identity]=controls.white_material(cull)
-		return true
 	var material:StandardMaterial3D
 	if value.has("paint"):
 		if not Paint.material_valid(value.paint,false,"",paint_validation):return false

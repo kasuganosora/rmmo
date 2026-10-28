@@ -87,7 +87,9 @@ func _process(_delta: float) -> void:
 		if _wanted.has(key):
 			_attempted[key]=true
 			var source:=key_for(entry)
-			if preload("res://scripts/world3d/map_paths.gd").allowed(source) and FileAccess.file_exists(source): queue_import(entry)
+			var available:bool=(preload("res://scripts/world3d/map_paths.gd").allowed(source) and FileAccess.file_exists(source)) if entry.has("prefab_path") else preload("res://scripts/world_editor/asset_library.gd").native_available(source)
+			if available:queue_import(entry)
+			else:_errors[key]="缩略图资源缺失或缺少原生产物，请重新导入"
 	if not _busy: _next()
 
 func _ready() -> void:
@@ -149,7 +151,7 @@ func _next() -> void:
 		model = preload("res://scripts/world_editor/prefab_library.gd").preview(entry)
 	elif entry.has("asset_path"):
 		model_load_count += 1
-		model = preload("res://scripts/world_editor/asset_library.gd").instantiate_preview(entry.asset_path)
+		model = preload("res://scripts/world_editor/asset_library.gd").instantiate_preview(entry.asset_path,true)
 	else:
 		var mesh := MeshInstance3D.new()
 		var box := BoxMesh.new()

@@ -2,6 +2,7 @@ extends RefCounted
 ## Explicit authored-model contract. Regions are local Godot metres; metadata
 ## describes real interiors, never an inferred envelope around a facade.
 const ROLES=["body","floor","roof","ceiling","stairs","furniture","door","mechanism"]
+const BUILDING_METADATA_MAX_BYTES:=16*1024*1024 # Derived from valid_descriptor's bounded 4096 members and escaped text.
 static var _sources:Dictionary={}
 static var _source_mutex:=Mutex.new()
 static var single_read_sources_enabled:=true # Profiling control; set before loading workers.
@@ -112,7 +113,7 @@ static func source_descriptor(path:String,digest:String)->Dictionary:
 ## Read current source identity and annotations from one authenticated stream.
 ## Keep only the bounded JSON chunk, never the whole geometry/image payload.
 ## A digest-keyed descriptor cache does not authorize skipping the file read.
-static func read_source_descriptor(path:String,expected_digest:String="")->Dictionary:
+static func read_import_source_descriptor(path:String,expected_digest:String="")->Dictionary:
 	if not single_read_sources_enabled:
 		var digest:=FileAccess.get_sha256(path)
 		if digest.is_empty() or (not expected_digest.is_empty() and digest!=expected_digest):return {}
@@ -152,6 +153,38 @@ static func read_source_descriptor(path:String,expected_digest:String="")->Dicti
 	_cache_source(descriptor,digest)
 	return descriptor
 
+## Offline export: observe actual published native scene properties, without
+## instantiating nodes or accepting a descriptor from a map record.
+static func describe_packed(packed:PackedScene,source_sha:String)->Dictionary:
+	if packed==null or not preload("res://scripts/world3d/compiled_asset_cache.gd")._sha(source_sha):return {"ok":false,"present":false}
+	var state:=packed.get_state();var extras:Array=[];var meshes:Array=[];var present:=false
+	for node:int in state.get_node_count():
+		var extra:Variant={};var mesh:Variant=null
+		for property:int in state.get_node_property_count(node):
+			var name_:StringName=state.get_node_property_name(node,property)
+			if name_==&"metadata/extras":extra=state.get_node_property_value(node,property)
+			elif name_==&"mesh":mesh=state.get_node_property_value(node,property)
+		if extra is Dictionary and extra.has("rmmo_model_components"):present=true
+		extras.append(extra)
+		if state.get_node_type(node)==&"MeshInstance3D" and mesh is Mesh:meshes.append(extra)
+	if not present:return {"ok":true,"present":false}
+	var descriptor:=_descriptor(extras,meshes)
+	if descriptor.is_empty():return {"ok":false,"present":true}
+	descriptor.source_sha=source_sha
+	return {"ok":valid_descriptor(descriptor),"present":true,"descriptor":descriptor}
+
+## Runtime and authoring consumers use the published descriptor, never GLB.
+static func read_source_descriptor(path:String,expected_digest:String="",root:String="")->Dictionary:
+	var paths=preload("res://scripts/world3d/map_paths.gd")
+	if root.is_empty():root=paths.external_root()
+	var footprint=load("res://scripts/world3d/compiled_asset_footprint.gd")
+	var candidate:Dictionary=footprint.candidate(path,root,"",true)
+	if candidate.is_empty() or (not expected_digest.is_empty() and candidate.source_sha!=expected_digest):return {}
+	var body:Dictionary=footprint._building_metadata(path,root,candidate)
+	if body.is_empty() or not body.present:return {}
+	var descriptor:Variant=body.get("descriptor")
+	return descriptor if valid_descriptor(descriptor) and descriptor.source_sha==candidate.source_sha else {}
+
 static func _source_descriptor_json(data:Variant,bin_size:int)->Dictionary:
 	if not data is Dictionary or not preload("res://scripts/world3d/asset_bounds_manifest.gd").from_json(data,bin_size).get("known",false):return {}
 	var pending:Array=data.scenes[int(data.get("scene",0))].get("nodes",[]).duplicate();var extras:Array=[];var meshes:Array=[];var cursor:=0
@@ -167,10 +200,10 @@ static func _cache_source(descriptor:Dictionary,digest:String)->void:
 	if _sources.size()>=32:_sources.clear()
 	_sources[digest]=descriptor.duplicate(true);_source_mutex.unlock()
 
-static func verify_source(record:Dictionary)->bool:
+static func verify_source(record:Dictionary,root:String="")->bool:
 	if not record.has("model_building"):return true
 	if not valid_record(record):return false
-	var descriptor:=read_source_descriptor(str(record.get("asset_path","")),record.model_building.source_sha)
+	var descriptor:=read_source_descriptor(str(record.get("asset_path","")),record.model_building.source_sha,root)
 	return not descriptor.is_empty() and same(descriptor,record.model_building)
 
 static func valid_descriptor(d:Variant)->bool:

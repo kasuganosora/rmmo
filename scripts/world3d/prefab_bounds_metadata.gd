@@ -18,7 +18,7 @@ func _init(root:String="")->void:
 	_root=root
 	if root.is_empty() or not disk_cache_enabled:return
 	var hashes:Array=[Engine.get_version_info().hash]
-	for name:String in ["prefab_bounds_metadata","house_prefab","prefab_binary_cache","ground_cpu_mesh"]:hashes.append(FileAccess.get_sha256("res://scripts/world3d/"+name+".gd"))
+	for name:String in ["prefab_bounds_metadata","house_prefab","ground_cpu_mesh"]:hashes.append(FileAccess.get_sha256("res://scripts/world3d/"+name+".gd"))
 	_path=root.path_join("cache/world3d/prefab_bounds").path_join(str(hashes).sha256_text()+".bin")
 	if not Paths.allowed(_path,root):_path="";return
 	var file:=FileAccess.open(_path,FileAccess.READ)

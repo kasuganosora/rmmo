@@ -77,13 +77,13 @@ static func prepare(path:String,origin:Vector3,root:String,token:RefCounted,budg
 	if native<0:return {} # Raw maps retain the confirmed-transfer loader route.
 	var extra:Dictionary=source._data.nodes[native].extras
 	if extra.rmmo_records.size()>MAX_RECORDS:return {}
-	var directory:Dictionary=Index.read_for_loading(path,root,source._signature,MAX_HEADER_BYTES,MAX_INDEX_BYTES,1,PackagePolicy.trusted())
+	var directory:Dictionary=Index.read_for_loading(path,root,source._signature,MAX_HEADER_BYTES,MAX_INDEX_BYTES,1,PackagePolicy.trusted(),null,true)
 	if token.is_cancelled():return {}
 	if not directory.ok:
 		if _envelope(extra,source._bytes.size(),path,root)>budget:return {}
 		var whole:Dictionary=Cursor.hydrate_references(extra,path,root,1,PackagePolicy.trusted())
 		if not whole.get("ok",false) or token.is_cancelled():return {}
-		var built:Dictionary=Index.build_for_loading(path,root,whole.extras.rmmo_records,source._signature,1,MAX_HEADER_BYTES,PackagePolicy.trusted(),whole.get("definition_sizes",{}))
+		var built:Dictionary=Index.build_for_loading(path,root,whole.extras.rmmo_records,source._signature,1,MAX_HEADER_BYTES,PackagePolicy.trusted(),whole.get("definition_sizes",{}),{},null,true)
 		if not built.ok or token.is_cancelled():return {}
 		whole.clear();directory=built
 	if not directory.ok or token.is_cancelled():return {}

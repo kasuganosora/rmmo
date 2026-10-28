@@ -7,16 +7,9 @@ func check(ok:bool,label:String)->void:
 	print("PASS " if ok else "FAIL ",label)
 	if not ok:failures+=1
 func _initialize()->void:
-	var stage:=PackedStringArray(["--mesh-only","--map-texture-stage"])
-	check(Probe.map_texture_stage_argument_error(stage).is_empty(),"isolated map texture stage is accepted")
-	check(Probe.fixture_manifest_name(stage)=="fixture_manifest.json","map texture keeps the original fixture manifest")
 	check(Probe.fixture_manifest_name(PackedStringArray(["--full-material-stage"]))=="full_fixture_manifest.json","full stage uses the full-native fixture manifest")
-	check(Probe.map_texture_stage_argument_error(PackedStringArray(["--mesh-only","--white-material","--without-map-textures"])).is_empty(),"existing white arguments retain their contract")
-	for flag:String in ["--white-material","--without-map-textures","--without-compiled"]:
-		var before:=PackedStringArray([flag]);before.append_array(stage)
-		var after:=stage.duplicate();after.append(flag)
-		check(not Probe.map_texture_stage_argument_error(before).is_empty() and Probe.map_texture_stage_argument_error(before)==Probe.map_texture_stage_argument_error(after),"conflicting stage options fail independent of order: "+flag)
-	check(not Probe.map_texture_stage_argument_error(PackedStringArray(["--map-texture-stage"])).is_empty(),"stage cannot accidentally start ordinary gameplay")
+	for flag:String in ["--white-material","--map-texture-stage","--without-map-textures","--without-compiled"]:
+		check(not Probe.map_texture_stage_argument_error(PackedStringArray([flag])).is_empty(),"retired isolation explicitly rejected: "+flag)
 	var full:=PackedStringArray(["--mesh-only","--native-only","--full-material-stage"])
 	check(Probe.map_texture_stage_argument_error(full).is_empty(),"full material stage accepts native-only mesh scope")
 	var prepack:=full.duplicate();prepack.append("--full-native-worker-prepack")
@@ -40,12 +33,12 @@ func _initialize()->void:
 		var pending:=empty.duplicate();pending[field]=1
 		check(not Probe.texture_pixels_settled(pending),"empty geometry jobs do not hide remaining pixel "+field)
 	check(not Probe.texture_pixels_settled({}),"missing pixel diagnostics cannot pass texture readiness")
-	check(Probe.textured_stage_ready(false,false,{}),"white stage does not require a pixel queue")
-	check(Probe.textured_stage_ready(true,true,empty),"full or map texture stage waits for idle and empty pixels")
+	check(Probe.textured_stage_ready(false,false,{}),"disabled texture audit does not require a pixel queue")
+	check(Probe.textured_stage_ready(true,true,empty),"full texture stage waits for idle and empty pixels")
 	check(not Probe.textured_stage_ready(true,false,empty),"texture stage requires the queue to be idle")
 	for field:String in ["outputs","consumers","retained_bytes"]:
 		var pending:=empty.duplicate();pending[field]=1
-		check(not Probe.textured_stage_ready(true,true,pending),"full or map texture stage blocks on shared pixel "+field)
+		check(not Probe.textured_stage_ready(true,true,pending),"full texture stage blocks on shared pixel "+field)
 	var white:=StandardMaterial3D.new();white.shading_mode=BaseMaterial3D.SHADING_MODE_UNSHADED;white.albedo_color=Color.WHITE
 	var info:Dictionary=Probe.texture_material_info(white)
 	check(not info.nonwhite and info.textures.is_empty(),"canonical imported white material is not texture restoration proof")

@@ -17,7 +17,7 @@ func entries() -> Array:
 static func valid(value: Dictionary) -> bool:
 	if value.get("format")!="rmmo_bridge_prefab" or value.get("version")!=1 or not value.get("id") is String or not value.get("name") is String: return false
 	if not value.get("materials",{}) is Dictionary or not D.S.validate(value.get("recipe"),D.recipe_schema()).is_empty(): return false
-	if value.has("asset_path") and (not value.asset_path is String or not Paths.allowed(value.asset_path) or not FileAccess.file_exists(value.asset_path)): return false
+	if value.has("asset_path") and (not value.asset_path is String or not preload("res://scripts/world_editor/asset_library.gd").native_available(value.asset_path)): return false
 	for key in value.get("materials",{}):
 		if key not in ["deck","masonry","trim"] or not Paint.material_valid(value.materials[key]): return false
 	return Paint.missing([{"bridge_materials":value.get("materials",{})}]).is_empty()

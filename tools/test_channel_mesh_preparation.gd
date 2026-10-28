@@ -41,7 +41,6 @@ func run()->void:
 	for field:String in ["fortification_art","water_gate","building_shape"]:
 		var special:=a.duplicate(true);special[field]="wall_grid" if field=="building_shape" else {}
 		check(not Preparation.supports(special) and Preparation.prepare([special],context,{}).is_empty(),"channel polygons used by "+field+" never replace their actual builder")
-	var previous_white:=Probe.white_materials;Probe.enable_white_materials()
 	var baseline:RefCounted=old_doc.new();baseline.load_immutable_records=true
 	var document:=Doc.new();document.load_immutable_records=true;document.load_surface_arrays=prepared
 	for record:Dictionary in records:
@@ -53,8 +52,7 @@ func run()->void:
 		check(actual.mesh.get_aabb().is_equal_approx(control.mesh.get_aabb()) and actual.mesh.collision_faces()==control_cpu.collision_faces(),"prepared bounds and every original collision triangle equal the native rendered slab")
 		var equal:=true
 		for slot:int in actual.mesh.get_surface_count():equal=equal and material_values(actual.mesh.surface_get_material(slot))==material_values(control.mesh.surface_get_material(slot))
-		check(equal and actual.material_override==Probe.white_material() and actual.material_override==control.material_override,"prepared water preserves base roughness/metallic/culling and its initialized white override")
+		check(equal and actual.material_override==control.material_override,"prepared water preserves base roughness/metallic/culling and its material override")
 		control.free();actual.free()
-	Probe.white_materials=previous_white
 	check(var_to_bytes(records)==before,"document preparation keeps all source bytes and original polygons unchanged")
 	print("CHANNEL_MESH_PREPARATION checks=",checks," failures=",failures);quit(1 if failures else 0)

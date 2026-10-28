@@ -4,6 +4,7 @@ extends SceneTree
 ## and independently retained GPU textures belong to the separate GPU fixture.
 const Ownership = preload("res://scripts/world_editor/prepared_model_ownership.gd")
 const Assets = preload("res://scripts/world_editor/asset_library.gd")
+const Retirement = preload("res://scripts/world3d/resource_retirement.gd")
 const BYTES := 67108864
 var passed := 0
 var failures := 0
@@ -29,6 +30,25 @@ func make_tracker() -> Node:
 	root.add_child(tracker)
 	tracker.set_process(false)
 	return tracker
+
+func await_cache_retirement(tracker: Node, expected_bytes: int, label: String) -> void:
+	# AssetLibrary removes its logical cache key synchronously, then transfers
+	# the real resource graph to the tree-owned retirement queue. Exercise that
+	# service's normal frame processing; never clear its owners from the test.
+	tracker.set_process(false) # Keep byte collection explicit for sync assertions.
+	var service: Node = root.get_node_or_null(Retirement.NODE_NAME)
+	check(service != null and not service.pending.is_empty(), label + ": real retirement service owns the evicted allocation")
+	check(tracker.collect_retired().retired == 0 and tracker.report().published_envelope_bytes == expected_bytes, label + ": queued resource owners retain the complete envelope")
+	if tracker is RetirementProbe:
+		check(tracker.sync_observations.is_empty(), label + ": a live queued owner cannot trigger retirement sync or deduction")
+	if service == null: return
+	var slices_before: int = service.profile.slices
+	var frames := 0
+	while not service.pending.is_empty() and frames < 120:
+		await process_frame
+		frames += 1
+	check(service.pending.is_empty() and service.known.is_empty() and int(service.profile.slices) > slices_before, label + ": normal retirement frames finish and remove ownership tickets")
+	check(tracker.report().published_envelope_bytes == expected_bytes, label + ": completed resource release does not bypass explicit accounting collection")
 
 func candidate() -> Dictionary:
 	# Deliberately nonexistent paths: ownership transfer must never rehash/read a
@@ -94,7 +114,8 @@ func exact_publication_and_identity() -> void:
 	# weak owners only. Cached resources must remain fully charged until eviction.
 	identity.clear(); result.clear()
 	check(tracker.collect_retired().retired == 0 and tracker.report().published_envelope_bytes == BYTES, "a cache-owned allocation remains charged after caller dictionaries disappear")
-	Assets.evict_cached_scene(candidate().source_path)
+	check(Assets.evict_cached_scene(candidate().source_path) and not Assets.has_cached_scene(candidate().source_path), "logical eviction removes the cache entry immediately")
+	await await_cache_retirement(tracker, BYTES, "exact publication")
 	check(tracker.collect_retired().retired == 1 and tracker.report().published_envelope_bytes == 0, "cache eviction permits retirement only after the last resource dies")
 	check(tracker.sync_observations.size() == 1 and tracker.sync_observations[0] == {"bytes":BYTES, "main":true}, "main-thread renderer sync observes the full charge before decrement")
 	before.clear(); second_ticket.clear(); conflict.clear(); tracker.free(); other.free()
@@ -108,6 +129,8 @@ func scene_state_outlives_packed() -> void:
 	var state_ref: WeakRef = weakref(state)
 	var ticket: Dictionary = publish(tracker, identity, result)
 	result.clear(); Assets.evict_cached_scene(identity.source_path)
+	check(packed_ref.get_ref() != null and state_ref.get_ref() != null, "retirement queue keeps both PackedScene and SceneState before service runs")
+	await await_cache_retirement(tracker, BYTES, "separate SceneState")
 	check(packed_ref.get_ref() == null and state_ref.get_ref() != null, "SceneState can outlive its original PackedScene")
 	check(tracker.collect_retired().retired == 0 and tracker.report().published_envelope_bytes == BYTES, "a separately held SceneState prevents premature byte release")
 	state = null
@@ -139,6 +162,8 @@ func independent_child_keeps_full_envelope() -> void:
 	var escaped: StandardMaterial3D = fixture.escaped
 	fixture.erase("escaped"); result.clear(); fixture.erase("packet")
 	Assets.evict_cached_scene(identity.source_path)
+	check(packed_ref.get_ref() != null and fixture.mesh_ref.get_ref() != null and fixture.texture_ref.get_ref() != null and fixture.image_ref.get_ref() != null, "retirement queue retains the complete graph before its release slices")
+	await await_cache_retirement(tracker, BYTES, "independent child")
 	check(packed_ref.get_ref() == null and fixture.mesh_ref.get_ref() == null, "original PackedScene and mesh die while a child material is independently retained")
 	check(fixture.texture_ref.get_ref() == null and fixture.image_ref.get_ref() == null, "tracker does not pin otherwise dead textures or image metadata")
 	check(tracker.collect_retired().retired == 0 and tracker.report().published_envelope_bytes == BYTES, "one escaped material retains the complete conservative allocation envelope")
@@ -156,6 +181,8 @@ func independent_allocations_and_bounded_retirement() -> void:
 	var second_ticket: Dictionary = publish(tracker, identity, second)
 	check(first.packed != second.packed and tracker.report().entries == 2 and tracker.report().published_envelope_bytes == BYTES * 2, "same source/product identity never merges distinct native allocations")
 	first.clear(); second.clear(); Assets.evict_cached_scene(identity.source_path)
+	check(root.get_node(Retirement.NODE_NAME).pending.size() == 2, "replacement and eviction each retain their distinct allocation in the real retirement queue")
+	await await_cache_retirement(tracker, BYTES * 2, "independent allocations")
 	check(tracker.collect_retired(0).retired == 0 and tracker.report().entries == 2, "zero retirement allowance performs no lifetime-accounting work")
 	check(tracker.collect_retired(1).retired == 1 and tracker.report().entries == 1, "retirement respects its per-call entry bound")
 	check(tracker.collect_retired(1).retired == 1 and tracker.report().published_envelope_bytes == 0, "a subsequent bounded scan retires the remaining allocation")
@@ -216,18 +243,19 @@ func global_lifetime_and_main_thread() -> void:
 		for key: String in denied:
 			check(not denied[key].ok and denied[key].reason == "main_thread_required", "off-main access fails before resource/accounting work: " + key)
 	Assets.evict_cached_scene(identity.source_path)
-	check(tracker.collect_retired().retired == 1, "global tracker eventually retires after cache eviction")
+	await await_cache_retirement(tracker, BYTES, "global lifetime")
+	check(tracker.collect_retired().retired == 1, "global tracker eventually retires after cache eviction and actual retirement service completion")
 	var report: Dictionary = tracker.report()
 	check(report.untracked_legacy_cache_bytes == null and report.source_proof_scope.contains("reader-completion") and report.accounting.contains("not RSS"), "report explicitly preserves unknown legacy bytes and reader-completion proof scope")
 	ticket.clear(); tracker.free()
 
 func run() -> void:
 	preflight_is_weak_and_side_effect_free()
-	exact_publication_and_identity()
-	scene_state_outlives_packed()
-	independent_child_keeps_full_envelope()
-	independent_allocations_and_bounded_retirement()
+	await exact_publication_and_identity()
+	await scene_state_outlives_packed()
+	await independent_child_keeps_full_envelope()
+	await independent_allocations_and_bounded_retirement()
 	fail_closed_graph_and_packet()
-	global_lifetime_and_main_thread()
+	await global_lifetime_and_main_thread()
 	print("PREPARED_MODEL_OWNERSHIP_RESULT ", JSON.stringify({"passed":passed, "failed":failures}))
 	quit(0 if failures == 0 else 1)

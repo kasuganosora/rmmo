@@ -9,18 +9,14 @@ extends RefCounted
 const Admission=preload("res://scripts/world3d/resource_admission.gd")
 const MemoryEstimate=preload("res://scripts/world3d/asset_memory_estimate.gd")
 const Embedded=preload("res://scripts/world3d/embedded_glb.gd")
-# Keep unknown imports exclusive. The tested static, self-contained white route
-# owns its document/state/graph; built-in extensions share no mutable state.
+# Source imports remain exclusive; native reads use independent admission.
 # Registry changes must happen before workers start, as with Godot imports.
 static var _raw_import_gate:=preload("res://scripts/world3d/raw_import_gate.gd").new()
 static var RAW_IMPORT_MUTEX:Mutex=_raw_import_gate.mutex
-static var parallel_white_imports_enabled:=true
-static func enter_raw_import(static_private:bool)->void:
-	var controls=preload("res://scripts/world3d/runtime_probe_controls.gd")
-	_raw_import_gate.acquire(parallel_white_imports_enabled and static_private and controls.white_materials and controls.discard_map_textures)
-static func try_enter_raw_import(static_private:bool)->bool:
-	var controls=preload("res://scripts/world3d/runtime_probe_controls.gd")
-	return _raw_import_gate.try_acquire(parallel_white_imports_enabled and static_private and controls.white_materials and controls.discard_map_textures)
+static func enter_raw_import(_static_private:bool)->void:
+	_raw_import_gate.acquire(false)
+static func try_enter_raw_import(_static_private:bool)->bool:
+	return _raw_import_gate.try_acquire(false)
 static func leave_raw_import()->void:_raw_import_gate.release()
 var inflight_byte_limit:=4*1024*1024*1024
 # Optional operation-local CPU probes. Configure before run(), never mid-load.
@@ -76,8 +72,8 @@ func run(paths: Array, parser: Callable = Callable(), worker_limit: int = 2, thr
 	var limit := clampi(worker_limit, 1, 4)
 	var eligibility_started := Time.get_ticks_usec()
 	var eligible:Dictionary={};var estimates:Dictionary={};var candidates:Dictionary={};var native_estimates:Dictionary={};var legacy_estimates:Dictionary={};var native_bounds:Dictionary={};var required_resident:=0
-	var native_package:bool=require_native_products and preload("res://scripts/world3d/runtime_package_policy.gd").trusted()
-	var full_native_package:bool=native_package and not preload("res://scripts/world3d/white_native_asset_cache.gd").active() and not cache_reader.is_valid()
+	var native_package:bool=require_native_products
+	var full_native_package:bool=native_package and not cache_reader.is_valid()
 	for path: String in unique:
 		if is_cancelled(): break
 		if not require_native_products and (not native_route or _raw_eligible(path)):eligible[path]=true
@@ -101,7 +97,7 @@ func run(paths: Array, parser: Callable = Callable(), worker_limit: int = 2, thr
 			if candidate_provider.is_valid():candidate=candidate_provider.call(path)
 			else:
 				candidate=static_scene_paths.get(path,{}).get("native_candidate",{}) if full_native_package else {}
-				if candidate.is_empty():candidate=preload("res://scripts/world3d/compiled_asset_footprint.gd").candidate(path,content_root,str(verified_sources.get(path,"")),preload("res://scripts/world3d/runtime_package_policy.gd").trusted())
+				if candidate.is_empty():candidate=preload("res://scripts/world3d/compiled_asset_footprint.gd").candidate(path,content_root,str(verified_sources.get(path,"")),require_native_products or preload("res://scripts/world3d/runtime_package_policy.gd").trusted())
 			if not str(verified_sources.get(path,"")).is_empty() and candidate.get("source_sha")!=verified_sources[path]:candidate={}
 			if full_native_package and candidate.is_empty():
 				return _preflight_failure(path,"native_footprint_missing_or_stale",unique.size(),started)
@@ -290,12 +286,6 @@ static func _close_admission_wait(waiting:Dictionary,profile:Dictionary)->void:
 
 func _raw_eligible(path:String)->bool:
 	if eligibility_checker.is_valid():return eligibility_checker.call(path)
-	var controls=preload("res://scripts/world3d/runtime_probe_controls.gd")
-	# The mounted package directory already identified this static, self-contained
-	# model. White imports discard images, so the copier's additional image MIME
-	# checks do not describe any work on this route. Unknown/diagnostic routes keep
-	# their scan; the actual GLTF importer and source transaction still run.
-	if preload("res://scripts/world3d/runtime_package_policy.gd").trusted() and controls.white_materials and controls.discard_map_textures and static_scene_paths.has(path) and static_scene_paths[path].get("known",true):return true
 	return Embedded.can_copy(path)
 
 func _guarded_fallback(path:String,parse:Callable,require_eligible:bool)->Dictionary:
@@ -312,7 +302,9 @@ func _guarded_fallback(path:String,parse:Callable,require_eligible:bool)->Dictio
 
 func _cache_stage(path:String,content_root:String,verified_sources:Dictionary)->Dictionary:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.model_parse_preparation._cache_stage") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
-	var compiled:Variant=cache_reader.call(path) if cache_reader.is_valid() else preload("res://scripts/world3d/compiled_asset_cache.gd").read(path,str(verified_sources.get(path,"")),content_root,false,preload("res://scripts/world3d/runtime_package_policy.gd").trusted())
+	var compiled:Variant
+	if cache_reader.is_valid():compiled=cache_reader.call(path)
+	else:compiled=preload("res://scripts/world3d/compiled_asset_cache.gd").read(path,str(verified_sources.get(path,"")),content_root,false,preload("res://scripts/world3d/runtime_package_policy.gd").trusted())
 	if not compiled is Dictionary or not compiled.get("hit") is bool:return {"error":ERR_INVALID_DATA,"retained_resources":[compiled]}
 	if compiled.hit:
 		if not compiled.has("packed") or compiled.packed==null:return {"error":ERR_INVALID_DATA,"retained_resources":[compiled]}
@@ -365,7 +357,7 @@ static func is_legacy_source_retry(packet:Dictionary)->bool:
 
 func _candidate_stage(path:String,candidate:Dictionary,content_root:String)->Dictionary:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.model_parse_preparation._candidate_stage") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
-	var raw:Variant=candidate_reader.call(path,candidate) if candidate_reader.is_valid() else preload("res://scripts/world3d/compiled_asset_preparation.gd").read(path,candidate,content_root,Callable(),preload("res://scripts/world3d/runtime_package_policy.gd").trusted(),not require_native_products)
+	var raw:Variant=candidate_reader.call(path,candidate) if candidate_reader.is_valid() else preload("res://scripts/world3d/compiled_asset_preparation.gd").read(path,candidate,content_root,Callable(),preload("res://scripts/world3d/runtime_package_policy.gd").trusted(),not require_native_products,"",require_native_products)
 	var result:Dictionary=raw if raw is Dictionary else {"error":ERR_INVALID_DATA}
 	if require_native_products and (result.get("fallback_required",false) or result.get("native_source_retry",false)):
 		# Keep any allocated native owners attached to the fatal result; the
@@ -476,14 +468,9 @@ static func _parse_verified_gltf(path:String,content_root:String,verified_source
 
 static func parse_gltf(path: String,content_root:String="",verified_digest:String="",trusted_package:bool=false) -> Dictionary:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.model_parse_preparation.parse_gltf") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
-	var native_package:bool=trusted_package and preload("res://scripts/world3d/white_native_asset_cache.gd").active()
-	if not native_package and not FileAccess.file_exists(path): return {"error": ERR_FILE_NOT_FOUND}
+	if not FileAccess.file_exists(path): return {"error": ERR_FILE_NOT_FOUND}
 	var compiled:=preload("res://scripts/world3d/compiled_asset_cache.gd").read(path,verified_digest,content_root,false,trusted_package)
 	if compiled.hit:return {"error":OK,"packed":compiled.packed,"compiled":true,"source_digest":compiled.source_digest,"cache_us":compiled.elapsed_us}
-	if native_package:
-		var failure:=native_failure(path,str(compiled.get("reason","invalid_product")))
-		if not compiled.get("retained_resources",[]).is_empty():failure.retained_resources=[compiled]
-		return failure
 	if not compiled.get("retained_resources",[]).is_empty():
 		# Workers cannot discard a failed native allocation or begin another
 		# allocation under its lease. Coordinators quarantine or retire then retry.

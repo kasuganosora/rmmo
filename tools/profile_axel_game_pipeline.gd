@@ -28,8 +28,6 @@ var cold_index:=false
 var cancel_stream_frames:=0
 var uncapped_runtime:=false
 var cancel_during_capture:=false
-var white_material:=false
-var map_texture_stage:=false
 var full_material_stage:=false
 var full_native_worker_prepack_requested:=false
 var full_native_template_reuse_requested:=false
@@ -143,7 +141,7 @@ func observe()->void:
 			var queue:Node=map.get_node_or_null("DeferredAssets")
 			if queue!=null:
 				row.deferred={"pending":queue.pending_count(),"demanded":queue._demanded_by_id.size(),"unpublished":queue.pending_demanded_count(),"admission":queue._admission.snapshot(),"profile":queue.profile.duplicate(true),"jobs":[]}
-				if map_texture_stage or full_material_stage:row.deferred.shared_pixels=queue._shared_images.snapshot()
+				if full_material_stage:row.deferred.shared_pixels=queue._shared_images.snapshot()
 				for path:String in queue._jobs:
 					var job:Dictionary=queue._jobs[path];var worker:RefCounted=job.get("worker")
 					row.deferred.jobs.append({"path":path,"stage":job.get("stage",""),"alive":worker!=null and worker.is_alive(),"age_ms":(now-int(job.get("dispatch_us",now)))/1000.,"ready":job.has("result")})
@@ -172,22 +170,10 @@ func finish(code:int)->void:
 		if current_scene.has_method("is_world_ready"):report.is_world_ready=current_scene.is_world_ready()
 	var map:Node=mesh_map if mesh_map!=null else (current_scene.get("_map_root") if current_scene!=null and current_scene.has_method("is_world_ready") else null)
 	if map!=null:
-		if (map_texture_stage or full_material_stage) and not report.has("map_texture_render_audit"):
+		if (full_material_stage) and not report.has("map_texture_render_audit"):
 			if DisplayServer.get_name()!="headless":await preload("res://scripts/util/frame_presentation.gd").drawn()
 			audit_map_texture_stage()
 			if full_material_stage:audit_full_model_materials()
-		if mesh_only and white_material:
-			report.white_render_audit={"gpu_surfaces":0,"shader_surfaces":0,"nonwhite_surfaces":0,"examples":[]}
-			for visual:MeshInstance3D in preload("res://scripts/world3d/surface_materials.gd").meshes(map):
-				if not visual.is_visible_in_tree() or visual.mesh==null or visual.mesh is CpuMesh or visual.cast_shadow==GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY:continue
-				for slot:int in visual.mesh.get_surface_count():
-					var material:Material=visual.get_active_material(slot)
-					report.white_render_audit.gpu_surfaces+=1
-					if material is ShaderMaterial:report.white_render_audit.shader_surfaces+=1
-					if not material is StandardMaterial3D or material.shading_mode!=BaseMaterial3D.SHADING_MODE_UNSHADED or material.albedo_color!=Color.WHITE:
-						report.white_render_audit.nonwhite_surfaces+=1
-						if report.white_render_audit.examples.size()<8:report.white_render_audit.examples.append({"node":str(visual.name),"material":material.resource_path if material!=null else "null"})
-			check(report.white_render_audit.nonwhite_surfaces==0,"actual visible GPU surfaces remain white after all streaming registrations")
 		report.stream_adopt=map.get_meta("stream_adopt_ms",{}).duplicate(true)
 		report.stream_load=map.get_meta("stream_load_profile_us",{}).duplicate(true)
 		report.render_sources={"meshes":0,"visible":0,"batch_tag":0,"batch_sources":0,"scaled_batch_sources":0,"native":0,"by_namespace":{}}
@@ -239,7 +225,7 @@ func finish(code:int)->void:
 		report.stage_ring=final_queue.profile.get("stage_ring",[])
 		report.stage_slow=final_queue.profile.get("stage_slow",[])
 		report.publish_slow=final_queue.profile.get("publish_slow",[])
-		if map_texture_stage or full_material_stage:report.map_texture_final=texture_stage_snapshot(final_queue)
+		if full_material_stage:report.map_texture_final=texture_stage_snapshot(final_queue)
 	if mesh_only and is_instance_valid(mesh_map):await retire_white_map()
 	preload("res://scripts/world3d/map_resource_store.gd").wait_bundle_writes()
 	report.resource_bundle=preload("res://scripts/world3d/map_resource_store.gd").bundle_profile.duplicate()
@@ -295,8 +281,6 @@ func run()->void:
 			preload("res://scripts/world3d/map_loader.gd").cold_read_diagnostics_enabled=true
 		elif arg.begins_with("--trace-minimum-us="):Trace.minimum_event_us=arg.trim_prefix("--trace-minimum-us=").to_int()
 		elif arg=="--without-hud":preload("res://scripts/world3d/runtime_probe_controls.gd").hud_enabled=false
-		elif arg=="--without-map-textures":preload("res://scripts/world3d/runtime_probe_controls.gd").discard_map_textures=true
-		elif arg=="--without-compiled":preload("res://scripts/world3d/compiled_asset_cache.gd").enabled=false
 		elif arg=="--mesh-only":mesh_only=true
 		elif arg=="--early-white-camera":early_white_camera=true
 		elif arg=="--loading-disable-3d":loading_disable_3d=true
@@ -321,11 +305,8 @@ func run()->void:
 		elif arg=="--eager-retirement-pending-scan":preload("res://scripts/world3d/native_residency.gd").lazy_pending_scan_enabled=false
 		elif arg=="--single-asset-retirement":preload("res://scripts/world3d/asset_residency.gd").retirement_batching_enabled=false
 		elif arg=="--sync-loading-batches":preload("res://scripts/world3d/world_stream.gd").sliced_loading_batches_enabled=false
-		elif arg=="--legacy-progressive-batches":preload("res://scripts/world3d/world_stream.gd").progressive_white_batches_enabled=false
 		elif arg=="--closed-building-preparation":preload("res://scripts/world3d/ground_batcher.gd").closed_building_preparation_enabled=true
 		elif arg=="--without-closed-building-preparation":preload("res://scripts/world3d/ground_batcher.gd").closed_building_preparation_enabled=false
-		elif arg=="--closed-building-arrivals":preload("res://scripts/world3d/world_stream.gd").closed_building_arrivals_enabled=true
-		elif arg=="--without-closed-building-arrivals":preload("res://scripts/world3d/world_stream.gd").closed_building_arrivals_enabled=false
 		elif arg=="--legacy-priority-arrivals":preload("res://scripts/world3d/world_stream.gd").incremental_collision_priority_enabled=false
 		elif arg=="--join-loading-workers":preload("res://scripts/world3d/ground_batcher.gd").legacy_loading_worker_wait_enabled=true
 		elif arg=="--legacy-retirement-validation":preload("res://scripts/world3d/world_stream.gd").legacy_retirement_validation_enabled=true
@@ -335,8 +316,6 @@ func run()->void:
 			preload("res://scripts/world3d/asset_residency.gd").legacy_retirement_source_scan_enabled=true
 			preload("res://scripts/world3d/world_navigation.gd").legacy_retirement_geometry_scan_enabled=true
 		elif arg=="--without-taa":root.use_taa=false
-		elif arg=="--white-material":white_material=true;preload("res://scripts/world3d/runtime_probe_controls.gd").enable_white_materials()
-		elif arg=="--map-texture-stage":map_texture_stage=true
 		elif arg=="--full-material-stage":full_material_stage=true
 		elif arg=="--full-native-worker-prepack":full_native_worker_prepack_requested=true
 		elif arg=="--full-native-template-reuse":full_native_template_reuse_requested=true
@@ -344,7 +323,6 @@ func run()->void:
 		elif arg=="--without-lazy-terrain-height":preload("res://scripts/world3d/river_materials.gd").lazy_terrain_height_enabled=false
 		elif arg=="--texture-lighting":texture_lighting=true
 		elif arg=="--stage-screenshot":stage_screenshot=true
-		elif arg=="--late-white-gltf":preload("res://scripts/world3d/runtime_probe_controls.gd").early_white_gltf_enabled=false
 		elif arg=="--serial-index-definitions":preload("res://scripts/world3d/map_dependency_index.gd").parallel_definition_checks=false
 		elif arg=="--native-index-snapshot":preload("res://scripts/world3d/stream_index_preparation.gd").native_snapshot_validation_enabled=true
 		elif arg=="--ordinary-index-validation":preload("res://scripts/world3d/stream_index_preparation.gd").native_snapshot_validation_enabled=false
@@ -395,13 +373,6 @@ func run()->void:
 		preload("res://scripts/world3d/deferred_asset_loader.gd").full_native_worker_prepack_enabled=true
 	if full_native_template_reuse_requested:
 		preload("res://scripts/world3d/deferred_asset_loader.gd").full_native_template_reuse_enabled=true
-	if map_texture_stage:
-		preload("res://scripts/world3d/runtime_probe_controls.gd").enable_native_geometry_only()
-		preload("res://scripts/world3d/runtime_probe_controls.gd").hud_enabled=false
-	if preload("res://scripts/world3d/runtime_probe_controls.gd").discard_map_textures and not preload("res://scripts/world3d/runtime_probe_controls.gd").white_materials:
-		# Native products embed texture resources; they cannot enter a no-texture
-		# control or its separately keyed procedural cache.
-		preload("res://scripts/world3d/compiled_asset_cache.gd").enabled=false
 	if cold_index:
 		var cache:String=preload("res://scripts/world3d/map_dependency_index.gd").cache_path(selected_map,selected_content_root)
 		var backup:String=output+".previous_dependency_index.bin"
@@ -410,8 +381,6 @@ func run()->void:
 		report.cache_control="Only this map's derived dependency index moved aside, bytes preserved beside this report. Other derived caches and OS caches retained."
 	report.map=selected_map;report.map_sha=FileAccess.get_sha256(selected_map);report.engine=Engine.get_version_info();report.pid=OS.get_process_id()
 	report.controls={"hud":preload("res://scripts/world3d/runtime_probe_controls.gd").hud_enabled,"map_textures":not preload("res://scripts/world3d/runtime_probe_controls.gd").discard_map_textures,"compiled":preload("res://scripts/world3d/compiled_asset_cache.gd").enabled}
-	report.controls.white_native=report.controls.compiled and preload("res://scripts/world3d/white_native_asset_cache.gd").active() and preload("res://scripts/world3d/white_native_asset_cache.gd").enabled
-	report.controls.map_texture_stage=map_texture_stage
 	report.controls.full_material_stage=full_material_stage
 	report.controls.full_native_worker_prepack=preload("res://scripts/world3d/deferred_asset_loader.gd").full_native_worker_prepack_enabled
 	report.controls.full_native_template_reuse=preload("res://scripts/world3d/deferred_asset_loader.gd").full_native_template_reuse_enabled
@@ -419,7 +388,6 @@ func run()->void:
 	report.controls.lazy_terrain_height=preload("res://scripts/world3d/river_materials.gd").lazy_terrain_height_enabled
 	report.controls.texture_lighting=texture_lighting
 	report.controls.stage_screenshot=stage_screenshot
-	report.controls.native_geometry_only=preload("res://scripts/world3d/runtime_probe_controls.gd").native_geometry_only
 	report.controls.prepared_material_slicing=preload("res://scripts/world3d/deferred_asset_loader.gd").prepared_material_slicing_enabled
 	report.controls.combined_material_publication=preload("res://scripts/world3d/deferred_asset_loader.gd").combined_material_publication_enabled
 	report.controls.mounted_texture_source_reuse=preload("res://scripts/world3d/prefab_texture_preparation.gd").mounted_source_reuse_enabled
@@ -439,7 +407,6 @@ func run()->void:
 	report.controls.inline_numeric_safety=preload("res://scripts/world3d/map_resource_store.gd").inline_numeric_safety_enabled
 	report.controls.sliced_initial_capture=preload("res://scripts/world3d/map_loader.gd").initial_cpu_capture_enabled
 	report.controls.private_static_specs=preload("res://scripts/world3d/map_loader.gd").initial_static_specs_enabled
-	report.controls.white_material=white_material
 	report.controls.unshaded_shadow_materials=preload("res://scripts/world3d/building_shadow_proxy.gd").unshaded_materials_enabled
 	report.controls.candle_cpu_index=preload("res://scripts/world3d/candle_sconce_mesh.gd").cpu_index_enabled
 	report.controls.legacy_mesh_placeholder=preload("res://scripts/world3d/world_document.gd").legacy_mesh_placeholder_enabled
@@ -456,14 +423,11 @@ func run()->void:
 	report.controls.shared_signature_defaults=preload("res://scripts/world3d/stream_index_preparation.gd").shared_signature_defaults_enabled
 	report.controls.batched_road_reference_jobs=preload("res://scripts/world3d/deferred_asset_loader.gd").native_reference_batching_enabled
 	report.controls.repeated_gltf_state_getters=preload("res://scripts/world3d/gltf_map_io.gd").legacy_state_array_getters_enabled
-	report.controls.early_white_gltf=preload("res://scripts/world3d/runtime_probe_controls.gd").early_white_gltf_enabled
 	report.controls.early_white_camera=early_white_camera
 	report.controls.white_debug_draw="--white-debug-draw" in OS.get_cmdline_user_args()
 	report.controls.startup_render_context=preload("res://scripts/world3d/map_loader.gd").startup_render_context_enabled
 	report.controls.startup_render_context_frames=preload("res://scripts/world3d/map_loader.gd").startup_render_context_frames
-	report.controls.progressive_white_batches=preload("res://scripts/world3d/world_stream.gd").progressive_white_batches_enabled
 	report.controls.closed_building_preparation=preload("res://scripts/world3d/ground_batcher.gd").closed_building_preparation_enabled
-	report.controls.closed_building_arrivals=preload("res://scripts/world3d/world_stream.gd").closed_building_arrivals_enabled
 	report.controls.incremental_collision_priority=preload("res://scripts/world3d/world_stream.gd").incremental_collision_priority_enabled
 	report.controls.sliced_loading_batches=preload("res://scripts/world3d/world_stream.gd").sliced_loading_batches_enabled
 	report.controls.join_loading_workers=preload("res://scripts/world3d/ground_batcher.gd").legacy_loading_worker_wait_enabled
@@ -566,7 +530,6 @@ func run()->void:
 	finish(0 if report.failures.is_empty() else 1)
 func run_mesh_only(spawn:Vector3)->void:
 	report.scope="MapLoader plus core streaming only; no World3D gameplay, avatar, HUD, radar, navigation, weather or events. This isolates geometry cost and is not a full game entry."
-	if map_texture_stage:report.scope="MapLoader plus core streaming with authored procedural map/prefab materials and textures; imported models retain material-free native geometry with canonical white materials. No gameplay, avatar, HUD, radar, navigation baking, weather or events. Not full model materials or a full game entry."
 	if full_material_stage:report.scope="MapLoader plus core streaming with authored map/prefab textures and full native imported model materials. No gameplay, avatar, HUD, radar, navigation baking, weather or events; not a full game entry."
 	var host:=Node3D.new();root.add_child(host);current_scene=host
 	if loading_disable_3d:
@@ -609,20 +572,6 @@ func run_mesh_only(spawn:Vector3)->void:
 	# its profiling branches. Production maps never receive this flag here.
 	if "--suppress-sync-slow-logs" in OS.get_cmdline_user_args():mesh_map.set_meta("suppress_stream_slow_logs",true)
 	report.sync_slow_logs_suppressed=bool(mesh_map.get_meta("suppress_stream_slow_logs",false))
-	if white_material:
-		# Unshaded debug draw still runs custom spatial shaders. This separate
-		# control removes material/shader rendering while preserving every mesh,
-		# transform and collision resource. It changes batch material grouping.
-		var count:=0;var shaders:=0
-		for spec:Dictionary in mesh_map.get_meta("stream_library",[]):
-			var mesh:Mesh=spec.mesh
-			if spec.get("material_override") is ShaderMaterial:shaders+=1
-			for slot:int in mesh.get_surface_count():
-				if mesh.surface_get_material(slot) is ShaderMaterial:shaders+=1
-			for override:Variant in spec.get("surface_overrides",[]):
-				if override is ShaderMaterial:shaders+=1
-			whiten_spec(spec);count+=1
-		report.white_material_control={"specs":count,"original_shader_material_slots":shaders,"geometry_and_collision_resources_replaced":false,"batch_material_grouping_changed":true}
 	host.add_child(mesh_map)
 	if initial_cover!=null:
 		var deferred:=mesh_map.get_node_or_null("DeferredAssets")
@@ -679,26 +628,17 @@ func create_white_camera(host:Node3D,spawn:Vector3)->void:
 	# renderer path; a separate control can reproduce the earlier debug mode.
 	if "--white-debug-draw" in OS.get_cmdline_user_args():root.debug_draw=Viewport.DEBUG_DRAW_UNSHADED
 
-func whiten_spec(spec:Dictionary)->void:
-	preload("res://scripts/world3d/runtime_probe_controls.gd").whiten_spec(spec)
-
 static func map_texture_stage_argument_error(arguments:PackedStringArray)->String:
+	for retired:String in ["--white-material","--map-texture-stage","--without-map-textures","--without-compiled","--late-white-gltf","--legacy-progressive-batches","--closed-building-arrivals","--without-closed-building-arrivals","--without-completed-owner-drain","--without-white-priority-turns","--without-white-worker-capacity","--without-native-source-metadata","--without-white-entry-material-reuse","--without-ready-collision-bypass","--serial-white-collisions","--progressive-batches-probe","--without-settled-batch-budget","--without-selected-terrain-context","--without-asset-spec-template","--without-worker-instance-specs","--without-shadow-face-preparation","--without-cached-road-bounds","--without-white-building-turns","--without-source-collision-faces"]:
+		if retired in arguments:return retired+" is retired"
 	if "--without-full-native-material-plan" in arguments and not "--full-native-template-reuse" in arguments:
 		return "material plan baseline requires --full-native-template-reuse"
 	for candidate:String in ["--full-native-worker-prepack","--full-native-template-reuse"]:
-		if candidate in arguments and not "--full-material-stage" in arguments:
-			return candidate+" requires --full-material-stage"
-	if "--full-native-worker-prepack" in arguments and "--full-native-template-reuse" in arguments:
-		return "native template reuse and worker prepack are separate experiments"
+		if candidate in arguments and not "--full-material-stage" in arguments:return candidate+" requires --full-material-stage"
+	if "--full-native-worker-prepack" in arguments and "--full-native-template-reuse" in arguments:return "native template reuse and worker prepack are separate experiments"
 	if "--full-material-stage" in arguments:
-		for conflict:String in ["--map-texture-stage","--white-material","--without-map-textures","--without-compiled"]:
-			if conflict in arguments:return "--full-material-stage conflicts with "+conflict
 		if not "--mesh-only" in arguments:return "--full-material-stage requires --mesh-only isolation"
 		if not "--native-only" in arguments:return "--full-material-stage requires --native-only products"
-	if not "--map-texture-stage" in arguments:return ""
-	for conflict:String in ["--white-material","--without-map-textures","--without-compiled"]:
-		if conflict in arguments:return "--map-texture-stage conflicts with "+conflict
-	if not "--mesh-only" in arguments:return "--map-texture-stage requires --mesh-only isolation"
 	return ""
 
 static func textured_stage_ready(enabled:bool,queue_idle:bool,snapshot:Dictionary,admission:RefCounted=null)->bool:

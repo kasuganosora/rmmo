@@ -7,9 +7,12 @@ Partial edge blocks retain their original dimensions and require an engine and
 rendering backend that support them; the project's patched DDS loader does.
 """
 import argparse
+import hashlib
 import io
+import json
 import struct
 from pathlib import Path
+import tempfile
 
 from PIL import Image
 
@@ -58,19 +61,48 @@ def encode_dds(image: Image.Image, use_alpha: bool, *, normal: bool = False) -> 
     return raw
 
 
-def save_dds(image: Image.Image, target: Path, use_alpha: bool, *, normal: bool = False) -> bool:
-    target.parent.mkdir(parents=True, exist_ok=True)
-    tmp = target.with_suffix(target.suffix + ".tmp")
+def identity_path(target: Path) -> Path:
+    return target.with_name(target.name + ".source.json")
+
+
+def _stage_bytes(target: Path, data: bytes) -> Path:
+    # Each producer owns its temporary file, including concurrent rebuilds.
+    with tempfile.NamedTemporaryFile(dir=target.parent, prefix=target.name + ".", suffix=".tmp", delete=False) as stream:
+        temporary = Path(stream.name)
     try:
-        tmp.write_bytes(encode_dds(image, use_alpha, normal=normal))
+        temporary.write_bytes(data)
+        return temporary
+    except Exception:
+        temporary.unlink(missing_ok=True)
+        raise
+
+
+def save_dds(image: Image.Image, target: Path, use_alpha: bool, *, normal: bool = False,
+             source_identity: dict | None = None, flip: bool = False) -> bool:
+    target.parent.mkdir(parents=True, exist_ok=True)
+    tmp = metadata_tmp = None
+    try:
+        encoded = encode_dds(image, use_alpha, normal=normal)
+        tmp = _stage_bytes(target, encoded)
+        if source_identity is not None:
+            metadata = {"version": 1, "encoder_version": 1,
+                        "source_sha256": source_identity["sha256"], "source_bytes": source_identity["bytes"],
+                        "dds_sha256": hashlib.sha256(encoded).hexdigest(), "dds_bytes": len(encoded),
+                        "normal": normal, "flip": flip}
+            metadata_tmp = _stage_bytes(identity_path(target), (json.dumps(metadata, sort_keys=True) + "\n").encode("utf-8"))
         tmp.replace(target)
+        # Two files cannot be replaced atomically together. A reader must match
+        # BOTH source SHA and DDS SHA; interruption here leaves a safe miss, not
+        # permission to label old/mixed DDS bytes with the new source identity.
+        if metadata_tmp is not None:
+            metadata_tmp.replace(identity_path(target))
         return True
     except Exception:
-        try:
-            tmp.unlink()
-        except FileNotFoundError:
-            pass
         return False
+    finally:
+        for temporary in (tmp, metadata_tmp):
+            if temporary is not None:
+                temporary.unlink(missing_ok=True)
 
 
 def flip_normal_green(image: Image.Image) -> Image.Image:
@@ -88,7 +120,11 @@ def process(source: Path, overwrite: bool, *, normal: bool | None = None) -> tup
         # be live color bindings even when a BC5 normal is rebuilt.
         owned_suffixes = ((".bc5.dds", ".flip.bc5.dds", ".flip.dxt1.dds", ".flip.dxt5.dds")
                           if normal else (".dxt1.dds", ".dxt5.dds"))
-        with Image.open(source) as image:
+        # The identity describes the same snapshot that is actually decoded,
+        # even if the editable source pathname is replaced during encoding.
+        source_bytes = source.read_bytes()
+        source_identity = {"sha256": hashlib.sha256(source_bytes).hexdigest(), "bytes": len(source_bytes)}
+        with Image.open(io.BytesIO(source_bytes)) as image:
             image.load()
             rgba = image.convert("RGBA")
             # Map-aware packaging can pass the declared material role. Content
@@ -103,7 +139,8 @@ def process(source: Path, overwrite: bool, *, normal: bool | None = None) -> tup
                 if target.exists() and not overwrite:
                     skipped += 1
                     continue
-                if save_dds(pixels, target, use_alpha, normal=normal):
+                if save_dds(pixels, target, use_alpha, normal=normal,
+                            source_identity=source_identity, flip=target.name.endswith(".flip.bc5.dds")):
                     written += 1
                 else:
                     failed += 1
@@ -117,6 +154,7 @@ def process(source: Path, overwrite: bool, *, normal: bool | None = None) -> tup
                     obsolete = source.with_name(source.name + suffix)
                     if obsolete not in current:
                         obsolete.unlink(missing_ok=True)
+                        identity_path(obsolete).unlink(missing_ok=True)
             return written, skipped, failed
     except Exception:
         return 0, 0, 1

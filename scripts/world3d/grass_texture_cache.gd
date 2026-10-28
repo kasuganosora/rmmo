@@ -4,9 +4,6 @@ extends RefCounted
 static var _textures:Dictionary={}
 static var _mutex:=Mutex.new()
 static func apply(root:Node,compiled:bool=false)->void:
-	# White geometry diagnostics must not restore vertex colors or read back
-	# GPU buffers just to recreate a material that will be whitened again.
-	if preload("res://scripts/world3d/runtime_probe_controls.gd").white_materials:return
 	var seen:Dictionary={}
 	var colored_materials:Dictionary={}
 	for mesh in preload("res://scripts/world3d/surface_materials.gd").meshes(root):

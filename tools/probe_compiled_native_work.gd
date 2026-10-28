@@ -99,7 +99,7 @@ func run()->void:
 		if event.label=="compiled.payload_sha" and event.details.get("path")==source:payload_events.append(event.duration_us)
 	check(trace.dropped==0 and payload_events.size()==repeats*2,"each observed reader repeats payload hash")
 	report.work={"repetitions_per_reader":repeats,"payload_bytes":product_bytes,"payload_hash_calls_observed":payload_events.size(),"payload_hash_bytes_observed":product_bytes*payload_events.size(),"payload_hash_total_us_observed":payload_events.reduce(func(a,b):return a+b,0),"cache_reader_total_us_instrumented":cache_total,"candidate_reader_total_us_instrumented":candidate_total,"one_shot_component_us":{"generator":generator_us,"payload_sha":sha_us,"dependencies":deps_us,"schema":schema_us},"structural_per_successful_read":{"generator_script_hashes":9,"payload_sha":1,"dependencies":1,"valid_packed":1},"limits":"Structural counts exclude footprint candidate discovery; one-shot costs are standalone warm-cache proxy measurements, not timed spans inside the reads."}
-	var editor:=preload("res://scripts/world_editor/load_job.gd")._parse_asset(source,folder)
+	var editor:=preload("res://scripts/world_editor/load_job.gd")._parse_native_asset(source,folder,candidate)
 	check(editor.get("error",FAILED)==OK and editor.get("compiled",false),"actual editor loader consumes complete native fixture")
 	editor.clear()
 	var strict:=Compiled.read(source,"",folder,false,false)
@@ -111,8 +111,8 @@ func run()->void:
 	put(source,source_data)
 	var hidden_source:=source+".held"
 	check(DirAccess.rename_absolute(source,hidden_source)==OK,"temporarily hide isolated authoring source")
-	editor=preload("res://scripts/world_editor/load_job.gd")._parse_asset(source,folder)
-	check(editor.get("error",OK)!=OK,"actual editor loader rejects absent source in current complete-native path")
+	editor=preload("res://scripts/world_editor/load_job.gd")._parse_native_asset(source,folder,candidate)
+	check(editor.get("error",FAILED)==OK and editor.get("compiled",false),"actual editor loader accepts native product without authoring source")
 	editor.clear();check(DirAccess.rename_absolute(hidden_source,source)==OK,"restore isolated authoring source")
 	var game:=game_run(source,folder)
 	check(game.error==OK and game.raw_calls==0 and game.native_cache_hits==1,"required-native coordinator loads candidate without raw parser")

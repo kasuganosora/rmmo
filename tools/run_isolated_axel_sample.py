@@ -209,7 +209,7 @@ def main():
     parser.add_argument("--manifest-sha256", required=True)
     parser.add_argument("--expected-state", choices=("A", "B"))
     parser.add_argument("--expected-candidates", type=int, default=11)
-    parser.add_argument("--stage", choices=("white", "map", "full"), default="map")
+    parser.add_argument("--stage", choices=("full",), default="full")
     parser.add_argument("--expected-full-models", type=int, default=49)
     parser.add_argument("--full-native-worker-prepack", action="store_true")
     parser.add_argument("--full-native-template-reuse", action="store_true")

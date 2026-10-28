@@ -11,10 +11,8 @@ const Drainer=preload("res://scripts/world3d/asset_worker_drainer.gd")
 const TransferLoading=preload("res://scripts/world3d/transfer_loading.gd")
 const OwnershipProof=preload("res://scripts/world3d/dependency_index_proof.gd")
 const INTERACTIVE_BUDGET_US:=2000
-const WHITE_INTERACTIVE_BUDGET_US:=6000 # Measured white throughput; ordinary interactive loading stays at 2 ms.
 static var interactive_budget_override_usec:=0 # Controlled throughput probe; zero retains policy.
 static var force_covered_loading_budget:=false # Diagnostic: test the drawn-cover 16ms ceiling.
-static var white_worker_capacity_enabled:=true
 const COVERED_LOADING_BUDGET_US:=16000
 const TRANSFER_COVERED_BUDGET_US:=16000
 static var covered_loading_budget_usec:=48000
@@ -214,10 +212,7 @@ func _note_preparation_latency(items:Array)->void:
 
 func _job_limit()->int:
 	if ready_job_limit>0:return ready_job_limit
-	# White geometry benefits from bounded preparing workers, not twice as many
-	# parked results. Covered loading retains its separate throughput policy.
-	var factor:=1 if white_worker_capacity_enabled and _saved_interactive_worker_limit<0 and preload("res://scripts/world3d/white_native_asset_cache.gd").active() else 2
-	return maxi(4,_admission.worker_limit*factor)
+	return maxi(4,_admission.worker_limit*2)
 
 func _path_priority(path:String)->int:
 	var item:Dictionary=_path_first.get(path,{})
@@ -408,7 +403,6 @@ func end_entry_loading(player_clip:Variant=null)->void:
 
 func _init()->void:
 	name="DeferredAssets";set_meta("stream_instance",true);set_process(false)
-	if white_worker_capacity_enabled and preload("res://scripts/world3d/white_native_asset_cache.gd").active():_admission.worker_limit=automatic_white_worker_limit(OS.get_processor_count())
 	_doc.load_immutable_records=true;_doc.load_paint_validation={};_doc.load_texture_checks={};_doc.load_material_pool={};_doc.load_box_meshes={}
 
 func configure_references(index:Dictionary,path:String,content_root:String,ownership_proof:OwnershipProof=null)->void:
@@ -2047,14 +2041,6 @@ func _estimate_job(item:Dictionary,requests:Array,need_model:bool=true)->Diction
 static func _prepare_job(path:String,digest:String,token:RefCounted,manifest:Dictionary,faces:bool,root:String,index:Dictionary,map_path:String,requests:Array,native:bool,need_model:bool,ownership_proof:OwnershipProof=null,model_route:Dictionary={})->Dictionary:
 	var started:=Time.get_ticks_usec()
 	var result:=_prepare_job_inner(path,digest,token,manifest,faces,root,index,map_path,requests,native,need_model,ownership_proof,model_route)
-	if not native and str(result.get("error","")).is_empty() and not result.get("native_packet",{}).get("fallback_required",false) and model_route.has("spec_orders"):
-		var template:PackedScene=result.get("packed",model_route.get("spec_template"))
-		if template!=null:
-			var projected_started:=Time.get_ticks_usec()
-			var records:Array=result.get("records",[])
-			if records.is_empty():records=model_route.get("spec_records",[])
-			result.instance_specs=preload("res://scripts/world3d/asset_spec_template.gd").prepare_records(template,records,model_route.spec_orders,token)
-			result.instance_worker_us=Time.get_ticks_usec()-projected_started
 	preload("res://scripts/world3d/load_trace.gd").elapsed("deferred.job",started,{"path":path,"native":native,"need_model":need_model,"reference_count":requests.size(),"failed":not str(result.get("error","")).is_empty()})
 	if model_route.get("completed_job_trace",false):
 		result.audit_worker_start_us=started;result.audit_worker_end_us=Time.get_ticks_usec()
@@ -2115,7 +2101,7 @@ static func _prepare_job_inner(path:String,digest:String,token:RefCounted,manife
 
 static func _preflight_reused_source(path:String,digest:String,content_root:String,token:RefCounted,native_only:bool=false)->Dictionary:
 	if token!=null and token.is_cancelled():return {"error":"素材准备已取消","cancelled":true}
-	var native_package:bool=native_only and preload("res://scripts/world3d/runtime_package_policy.gd").trusted()
+	var native_package:bool=native_only
 	var confined:bool=preload("res://scripts/world3d/map_paths.gd").asset_key_allowed(path,content_root) if native_package else preload("res://scripts/world3d/map_paths.gd").allowed(path,content_root)
 	if not Assets._valid_source_digest(digest) or content_root.is_empty() or not confined:return {"error":"复用素材缺少有效来源身份："+path}
 	# A reused native template already owns its accepted product and digest. Its
@@ -2126,7 +2112,7 @@ static func _preflight_reused_source(path:String,digest:String,content_root:Stri
 	return {"error":""}
 
 static func _verify_reused_source(path:String,digest:String,content_root:String,token:RefCounted,native_only:bool=false)->Dictionary:
-	if preload("res://scripts/world3d/runtime_package_policy.gd").trusted():return _preflight_reused_source(path,digest,content_root,token,native_only)
+	if native_only or preload("res://scripts/world3d/runtime_package_policy.gd").trusted():return _preflight_reused_source(path,digest,content_root,token,native_only)
 	if token!=null and token.is_cancelled():return {"error":"素材准备已取消","cancelled":true}
 	if not Assets._valid_source_digest(digest) or not preload("res://scripts/world3d/map_paths.gd").allowed(path,content_root):return {"error":"复用素材缺少有效来源身份："+path}
 	var started:=Time.get_ticks_usec()
@@ -2181,7 +2167,6 @@ static func _reuse_face_offer(packed:PackedScene,geometry_mode:int=CollisionGeom
 	# downloaded from RenderingServer under the small reuse reservation.
 	var owners:Dictionary={};var snapshots:Array=[];var bytes:=0;var seen:Dictionary={}
 	var state:=packed.get_state()
-	if state.get_node_count()>65536:return {"ok":false,"reason":"node_limit"}
 	for at in state.get_node_count():
 		var extras:Variant={}
 		for property in state.get_node_property_count(at):
@@ -2493,11 +2478,7 @@ func _publication_workspace_available(job:Dictionary,path:String,reserve:bool=fa
 			# Reuse admission deliberately omits the resident model. Its smaller
 			# lease is not a bound on another full unpublished instance.
 			var model_bound:int=int(job.get("estimate",{}).get("shared_model_estimate_bytes",0))
-			var template_owner:PackedScene=job.get("publication_template_owner")
-			var instance_bound:=0
-			if template_owner!=null:
-				instance_bound=int(template_owner.get_meta(preload("res://scripts/world3d/asset_spec_template.gd").META,{}).get("instance_bytes",0))
-			instance_bound+=var_to_bytes(packet.items[0].record).size()*8
+			var instance_bound:=var_to_bytes(packet.items[0].record).size()*8
 			packet.publication_workspace_bound=maxi(model_bound,instance_bound)
 		minimum_bytes=maxi(minimum_bytes,int(packet.publication_workspace_bound))
 	# One conservative unit for this batch makes the capacity preview and the
@@ -2624,7 +2605,6 @@ func _stage_building(item:Dictionary,specs:Array)->void:
 func _publication_ready()->Array:
 	var began:=Time.get_ticks_usec();var ready:Array=[]
 	var building_ranks:Dictionary={};var pruned:=0
-	var material_order:=_publication_order.preserve_building_material_order()
 	var paths_checked:=0;var prefix_checks:=0;var eligible_calls:=0
 	# At most one ready item per admitted closure. A collision-owned waiting
 	# head retains its consumption cursor. A separate bounded scan lets ready
@@ -2642,7 +2622,7 @@ func _publication_ready()->Array:
 		# once an earlier house is ready, checking this one cannot change choice.
 		# Never apply this to shared model paths, safety priorities, stale ranks,
 		# or when the earlier house was blocked. Re-evaluate on every selection.
-		if material_order and fair_publication_enabled and _candidates_revision==_demand_revision and path.begins_with("reference:building:"):
+		if fair_publication_enabled and _candidates_revision==_demand_revision and path.begins_with("reference:building:"):
 			var first:Dictionary=_path_first.get(path,EMPTY_DEMAND)
 			if not first.is_empty():
 				var priority:int=_demanded_priority.get(first.record.uuid,2147483647)
@@ -2731,12 +2711,7 @@ func _publication_dependencies_ready(item:Dictionary)->bool:
 	return _runtime_supports_ready(str(item.record.uuid))
 
 func _main_thread_budget_usec()->int:
-	# White geometry has been measured through entry, walking and far returns.
-	# Keep ordinary textured play's existing allowance until its own evaluation.
-	var controls=preload("res://scripts/world3d/runtime_probe_controls.gd")
-	var white:bool=controls.white_materials and controls.discard_map_textures
-	var base:=WHITE_INTERACTIVE_BUDGET_US if white else INTERACTIVE_BUDGET_US
-	var interactive:=clampi(interactive_budget_override_usec,1000,8000) if interactive_budget_override_usec>0 else base
+	var interactive:=clampi(interactive_budget_override_usec,1000,8000) if interactive_budget_override_usec>0 else INTERACTIVE_BUDGET_US
 	if force_covered_loading_budget and _map.get_viewport().disable_3d:return covered_loading_budget_usec
 	if _covered_loading_ready():return covered_loading_budget_usec
 	if _entry_loading_allowed() and _map.get_viewport().disable_3d:return covered_loading_budget_usec
@@ -2757,13 +2732,10 @@ func _main_thread_budget_usec()->int:
 	var viewport:=_host.get_viewport()
 	if cover.get_viewport()!=viewport or not viewport.disable_3d:return interactive
 	# Same-map transfer retains its established 16 ms allowance. Only the
-	# initial white full-ready cover may use the 24 ms initial budget.
+	# initial loading cover may use its independently configured budget.
 	return TRANSFER_COVERED_BUDGET_US
 
 static func automatic_loading_worker_limit(logical_threads:int)->int:
-	return clampi(floori(float(logical_threads)*.5),2,6)
-
-static func automatic_white_worker_limit(logical_threads:int)->int:
 	return clampi(floori(float(logical_threads)*.5),2,6)
 
 func _restore_uncovered_worker_capacity()->void:
@@ -2822,17 +2794,7 @@ func _publish_ready(began:int,budget_usec:int=INTERACTIVE_BUDGET_US)->Dictionary
 	while timing.units==0 or Time.get_ticks_usec()-began<budget_usec:
 		var heads:=_publication_ready()
 		if heads.is_empty():break
-		var pressure:=_completed_owner_pressure()
-		var remaining:Dictionary={}
-		if pressure and int(_demanded_priority.get(heads[0].record.uuid,0))>=0 and _publication_order.needs_drain_target(heads,_jobs):
-			for head:Dictionary in heads:
-				var owner:Dictionary=_jobs[head.path]
-				# Cost belongs to this transaction, not every later demand sharing its
-				# source path (road pages and shared model demand can grow separately).
-				# Compute only when selecting a target, never per sticky work unit.
-				remaining[head.path]=_remaining_owner_members(owner)
-		var item:Dictionary=_publication_order.choose(heads,_demanded_priority,_demanded_rank,_jobs,pressure,remaining) if fair_publication_enabled else heads[0]
-		if fair_publication_enabled and _publication_order.drain_selected:profile.completed_owner_drain_units=int(profile.get("completed_owner_drain_units",0))+1
+		var item:Dictionary=_publication_order.choose(heads,_demanded_priority,_demanded_rank,_jobs) if fair_publication_enabled else heads[0]
 		if item.path!=heads[0].path:profile.fair_publication_units=int(profile.get("fair_publication_units",0))+1
 		if item.get("published",false) or instance_errors.has(item.record.uuid) or path_errors.has(item.path):continue
 		var unit_began:=Time.get_ticks_usec()
@@ -2929,31 +2891,15 @@ func _publish_ready(began:int,budget_usec:int=INTERACTIVE_BUDGET_US)->Dictionary
 		var prefab_finished:=Time.get_ticks_usec()
 		var instance_parts:Variant={} if preload("res://scripts/world3d/load_trace.gd").enabled else null
 		if not item.get("native_reference",false):
-			var packet:Dictionary=pixel_job.get("result",{}).get("instance_specs",{}).get(publication_id,{})
-			var direct:bool=preload("res://scripts/world3d/asset_spec_template.gd").supports(pixel_job.publication_template_owner,item.record,_local_collision_order(item))
-			var cursor:RefCounted
-			var prepared_on_worker:=false
-			if direct:
-				cursor=preload("res://scripts/world3d/asset_spec_template.gd").new()
-				if not packet.is_empty() and (is_same(packet.record,item.record) or packet.record==item.record):
-					prepared_on_worker=true
-					cursor.specs=packet.specs;cursor.profile=packet.profile;cursor.phase=3
-					profile.worker_instance_specs=int(profile.get("worker_instance_specs",0))+cursor.specs.size()
-					profile.worker_instance_us=int(profile.get("worker_instance_us",0))+int(cursor.profile.elapsed_us)
-				else:cursor.begin(pixel_job.publication_template_owner,item.record,int(item.get("draw_order",0)))
-				profile.instance_nodes_avoided=int(profile.get("instance_nodes_avoided",0))+pixel_job.publication_template_owner.get_state().get_node_count()+1
-				profile.direct_instances=int(profile.get("direct_instances",0))+1
-			else:
-				cursor=preload("res://scripts/world3d/asset_instance_preparation.gd").new()
-				var texture_scope:=_begin_record_texture_scope(item,pixel_job)
-				if not texture_scope.ok:
-					_instance_failed(publication_id,"区块纹理在实例化前改变："+publication_id)
-					if not str(item.get("group_id","")).is_empty():_stage_building(item,[])
-					_account_work_unit(timing,unit_began);continue
-				cursor.begin(_doc,item.record,pixel_job.publication_template_owner)
-				preload("res://scripts/world3d/material_publication.gd").end_record_scope(texture_scope)
-			pixel_job.get("result",{}).get("instance_specs",{}).erase(publication_id)
-			pixel_job.instance_preparation={"uuid":publication_id,"cursor":cursor,"phase":"spec" if direct else "asset","prefab_us":prefab_finished-unit_began,"instance_us":0,"prefab_parts_ms":prefab_parts,"instance_parts_ms":instance_parts,"worker_prepared":prepared_on_worker}
+			var cursor:=preload("res://scripts/world3d/asset_instance_preparation.gd").new()
+			var texture_scope:=_begin_record_texture_scope(item,pixel_job)
+			if not texture_scope.ok:
+				_instance_failed(publication_id,"区块纹理在实例化前改变："+publication_id)
+				if not str(item.get("group_id","")).is_empty():_stage_building(item,[])
+				_account_work_unit(timing,unit_began);continue
+			cursor.begin(_doc,item.record,pixel_job.publication_template_owner)
+			preload("res://scripts/world3d/material_publication.gd").end_record_scope(texture_scope)
+			pixel_job.instance_preparation={"uuid":publication_id,"cursor":cursor,"phase":"asset","prefab_us":prefab_finished-unit_began,"instance_us":0,"prefab_parts_ms":prefab_parts,"instance_parts_ms":instance_parts,"worker_prepared":false}
 		else:
 			var cursor:RefCounted
 			var entry:Dictionary=Prefab._meshes.get(item.record.house_prefab.sha256,{}) if item.record.has("house_prefab") else {}
@@ -2998,28 +2944,7 @@ func _publish_ready(began:int,budget_usec:int=INTERACTIVE_BUDGET_US)->Dictionary
 	profile.publication_units=int(profile.get("publication_units",0))+int(timing.units)
 	return timing
 
-func _completed_owner_pressure()->bool:
-	# Reuse an actual dispatcher stop, not a new full-demand scan or an admission
-	# query with preemption side effects. This proves job-cap pressure only;
-	# byte/exclusive admission is still evaluated normally after a slot retires.
-	if not _publication_order.completed_owner_drain_enabled or _job_cap_waiter.is_empty() or _candidates_revision!=_demand_revision:return false
-	var controls=preload("res://scripts/world3d/runtime_probe_controls.gd")
-	if not controls.white_materials or not controls.discard_map_textures:return false
-	if _jobs.size()<_job_limit() or _admission.active_workers()>=_admission.worker_limit:return false
-	if _jobs.has(_job_cap_waiter) or path_errors.has(_job_cap_waiter):return false
-	var first:Dictionary=_path_first.get(_job_cap_waiter,EMPTY_DEMAND)
-	return not first.is_empty() and not instance_errors.has(first.record.uuid)
-
-func _remaining_owner_members(owner:Dictionary)->int:
-	var remaining:=0
-	var staged:Dictionary=owner.get("staged",EMPTY_DEMAND)
-	var packets:Dictionary=owner.get("collision_staged",EMPTY_DEMAND)
-	for uuid:String in owner.get("publication_ids",[]):
-		if not _demanded_by_id.has(uuid) or instance_errors.has(uuid) or staged.has(uuid) or packets.has(uuid):continue
-		remaining+=1
-	return maxi(1,remaining)
-
-const INSTANCE_WORK_FIELDS:={"namespace_nodes_visited":"instance_namespace_nodes_visited","component_node_steps":"instance_component_node_steps","finish_nodes_visited":"instance_finish_nodes_visited","finish_visuals_registered":"instance_finish_visuals_registered","nodes_visited":"instance_projection_nodes_visited","nodes_freed":"instance_projection_nodes_freed","subtree_free_calls":"instance_cancel_subtree_free_calls","meshes_projected":"instance_meshes_projected","rows_adapted":"template_rows_adapted","rows_projected":"template_rows_projected","sockets_applied":"template_sockets_applied"}
+const INSTANCE_WORK_FIELDS:={"namespace_nodes_visited":"instance_namespace_nodes_visited","component_node_steps":"instance_component_node_steps","finish_nodes_visited":"instance_finish_nodes_visited","finish_visuals_registered":"instance_finish_visuals_registered","nodes_visited":"instance_projection_nodes_visited","nodes_freed":"instance_projection_nodes_freed","subtree_free_calls":"instance_cancel_subtree_free_calls","meshes_projected":"instance_meshes_projected"}
 func _record_instance_work(cursor:RefCounted,cancelled:bool=false,worker_prepared:bool=false)->void:
 	# One handoff per completed/cancelled cursor, never a per-node profile update.
 	# Worker template packets use the same profile; these are accepted cursor
@@ -3103,7 +3028,7 @@ static func _manifest_matches(path:String,expected:Dictionary)->bool:
 	var current:Dictionary=preload("res://scripts/world3d/asset_bounds_manifest.gd").read(path)
 	return current.get("known",false) and current.get("json_sha256")==expected.get("json_sha256") and current.get("file_length")==expected.get("file_length")
 
-static func _native_private(packed:PackedScene,path:String,token:RefCounted,manifest:Dictionary,faces:bool,geometry_mode:int=CollisionGeometry.ALL,prepack:bool=false,direct_material_plan:bool=false)->Dictionary:
+static func _native_private(packed:PackedScene,path:String,token:RefCounted,manifest:Dictionary,faces:bool,geometry_mode:int=CollisionGeometry.ALL,prepack:bool=false,direct_material_plan:bool=false,published_product:bool=false)->Dictionary:
 	if token!=null and token.is_cancelled():return {"error":ERR_SKIP,"cancelled":true}
 	var began:=Time.get_ticks_usec()
 	var scene:Node=Compiled.instantiate(packed)
@@ -3119,7 +3044,7 @@ static func _native_private(packed:PackedScene,path:String,token:RefCounted,mani
 		result.cancelled=captured.get("cancelled",false);return result
 	# The reader's one full source SHA follows this callback, covering both
 	# instantiation/capture and the final immutable classification observation.
-	if not _manifest_matches(path,manifest):result.error=ERR_BUSY;return result
+	if not published_product and not _manifest_matches(path,manifest):result.error=ERR_BUSY;return result
 	if token!=null and token.is_cancelled():result.error=ERR_SKIP;result.cancelled=true;return result
 	if direct_material_plan:
 		# This frozen route owns a detached native scene and its resource graph.
@@ -3143,14 +3068,14 @@ static func _native_private(packed:PackedScene,path:String,token:RefCounted,mani
 static func _prepare_fixed_scene(path:String,digest:String,token:RefCounted,manifest:Dictionary,faces:bool,root:String,candidate:Dictionary,geometry_mode:int=CollisionGeometry.ALL,native_only:bool=false,worker_prepack:bool=false,direct_material_plan:bool=false)->Dictionary:
 	var began:=Time.get_ticks_usec()
 	if token!=null and token.is_cancelled():return {"error":"素材准备已取消","cancelled":true}
-	var native_package:bool=native_only and preload("res://scripts/world3d/runtime_package_policy.gd").trusted()
+	var native_package:bool=native_only
 	var confined:bool=preload("res://scripts/world3d/map_paths.gd").asset_key_allowed(path,root) if native_package else preload("res://scripts/world3d/map_paths.gd").allowed(path,root)
 	if root.is_empty() or not confined:return {"error":"素材路径无效："+path}
 	if native_package and digest.is_empty():digest=str(candidate.get("source_sha",""))
 	if not digest.is_empty() and (not Assets._valid_source_digest(digest) or candidate.get("source_sha")!=digest):return {"error":"素材已验证来源与原生候选不符："+path}
-	if (digest.is_empty() and manifest.is_empty()) or not _manifest_matches(path,manifest):return {"error":"素材边界在后台准备前发生变化："+path}
-	var prepack:bool=worker_prepack and native_package and not preload("res://scripts/world3d/white_native_asset_cache.gd").active()
-	var packet:=CompiledPreparation.read(path,candidate,root,_native_private.bind(path,token,manifest,faces,geometry_mode,prepack,direct_material_plan and native_package and not prepack and bool(candidate.get("direct_template_reuse_safe",false))),preload("res://scripts/world3d/runtime_package_policy.gd").trusted(),not native_only)
+	if (digest.is_empty() and manifest.is_empty()) or (not native_package and not _manifest_matches(path,manifest)):return {"error":"素材边界在后台准备前发生变化："+path}
+	var prepack:bool=worker_prepack and native_package
+	var packet:=CompiledPreparation.read(path,candidate,root,_native_private.bind(path,token,manifest,faces,geometry_mode,prepack,direct_material_plan and native_package and not prepack and bool(candidate.get("direct_template_reuse_safe",false)),native_only),preload("res://scripts/world3d/runtime_package_policy.gd").trusted(),not native_only,"",native_only)
 	var result:Dictionary={"error":"","native_packet":packet,"elapsed_us":Time.get_ticks_usec()-began}
 	if token!=null and token.is_cancelled():result.error="素材准备已取消";result.cancelled=true;return result
 	if packet.get("fallback_required",false):return result # Main validates + re-admits raw.
@@ -3173,11 +3098,11 @@ static func prepare_scene(path:String,digest:String,token:RefCounted=null,expect
 	if content_root.is_empty():
 		if OS.get_thread_caller_id()!=OS.get_main_thread_id():return {"error":"后台素材准备缺少资源根快照："+path}
 		content_root=preload("res://scripts/world3d/map_paths.gd").external_root()
-	var native_package:bool=native_only and trusted_package
+	var native_package:bool=native_only
 	var confined:bool=preload("res://scripts/world3d/map_paths.gd").asset_key_allowed(path,content_root) if native_package else preload("res://scripts/world3d/map_paths.gd").allowed(path,content_root)
 	if content_root.is_empty() or not confined:return {"error":"素材路径无效："+path}
 	var Manifest=preload("res://scripts/world3d/asset_bounds_manifest.gd")
-	if digest.is_empty() and not trusted_package:
+	if digest.is_empty() and not trusted_package and not native_package:
 		if expected_manifest.is_empty():return {"error":"缺少后台素材边界快照："+path}
 		var current:Dictionary=Manifest.read(path)
 		if not current.known or current.get("json_sha256")!=expected_manifest.get("json_sha256") or current.get("file_length")!=expected_manifest.get("file_length"):
@@ -3196,11 +3121,11 @@ static func prepare_scene(path:String,digest:String,token:RefCounted=null,expect
 	if token!=null and token.is_cancelled():return {"error":"素材准备已取消","cancelled":true}
 	# Strict transactions verify source bytes after private preparation as well.
 	var compiled:Dictionary={"hit":false,"elapsed_us":0}
-	if native_package and not preload("res://scripts/world3d/white_native_asset_cache.gd").active():
+	if native_package:
 		var candidate:Dictionary=expected_manifest.get("native_candidate",{})
 		if candidate.is_empty():candidate=preload("res://scripts/world3d/compiled_asset_footprint.gd").candidate(path,content_root,source_digest,true)
 		if candidate.is_empty() or (not source_digest.is_empty() and candidate.get("source_sha")!=source_digest):return {"error":preload("res://scripts/world3d/model_parse_preparation.gd").native_failure(path,"native_footprint_missing_or_stale").error_message}
-		var packet:=CompiledPreparation.read(path,candidate,content_root,Callable(),true)
+		var packet:=CompiledPreparation.read(path,candidate,content_root,Callable(),trusted_package,false,"",true)
 		if packet.get("error",FAILED)!=OK or packet.get("fallback_required",false):
 			return {"error":preload("res://scripts/world3d/model_parse_preparation.gd").native_failure(path,str(packet.get("cache_reason","invalid_product"))).error_message,"native_packet":packet}
 		compiled={"hit":true,"packed":packet.packed,"source_digest":packet.source_digest,"elapsed_us":int(packet.get("cache_us",0))}
@@ -3229,34 +3154,27 @@ static func prepare_scene(path:String,digest:String,token:RefCounted=null,expect
 	if token!=null and token.is_cancelled():return {"error":"素材准备已取消","cancelled":true,"scene":scene,"resource_owners":owners}
 	# Bind deferred classification to the same header after the potentially slow
 	# full-file hash and parser read as well as before them.
-	if not expected_manifest.is_empty() and not trusted_package:
+	if not expected_manifest.is_empty() and not trusted_package and not native_package:
 		var current:Dictionary=Manifest.read(path)
 		if not current.known or current.get("json_sha256")!=expected_manifest.get("json_sha256") or current.get("file_length")!=expected_manifest.get("file_length"):
 			return {"error":"素材边界在后台准备期间发生变化："+path,"scene":scene,"resource_owners":owners}
 	# The queue admits static self-contained files only. Every node/resource here
 	# belongs to this worker and has never entered a SceneTree or shared scene cache.
 	if token!=null and token.is_cancelled():return {"error":"素材准备已取消","cancelled":true,"scene":scene,"resource_owners":owners}
-	# Native.read has already bound the serialized arrays, LODs and collision
-	# faces to every mesh. A template consumer needs no temporary Node graph:
-	# instantiating, capturing and freeing it only repeats that completed work.
-	var direct_template:bool=pack_for_cache and compiled.hit and compiled.packed.get_meta("white_native_geometry",false)
 	var captured:Dictionary={"error":""}
 	var packed:PackedScene
-	if direct_template:
-		packed=compiled.packed
-	else:
-		var generate_started:=Time.get_ticks_usec()
-		if compiled.hit:
-			scene=Compiled.instantiate(compiled.packed)
-			preload("res://scripts/world3d/load_trace.gd").elapsed("deferred.compiled_instantiate",generate_started,{"path":path})
-		if scene==null:return {"error":"素材构建失败："+path,"resource_owners":owners}
-		if token!=null and token.is_cancelled():return {"error":"素材准备已取消","cancelled":true,"scene":scene,"resource_owners":owners}
-		var capture_started:=Time.get_ticks_usec()
-		captured=_capture_static_meshes(scene,collision_faces_required,token,geometry_mode)
-		preload("res://scripts/world3d/load_trace.gd").elapsed("deferred.cpu_capture",capture_started,{"path":path,"collision_faces":collision_faces_required})
-		if not captured.error.is_empty():
-			captured.scene=scene;captured.resource_owners=owners
-			return captured
+	var generate_started:=Time.get_ticks_usec()
+	if compiled.hit:
+		scene=Compiled.instantiate(compiled.packed)
+		preload("res://scripts/world3d/load_trace.gd").elapsed("deferred.compiled_instantiate",generate_started,{"path":path})
+	if scene==null:return {"error":"素材构建失败："+path,"resource_owners":owners}
+	if token!=null and token.is_cancelled():return {"error":"素材准备已取消","cancelled":true,"scene":scene,"resource_owners":owners}
+	var capture_started:=Time.get_ticks_usec()
+	captured=_capture_static_meshes(scene,collision_faces_required,token,geometry_mode)
+	preload("res://scripts/world3d/load_trace.gd").elapsed("deferred.cpu_capture",capture_started,{"path":path,"collision_faces":collision_faces_required})
+	if not captured.error.is_empty():
+		captured.scene=scene;captured.resource_owners=owners
+		return captured
 	if pack_for_cache and not compiled.hit:
 		# This static graph is still exclusively worker-owned. Pack it here so
 		# acceptance never performs a whole imported hierarchy traversal/pack.
@@ -3267,7 +3185,7 @@ static func prepare_scene(path:String,digest:String,token:RefCounted=null,expect
 		preload("res://scripts/world3d/load_trace.gd").elapsed("deferred.model_pack",pack_began,{"path":path})
 		if code!=OK:return {"error":"后台素材打包失败："+path,"scene":scene,"resource_owners":owners}
 	var final_sha_started:=Time.get_ticks_usec()
-	var final_digest:=source_digest if trusted_package else FileAccess.get_sha256(path)
+	var final_digest:=source_digest if native_package or trusted_package else FileAccess.get_sha256(path)
 	preload("res://scripts/world3d/load_trace.gd").elapsed("deferred.source_binding" if trusted_package else "deferred.final_source_sha",final_sha_started,{"path":path})
 	var final_confined:bool=preload("res://scripts/world3d/map_paths.gd").asset_key_allowed(path,content_root) if native_package else preload("res://scripts/world3d/map_paths.gd").allowed(path,content_root)
 	if final_digest!=source_digest or (not content_root.is_empty() and not final_confined):return {"error":"素材在后台准备期间发生变化："+path,"scene":scene,"resource_owners":owners}
@@ -3286,8 +3204,8 @@ static func prepare_scene(path:String,digest:String,token:RefCounted=null,expect
 	return captured
 
 static func _fallback_scene(path:String,token:RefCounted,content_root:String,static_private:bool=false)->Dictionary:
-	# Independent static white documents can share admission; unknown imports
-	# exclude every sibling. Registration of extensions is a startup operation.
+	# Explicit source imports retain the full-material exclusive import gate.
+	# Registration of extensions is a startup operation.
 	var preparation=preload("res://scripts/world3d/model_parse_preparation.gd")
 	var waiting:=Time.get_ticks_usec()
 	preparation.enter_raw_import(static_private)
@@ -3774,7 +3692,7 @@ func _dispatch_jobs(tree:SceneTree,prefetch_only:bool=false)->void:
 				estimate=_estimate_job(raw_item,requests,true)
 			else:
 				var offered:Dictionary=_candidate_for_job(path,content_root,digest)
-				var full_native:bool=require_native_products and preload("res://scripts/world3d/runtime_package_policy.gd").trusted() and not preload("res://scripts/world3d/white_native_asset_cache.gd").active()
+				var full_native:bool=require_native_products and preload("res://scripts/world3d/runtime_package_policy.gd").trusted()
 				if full_native and offered.is_empty():
 					_path_failed(path,preload("res://scripts/world3d/model_parse_preparation.gd").native_failure(path,"native_footprint_missing_or_stale").error_message)
 					continue
@@ -3789,7 +3707,7 @@ func _dispatch_jobs(tree:SceneTree,prefetch_only:bool=false)->void:
 						candidate=offered.duplicate(true);stage="fixed_native"
 						if native_budget_enabled:raw_item.memory={"estimated_bytes":candidate.estimated_bytes,"exclusive":candidate.exclusive,"known":true}
 						if full_native and full_native_template_reuse_enabled:
-							direct_template_reuse=not preload("res://scripts/world3d/runtime_probe_controls.gd").white_materials and bool(offered.get("direct_template_reuse_safe",false))
+							direct_template_reuse=bool(offered.get("direct_template_reuse_safe",false))
 						elif full_native and full_native_worker_prepack_enabled:
 							worker_prepack=true
 							# The existing full-job estimate already spans cache_scene's
@@ -3803,9 +3721,6 @@ func _dispatch_jobs(tree:SceneTree,prefetch_only:bool=false)->void:
 			estimate.texture_plan_workspace_bytes=preload("res://scripts/world3d/model_texture_direct_plan.gd").EXTRA_RESERVATION_BYTES
 			estimate.estimated_bytes=int(estimate.estimated_bytes)+int(estimate.texture_plan_workspace_bytes)
 		estimate.stage=stage
-		if not native and preload("res://scripts/world3d/asset_spec_template.gd").enabled and preload("res://scripts/world3d/asset_spec_template.gd").worker_enabled and (preload("res://scripts/world3d/runtime_probe_controls.gd").white_materials or preload("res://scripts/world3d/runtime_probe_controls.gd").native_geometry_only):
-			estimate.spec_workspace_bytes=preload("res://scripts/world3d/asset_spec_template.gd").WORKSPACE_BYTES
-			estimate.estimated_bytes=int(estimate.estimated_bytes)+int(estimate.spec_workspace_bytes)
 		if CollisionGeometry.enabled and not native:
 			# Snapshot/learned-policy containers are private task inputs/outputs.
 			# They remain charged through publication just like other job results.
@@ -3943,14 +3858,6 @@ func _make_prepare_task(path:String,digest:String,token:RefCounted,item:Dictiona
 	route.collision_workspace_bytes=int(job.get("estimate",{}).get("collision_workspace_bytes",0))
 	route.road_paint_workspace_bytes=int(job.get("estimate",{}).get("road_paint_workspace_bytes",0))
 	route.reuse_face_snapshots=job.get("reuse_face_snapshots",[])
-	if int(job.get("estimate",{}).get("spec_workspace_bytes",0))>0:
-		route.spec_template=job.get("reuse_template_owner")
-		route.spec_orders={};route.spec_records=[]
-		for id:String in job.get("publication_ids",[]):
-			var pending_item:Dictionary=_pending_by_record_id.get(id,{})
-			if pending_item.is_empty():continue
-			route.spec_orders[id]=int(pending_item.get("draw_order",0))
-			if pending_item.get("reference_prepared",false):route.spec_records.append(pending_item.record.duplicate(true))
 	if job.has("shared_pixels"):route.shared_pixels=job.shared_pixels
 	if _reference_handoff!=null:
 		route.hydrated_records=_reference_handoff.take(_reference_index,requests)

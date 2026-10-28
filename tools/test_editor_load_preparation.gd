@@ -28,9 +28,6 @@ static func gated_packet(value:String,gate:Semaphore)->Dictionary:
 	return {"error":OK,"value":value}
 static func owned_native_packet(ledger:RefCounted,observations:Array)->Dictionary:
 	return {"error":OK,"value":"native","retained_resources":[LeaseProbe.new(ledger,observations)]}
-static func hold_raw_lock(entered:Semaphore,release_:Semaphore)->Dictionary:
-	Job.ModelPreparation.enter_raw_import(false);entered.post();release_.wait();Job.ModelPreparation.leave_raw_import()
-	return {}
 func collect_asset(job:Node,record:Dictionary,bucket:Dictionary)->void:
 	bucket.result=await job._prepare_asset(record)
 func until_ready(queue:Node,key:String)->void:
@@ -155,20 +152,18 @@ func native_retry_cases()->void:
 	queue.free()
 
 func native_job_retry_case()->void:
-	# An absent source exercises both real readers without GLTF import, native
-	# scene construction or GPU work. The LoadJob consumer owns the transition.
+	# A missing native product must fail without re-admitting the authoring GLB.
 	var filename:=Paths.cache_directory("editor_native_retry_cpu_%d"%Time.get_ticks_usec()).path_join("missing.glb")
 	check(not FileAccess.file_exists(filename),"native LoadJob fixture begins with an absent source")
 	var job:=Job.new();root.add_child(job);job._timings.build={"units":{}};job._begin_asset_lookahead([])
 	var queue:Node=job._preparation;var key:="model:"+filename
 	queue.enqueue(key,Job._parse_native_asset.bind(filename,Paths.external_root(),{}),{"estimated_bytes":10,"exclusive":false,"stage":"compiled_read"})
 	var prepared:Dictionary=await job._prepare_asset({"kind":"asset","uuid":"missing_native_model","asset_path":filename})
-	check(prepared.has("scene") and prepared.scene==null and not prepared.get("cancelled",false),"real native miss and raw missing-source error return a missing scene without GPU work")
-	check(queue.snapshot().raw_retries==1 and job._timings.asset_lookahead.native_retries==1,"LoadJob itself performs exactly one native-to-raw transition")
-	check(queue.rows[key].estimate.estimated_bytes==Job.MemoryEstimate.UNKNOWN_BYTES and queue.rows[key].estimate.exclusive and queue.rows[key].estimate.stage=="raw_import","LoadJob re-estimates the source and separately admits the complete unknown raw envelope")
-	check(queue.rows[key].state=="done" and queue.ledger.count()==0 and queue.ledger.reserved_bytes==0,"LoadJob consumes and releases its raw failure without retaining either stage lease")
-	check(job._timings.asset_lookahead.native_retry_reasons.get("candidate_disabled",0)==1,"LoadJob preserves the fixed-reader miss reason through fallback")
-	check(not FileAccess.file_exists(filename),"two-stage preparation never creates or rewrites the missing source")
+	check(prepared.has("scene") and prepared.scene==null and not prepared.get("cancelled",false),"native miss returns a missing scene without GLB import")
+	check(queue.snapshot().raw_retries==0 and job._timings.asset_lookahead.native_retries==0,"LoadJob never transitions from native miss to raw")
+	check(queue.rows[key].estimate.estimated_bytes==10 and queue.rows[key].estimate.stage=="compiled_read","native miss never borrows a raw reservation")
+	check(queue.rows[key].state=="done" and queue.ledger.count()==0 and queue.ledger.reserved_bytes==0,"LoadJob releases native failure without retaining its lease")
+	check(not FileAccess.file_exists(filename),"native miss never creates or opens the missing source")
 	job.free()
 
 func run()->void:
@@ -254,10 +249,9 @@ func run()->void:
 	var prepared:Dictionary=await job._prepare_record_textures(records[0])
 	var key:String=preload("res://scripts/world3d/surface_materials.gd").texture_key(filename,true,true)
 	check(prepared.failed.is_empty() and prepared.images.has(key) and absf(prepared.images[key].get_pixel(0,0).g-.75)<.01,"bounded CPU preparation retains normal orientation and source pixels")
-	# Trusted package identity is path-derived; only explicit strict mode hashes
-	# file contents. Neither identity alone proves mutable-editor invalidation.
-	var expected_identity:=filename.sha256_text() if preload("res://scripts/world3d/runtime_package_policy.gd").trusted() else FileAccess.get_sha256(filename)
-	check(prepared.images.has(key) and prepared.images[key].get_meta("runtime_source_sha256")==expected_identity,"prefetched image carries the configured source identity")
+	# Editor sources are mutable even when gameplay trusts package identities.
+	var expected_identity:=FileAccess.get_sha256(filename)
+	check(prepared.images.has(key) and prepared.images[key].get_meta("runtime_source_sha256")==expected_identity,"prefetched editor image carries content identity")
 	job._preparation.release(prepared.queue_key)
 	# Deliberately do not install an ImageTexture: equivalent to an LRU miss,
 	# and keeps this fixture independent of GPU/RenderingServer textures.
@@ -268,24 +262,19 @@ func run()->void:
 	job.free()
 	check(FileAccess.file_exists(filename),"derived preparation never rewrites or deletes source images")
 
-	# Removing (not freeing) the loader lets suspended functions resume. Hold the
-	# raw importer on another thread so cancellation happens after acquire but
-	# before main-thread generate, where the queue clears the aliased packet.
+	# Removing the loader while publication is budget-gated clears the acquired
+	# native packet and its lease before the suspended consumer resumes.
 	job=Job.new();root.add_child(job);job._timings.build={"units":{}};job._begin_asset_lookahead([])
-	job._preparation.enqueue("model:"+filename,packet.bind("raw"),{"estimated_bytes":1,"exclusive":false,"cpu_only":true})
+	job._preparation.enqueue("model:"+filename,packet.bind("native"),{"estimated_bytes":1,"exclusive":false,"cpu_only":true,"stage":"compiled_read"})
 	await until_ready(job._preparation,"model:"+filename)
-	var entered:=Semaphore.new();var release_:=Semaphore.new();var lock_worker:=Thread.new()
-	lock_worker.start(hold_raw_lock.bind(entered,release_));entered.wait()
+	Budget.enabled=true;Budget.shared().record(Engine.get_process_frames(),"publication",Budget.shared().covered_budget_usec)
 	var bucket:Dictionary={};collect_asset(job,{"kind":"asset","uuid":"cancelled","asset_path":filename},bucket)
-	check(job._preparation.rows["model:"+filename].state=="held","raw generation can await its mutex after acquiring a charged packet")
-	root.remove_child(job);release_.post()
-	while lock_worker.is_alive():await process_frame
-	lock_worker.wait_to_finish()
+	check(job._preparation.rows["model:"+filename].state=="held","native publication can await its budget after acquiring a charged packet")
+	var cancelled_ledger:RefCounted=job._preparation.ledger
+	root.remove_child(job);Budget.enabled=false
 	for frame in 3:await process_frame
 	check(bucket.get("result",{}).get("cancelled",false),"removed loader terminates suspended publication before touching a cleared packet")
-	var unlocked:bool=Job.ModelPreparation.try_enter_raw_import(false)
-	check(unlocked,"cancellation does not leak the raw import admission")
-	if unlocked:Job.ModelPreparation.leave_raw_import()
+	check(cancelled_ledger.count()==0,"cancellation does not leak the native admission")
 	job.free()
 	print("EDITOR_LOAD_PREPARATION passed=",passed," failures=",failures)
 	quit(0 if failures==0 else 1)

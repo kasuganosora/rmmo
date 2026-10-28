@@ -41,8 +41,7 @@ func snapshot(map:Node3D)->Dictionary:
 	for id:String in map.get_meta("stream_bodies",{}):result.bodies[id]=map.get_meta("stream_bodies")[id].transform
 	return result
 func run()->void:
-	Controls.discard_map_textures=true;Controls.enable_white_materials()
-	Stream.white_time_slice_enabled=not "--baseline" in OS.get_cmdline_user_args()
+	Stream.interactive_time_slice_enabled=not "--baseline" in OS.get_cmdline_user_args()
 	node_added.connect(inserted)
 	var map:=fixture()
 	var first:=await drain(map,Vector3(4,0,4));var expected:=snapshot(map)
@@ -51,20 +50,19 @@ func run()->void:
 	check(map.get_meta("stream_meshes").is_empty() and map.get_meta("stream_bodies").is_empty(),"departure removes both visuals and collision bodies")
 	var returned:=await drain(map,Vector3(4,0,4))
 	check(snapshot(map)==expected,"return restores the exact UUIDs and transforms")
-	check(first.max_progress>12 and away.max_progress>12 if Stream.white_time_slice_enabled else first.max_progress<=12 and away.max_progress<=12,"cheap work uses its time allowance; the control stops at twelve")
+	check(first.max_progress<=12 and away.max_progress<=12,"full-material interactive work retains the twelve-object ceiling")
 	calls=[first,away,returned];map.free();await process_frame
 	map=fixture();slow=true
 	var slow_step:=await drain(map,Vector3(4,0,4));slow=false
-	check(slow_step.max_progress<=4 and slow_step.steps>90,"costly engine callbacks stop the existing time slice before a long object batch")
+	check(slow_step.max_progress<=12 and slow_step.steps>=30,"costly callbacks retain the full-material object ceiling")
 	map.free();await process_frame
 	map=fixture()
 	var explicit:=await drain(map,Vector3(4,0,4),1)
 	check(explicit.max_progress<=1,"explicit one-object callers retain their limit")
 	map.free();await process_frame
-	Controls.white_materials=false
 	map=fixture()
 	var textured:=await drain(map,Vector3(4,0,4))
-	check(textured.max_progress<=12,"non-white callers keep their existing object ceiling")
+	check(textured.max_progress<=12,"full-material callers keep their existing object ceiling")
 	map.free();await process_frame
 	print("STREAM_TIME_SLICE ",JSON.stringify({"calls":calls,"slow":slow_step,"explicit":explicit,"nonwhite":textured,"failures":failures}))
 	quit(1 if failures else 0)

@@ -34,7 +34,7 @@ func run()->void:
 	var logger:=Errors.new();OS.add_logger(logger)
 	for dependency:String in ["collision","support"]:partial_progress(dependency)
 	packet_dependencies();cancel_partial();failed_partial();workspace_pressure();invalid_staged_packet();selection_reservation();failed_last_group_member()
-	reuse_workspace_bound(524288,0,"shared model");reuse_workspace_bound(131072,786432,"direct instance")
+	reuse_workspace_bound(524288,0,"shared model");reuse_workspace_bound(131072,40000,"record workspace")
 	OS.remove_logger(logger);check(logger.errors.is_empty(),"zero engine/script errors")
 	for issue:String in logger.errors:print("ENGINE_ERROR ",issue)
 	print("DEFERRED_INSTANCE_PROGRESS passed=",passed," failures=",failures)
@@ -152,18 +152,16 @@ func failed_last_group_member()->void:
 	check(f.document.calls=={"group_a":1,"healthy":1},"aborting incomplete group performs no repeated or failed-member construction")
 	f.map.free()
 
-func reuse_workspace_bound(model_bound:int,instance_bound:int,label:String)->void:
+func reuse_workspace_bound(model_bound:int,record_padding:int,label:String)->void:
 	# Only scheduling metadata is synthetic. Actual Node/spec cursors and the
 	# production dependency, selection, reservation and release paths are used.
 	var a:=item("held");var b:=item("sibling","reference:shared",10)
+	if record_padding>0:a.record.workspace_padding="x".repeat(record_padding)
 	var f:=fixture([a,b]);var queue:Node=f.queue
 	var job:Dictionary=queue._jobs[a.path]
 	job.estimate={"stage":"reuse_reference","shared_model_estimate_bytes":model_bound}
-	var template_owner:=PackedScene.new()
-	template_owner.set_meta(preload("res://scripts/world3d/asset_spec_template.gd").META,{"instance_bytes":instance_bound})
-	job.publication_template_owner=template_owner
 	var base:=65536
-	var retained_bound:=maxi(model_bound,instance_bound+var_to_bytes(a.record).size()*8)
+	var retained_bound:=maxi(model_bound,var_to_bytes(a.record).size()*8)
 	var replacement_bound:=maxi(base,retained_bound)
 	queue._publish_ready(Time.get_ticks_usec()-1000000,1);queue.missing_support.held=true
 	queue._admission.byte_limit=base+replacement_bound-1
@@ -171,7 +169,7 @@ func reuse_workspace_bound(model_bound:int,instance_bound:int,label:String)->voi
 	check(job.get("collision_staged",{}).has("held") and not b.get("published",false) and not f.document.calls.has("sibling"),"%s: smaller reuse lease cannot stand in for the retained instance bound"%label)
 	check(queue._admission.reserved_bytes==base and int(queue.profile.get("publication_workspace_waits",0))>0,"%s: insufficient instance bytes allocate no replacement graph or extra lease"%label)
 	var packet:Dictionary=job.get("collision_staged",{}).get("held",{})
-	check(int(packet.get("publication_workspace_bound",0))==retained_bound,"%s: packet caches the model/template/record bound"%label)
+	check(int(packet.get("publication_workspace_bound",0))==retained_bound,"%s: packet caches the model/record bound"%label)
 	for i:int in 16:queue._publication_ready()
 	check(queue._admission.reserved_bytes==base and int(packet.get("publication_workspace_bound",0))==retained_bound,"%s: repeated readiness preserves the cached bound without speculative reservations"%label)
 	queue._admission.byte_limit=base+replacement_bound

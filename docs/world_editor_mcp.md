@@ -1,5 +1,9 @@
 # 当前 3D 地图编辑器 MCP
 
+## 可变材质源与 native 加载准备（2026-10-28）
+
+默认配置下，`open_world` 会刷新同路径重导出的纹理，并保留旧材质 owner；UI 与 3D MCP 继续共用材质刷写、撤销和保存业务。模型打开、预览及普通保存使用已发布原生产物，GLB 只用于显式导入/转换。真实 HTTP/GPU 材质回归 49/0、原生散布/缩略图回归 26/0；详细证据、DDS 来源回退与尚未完成的旧模型转换见 [编辑器材质管线适配](editor_material_pipeline_20261028.md)。工具名和 schema 不变。
+
 ## 素材预览与缩略图反射环境（2026-10-16）
 
 `AssetPreview` 与 `AssetThumbnails` 共用 `asset_preview_environment.gd` 的低分辨率中性反射天空，保留原背景、补光、曝光和主灯；正式世界的天气环境不变。UI 和当前 3D MCP 的 `repair_asset_thumbnails` 仍共用原生产队列，工具名称与 schema 没有变化。

@@ -1,4 +1,4 @@
-extends "res://tools/test_native_without_source.gd"
+extends "res://tools/full_native_test_fixture.gd"
 ## Real full-material native product integration on a private content root.
 ## Run only on the private GPU desktop: tools/run_godot_background.py.
 const FullCompiled=preload("res://scripts/world3d/compiled_asset_cache.gd")
@@ -81,7 +81,7 @@ func run()->void:
 	create_timer(180).timeout.connect(func():printerr("FULL_NATIVE_WITHOUT_SOURCE timed out");quit(2))
 	if DisplayServer.get_name()=="headless":check(false,"full native test requires private GPU desktop");quit(1);return
 	gpu=true
-	Policy.verify_packages=false;Controls.white_materials=false;Controls.native_geometry_only=false;Controls.discard_map_textures=false
+	Policy.verify_packages=false;Controls.discard_map_textures=false
 	directory="D:/code/rmmo_runtime/review_artifacts/full_native_without_source_%d_%d"%[OS.get_process_id(),Time.get_ticks_usec()]
 	DirAccess.make_dir_recursive_absolute(directory)
 	var manager:=root.get_node("AssetManager");var previous_root:String=manager.content_root_override
@@ -380,7 +380,7 @@ func check_document_fortification_identity(sample:Dictionary)->void:
 	var record:Dictionary={"uuid":"fortification_identity","kind":"box","size":[4,2,1],"position":[0,0,0],"rotation":[0,0,0],"fortification_art":art,"fortification_materials":{},"surface_paint":[]}
 	# Seed the actual fortification mesh cache to keep this assertion focused on
 	# the production signature/key branch; kit geometry is tested separately.
-	var key:Array=["fortification",record.size,{},[],{},record.fortification_art,record.fortification_materials,record.surface_paint,sample.sha]
+	var key:Array=["fortification",record.size,{},[],{},record.fortification_art,record.fortification_materials,record.surface_paint,[sample.sha,sample.observation.native_payload_sha]]
 	var sentinel:=BoxMesh.new();document.load_box_meshes[key]={"mesh":sentinel,"source":sentinel}
 	var visual:MeshInstance3D=document._mesh(record,true)
 	check(document.load_model_signatures.get(sample.path)==sample.sha and document.load_box_hits==1 and visual.mesh==sentinel,"world document fortification uses native source SHA in its existing cache key")

@@ -37,7 +37,7 @@ static func valid(kit: Variant, relative: bool = false, content_root: String = "
 		if path.get_extension().to_lower() != "glb": return false
 		if relative and not path.is_absolute_path():
 			if path.contains("..") or path.contains(":") or path.begins_with("/") or path.contains("\\"): return false
-		elif not Paths.allowed(path, content_root): return false
+		elif not Paths.asset_key_allowed(path, content_root): return false
 	match kit.family:
 		"cliff": return kit.pieces.size() == 2 and kit.pieces.has("top") and kit.pieces.has("edge")
 		"stairs": return kit.pieces.size() == 1 and kit.pieces.has("default")
@@ -57,42 +57,53 @@ func entries() -> Array:
 		if loaded.ok: result.append({"kit_id": path, "name": loaded.kit.name, "family": loaded.kit.family, "piece_count": loaded.kit.pieces.size()})
 	return result
 
-func read(path: String) -> Dictionary:
+func read(path: String, author_import:bool=false) -> Dictionary:
 	if not Paths.allowed(path) or not FileAccess.file_exists(path): return {"ok": false, "error": "套件清单不存在或超出资源根"}
 	var file := FileAccess.open(path, FileAccess.READ)
 	if file == null or file.get_length() > 65536: return {"ok": false, "error": "套件清单超过 64 KiB 或无法读取"}
 	var kit: Variant = JSON.parse_string(file.get_as_text())
 	file.close()
 	if not valid(kit, true): return {"ok": false, "error": "套件格式、模型路径或邻接变体不完整"}
+	var checked_sources:Dictionary={}
 	for key in kit.pieces:
 		var source: String = kit.pieces[key]
 		if not source.is_absolute_path(): source = path.get_base_dir().path_join(source).simplify_path()
-		if not Paths.allowed(source) or not FileAccess.file_exists(source): return {"ok": false, "error": "套件模型缺失或路径越界"}
-		var checked := check_model(source)
+		if not Paths.asset_key_allowed(source): return {"ok": false, "error": "套件模型路径越界"}
+		if not checked_sources.has(source):
+			# The explicit importer checks each unique authored model immediately
+			# before copying it; ordinary reads use only the published native.
+			checked_sources[source]="" if author_import and FileAccess.file_exists(source) else ("套件模型缺失" if author_import else check_model(source,false))
+		var checked:String=checked_sources[source]
 		if not checked.is_empty(): return {"ok": false, "error": checked}
 		kit.pieces[key] = source
 	return {"ok": true, "kit": kit}
 
 func import_kit(path: String) -> Dictionary:
-	var loaded := read(path)
+	var loaded := read(path,true)
 	if not loaded.ok: return loaded
 	var kit: Dictionary = loaded.kit
 	# Preflight every dependency before writing anything to the library.
-	var sources := {}
+	var sources := {};var source_digests:Dictionary={}
 	for source: String in kit.pieces.values():
 		if sources.has(source): continue
-		var checked := check_model(source)
+		var checked := check_model(source,true)
 		if not checked.is_empty(): return {"ok": false, "error": checked}
 		sources[source] = FileAccess.get_file_as_bytes(source)
+		var hash_:=HashingContext.new();hash_.start(HashingContext.HASH_SHA256);hash_.update(sources[source]);source_digests[source]=hash_.finish().hex_encode()
 	if not Paths.allowed(directory): return {"ok": false, "error": "套件保存目录越界"}
 	var err := DirAccess.make_dir_recursive_absolute(directory.path_join("models"))
 	if err != OK: return {"ok": false, "error": "无法创建套件目录"}
+	var compiled_destinations:Dictionary={}
 	for key in kit.pieces:
 		var source: String = kit.pieces[key]
-		var destination := directory.path_join("models").path_join(FileAccess.get_sha256(source) + ".glb")
+		var destination := directory.path_join("models").path_join(str(source_digests[source]) + ".glb")
 		if not Paths.allowed(destination): return {"ok": false, "error": "套件模型保存路径越界"}
-		err = write_immutable(destination, sources[source])
-		if err != OK: return {"ok": false, "error": "套件模型保存失败"}
+		if not compiled_destinations.has(destination):
+			err = write_immutable(destination, sources[source])
+			if err != OK: return {"ok": false, "error": "套件模型保存失败"}
+			var built:Dictionary=preload("res://scripts/world_editor/asset_library.gd")._compile_import(destination)
+			if not built.get("ok",false) or not preload("res://scripts/world_editor/asset_library.gd").native_available(destination):return {"ok":false,"error":"套件模型原生产物生成失败，请重新导入"}
+			compiled_destinations[destination]=true
 		kit.pieces[key] = "models/" + destination.get_file()
 	var payload := JSON.stringify(kit, "\t")
 	var target := directory.path_join(payload.sha256_text() + ".json")
@@ -111,10 +122,15 @@ static func write_immutable(path: String, bytes: PackedByteArray) -> Error:
 	if err == OK: err = preload("res://scripts/world3d/atomic_file.gd").publish(temp, path)
 	return err
 
-static func check_model(path: String) -> String:
-	var invalid := _header_error(path)
-	if not invalid.is_empty(): return invalid
-	var mesh := piece_mesh(path)
+static func check_model(path: String, author_import:bool=false) -> String:
+	var mesh:ArrayMesh
+	if author_import:
+		var invalid:=_header_error(path)
+		if not invalid.is_empty():return invalid
+		var root:=Io.load_scene(path)
+		if root==null:return "套件模型无法读取"
+		mesh=_piece_from_scene(root);root.free()
+	else:mesh=piece_mesh(path)
 	if mesh == null or mesh.get_surface_count() == 0: return "套件模型没有有效静态三角网格"
 	if mesh.get_surface_count() > 16: return "单块模型最多支持 16 个材质面"
 	return ""
@@ -139,26 +155,28 @@ static func _header_error(path: String) -> String:
 	return ""
 
 static func piece_mesh(path: String) -> ArrayMesh:
-	if not Paths.allowed(path) or not FileAccess.file_exists(path): return null
-	# Published kit models are immutable. A cheap disk stamp avoids hashing a large
-	# GLB for every side of every painted cell; import still validates the header.
-	var file := FileAccess.open(path, FileAccess.READ)
-	if file == null: return null
-	var key := path + ":%d:%d" % [FileAccess.get_modified_time(path), file.get_length()]
-	file.close()
+	if not Paths.asset_key_allowed(path):return null
+	var library=preload("res://scripts/world_editor/asset_library.gd")
+	var candidate:Dictionary=library.native_validation_candidate(path)
+	if candidate.is_empty():return null
+	var key:String=path+":"+str(candidate.native_product_kind)+":"+str(candidate.source_sha)+":"+str(candidate.payload_sha)+":"+str(candidate.generator)
 	if _meshes.has(key): return _meshes[key]
-	if not _header_error(path).is_empty(): return null
-	var root := Io.load_scene(path)
+	var root:=library.instantiate_preview(path,true)
 	if root == null: return null
+	var output:=_piece_from_scene(root)
+	root.free()
+	if output==null:return null
+	if _meshes.size() >= 64: _meshes.erase(_meshes.keys()[0])
+	_meshes[key] = output
+	return output
+
+static func _piece_from_scene(root:Node)->ArrayMesh:
 	var output := ArrayMesh.new()
 	var success := append_node(output, root, Transform3D.IDENTITY)
-	root.free()
 	if not success: return null
 	var vertices := 0
 	for surface in output.get_surface_count(): vertices += output.surface_get_array_len(surface)
 	if vertices > 50000: return null
-	if _meshes.size() >= 64: _meshes.erase(_meshes.keys()[0])
-	_meshes[key] = output
 	return output
 
 static func append_node(output: ArrayMesh, node: Node, parent: Transform3D) -> bool:
@@ -212,6 +230,6 @@ static func missing(records: Array) -> Array:
 	for record in records:
 		var kit: Dictionary = record.get("tile3d", {}).get("options", {}).get("kit", {})
 		for path: String in kit.get("pieces", {}).values():
-			if not checked.has(path):checked[path]=Paths.allowed(path) and FileAccess.file_exists(path)
+			if not checked.has(path):checked[path]=preload("res://scripts/world_editor/asset_library.gd").native_available(path)
 			if not checked[path]:result.append(path)
 	return result

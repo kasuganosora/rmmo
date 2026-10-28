@@ -60,8 +60,7 @@ var worker_packed_surfaces:=0
 var main_packed_surfaces:=0
 var worker_surface_prepare_us:=0
 const INTERACTIVE_WORK_BUDGET_USEC:=2000
-const SETTLED_WHITE_WORK_BUDGET_USEC:=6000
-static var settled_white_budget_enabled:=true
+const COVERED_IDLE_WORK_BUDGET_USEC:=6000
 static var covered_idle_budget_enabled:=true
 static var profile_preparation_units_enabled:=false
 const MAX_LOADING_WORK_BUDGET_USEC:=24000
@@ -108,12 +107,12 @@ func end_loading_budget(token:int)->bool:
 func effective_work_budget_usec()->int:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.ground_batcher.effective_work_budget_usec") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	if not _loading_budgets.is_empty():return int(_loading_budgets.back().usec)
-	if work_budget_usec==INTERACTIVE_WORK_BUDGET_USEC and _can_use_settled_budget():return SETTLED_WHITE_WORK_BUDGET_USEC
+	if work_budget_usec==INTERACTIVE_WORK_BUDGET_USEC and _can_use_settled_budget():return COVERED_IDLE_WORK_BUDGET_USEC
 	return work_budget_usec
 
 func _can_use_settled_budget()->bool:
-	# Borrow unused publication/collision time for white rendering or a covered
-	# textured tail. Interactive textured traversal keeps its original budget.
+	# Borrow unused publication/collision time for a covered loading tail.
+	# Interactive traversal keeps its original budget.
 	# Read live ownership state at consumption, not a latched "finished" flag:
 	# a new destination/publication must revoke the allowance in the same frame.
 	var map:=get_parent()
@@ -130,12 +129,10 @@ func _can_use_settled_budget()->bool:
 static func can_borrow_publication_budget(map:Node)->bool:
 	# The idle publication lane can also finish residency. Requiring residency
 	# itself to be finished left that allowance unused behind a pending queue.
-	var controls=preload("res://scripts/world3d/runtime_probe_controls.gd")
 	if map==null:return false
 	var queue:=map.get_node_or_null("DeferredAssets")
 	if queue==null or not queue.is_idle():return false
-	var white:bool=settled_white_budget_enabled and controls.white_materials and controls.discard_map_textures
-	if not white and (not covered_idle_budget_enabled or not queue._covered_loading_ready()):return false
+	if not covered_idle_budget_enabled or not queue._covered_loading_ready():return false
 	if map.has_meta("retirement_schema_preparation") and not map.get_meta("retirement_schema_preparation").complete:return false
 	if map.has_meta("retirement_frame_budget"):
 		var ledger:RefCounted=map.get_meta("retirement_frame_budget")
@@ -143,9 +140,9 @@ static func can_borrow_publication_budget(map:Node)->bool:
 	return true
 
 func share_residency_budget(started:int)->void:
-	# Used by both gameplay and the white traversal probe. Streaming and batch
-	# work share one allowance; an indivisible collision overrun leaves zero.
-	var total:=SETTLED_WHITE_WORK_BUDGET_USEC if can_borrow_publication_budget(get_parent()) else 3000
+	# Streaming and batch work share one allowance; an indivisible collision
+	# overrun leaves zero.
+	var total:=COVERED_IDLE_WORK_BUDGET_USEC if can_borrow_publication_budget(get_parent()) else 3000
 	residency_budget_frame=Engine.get_process_frames()
 	residency_budget_remaining_usec=maxi(0,total-(Time.get_ticks_usec()-started))
 

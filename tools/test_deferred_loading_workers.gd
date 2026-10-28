@@ -85,17 +85,5 @@ func run()->void:
 	host._transfer_pending=true;service.pending.clear();service._process(0)
 	check(service.is_complete() and not service.is_processing() and service._admission.worker_limit==2 and service._saved_interactive_worker_limit==-1,"complete queue restores interactive capacity before stopping process callbacks")
 	host.free();root.disable_3d=original_disable
-	var controls=preload("res://scripts/world3d/runtime_probe_controls.gd")
-	controls.enable_white_materials();controls.discard_map_textures=true
-	for row:Array in [[0,2],[2,2],[4,2],[6,3],[8,4],[12,6],[32,6]]:
-		check(Deferred.automatic_white_worker_limit(row[0])==row[1],"white capacity reserves other cores and caps at six: "+str(row[0]))
-	var white:=Deferred.new();var limit:=Deferred.automatic_white_worker_limit(OS.get_processor_count())
-	check(white._admission.worker_limit==limit and white._job_limit()==maxi(4,limit),"white queue starts with measured worker capacity and bounded parked results")
-	white._admission.byte_limit=1024;white._update_loading_worker_capacity(16000);white._update_loading_worker_capacity(2000)
-	check(white._admission.worker_limit==limit and white._admission.byte_limit==1024,"cover restoration preserves white capacity and byte allowance")
-	white.ready_job_limit=7;check(white._job_limit()==7,"explicit ready queue override remains exact")
-	white._admission.worker_limit=0;white._update_loading_worker_capacity(16000);white._update_loading_worker_capacity(2000)
-	check(white._admission.worker_limit==0,"white mode never revives explicitly disabled dispatch")
-	white.free();controls.discard_map_textures=false
 	print("DEFERRED_LOADING_WORKERS passed=",passed," failures=",failures)
 	quit(0 if failures==0 else 1)

@@ -55,6 +55,8 @@ func run()->void:
 		check(false,"--native requires coordinated GPU renderer");quit(1);return
 	var folder:=Paths.cache_directory("import_preparation_%d_%d"%[OS.get_process_id(),Time.get_ticks_usec()])
 	DirAccess.make_dir_recursive_absolute(folder)
+	# Native products/footprints are derived into this isolated test root.
+	var manager:=root.get_node("AssetManager");var old_root:String=manager.content_root_override;manager.content_root_override=folder
 	var f:=fixture();var source:=folder.path_join("source.glb")
 	write_glb(source,f.data,f.binary)
 	var bytes:=FileAccess.get_file_as_bytes(source);var digest:=FileAccess.get_sha256(source)
@@ -63,7 +65,7 @@ func run()->void:
 	check(prepared.error==OK and prepared.current() and prepared.parse_count==1,"one validated parse binds complete source SHA")
 	var first:=prepared.get_scene() as Node3D
 	check(first!=null and is_same(first,prepared.get_scene()) and prepared.scene_count==1,"bounds and native builder borrow the same scene")
-	if first==null:prepared.dispose();quit(1);return
+	if first==null:prepared.dispose();manager.content_root_override=old_root;quit(1);return
 	var expected:=Library.bounds_of(first)
 	check(expected.is_equal_approx(AABB(Vector3.ZERO,Vector3(3,1,0.5))),"bounds include both independently translated mesh instances")
 	check(Io.extras_of(Io.find_named(first,"One")).get("artwork_slot")=="import-fixture","generated scene preserves authored extras")
@@ -86,9 +88,17 @@ func run()->void:
 	var mismatched:=Library._compile_import(other,prepared)
 	check(not mismatched.ok and mismatched.reason=="prepared_source_path" and prepared.disposed and not Library._compiled_imports.has(other),"mismatched compile path releases owner without publishing a success identity")
 	var library:=Library.new(folder.path_join("library"))
+	check(not Library._import_product_gate(source,{"ok":false,"reason":"unsupported_scene"},{}).ok,"native build failure blocks catalog publication")
+	check(not Library._import_product_gate(source,{"ok":true,"footprint":{"ok":false}},{}).ok,"footprint failure blocks catalog publication")
 	var imported:Dictionary=library.import_file(source)
+	if not native:
+		check(not imported.get("ok",false) and imported.get("compiled_asset",{}).get("reason","")=="graphics_required","headless import rejects when native product cannot be built")
+		check(library.entries.is_empty() and not FileAccess.file_exists(library.directory.path_join("library.json")),"failed native build never publishes catalog entry")
+		check(no_staging(library.directory) and FileAccess.get_sha256(source)==digest,"failed native import preserves source and removes staging")
+		manager.content_root_override=old_root
+		print("ASSET_IMPORT_PREPARATION checks=%d failures=%d native=%s"%[checks,failures,native]);quit(1 if failures else 0);return
 	check(imported.get("ok",false),"cold library import succeeds")
-	if not imported.get("ok",false):print(imported);quit(1);return
+	if not imported.get("ok",false):print(imported);manager.content_root_override=old_root;quit(1);return
 	var target:String=imported.entry.asset_path
 	check(imported.import_preparation.parse_count==1 and imported.import_preparation.scene_count==1,"cold embedded import performs one parse and one scene generation")
 	check(FileAccess.get_file_as_bytes(target)==bytes and target.get_file()==digest+".glb","staged copy remains byte exact and content addressed")
@@ -106,8 +116,6 @@ func run()->void:
 			check(Library.bounds_of(model).is_equal_approx(expected),"native result keeps preview bounds")
 			Drainer.dispose_scene(model);hit.clear()
 		else:Compiled.dispose_miss(hit)
-	else:
-		check(not imported.compiled_asset.ok and imported.compiled_asset.reason=="graphics_required","headless retains validated GLB when native build is unavailable")
 	var reopened:=Library.new(library.directory)
 	check(reopened.entries==library.entries,"atomic catalog save/reopen preserves entry identity")
 	var again:Dictionary=library.import_file(source)
@@ -138,14 +146,12 @@ func run()->void:
 		check(model!=null and Library.bounds_of(model).is_equal_approx(expected),"converted model still loads after original dependency removal")
 		if model!=null:Drainer.dispose_scene(model)
 	var m:=fixture(true);var morph_path:=folder.path_join("morph.glb");write_glb(morph_path,m.data,m.binary)
+	var before_morph:Array=library.entries.duplicate(true)
+	var before_morph_catalog:=FileAccess.get_sha256(library.directory.path_join("library.json"))
 	var morph:Dictionary=library.import_file(morph_path)
-	check(morph.get("ok",false),"non-native morph model retains ordinary validated GLB fallback")
-	if morph.get("ok",false):
-		check(morph.import_preparation.parse_count==1 and morph.import_preparation.scene_count==1,"unsupported native geometry does not trigger a redundant import parse")
-		var model:=Library.instantiate_preview(morph.entry.asset_path)
-		var one:=Io.find_named(model,"One") as MeshInstance3D;var two:=Io.find_named(model,"Two") as MeshInstance3D
-		check(one!=null and two!=null and is_equal_approx(one.get_blend_shape_value(0),0.75) and is_equal_approx(two.get_blend_shape_value(0),0.25),"independent morph defaults survive exact-byte fallback")
-		if model!=null:Drainer.dispose_scene(model)
+	check(not morph.get("ok",false),"unsupported native geometry rejects instead of publishing GLB fallback")
+	check(library.entries==before_morph and FileAccess.get_sha256(library.directory.path_join("library.json"))==before_morph_catalog,"unsupported native import leaves catalog unchanged")
 	check(FileAccess.get_sha256(source)==digest,"all operations leave original source unchanged")
+	manager.content_root_override=old_root
 	print("ASSET_IMPORT_PREPARATION checks=%d failures=%d native=%s"%[checks,failures,native])
 	quit(0 if failures==0 else 1)

@@ -240,20 +240,18 @@ func check_two_jobs(values:Array,direct:bool,with_plan:bool=true)->void:
 	Drainer.synchronize_transfer();for frame:int in 30:await process_frame
 	check(ledger.reserved_bytes==0,"two jobs release full admission ledger")
 
-func check_negative_dispatch(sample:Dictionary,white:bool,editor:bool,white_material:bool=false)->void:
+func check_editor_negative_dispatch(sample:Dictionary)->void:
 	Library.evict_cached_scene(sample.path);Drainer.synchronize_transfer()
 	Deferred.full_native_template_reuse_enabled=true;Deferred.full_native_worker_prepack_enabled=true
-	var before:bool=Controls.native_geometry_only;var before_material:bool=Controls.white_materials
-	Controls.native_geometry_only=white;Controls.white_materials=white_material
-	var holder:=make_queue([sample],not editor);var queue:DirectQueue=holder.queue;queue.set_process(false);queue.reject_start=true
+	var holder:=make_queue([sample],false);var queue:DirectQueue=holder.queue;queue.set_process(false);queue.reject_start=true
 	queue._refresh_demanded();queue._dispatch_deadline=Time.get_ticks_usec()+100000;queue._dispatch_jobs(self);queue._dispatch_deadline=0
-	check(queue.dispatches.size()==1 and not queue.dispatches[0].direct and not queue.dispatches[0].prepack,"white/editor never dispatch either full native candidate")
-	queue.shutdown();holder.map.queue_free();Controls.native_geometry_only=before;Controls.white_materials=before_material
+	check(queue.dispatches.size()==1 and not queue.dispatches[0].direct and not queue.dispatches[0].prepack,"editor never dispatches full native game candidates")
+	queue.shutdown();holder.map.queue_free()
 
 func run()->void:
 	create_timer(180).timeout.connect(func():printerr("DIRECT_NATIVE_CONTRACT timed out");quit(2))
 	if DisplayServer.get_name()=="headless":check(false,"direct contract requires private GPU desktop");quit(1);return
-	gpu=true;Policy.verify_packages=false;Controls.white_materials=false;Controls.native_geometry_only=false;Controls.discard_map_textures=false
+	gpu=true;Policy.verify_packages=false;Controls.discard_map_textures=false
 	directory="D:/code/rmmo_runtime/review_artifacts/direct_native_contract_%d_%d"%[OS.get_process_id(),Time.get_ticks_usec()];DirAccess.make_dir_recursive_absolute(directory)
 	var manager:=root.get_node("AssetManager");var previous_root:String=manager.content_root_override;manager.content_root_override=directory
 	for options:Array in [[false,false,false,false],[true,false,false,false],[false,true,false,false],[false,false,true,false],[false,false,false,true]]:
@@ -278,9 +276,7 @@ func run()->void:
 		await check_ready_fallback(samples[0],false)
 		await check_two_jobs(samples,true)
 		await check_two_jobs(samples,true,false)
-		check_negative_dispatch(samples[0],true,false)
-		check_negative_dispatch(samples[0],false,false,true)
-		check_negative_dispatch(samples[0],false,true)
+		check_editor_negative_dispatch(samples[0])
 	for sample:Dictionary in samples:Library.evict_cached_scene(sample.path)
 	Drainer.synchronize_transfer();manager.content_root_override=previous_root;Deferred.full_native_template_reuse_enabled=false;Deferred.full_native_worker_prepack_enabled=false;Deferred.full_native_material_plan_enabled=true
 	for item:String in created:

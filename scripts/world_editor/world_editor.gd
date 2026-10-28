@@ -951,7 +951,7 @@ func _prepare_save(path: String, overwrite: bool = false) -> bool:
 		_report_error("地图必须保存为工程外内容目录内的 glTF 文件", "保存地图")
 		return false
 	path = path.replace("\\", "/").simplify_path()
-	if path != _path and FileAccess.file_exists(path) and not overwrite:
+	if path != _path.replace("\\", "/").simplify_path() and FileAccess.file_exists(path) and not overwrite:
 		_report_error("另存为目标已存在，请选择新路径", "保存地图")
 		return false
 	Net.session().world3d_editor_doc = _doc

@@ -41,9 +41,9 @@ static func geometry(bridge:Dictionary,cache:Dictionary)->Dictionary:
 	if not bridge.has("bridge_mesh") or not bridge.has("house_prefab") or not D.valid(bridge):return {}
 	if absf(bridge.rotation[0])+absf(bridge.rotation[2])>.0001 or bridge.bridge_mesh.recipe.style not in ["segmental","pointed","rustic"]:return {}
 	var path:String=bridge.get("asset_path","")
-	if not preload("res://scripts/world3d/map_paths.gd").allowed(path) or not FileAccess.file_exists(path):return {}
-	var source_sha:=FileAccess.get_sha256(path)
-	var key:=City.token([bridge.house_prefab.sha256,bridge.bridge_mesh,bridge.position,bridge.rotation,bridge.size,path,source_sha])
+	var candidate:=preload("res://scripts/world_editor/asset_library.gd").native_validation_candidate(path)
+	if candidate.is_empty():return {}
+	var key:=City.token([bridge.house_prefab.sha256,bridge.bridge_mesh,bridge.position,bridge.rotation,bridge.size,path,candidate.native_product_kind,candidate.source_sha,candidate.payload_sha,candidate.generator])
 	if cache.has(key):return cache[key]
 	cache[key]={} # Fail closed, including a missing/changed module or unknown pack.
 	var decoded:=Frozen.decode(bridge.house_prefab)
@@ -52,8 +52,8 @@ static func geometry(bridge:Dictionary,cache:Dictionary)->Dictionary:
 	if collision.box_size!=Vector3.ZERO:return {}
 	var actual:=faces(collision.surfaces);var actual_keys:Dictionary={}
 	for face:Array in actual:actual_keys[face_key(face)]=true
-	# Do not trust BridgeMesh's path-only kit LRU after a source change. Preview
-	# verifies current source bytes; this private module owner is freed below.
+	# The private preview owns this published native version; saving/editing the
+	# original GLB has no effect until an explicit reimport publishes a new one.
 	var owner:Node3D=preload("res://scripts/world_editor/asset_library.gd").instantiate_preview(path)
 	if owner==null:return {}
 	var pieces:Dictionary={}
@@ -88,7 +88,7 @@ static func geometry(bridge:Dictionary,cache:Dictionary)->Dictionary:
 		# Unequal-depth/unsupported modules cannot silently lose a footing.
 		if base_count==0:owner.free();return {}
 	owner.free()
-	if FileAccess.get_sha256(path)!=source_sha:return {}
+	if preload("res://scripts/world_editor/asset_library.gd").native_validation_candidate(path)!=candidate:return {}
 	var body:Array=[]
 	for face:Array in actual:
 		# An unrecognised bottom-reaching structure is not an arch intrados.
@@ -97,7 +97,7 @@ static func geometry(bridge:Dictionary,cache:Dictionary)->Dictionary:
 		# their projections need not be identical to the flat sole footprint.
 		var part:=projected(face,pose)
 		if not part.is_empty():body.append(part)
-	var result:={"bases":bases,"body":body,"source_sha256":source_sha}
+	var result:={"bases":bases,"body":body,"source_sha256":candidate.source_sha,"native_payload_sha":candidate.payload_sha}
 	cache[key]=result;return result
 
 static func preserves(record:Dictionary,result:Dictionary,bridge:Dictionary,cache:Dictionary)->bool:

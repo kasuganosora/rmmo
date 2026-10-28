@@ -3,7 +3,6 @@ extends RefCounted
 ## retains the existing job lease and geometry publication/retirement policy.
 ## No Node, resource read, geometry copy, cache, or scene-thread call is needed.
 const Cpu=preload("res://scripts/world3d/ground_cpu_mesh.gd")
-const Controls=preload("res://scripts/world3d/runtime_probe_controls.gd")
 const Fixtures=preload("res://scripts/world3d/building_fixtures.gd")
 const Collision=preload("res://scripts/world3d/model_collision_requirements.gd")
 const Stream=preload("res://scripts/world3d/world_stream.gd")
@@ -17,7 +16,7 @@ var profile:Dictionary={"slices":0,"elapsed_us":0,"max_slice_us":0,"nodes_create
 static func supports(value:Dictionary,entry:Dictionary,local_collision:bool=false,textured:bool=false)->bool:
 	# Textured admission is explicit: the caller must retain immutable/trusted
 	# document semantics and the record-scope handoff before opting in.
-	if local_collision or (not textured and (not Controls.white_materials or not Controls.discard_map_textures)):return false
+	if local_collision or not textured:return false
 	# Box prefabs already contain their authored dimensions. Asset scale uses a
 	# Node3D decomposition, and paint has a separate geometry preparation path.
 	if value.get("kind")!="box" or not value.has("house_prefab") or not value.get("surface_paint",[]).is_empty():return false

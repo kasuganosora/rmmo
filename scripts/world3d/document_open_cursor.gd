@@ -124,9 +124,9 @@ static func asset_record_issue(record: Variant, material_validation: Dictionary,
 	if record.get("kind")=="asset":
 		var path:=str(record.get("asset_path",""))
 		if asset_paths==null or not asset_paths.has(path):
-			if not Paths.allowed(path,content_root):return "Model reference is outside the allowed content root"
+			if not Paths.asset_key_allowed(path,content_root):return "Model reference is outside the allowed content root"
 			if asset_paths!=null:asset_paths[path]=true
-		if not PackagePolicy.trusted() and not preload("res://scripts/world3d/imported_building.gd").verify_source(record):return "Imported building does not match its source contract"
+		if not PackagePolicy.trusted() and not preload("res://scripts/world3d/imported_building.gd").verify_source(record,content_root):return "Imported building does not match its native contract"
 	return ""
 
 static func document_record_issue(record: Dictionary, ids: Dictionary) -> String:
@@ -332,7 +332,7 @@ func _node_step() -> void:
 	elif record.get("kind")=="asset":
 		var asset_path:String=record.get("asset_path","")
 		if not _asset_paths.has(asset_path):
-			if not Paths.allowed(asset_path,_content_root):issue="Model reference is outside the allowed content root"
+			if not Paths.asset_key_allowed(asset_path,_content_root):issue="Model reference is outside the allowed content root"
 			_asset_paths[asset_path]=true
 	if not issue.is_empty():_fail(issue);return
 	if _document_mode and _node==_native:_append_record(record)

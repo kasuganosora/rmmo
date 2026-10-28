@@ -4,7 +4,6 @@ extends SceneTree
 const Deferred=preload("res://scripts/world3d/deferred_asset_loader.gd")
 const Cursor=preload("res://scripts/world3d/instance_spec_preparation.gd")
 const Asset=preload("res://scripts/world3d/asset_instance_preparation.gd")
-const Template=preload("res://scripts/world3d/asset_spec_template.gd")
 const Cpu=preload("res://scripts/world3d/ground_cpu_mesh.gd")
 const Collision=preload("res://scripts/world3d/stream_collision_preparer.gd")
 const Terrain=preload("res://scripts/world3d/terrain_collision_preparer.gd")
@@ -79,27 +78,6 @@ func cursor_counts()->void:
 	check(asset.profile.component_node_steps==27 and asset.profile.finish_nodes_visited==10 and asset.profile.finish_visuals_registered==0,"existing component and finish passes report real steps without rescanning")
 	asset.take_holder().free();asset.dispose()
 	check(asset.profile.namespace_nodes_visited==9 and asset.profile.subtree_free_calls==0,"normal asset handoff is not a cancelled subtree free")
-
-func template_counts()->void:
-	var cpu:=cpu_mesh();var rows:Array=[]
-	for i:int in 33:
-		rows.append({"name":"part%d"%i,"path":"part%d"%i,"parent":-1 if i==0 else 0,"local":Transform3D.IDENTITY,"extra":{"rmmo_light_socket":{"position":[0,0,0],"color":[1,1,1],"range":2.0,"energy":1.0,"flame":false,"indoor":false}} if i==0 else {},"mesh":null if i==0 else cpu,"cpu":cpu,"bounds":cpu.bounds,"overrides":[],"shadow":GeometryInstance3D.SHADOW_CASTING_SETTING_ON,"owner_path":".","hinge_owner":i})
-	var packed:=PackedScene.new();packed.set_meta(Template.META,{"rows":rows,"sockets":[{"node":0,"anchor":1}],"generic":false,"components":true})
-	var record:={"uuid":"template","position":[0,0,0],"rotation":[0,0,0],"size":[1,1,1]}
-	var cursor:=Template.new();cursor.begin(packed,record,0)
-	check(not cursor.advance(1),"template adaptation spans a bounded slice")
-	while not cursor.advance(1):pass
-	check(cursor.profile.rows_adapted==33 and cursor.profile.rows_projected==33 and cursor.profile.sockets_applied==1 and cursor.profile.meshes_projected==32,"template rows, real sockets and emitted meshes counted separately")
-	var adopted:=Template.new();adopted.specs=cursor.specs;adopted.profile=cursor.profile.duplicate();adopted.phase=3
-	adopted.advance(1);adopted.dispose()
-	check(adopted.profile.rows_adapted==33 and adopted.profile.rows_projected==33,"accepted worker packet does not overwrite its counts with receiver zeros")
-	var partial:=Template.new();partial.begin(packed,record,0);partial.advance(1);partial.dispose()
-	check(partial.profile.rows_adapted>0 and partial.profile.rows_adapted<33 and partial.profile.rows_projected==0,"cancel preserves only performed template work")
-	var loader:=preload("res://scripts/world3d/map_loader.gd").new();root.add_child(loader);loader.set_process(false)
-	for calls:int in [1,2]:
-		var initial:Array=await loader._prepare_asset_specs(packed,record,0)
-		check(initial.size()==32 and loader._profile.accepted_initial_template_rows_adapted==33*calls and loader._profile.accepted_initial_template_rows_projected==33*calls and loader._profile.accepted_initial_template_sockets_applied==calls and loader._profile.accepted_initial_template_meshes_projected==32*calls,"initial loader accepts each worker template profile exactly once: "+str(calls))
-	loader.free()
 
 func queue_counts()->void:
 	var queue:=Queue.new();root.add_child(queue)
@@ -185,7 +163,7 @@ func prefetch_counts()->void:
 
 func run()->void:
 	create_timer(90).timeout.connect(func():quit(2))
-	cursor_counts();await template_counts();queue_counts()
+	cursor_counts();queue_counts()
 	await collision_counts();await prefetch_counts()
 	print("LOADING_WORK_COUNTERS checks=",checks," failures=",failures)
 	quit(1 if failures else 0)

@@ -67,12 +67,6 @@ func run()->void:
 	var original_disable_3d:=root.disable_3d
 	var f:=fixture();var service:Probe=f.service
 	check(service._main_thread_budget_usec()==2000,"ordinary play uses the two millisecond slice")
-	var controls=preload("res://scripts/world3d/runtime_probe_controls.gd")
-	controls.white_materials=true;controls.discard_map_textures=true
-	check(service._main_thread_budget_usec()==6000,"measured white geometry route receives six milliseconds")
-	controls.discard_map_textures=false
-	check(service._main_thread_budget_usec()==2000,"white override alone cannot change ordinary texture publication budget")
-	controls.white_materials=false
 	f.host._transfer_pending=true;root.disable_3d=true
 	check(service._main_thread_budget_usec()==2000,"pending transfer and disabled 3D cannot boost an undrawn cover")
 	f.cover.drawn_frame=0;f.cover.opacity=1;f.cover.phase="waiting";root.disable_3d=false

@@ -26,7 +26,7 @@ static func read(path:String,root:String,version:String="",native_only:bool=fals
 	# These are nested wall spans, not exclusive CPU or pure disk time.
 	if timing!=null:timing.assign({"path_check_us":0,"path_check_count":0,"source_open_length_close_us":0,"source_open_count":0,"source_identity_us":0,"source_identity_count":0,"native_metadata_us":0,"native_metadata_count":0})
 	if not Policy.trusted() and not native_only:return _observe(path)
-	if native_only or preload("res://scripts/world3d/white_native_asset_writer.gd").active():
+	if native_only:
 		# The original GLB is an optional authoring input, not a runtime
 		# prerequisite. Resolve both identity and the offline size from the
 		# published descriptor, even for a human-readable logical asset name.
@@ -56,10 +56,6 @@ static func read(path:String,root:String,version:String="",native_only:bool=fals
 		began=Time.get_ticks_usec()
 	var identity:=Policy.source_identity(path)
 	if timing!=null:timing.source_identity_us=Time.get_ticks_usec()-began;timing.source_identity_count=1;began=Time.get_ticks_usec()
-	var native:=preload("res://scripts/world3d/white_native_asset_metadata.gd").read(path,root,identity,length)
-	if timing!=null:timing.native_metadata_us=Time.get_ticks_usec()-began;timing.native_metadata_count=1;timing.native_metadata_hit=not native.is_empty()
-	if not native.is_empty():return native
-	if native_only:return Manifest.unknown("native_metadata_missing_or_stale")
 	if not disk_cache_enabled:return _observe(path)
 	var target:=cache_path(identity,root,version)
 	if target.is_empty() or not Paths.allowed(target,root):return _observe(path)

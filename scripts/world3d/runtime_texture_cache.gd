@@ -39,11 +39,11 @@ static func _profile_elapsed(label:String,began:int,details:Dictionary={})->void
 	_profile_mutex.unlock()
 	Trace.elapsed(label,began,details)
 
-static func cache_path(path:String,flip:bool)->String:
+static func cache_path(path:String,flip:bool,mutable_source:bool=false)->String:
 	# Trusted packages use the immutable package path as their identity; strict
 	# diagnostics retain content-SHA namespaces so their validity checks remain
 	# meaningful. Never share a path-identity cache with a content-identity one.
-	var mode:="path" if Policy.trusted() else "content"
+	var mode:="path" if Policy.trusted() and not mutable_source else "content"
 	return DIR.path_join((path+str(flip)+("|upload_v4" if upload_preparation_enabled else "|v4")+"|"+mode).sha256_text()+".bin")
 
 static func cache_payload_valid(payload:PackedByteArray,expected:PackedByteArray)->bool:
@@ -57,11 +57,11 @@ static func cache_payload_valid(payload:PackedByteArray,expected:PackedByteArray
 	if profile_enabled:_profile_count("texture.cache_payload_checksum_checks")
 	return Envelope.checksum(payload)==expected
 
-static func discard_failed_source(path:String,flip:bool)->void:
+static func discard_failed_source(path:String,flip:bool,mutable_source:bool=false)->void:
 	# A failed preparation explicitly revokes this derived pixel variant. A
 	# repaired trusted source may retain its package path, so dropping only GPU
 	# aliases would reload the stale disk product. Ordinary loads do no new IO.
-	var target:=cache_path(path,flip)
+	var target:=cache_path(path,flip,mutable_source)
 	if FileAccess.file_exists(target):DirAccess.remove_absolute(target)
 
 static func prepare_upload(image:Image)->Image:
@@ -90,7 +90,7 @@ static func valid_pixels(data:Dictionary)->bool:
 		width=maxi(1,width>>1);height=maxi(1,height>>1)
 	return data.size==expected and expected<134217728
 
-static func store_pixels(path:String,flip:bool,image:Image,digest:String,limit:int=134217760,authorize:Callable=Callable())->bool:
+static func store_pixels(path:String,flip:bool,image:Image,digest:String,limit:int=134217760,authorize:Callable=Callable(),mutable_source:bool=false)->bool:
 	# Optional derived output, never an authored file. The caller owns image and
 	# proves its snapshot/source identity; a worker may veto publication after
 	# compression (cancellation or a source replacement). Keep RGB compact here.
@@ -105,7 +105,7 @@ static func store_pixels(path:String,flip:bool,image:Image,digest:String,limit:i
 	var payload:=var_to_bytes(data)
 	if payload.size()+32>mini(limit,134217760):return false
 	if DirAccess.make_dir_recursive_absolute(DIR)!=OK:return false
-	var target:=cache_path(path,flip)
+	var target:=cache_path(path,flip,mutable_source)
 	var temporary:=target+".%d.%d.%d.tmp"%[OS.get_process_id(),OS.get_thread_caller_id(),Time.get_ticks_usec()]
 	var file:=FileAccess.open(temporary,FileAccess.WRITE)
 	if file==null:return false
@@ -116,24 +116,35 @@ static func store_pixels(path:String,flip:bool,image:Image,digest:String,limit:i
 		DirAccess.remove_absolute(temporary);return false
 	return true
 
-static func image(path:String,flip:bool)->Image:
+static func image(path:String,flip:bool,mutable_source:bool=false)->Image:
 	if preload("res://scripts/world3d/runtime_probe_controls.gd").discard_map_textures:return null
 	var began:=Time.get_ticks_usec() if profile_enabled else 0
-	var result:=_image(path,flip)
+	var result:=_image(path,flip,mutable_source)
 	if profile_enabled:
 		_profile_count("texture.image."+("success" if result!=null else "failed"))
 		_profile_elapsed("texture.image",began,{"path":path,"flip":flip,"ok":result!=null})
 	return result
 
-static func _image(path:String,flip:bool)->Image:
+static func _image(path:String,flip:bool,mutable_source:bool=false)->Image:
 	var began:=Time.get_ticks_usec() if profile_enabled else 0
 	# The mounted package is immutable during a trusted load. Its identity is the
 	# package path, not a repeated full-file SHA; strict diagnostics retain the
 	# content identity so their A/B validation still detects changed bytes.
-	var digest:String=path.sha256_text() if Policy.trusted() else FileAccess.get_sha256(path)
-	if profile_enabled and not Policy.trusted():_profile_elapsed("texture.image.source_sha",began,{"path":path,"flip":flip})
+	var immutable_package:bool=Policy.trusted() and not mutable_source
+	var source_bytes:=PackedByteArray()
+	var digest:=""
+	if mutable_source:
+		# Editor fallback formats use one captured source for identity and decode.
+		# This also avoids hashing and then reopening a different file generation.
+		var source:=FileAccess.open(path,FileAccess.READ)
+		if source==null or source.get_length()<=0 or source.get_length()>128*1024*1024:return null
+		var length:=source.get_length();source_bytes=source.get_buffer(length);source.close()
+		if source_bytes.size()!=length:return null
+		var hash:=HashingContext.new();hash.start(HashingContext.HASH_SHA256);hash.update(source_bytes);digest=hash.finish().hex_encode()
+	else:digest=path.sha256_text() if immutable_package else FileAccess.get_sha256(path)
+	if profile_enabled and not immutable_package:_profile_elapsed("texture.image.source_sha",began,{"path":path,"flip":flip})
 	var version:=4 if upload_preparation_enabled else 2
-	var target:=cache_path(path,flip)
+	var target:=cache_path(path,flip,mutable_source)
 	began=Time.get_ticks_usec() if profile_enabled else 0
 	var file:=FileAccess.open(target,FileAccess.READ)
 	if file!=null and file.get_length()>32 and file.get_length()<134217760:
@@ -164,7 +175,16 @@ static func _image(path:String,flip:bool)->Image:
 	file=null
 	if profile_enabled:_profile_count("texture.image.cache_miss")
 	began=Time.get_ticks_usec() if profile_enabled else 0
-	var result:=Image.load_from_file(path)
+	var result:Image
+	if mutable_source:
+		result=Image.new()
+		var error:=ERR_FILE_UNRECOGNIZED
+		match path.get_extension().to_lower():
+			"png":error=result.load_png_from_buffer(source_bytes)
+			"jpg","jpeg":error=result.load_jpg_from_buffer(source_bytes)
+			"webp":error=result.load_webp_from_buffer(source_bytes)
+		if error!=OK:return null
+	else:result=Image.load_from_file(path)
 	if profile_enabled:_profile_elapsed("texture.image.source_decode",began,{"path":path,"flip":flip,"ok":result!=null})
 	if result==null or result.is_empty() or result.get_width()>4096 or result.get_height()>4096:return null
 	if flip:
@@ -186,7 +206,7 @@ static func _image(path:String,flip:bool)->Image:
 		result.set_meta("runtime_upload_has_alpha",result.detect_alpha()!=Image.ALPHA_NONE)
 		if profile_enabled:_profile_elapsed("texture.image.alpha",began,{"path":path,"flip":flip})
 	began=Time.get_ticks_usec() if profile_enabled else 0
-	store_pixels(path,flip,result,digest)
+	store_pixels(path,flip,result,digest,134217760,Callable(),mutable_source)
 	if profile_enabled:_profile_elapsed("texture.image.cache_store",began,{"path":path,"flip":flip})
 	if version==4:prepare_upload(result)
 	return result

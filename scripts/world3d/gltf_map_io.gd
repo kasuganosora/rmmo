@@ -310,7 +310,6 @@ static func generate_scene(document: GLTFDocument, state: GLTFState, prepare_lod
 	for node:GLTFNode in nodes:
 		if node.mesh>=(state.meshes.size() if legacy_state_array_getters_enabled else meshes.size()):return null
 	preload("res://scripts/world3d/load_trace.gd").elapsed("model.gltf_reference_scan",scan_began,{"nodes":nodes.size(),"array_reads":2+nodes.size() if legacy_state_array_getters_enabled else 2})
-	preload("res://scripts/world3d/runtime_probe_controls.gd").prepare_gltf_materials(state)
 	if prepare_lod_hints and preload("res://scripts/world3d/ground_cpu_mesh.gd").importer_lod_hints_enabled:
 		preload("res://scripts/world3d/importer_lod_hint.gd").prepare(state,nodes,meshes)
 	var scene := document.generate_scene(state)
@@ -360,14 +359,10 @@ static func generate_scene(document: GLTFDocument, state: GLTFState, prepare_lod
 					water_extras.rmmo_landscape_kind="channel"
 					node.set_meta("extras",water_extras)
 				if preload("res://scripts/world3d/ground_batch_geometry.gd").candidate(record): by_id[str(record.uuid)].set_meta("ground_batch_record",record.duplicate(true))
-	# White geometry has already bound its canonical materials before generation.
-	# Optical overrides are unused here; leaf backlight would otherwise duplicate
-	# those whites per node and retain materials in a geometry-only native product.
-	if not preload("res://scripts/world3d/runtime_probe_controls.gd").white_materials:
-		preload("res://scripts/world3d/model_texture_cache.gd").prepare_mipmaps(scene)
-		preload("res://scripts/world3d/grass_texture_cache.gd").apply(scene)
-		preload("res://scripts/world3d/leaf_backlight.gd").apply(scene)
-		preload("res://scripts/world3d/tinted_glass.gd").apply(scene)
+	preload("res://scripts/world3d/model_texture_cache.gd").prepare_mipmaps(scene)
+	preload("res://scripts/world3d/grass_texture_cache.gd").apply(scene)
+	preload("res://scripts/world3d/leaf_backlight.gd").apply(scene)
+	preload("res://scripts/world3d/tinted_glass.gd").apply(scene)
 	preload("res://scripts/world3d/asset_visibility_range.gd").apply(scene)
 	return scene
 

@@ -76,63 +76,24 @@ func editor_history_lookahead(expected:Dictionary)->void:
 		check(false,"actual editor initial native worker finishes")
 		check(false,"actual editor initial plan loads a usable historical native scene")
 	job._clear_asset_lookahead();job.free();await process_frame
-	# A cached-source mismatch enters the second real planning call, which must
-	# also choose the published native product with an old footprint generator.
-	job=EditorLoadJob.new();root.add_child(job);queue=EditorQueue.new();job.add_child(queue)
-	var estimate:={"estimated_bytes":1024*1024,"exclusive":false,"cpu_only":true,"stage":"cache_check"}
-	check(queue.enqueue(key,EditorLoadJob._check_cached_source.bind(source,content_root,true),estimate,"model"),"actual editor retry fixture enqueues a bounded cache check")
-	queue.demand(key);queue.pump();var deadline:=Time.get_ticks_msec()+15000
-	while not queue.is_ready(key) and Time.get_ticks_msec()<deadline:await process_frame
-	check(queue.is_ready(key),"actual editor cache check completes before retry")
-	if queue.is_ready(key):
-		var check_packet:Dictionary=queue.acquire(key)
-		check(check_packet.get("error",FAILED)==OK and check_packet.get("cache_checked",false),"editor retry starts with an accepted cache-check packet")
-		check(job._retry_cached_asset(queue,key,source) and queue.rows[key].estimate.get("stage")=="compiled_read" and job._model_candidates.has(source),"actual editor cached retry selects the historical native candidate")
-		if queue.rows[key].estimate.get("stage")=="compiled_read":
-			queue.pump();deadline=Time.get_ticks_msec()+15000
-			while not queue.is_ready(key) and Time.get_ticks_msec()<deadline:await process_frame
-			check(queue.is_ready(key),"actual editor retry native worker finishes")
-			if queue.is_ready(key):
-				var retry_packet:Dictionary=queue.acquire(key)
-				check(EditorLoadJob._native_result_action(job._model_candidates[source],retry_packet)=="ready" and retry_packet.get("packed") is PackedScene,"actual editor retry loads a usable historical native scene")
-				queue.release(key)
-			else:check(false,"actual editor retry loads a usable historical native scene")
-		else:
-			check(false,"actual editor retry native worker finishes");check(false,"actual editor retry loads a usable historical native scene")
-	else:
-		for label:String in ["editor retry starts with an accepted cache-check packet","actual editor cached retry selects the historical native candidate","actual editor retry native worker finishes","actual editor retry loads a usable historical native scene"]:check(false,label)
-	queue.cancel();job.free();await process_frame
 	EditorLoadJob.prepared_model_residency_enabled=previous_resident;manager.content_root_override=previous_root
 
 func editor_reject_old_product_generation(old:Dictionary)->void:
+	# Published format identity is authoritative for editor consumption; a
+	# conversion can still explicitly request a specific generator revision.
 	var manager:Node=root.get_node_or_null("AssetManager")
-	if manager==null:check(false,"old product editor fixture has an asset manager");return
+	if manager==null:check(false,"published product editor fixture has an asset manager");return
 	var previous_root:String=manager.content_root_override;manager.content_root_override=content_root
 	var job:=EditorLoadJob.new();root.add_child(job)
-	var record:={"kind":"asset","uuid":"native_fixture","asset_path":source}
-	job._begin_asset_lookahead([record,record])
+	job._begin_asset_lookahead([{"kind":"asset","uuid":"native_fixture","asset_path":source}])
 	var queue:Node=job._preparation;var key:="model:"+source
-	check(queue!=null and queue.has(key) and queue.rows[key].estimate.get("stage")=="legacy_model" and not job._model_candidates.has(source),"editor initial plan rejects old product generator without changing source")
-	var worker:=Reader.read(source,old,content_root,Callable(),true,true)
-	check(worker.get("fallback_required",false) and not worker.has("packed"),"editor mutable worker rejects old product generator before allocating a native scene")
+	check(queue!=null and queue.has(key) and queue.rows[key].estimate.get("stage")=="compiled_read" and job._model_candidates.has(source),"editor selects compatible published format regardless of producer source hash")
+	var worker:=Reader.read(source,old,content_root,Callable(),true,false,"",true)
+	check(worker.get("error",FAILED)==OK and worker.get("packed") is PackedScene,"published reader accepts historical producer without source access")
 	worker.clear()
-	worker=Reader.read(source,old,content_root,Callable(),true,true,job._product_generator_snapshot)
-	check(worker.get("fallback_required",false) and not worker.has("packed"),"editor worker honors the operation product generator snapshot")
+	worker=Reader.read(source,old,content_root,Callable(),true,false,Compiled.generator(),true)
+	check(worker.get("fallback_required",false) and not worker.has("packed"),"explicit conversion revision still rejects a different producer")
 	worker.clear();job._clear_asset_lookahead();job.free();await process_frame
-	job=EditorLoadJob.new();root.add_child(job);queue=EditorQueue.new();job.add_child(queue)
-	var estimate:={"estimated_bytes":1024*1024,"exclusive":false,"cpu_only":true,"stage":"cache_check"}
-	check(queue.enqueue(key,EditorLoadJob._check_cached_source.bind(source,content_root,true),estimate,"model"),"old product retry fixture enqueues cache check")
-	queue.demand(key);queue.pump();var deadline:=Time.get_ticks_msec()+15000
-	while not queue.is_ready(key) and Time.get_ticks_msec()<deadline:await process_frame
-	check(queue.is_ready(key),"old product retry cache check finishes")
-	if queue.is_ready(key):
-		queue.acquire(key)
-		check(job._retry_cached_asset(queue,key,source) and queue.rows[key].estimate.get("stage")=="legacy_model" and not job._model_candidates.has(source),"editor cache retry rejects the old product generator")
-	else:check(false,"editor cache retry rejects the old product generator")
-	queue.cancel();job.free();await process_frame
-	job=EditorLoadJob.new();root.add_child(job);job._begin_asset_lookahead([])
-	check(job._product_generator_snapshot.is_empty(),"editor without model candidates does not compute a product snapshot")
-	job._clear_asset_lookahead();job.free();await process_frame
 	manager.content_root_override=previous_root
 
 func make_candidate(resource:Resource)->Dictionary:
@@ -286,7 +247,7 @@ func run()->void:
 	check(source.get_file()=="source.glb","editor mutable source uses a human-readable filename")
 	var editor_packet:Dictionary=EditorLoadJob._parse_native_asset(source,content_root,offered)
 	var editor_action:String=EditorLoadJob._native_result_action(offered,editor_packet)
-	check(editor_packet.get("error")==ERR_BUSY and editor_packet.get("native_source_retry",false) and editor_action=="retry","editor changed same-length source retries rather than publishing its stale native product")
+	check(editor_packet.get("error")==OK and editor_action=="ready","editor consumes the published native product without rereading changed import bytes")
 	if editor_packet.get("packed") is PackedScene:
 		var editor_owner:WeakRef=weakref(editor_packet.packed)
 		check(editor_owner.get_ref()!=null,"editor result retains the native owner until main-thread retirement")

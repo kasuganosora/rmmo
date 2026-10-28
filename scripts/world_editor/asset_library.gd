@@ -33,7 +33,10 @@ func import_file(path: String) -> Dictionary:
 				var contract:Dictionary=preload("res://scripts/world3d/imported_building.gd").source_descriptor(path,normalized.get_file().get_basename())
 				if not contract.is_empty() and not preload("res://scripts/world3d/imported_building.gd").same(contract,entry.get("model_building",{})):break
 				if contract.is_empty() and entry.has("model_building"):return {"ok":false,"error":"素材库建筑合同与源文件不一致"}
-				return {"ok":true,"entry":entry,"compiled_asset":_compile_import(str(entry.asset_path))}
+				var compiled:=_compile_import(str(entry.asset_path))
+				var gate:=_import_product_gate(path,compiled,contract)
+				if not gate.ok:return {"ok":false,"error":"模型原生转换失败："+str(gate.reason),"compiled_asset":compiled}
+				return {"ok":true,"entry":entry,"compiled_asset":compiled}
 	DirAccess.make_dir_recursive_absolute(directory)
 	var staging := directory.path_join("import_%d.glb" % Time.get_ticks_usec())
 	var prepared:Compiled.PreparedSource
@@ -95,16 +98,17 @@ func import_file(path: String) -> Dictionary:
 		return {"ok":false,"error":"导入模型在发布前发生变化"}
 	for entry in entries:
 		if entry.get("asset_path") == target:
+			var existing_compiled:=_compile_import(target,prepared)
+			var existing_diagnostics:=prepared.report();existing_diagnostics.parse_count+=reexport_parses
+			var gate:=_import_product_gate(target,existing_compiled,building)
+			if not gate.ok:return {"ok":false,"error":"模型原生转换失败："+str(gate.reason),"compiled_asset":existing_compiled,"import_preparation":existing_diagnostics}
 			var previous:Dictionary=entry.duplicate(true)
 			if not building.is_empty():entry.model_building=building
 			if not entry.has("thumbnail_path"):
 				entry.thumbnail_path = directory.path_join("thumbnails").path_join(hash + ".png")
 			if not preload("res://scripts/world3d/imported_building.gd").same(previous,entry) and save()!=OK:
 				entry.clear();entry.merge(previous,true)
-				prepared.dispose()
 				return {"ok":false,"error":"素材信息保存失败"}
-			var existing_compiled:=_compile_import(target,prepared)
-			var existing_diagnostics:=prepared.report();existing_diagnostics.parse_count+=reexport_parses
 			return {"ok": true, "entry": entry,"compiled_asset":existing_compiled,"import_preparation":existing_diagnostics}
 	var instance := prepared.get_scene() as Node3D
 	if instance == null:
@@ -117,16 +121,17 @@ func import_file(path: String) -> Dictionary:
 		return {"ok":false,"error":"导入模型在登记前发生变化"}
 	var entry := {"label": path.get_file().get_basename(), "category": "导入模型", "asset_path": target, "thumbnail_path": directory.path_join("thumbnails").path_join(hash + ".png"), "bounds_position": [bounds.position.x, bounds.position.y, bounds.position.z], "bounds_size": [bounds.size.x, bounds.size.y, bounds.size.z]}
 	if not building.is_empty():entry.model_building=building
+	# Only publish a catalog entry after the full native product and its
+	# consumption metadata are complete. GLB remains an import source only.
+	var compiled:=_compile_import(target,prepared)
+	var diagnostics:=prepared.report();diagnostics.parse_count+=reexport_parses
+	var gate:=_import_product_gate(target,compiled,building)
+	if not gate.ok:return {"ok":false,"error":"模型原生转换失败："+str(gate.reason),"compiled_asset":compiled,"import_preparation":diagnostics}
 	entries.append(entry)
 	err = save()
 	if err != OK:
 		entries.pop_back()
-		prepared.dispose()
 		return {"ok": false, "error": "素材库写入失败：" + error_string(err)}
-	# A derived build belongs to explicit import, not Ctrl+S or a live cache miss.
-	# Unsupported/failed products retain the validated original GLB fallback.
-	var compiled:=_compile_import(target,prepared)
-	var diagnostics:=prepared.report();diagnostics.parse_count+=reexport_parses
 	return {"ok": true, "entry": entry,"compiled_asset":compiled,"import_preparation":diagnostics}
 
 static func _compile_import(path:String,prepared:Compiled.PreparedSource=null)->Dictionary:
@@ -156,14 +161,31 @@ static func _compile_import(path:String,prepared:Compiled.PreparedSource=null)->
 			return {"ok":false,"reason":"compiled_identity_changed","total_elapsed_us":Time.get_ticks_usec()-started}
 		if _compiled_imports.size()>=4096:_compiled_imports.clear()
 		_compiled_imports[path]=identity
-		# The native build remains usable if this optional admission descriptor
-		# cannot be measured/written. A missing descriptor keeps the old budget.
-		# Recheck it even for a session import hit: it may have been removed or
-		# invalidated independently of the unchanged native resource generator.
+		# Published consumers require this bounded admission descriptor. Recheck
+		# even on a session hit; import rejects before catalog publication if it
+		# cannot be measured, written, or completed with current metadata.
 		compiled.footprint=_compile_footprint(path)
 		compiled.footprint_elapsed_us=compiled.footprint.elapsed_us
 	compiled.total_elapsed_us=Time.get_ticks_usec()-started
 	return compiled
+
+static func _import_product_gate(path:String,compiled:Dictionary,building:Dictionary)->Dictionary:
+	if not compiled.get("ok",false):return {"ok":false,"reason":str(compiled.get("reason","native_build_failed"))}
+	if not compiled.get("footprint",{}).get("ok",false):return {"ok":false,"reason":"native_footprint_failed"}
+	var root:String=preload("res://scripts/world3d/map_paths.gd").external_root()
+	var metadata:=preload("res://scripts/world3d/native_model_product.gd").read(path,root)
+	if metadata.is_empty():
+		var refreshed:=preload("res://scripts/world3d/compiled_asset_footprint.gd").refresh_bounds(path,root)
+		if not refreshed.get("ok",false):return {"ok":false,"reason":"native_bounds_"+str(refreshed.get("reason","missing"))}
+		metadata=preload("res://scripts/world3d/native_model_product.gd").read(path,root)
+	if metadata.is_empty():return {"ok":false,"reason":"native_metadata_missing"}
+	var footprint=preload("res://scripts/world3d/compiled_asset_footprint.gd")
+	var descriptor:=footprint.ensure_imported_building(path,root)
+	if not descriptor.get("ok",false) or descriptor.get("present",false)!=(not building.is_empty()):return {"ok":false,"reason":"native_building_descriptor_missing_or_mismatched"}
+	if not building.is_empty():
+		var native_building:=preload("res://scripts/world3d/imported_building.gd").read_source_descriptor(path,str(metadata.native_source_sha),root)
+		if not preload("res://scripts/world3d/imported_building.gd").same(building,native_building):return {"ok":false,"reason":"native_building_descriptor_mismatch"}
+	return {"ok":true}
 
 static func _verified_compiled_identity(path:String)->Dictionary:
 	# Import only: full product/source checks avoid a second native allocation.
@@ -184,13 +206,17 @@ static func _compile_footprint(path:String)->Dictionary:
 	var content_root:=preload("res://scripts/world3d/map_paths.gd").external_root()
 	var candidate:Dictionary=footprint.candidate(path,content_root)
 	var reused:=not candidate.is_empty()
+	var building_present:Variant=null
 	if not reused:
 		var built:Dictionary=footprint.build(path,content_root)
 		if not built.get("ok",false):
 			return {"ok":false,"reused":false,"reason":built.get("reason","unknown"),"error":built.get("error",OK),"elapsed_us":Time.get_ticks_usec()-started}
 		candidate=built.get("candidate",{})
+		building_present=built.get("building_present")
 		if candidate.is_empty():return {"ok":false,"reused":false,"reason":"candidate_changed_after_build","elapsed_us":Time.get_ticks_usec()-started}
-	return {"ok":true,"reused":reused,"estimated_bytes":candidate.estimated_bytes,"resident_bytes":candidate.resident_bytes,"exclusive":candidate.exclusive,"elapsed_us":Time.get_ticks_usec()-started}
+	var result:={"ok":true,"reused":reused,"estimated_bytes":candidate.estimated_bytes,"resident_bytes":candidate.resident_bytes,"exclusive":candidate.exclusive,"elapsed_us":Time.get_ticks_usec()-started}
+	if building_present is bool:result.building_present=building_present
+	return result
 
 func save() -> Error:
 	var path := directory.path_join("library.json")
@@ -226,15 +252,30 @@ func search(query: String) -> Array:
 ## Existing synchronous native-only miss path; callers retain the existing
 ## ownership semantics. Admission/async preparation belongs to the upstream
 ## loading coordinator and has not yet been moved into this entry point.
-static func _read_published_native(path:String)->Dictionary:
+static func native_candidate(path:String,root:String="",expected_generator:String="")->Dictionary:
+	if root.is_empty():root=preload("res://scripts/world3d/map_paths.gd").external_root()
+	return preload("res://scripts/world3d/compiled_asset_footprint.gd").candidate(path,root,"",true,expected_generator)
+
+static func native_available(path:String,root:String="")->bool:
+	return not native_validation_candidate(path,root).is_empty()
+
+static func native_validation_candidate(path:String,root:String="")->Dictionary:
+	if root.is_empty():root=preload("res://scripts/world3d/map_paths.gd").external_root()
+	var candidate:=native_candidate(path,root)
+	if not candidate.is_empty():candidate.native_product_kind="full"
+	return candidate
+
+static func _native_cached(path:String,candidate:Dictionary)->bool:
+	var packed:Variant=_scenes.get(path)
+	return packed is PackedScene and packed.get_meta("compiled_asset_validated",false) and (preload("res://scripts/world3d/runtime_package_policy.gd").trusted() or packed.get_meta("_rmmo_native_audited",false)) and packed.get_meta("_rmmo_source_digest","")==candidate.get("source_sha") and packed.get_meta("_rmmo_native_payload_sha","")==candidate.get("payload_sha") and packed.get_meta("_rmmo_native_generator","")==candidate.get("generator")
+
+static func _read_published_native(path:String,candidate:Dictionary={})->Dictionary:
 	var root:String=preload("res://scripts/world3d/map_paths.gd").external_root()
-	if preload("res://scripts/world3d/white_native_asset_cache.gd").active():
-		return Compiled.read(path,"",root,false,true)
 	# The fixed footprint binds both the actual product and its accounting;
 	# never reopen the authoring source or fall back to a raw import here.
-	var candidate:=preload("res://scripts/world3d/compiled_asset_footprint.gd").candidate(path,root,"",true)
+	if candidate.is_empty():candidate=native_candidate(path,root)
 	if candidate.is_empty() or OS.get_thread_caller_id()!=OS.get_main_thread_id():return {"hit":false}
-	var packet:=preload("res://scripts/world3d/compiled_asset_preparation.gd").read(path,candidate,root,Callable(),true)
+	var packet:=preload("res://scripts/world3d/compiled_asset_preparation.gd").read(path,candidate,root,Callable(),preload("res://scripts/world3d/runtime_package_policy.gd").trusted(),false,"",true)
 	if packet.get("error",FAILED)!=OK or not packet.get("packed") is PackedScene:
 		preload("res://scripts/world3d/asset_worker_drainer.gd").dispose_result(packet)
 		return {"hit":false}
@@ -242,22 +283,14 @@ static func _read_published_native(path:String)->Dictionary:
 	return packet
 
 static func instantiate(path: String,native_only:bool=false) -> Node3D:
-	var native_package:bool=native_only and preload("res://scripts/world3d/runtime_package_policy.gd").trusted()
-	if native_package:
-		if not preload("res://scripts/world3d/map_paths.gd").asset_key_allowed(path):return null
-	elif not FileAccess.file_exists(path):return null
-	if not _scenes.has(path) or (native_only and not _scenes[path].get_meta("compiled_asset_validated",false)):
-		var compiled:=_read_published_native(path) if native_package else preload("res://scripts/world3d/compiled_asset_cache.gd").read(path,"","",false,preload("res://scripts/world3d/runtime_package_policy.gd").trusted())
-		if compiled.hit:
-			if not cache_packed(path,compiled.packed,compiled.source_digest):
-				preload("res://scripts/world3d/asset_worker_drainer.gd").dispose_result(compiled)
-				return null
-		else:
-			if not Compiled.dispose_miss(compiled):return null
-			if native_only:return null
-			var raw:=_load_raw_scene(path)
-			if raw.is_empty():return null
-			if not cache_scene(path,raw.scene,raw.source_digest):return null
+	if not preload("res://scripts/world3d/map_paths.gd").asset_key_allowed(path):return null
+	var candidate:=native_candidate(path)
+	if candidate.is_empty():return null
+	if _native_cached(path,candidate):return _instantiate(_scenes[path])
+	var compiled:=_read_published_native(path,candidate)
+	if not compiled.get("hit",false):return null
+	if not cache_packed(path,compiled.packed,compiled.source_digest,candidate):
+		preload("res://scripts/world3d/asset_worker_drainer.gd").dispose_result(compiled);return null
 	return _instantiate(_scenes[path])
 
 static func _instantiate(packed:PackedScene)->Node3D:
@@ -274,49 +307,12 @@ static func _instantiate(packed:PackedScene)->Node3D:
 
 ## Preview/import owns one scene and frees it; it must not grow the runtime scene cache.
 static func instantiate_preview(path: String,native_only:bool=false) -> Node3D:
-	var native_package:bool=native_only and preload("res://scripts/world3d/runtime_package_policy.gd").trusted()
-	var native_identity:=""
-	if native_package:
-		if not preload("res://scripts/world3d/map_paths.gd").asset_key_allowed(path):return null
-	elif not FileAccess.file_exists(path):return null
-	# Preview is an independent source transaction. A previous world load's
-	# path-only template cannot authorize a newly selected thumbnail/preview.
-	# External glTF dependencies are not covered by the root file SHA: reload.
-	if _scenes.has(path):
-		if native_package:
-			# Only a resident preview needs a fresh identity observation here.
-			# On a cold miss Compiled.read already resolves its native index.
-			var metadata:=preload("res://scripts/world3d/native_model_product.gd").read(path,preload("res://scripts/world3d/map_paths.gd").external_root(),"",-1)
-			if metadata.is_empty():return null
-			native_identity=str(metadata.native_source_sha)
-		var digest:=native_identity if native_package else (preload("res://scripts/world3d/runtime_package_policy.gd").source_identity(path) if preload("res://scripts/world3d/runtime_package_policy.gd").trusted() else FileAccess.get_sha256(path))
-		if has_cached_scene(path,digest):
-			# A validated native product already proves closed dependencies for
-			# this exact source. Its allowed material extensions need not pass
-			# the raw byte-copy gate, which conservatively rejects all extensions.
-			var validated:Variant=_scenes[path].get_meta("compiled_asset_validated",false)
-			if (validated is bool and validated) or (not native_only and preload("res://scripts/world3d/embedded_glb.gd").can_copy(path)):return _instantiate(_scenes[path])
-		evict_cached_scene(path)
-	var compiled:=_read_published_native(path) if native_package else preload("res://scripts/world3d/compiled_asset_cache.gd").read(path,"","",false,preload("res://scripts/world3d/runtime_package_policy.gd").trusted())
-	if compiled.hit:return _instantiate(compiled.packed)
-	if not Compiled.dispose_miss(compiled):return null
-	if native_only:return null
-	return _load_raw_scene(path).get("scene") as Node3D
-
-static func _load_raw_scene(path:String)->Dictionary:
-	var began:=Time.get_ticks_usec()
-	# Parse and generation share one private owner. Check complete source bytes
-	# after generation too, then transfer only the scene to the caller on main.
-	var prepared:=Compiled.prepare_source(path,preload("res://scripts/world3d/runtime_package_policy.gd").trusted())
-	var scene:=prepared.get_scene() as Node3D
-	if scene==null or not prepared.current():
-		prepared.dispose()
-		return {}
-	var digest:=prepared.source_digest
-	prepared.scene=null
-	prepared.dispose()
-	preload("res://scripts/world3d/load_trace.gd").elapsed("asset_library.raw_load",began,{"path":path})
-	return {"scene":scene,"source_digest":digest}
+	if not preload("res://scripts/world3d/map_paths.gd").asset_key_allowed(path):return null
+	var candidate:=native_candidate(path)
+	if candidate.is_empty():return null
+	if _native_cached(path,candidate):return _instantiate(_scenes[path])
+	var compiled:=_read_published_native(path,candidate)
+	return _instantiate(compiled.packed) if compiled.get("hit",false) else null
 
 static func _own(node: Node, root: Node) -> void:
 	for child in node.get_children():
@@ -357,6 +353,8 @@ static func cache_scene(path: String, scene: Node, verified_digest:String="") ->
 	if keepalive is PackedScene and keepalive.get_meta("compiled_asset_validated",false):
 		packed.set_meta("compiled_asset_validated",true)
 		packed.set_meta("compiled_grass_rebound",true)
+		for key:String in ["_rmmo_source_digest","_rmmo_native_payload_sha","_rmmo_native_generator","_rmmo_native_audited"]:
+			if keepalive.has_meta(key):packed.set_meta(key,keepalive.get_meta(key))
 	var cached:=cache_packed(path,packed,verified_digest)
 	keepalive=null
 	return cached
@@ -369,6 +367,8 @@ static func cache_prepared_native_scene(path:String,scene:Node,packed:PackedScen
 	preload("res://scripts/world3d/model_texture_cache.gd").apply(scene)
 	preload("res://scripts/world3d/load_trace.gd").elapsed("asset_library.cache_materials",began,{"path":path})
 	packed.set_meta("compiled_asset_validated",true);packed.set_meta("compiled_grass_rebound",true)
+	for key:String in ["_rmmo_source_digest","_rmmo_native_payload_sha","_rmmo_native_generator","_rmmo_native_audited"]:
+		if native_owner.has_meta(key):packed.set_meta(key,native_owner.get_meta(key))
 	var cached:=cache_packed(path,packed,verified_digest)
 	began=Time.get_ticks_usec();preload("res://scripts/world3d/asset_worker_drainer.gd").dispose_scene(scene)
 	preload("res://scripts/world3d/load_trace.gd").elapsed("asset_library.cache_dispose",began,{"path":path})
@@ -390,12 +390,18 @@ static func cache_direct_native_scene(path:String,scene:Node,native_owner:Packed
 	native_owner.set_meta("compiled_grass_rebound",true)
 	return cache_packed(path,native_owner,verified_digest)
 
-static func cache_packed(path:String,packed:PackedScene,verified_digest:String="")->bool:
+static func cache_packed(path:String,packed:PackedScene,verified_digest:String="",native_identity:Dictionary={})->bool:
 	if packed==null:return false
+	if not native_identity.is_empty():
+		if native_identity.get("source_sha")!=verified_digest or not _valid_source_digest(str(native_identity.get("payload_sha",""))) or not native_identity.get("generator") is String:return false
 	if not verified_digest.is_empty():
 		if not _valid_source_digest(verified_digest):return false
 		var previous:String=packed.get_meta("_rmmo_source_digest","")
 		if not previous.is_empty() and previous!=verified_digest:return false
+	if not native_identity.is_empty():
+		packed.set_meta("_rmmo_native_payload_sha",native_identity.payload_sha)
+		packed.set_meta("_rmmo_native_generator",native_identity.generator)
+	if not verified_digest.is_empty():
 		packed.set_meta("_rmmo_source_digest",verified_digest)
 	var began:=Time.get_ticks_usec();var replacement:bool=_scenes.has(path) and _scenes[path]!=packed
 	# Replacement can drop the final owner of thousands of meshes just like

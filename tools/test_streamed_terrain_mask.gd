@@ -108,11 +108,10 @@ func run()->void:
 	var cancelled:=prepare_worker(f,[0],token)
 	check(cancelled.get("cancelled",false) and cancelled.records.is_empty() and cancelled.get("terrain_contexts",{}).is_empty(),"pre-cancelled worker publishes no masks or records")
 	var returned:=prepare_worker(f,[0]);discard_case(returned,true)
-	for mode:String in ["white","discard"]:
-		Controls.white_materials=mode=="white";Controls.discard_map_textures=mode=="discard"
-		var skipped:=prepare_worker(f,[0])
-		check(skipped.error.is_empty() and not skipped.terrain_contexts.left.has("region_mask") and int(skipped.read_profile.terrain_mask_generations)==0 and int(skipped.read_profile.terrain_mask_bytes)==0,mode+" controls keep streamed mask work at zero")
-	Controls.white_materials=false;Controls.discard_map_textures=false
+	Controls.discard_map_textures=true
+	var skipped:=prepare_worker(f,[0])
+	check(skipped.error.is_empty() and not skipped.terrain_contexts.left.has("region_mask") and int(skipped.read_profile.terrain_mask_generations)==0 and int(skipped.read_profile.terrain_mask_bytes)==0,"discard-textures control keeps streamed mask work at zero")
+	Controls.discard_map_textures=false
 	River.reset_index_profile()
 	var fallback:=River._region_mask(records[0],{})
 	check(fallback.get_data()==expected and River.region_mask_fallback_generations==1 and River.region_mask_prepared_hits==0,"synchronous editor callers keep the exact canonical fallback")

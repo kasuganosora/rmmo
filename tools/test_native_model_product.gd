@@ -58,19 +58,5 @@ func run()->void:
 	DirAccess.rename_absolute(product,product+".held")
 	check(Product.read(source,folder).is_empty(),"missing native product fails")
 	DirAccess.rename_absolute(product+".held",product)
-	check(DirAccess.rename_absolute(source+".held",source)==OK,"restore source for independent white fixture export")
-	var controls=preload("res://scripts/world3d/runtime_probe_controls.gd")
-	var white=preload("res://scripts/world3d/white_native_asset_metadata.gd")
-	var previous_native:bool=controls.native_geometry_only;controls.native_geometry_only=true
-	var white_dir:String=white.Writer.directory(folder);DirAccess.make_dir_recursive_absolute(white_dir)
-	var white_product:String=white_dir.path_join(payload_sha+".scn");FileAccess.open(white_product,FileAccess.WRITE).store_buffer(payload)
-	var white_index:={"generator":white.Writer.generator(),"source_sha":source_sha,"payload_sha":payload_sha,"bytes":payload.size()}
-	FileAccess.open(white.Writer.index_path(source,folder),FileAccess.WRITE).store_string(JSON.stringify(white_index))
-	var built:Dictionary=white.build(source,folder)
-	check(built.get("ok",false),"offline white metadata fixture published")
-	var white_result:Dictionary=white.read(source,folder,source_sha,expected.file_length)
-	var delegated:Dictionary=Product.read(source,folder,source_sha,expected.file_length)
-	check(not white_result.is_empty() and delegated==white_result,"white product helper delegates to existing white metadata unchanged")
-	controls.native_geometry_only=previous_native
 	print("NATIVE_MODEL_PRODUCT passed=",passed," failures=",failures)
 	quit(0 if failures==0 else 1)

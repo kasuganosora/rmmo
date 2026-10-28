@@ -15,8 +15,7 @@ func run()->void:
 	check(DisplayServer.get_name()!="headless","real renderer is present")
 	if DisplayServer.get_name()=="headless":quit(1);return
 	var logger:=Errors.new();OS.add_logger(logger)
-	Policy.verify_packages=false;Controls.white_materials=false;Controls.discard_map_textures=false
-	preload("res://scripts/world3d/prefab_binary_cache.gd").enabled=false
+	Policy.verify_packages=false;Controls.discard_map_textures=false
 	direct=load("res://scripts/world3d/prefab_spec_preparation.gd")
 	document=Doc.new();document.load_immutable_records=true;document.load_texture_checks={}
 	var folder:=Paths.cache_directory("textured_prefab_specs_%d"%Time.get_ticks_usec())

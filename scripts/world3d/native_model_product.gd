@@ -1,14 +1,11 @@
 extends RefCounted
-## Published white/full native model metadata, never an import operation.
+## Published native model metadata, never an import operation.
 ## Full products use the same footprint identity and reservation as their reader.
-const White=preload("res://scripts/world3d/white_native_asset_metadata.gd")
 const Footprint=preload("res://scripts/world3d/compiled_asset_footprint.gd")
 const Compiled=preload("res://scripts/world3d/compiled_asset_cache.gd")
 const Paths=preload("res://scripts/world3d/map_paths.gd")
 
 static func read(path:String,root:String,identity:String="",length:int=-1,timing:Variant=null,file_identities:Variant=null)->Dictionary:
-	if preload("res://scripts/world3d/white_native_asset_cache.gd").active():
-		return White.read(path,root,identity,length,timing,file_identities)
 	var began:=Time.get_ticks_usec() if timing!=null else 0
 	var descriptor:Dictionary={}
 	var candidate:=Footprint.candidate(path,root,identity,true,"",descriptor,file_identities)

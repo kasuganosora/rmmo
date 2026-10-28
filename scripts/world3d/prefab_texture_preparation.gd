@@ -21,7 +21,7 @@ static var batched_final_handoff_enabled:=true
 static func sources(record:Dictionary)->Dictionary:
 	var result:Dictionary={}
 	# Persisted dependency metadata must not depend on the current render probe.
-	# White/discard suppresses actual work in estimate and the load consumers.
+	# The discard diagnostic suppresses actual work in estimate and consumers.
 	# All authored bindings share the same worker preparation, including terrain,
 	# roads and surface overrides on an otherwise frozen/native model.
 	for definition:Dictionary in preload("res://scripts/world3d/surface_materials.gd").definitions(record):
@@ -61,7 +61,7 @@ static func workspace_bytes(row:Dictionary)->int:
 	if row.get("extension")=="dds":return int(row.source_bytes)*2+int(row.output_bytes)*2+4*1024*1024
 	return int(row.cache_limit)*3+int(row.output_bytes)*4+int(row.source_bytes)*2+4*1024*1024
 
-static func estimate(requested:Dictionary,root:String)->Dictionary:
+static func estimate(requested:Dictionary,root:String,mutable_source:bool=false)->Dictionary:
 	if preload("res://scripts/world3d/runtime_probe_controls.gd").discard_map_textures:return {"rows":{},"estimated_bytes":0,"output_bytes":0}
 	var rows:Dictionary={};var output:=0;var scratch:=0
 	if not valid_sources(requested):return {"rows":{},"estimated_bytes":0,"output_bytes":0}
@@ -69,7 +69,9 @@ static func estimate(requested:Dictionary,root:String)->Dictionary:
 	for key:String in keys:
 		var source:Array=requested[key]
 		var row:Dictionary={}
-		if preload("res://scripts/world3d/surface_materials.gd").compressed_sidecars_enabled:row=Compressed.plan(source[0],source[1],source[2],root)
+		# Editable sources reserve the complete PNG/JPEG route. Only the worker's
+		# actual byte snapshot can establish whether a derived DDS is current.
+		if not mutable_source and preload("res://scripts/world3d/surface_materials.gd").compressed_sidecars_enabled:row=Compressed.plan(source[0],source[1],source[2],root)
 		if row.is_empty():row=_header(source[0],root)
 		if row.is_empty():continue
 		var pixels:int=int(row.output_bytes) if row.extension=="dds" else Headers._mip_bytes(row.width,row.height,4)
@@ -99,8 +101,8 @@ static func _fail(reason:String,cancelled:bool=false)->Dictionary:
 static func _digest(bytes:PackedByteArray)->String:
 	var context:=HashingContext.new();context.start(HashingContext.HASH_SHA256);context.update(bytes);return context.finish().hex_encode()
 
-static func _cached(row:Dictionary,digest:String)->Image:
-	var file:=FileAccess.open(Pixels.cache_path(row.path,row.flip),FileAccess.READ)
+static func _cached(row:Dictionary,digest:String,mutable_source:bool=false)->Image:
+	var file:=FileAccess.open(Pixels.cache_path(row.path,row.flip,mutable_source),FileAccess.READ)
 	if file==null or file.get_length()<=32 or file.get_length()>int(row.cache_limit):return null
 	var expected:=file.get_buffer(32);var payload:=file.get_buffer(file.get_length()-32);file.close()
 	if not Pixels.cache_payload_valid(payload,expected):return null
@@ -133,11 +135,15 @@ static func _stage(profile:Dictionary,name:String,began:int,details:Dictionary={
 	profile[name+"_us"]=int(profile.get(name+"_us",0))+Time.get_ticks_usec()-began
 	Trace.elapsed("prefab_pixels."+name,began,details)
 
-static func _authorize_cache(path:String,digest:String,root:String,token:RefCounted,profile:Dictionary,shared:Dictionary={},mounted_snapshot:bool=false)->bool:
+static func _authorize_cache(path:String,digest:String,root:String,token:RefCounted,profile:Dictionary,shared:Dictionary={},mounted_snapshot:bool=false,mutable_source:bool=false)->bool:
 	var began:=Time.get_ticks_usec()
 	var valid:bool=not _cancelled(token) and Paths.allowed(path,root)
 	if valid:
-		if Pixels.Policy.trusted():
+		if mutable_source:
+			# The derived record carries the exact source snapshot digest. A later
+			# operation compares its own snapshot before accepting this cache.
+			profile.persist_source_identity_hits=int(profile.get("persist_source_identity_hits",0))+1
+		elif Pixels.Policy.trusted():
 			# Package bytes are immutable for this mounted operation; the path
 			# identity was established once by the pool/cache writer.
 			profile.persist_source_identity_hits=int(profile.get("persist_source_identity_hits",0))+1
@@ -196,11 +202,14 @@ static func _snapshot_matches(row:Dictionary,bytes:PackedByteArray)->bool:
 		at+=length
 	return false
 
-static func prepare(requested:Dictionary,plan:Dictionary,root:String,token:RefCounted=null,verify_at_end:bool=true,shared:Dictionary={},mounted_snapshot:bool=false)->Dictionary:
+static func prepare(requested:Dictionary,plan:Dictionary,root:String,token:RefCounted=null,verify_at_end:bool=true,shared:Dictionary={},mounted_snapshot:bool=false,mutable_source:bool=false)->Dictionary:
 	var began:=Time.get_ticks_usec()
 	var profile:Dictionary={"cache_hits":0,"decoded":0,"cache_writes":0,"cache_write_skips":0,"source_sha_reads":0,"source_sha_bytes":0,"source_identity_hits":0,"final_sha_reads":0,"final_source_identity_hits":0,"persist_sha_reads":0}
 	if _cancelled(token):return _fail("Prefab texture preparation cancelled",true)
 	if not valid_sources(requested) or not plan.get("rows") is Dictionary:return _fail("Invalid prefab texture preparation plan")
+	# Mutable editor jobs have their own snapshot and cache namespace. They
+	# cannot join a mounted immutable pool or accept its compressed-only lease.
+	if mutable_source and (not shared.is_empty() or mounted_snapshot):return _fail("Mutable textures cannot share mounted identities")
 	var reuse_sources:=_reuse_mounted_sources(shared,mounted_snapshot)
 	if reuse_sources and not shared.pool.consumer_active(shared.consumer):return _fail("Mounted prefab texture consumer cancelled",true)
 	# Mounted immutable sources already supplied the admitted header plan.
@@ -211,11 +220,21 @@ static func prepare(requested:Dictionary,plan:Dictionary,root:String,token:RefCo
 	var reuse_header:bool=reuse_sources and Pixels.Policy.trusted()
 	if reuse_header:profile.header_plan_reuses=1
 	else:
-		var actual:=estimate(requested,root)
+		var actual:=estimate(requested,root,mutable_source)
 		if actual!=plan:return _retry("Prefab texture dimensions changed after admission") if not shared.is_empty() else _fail("Prefab texture dimensions changed after admission")
 	_stage(profile,"header",mark,{"sources":requested.size(),"images":plan.rows.size(),"reused":reuse_header})
 	var images:Dictionary={};var identities:Dictionary={};var cache_hits:=0;var decoded:=0;var output:=0;var waiting:=false
-	for key:String in plan.rows:
+	# One adjacent source snapshot at most: no additional per-source retained
+	# copies beyond the workspace already reserved by estimate().
+	var snapshot_path:="";var snapshot_bytes:=PackedByteArray();var snapshot_digest:=""
+	var row_keys:Array=plan.rows.keys()
+	if mutable_source:
+		# Different paths can lexically sit between one path's role-suffixed keys.
+		# Group by source so the single bounded snapshot covers every variant.
+		row_keys.sort_custom(func(a,b):
+			var left:String=plan.rows[a].path;var right:String=plan.rows[b].path
+			return str(a)<str(b) if left==right else left<right)
+	for key:String in row_keys:
 		if _cancelled(token):return _fail("Prefab texture preparation cancelled",true)
 		var row:Dictionary=plan.rows[key]
 		mark=Time.get_ticks_usec()
@@ -262,29 +281,43 @@ static func prepare(requested:Dictionary,plan:Dictionary,root:String,token:RefCo
 			# Retiring CPU pixels does not retire this mounted operation's identity.
 			# Reconstruct from the matching derived cache before reading the source.
 			profile.source_identity_hits+=1
-			mark=Time.get_ticks_usec();image=_cached(row,digest)
+			mark=Time.get_ticks_usec();image=_cached(row,digest,mutable_source)
 			_stage(profile,"cache_decode",mark,{"path":row.path,"hit":image!=null,"known_identity":true})
 			if image!=null:profile.known_identity_cache_hits=int(profile.get("known_identity_cache_hits",0))+1
 		if image==null:
 			mark=Time.get_ticks_usec()
-			if not Paths.allowed(row.path,root):return _fail("Prefab texture path changed")
-			var file:=FileAccess.open(row.path,FileAccess.READ)
-			if file==null or file.get_length()!=row.source_bytes:return _fail("Prefab texture source changed")
-			bytes=file.get_buffer(row.source_bytes);file.close()
-			profile.source_sha_reads+=1;profile.source_sha_bytes+=bytes.size()
-			if bytes.size()!=row.source_bytes:return _fail("Incomplete prefab texture source")
-			# Trusted mounted packages already have their path identity. The
-			# decoded bytes still pass the codec/dimension/mip checks, but no
-			# second full-file SHA is computed for cache storage.
-			if not Pixels.Policy.trusted():digest=_digest(bytes)
-			elif digest.is_empty():digest=row.path.sha256_text()
+			if mutable_source and snapshot_path==row.path:
+				bytes=snapshot_bytes;digest=snapshot_digest
+				profile.source_identity_hits+=1
+			else:
+				# Drop the previous source before allocating the next one.
+				snapshot_path="";snapshot_bytes=PackedByteArray();snapshot_digest=""
+				if not Paths.allowed(row.path,root):return _fail("Prefab texture path changed")
+				var file:=FileAccess.open(row.path,FileAccess.READ)
+				if file==null or file.get_length()!=row.source_bytes:return _fail("Prefab texture source changed")
+				bytes=file.get_buffer(row.source_bytes);file.close()
+				profile.source_sha_reads+=1;profile.source_sha_bytes+=bytes.size()
+				if bytes.size()!=row.source_bytes:return _fail("Incomplete prefab texture source")
+				if mutable_source or not Pixels.Policy.trusted():digest=_digest(bytes)
+				elif digest.is_empty():digest=row.path.sha256_text()
+				if mutable_source:snapshot_path=row.path;snapshot_bytes=bytes;snapshot_digest=digest
 			_stage(profile,"read_sha",mark,{"path":row.path,"bytes":row.source_bytes})
 			# Cache misses still bind the actual bytes. A conflicting first identity
 			# cannot be overwritten by another orientation or later leader.
 			if identities.has(row.path) and identities[row.path]!=digest:return _fail("Prefab texture changed between prepared variants")
 			if reuse_sources and not shared.pool.remember_source_identity(shared.consumer,row.path,digest):return _fail("Mounted prefab texture identity changed or consumer cancelled",_cancelled(token))
-			if not cache_checked:
-				mark=Time.get_ticks_usec();image=_cached(row,digest)
+			if mutable_source and preload("res://scripts/world3d/surface_materials.gd").compressed_sidecars_enabled:
+				# The source was already read for this editable snapshot. DDS
+				# provenance compares that identity without another source read.
+				var compressed:=Compressed.plan_mutable(row.path,row.flip,row.normal,root,digest)
+				if not compressed.is_empty() and compressed.width==row.width and compressed.height==row.height and compressed.output_bytes<=row.output_bytes:
+					image=Compressed.read(compressed)
+					if image!=null:
+						image.set_meta("runtime_texture_representation","dds:"+str(compressed.mutable_dds_sha256))
+						profile.compressed_reads=int(profile.get("compressed_reads",0))+1
+						profile.compressed_read_bytes=int(profile.get("compressed_read_bytes",0))+int(compressed.source_bytes)
+			if not cache_checked and image==null:
+				mark=Time.get_ticks_usec();image=_cached(row,digest,mutable_source)
 				_stage(profile,"cache_decode",mark,{"path":row.path,"hit":image!=null,"known_identity":false})
 		if image==null:
 			mark=Time.get_ticks_usec();image=_decode(row,bytes);decoded+=1
@@ -293,29 +326,34 @@ static func prepare(requested:Dictionary,plan:Dictionary,root:String,token:RefCo
 				mark=Time.get_ticks_usec()
 				# Standalone callers recheck mutable files. Mounted loads reuse this
 				# operation's identity; persisting a derived cache needs no new hash.
-				var wrote:=Pixels.store_pixels(row.path,row.flip,image,digest,row.cache_limit,_authorize_cache.bind(row.path,digest,root,token,profile,shared,mounted_snapshot))
+				var wrote:=Pixels.store_pixels(row.path,row.flip,image,digest,row.cache_limit,_authorize_cache.bind(row.path,digest,root,token,profile,shared,mounted_snapshot,mutable_source),mutable_source)
 				profile["cache_writes" if wrote else "cache_write_skips"]+=1
 				_stage(profile,"cache_encode_write",mark,{"path":row.path,"written":wrote})
-		else:cache_hits+=1
+		elif not image.is_compressed():cache_hits+=1
 		if image==null:return _fail("Unable to prepare prefab texture: "+row.path)
 		mark=Time.get_ticks_usec()
 		if Pixels.upload_preparation_enabled:Pixels.prepare_upload(image)
 		_stage(profile,"upload_prepare",mark,{"path":row.path})
 		if image.get_data_size()>row.output_bytes:return _fail("Prefab texture output exceeds its admitted bound")
 		image.set_meta("runtime_source_sha256",digest)
+		if mutable_source and not image.has_meta("runtime_texture_representation"):image.set_meta("runtime_texture_representation","source")
 		if not shared.is_empty() and not shared.pool.publish(shared.consumer,key,digest,image):return _fail("Shared prefab image producer cancelled",true)
 		images[key]=image;identities[row.path]=digest;output+=image.get_data_size()
 	profile.merge({"elapsed_us":Time.get_ticks_usec()-began,"cache_hits":cache_hits,"decoded":decoded,"images":images.size(),"output_bytes":output,"estimated_bytes":plan.estimated_bytes},true)
 	var result:Dictionary={"error":"","cancelled":false,"images":images,"sources":identities,"profile":profile,"waiting_pixels":waiting}
-	if verify_at_end and not verify(result,root,token,shared,mounted_snapshot):return _fail("Prefab texture source changed or preparation cancelled",_cancelled(token))
+	if verify_at_end and not verify(result,root,token,shared,mounted_snapshot,mutable_source):return _fail("Prefab texture source changed or preparation cancelled",_cancelled(token))
 	profile.elapsed_us=Time.get_ticks_usec()-began
 	return result
 
-static func verify(packet:Dictionary,root:String,token:RefCounted=null,shared:Dictionary={},mounted_snapshot:bool=false)->bool:
+static func verify(packet:Dictionary,root:String,token:RefCounted=null,shared:Dictionary={},mounted_snapshot:bool=false,mutable_source:bool=false)->bool:
 	var began:=Time.get_ticks_usec();var valid:=true
 	if not packet.has("profile"):packet.profile={}
+	if mutable_source:
+		# Editor jobs publish the captured source generation. New operations take
+		# their own snapshot; do not reopen changed files during this handoff.
+		return not _cancelled(token)
 	var reuse_sources:=_reuse_mounted_sources(shared,mounted_snapshot)
-	if batched_final_handoff_enabled and (reuse_sources or Pixels.Policy.trusted()):
+	if batched_final_handoff_enabled and not mutable_source and (reuse_sources or Pixels.Policy.trusted()):
 		valid=_verify_memory_sources(packet,root,token,shared,reuse_sources)
 		_stage(packet.profile,"final_sha",began,{"sources":packet.get("sources",{}).size(),"valid":valid})
 		return valid
@@ -326,7 +364,7 @@ static func verify(packet:Dictionary,root:String,token:RefCounted=null,shared:Di
 			var digest:String=shared.pool.source_identity(shared.consumer,path)
 			if digest.is_empty() or digest!=packet.sources[path]:valid=false;break
 			packet.profile.final_source_identity_hits=int(packet.profile.get("final_source_identity_hits",0))+1
-		elif Pixels.Policy.trusted():
+		elif Pixels.Policy.trusted() and not mutable_source:
 			# Standalone preparation uses the same mounted-package path identity.
 			# Comparing it to a newly read content SHA cannot succeed.
 			if path.sha256_text()!=packet.sources[path]:valid=false;break
