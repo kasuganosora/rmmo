@@ -1,0 +1,258 @@
+{
+  "status": "candidate_03_partial_runtime_validation_not_installed",
+  "source_commit": "4d10419cacd6d3009976e8f9fd3abd970fd58018",
+  "port_script_sha256": "886a901b36b430fc77a9ab57e046ed35c118a583bc070aa9d9fa269572f114a5",
+  "patch_sha256": "f709dd84d021491ce10f618bdb51fcabd66a6edf85b3746b73b547bc7c7e9ebe",
+  "applied": [
+    {
+      "source_patch": "godot-4.7.2-cpu-surface-prepare.patch",
+      "sha256": "06367012a4151c1cc917c91cb37ee9e17a7c4c790ab3bbf1af9cb8ea6df074a2"
+    },
+    {
+      "source_patch": "godot-4.7.2-cpu-surface-decode.patch",
+      "sha256": "a0fcf2049c3c871428d258f385cecc03843cc009094f5348eb737cd96376ed59"
+    },
+    {
+      "source_patch": "godot-4.7.2-main-device-publication.patch",
+      "sha256": "3e74537e595beb27e3748e661645c2ecb2d724b32fcc4086844768fefbb78495"
+    },
+    {
+      "source_patch": "godot-4.7.2-render-thread-exit.patch",
+      "sha256": "76c56dbecada6b55ea0edbe3cd50b577ea7ef7306e3348d1920b914ae6c9f3b7"
+    },
+    {
+      "source_patch": "godot-4.7.2-glyph-atlas-upload.patch",
+      "sha256": "501dcc937ff89adf70de11e0dae03e1ff3b91bd3fe1625326ed44512271f4370"
+    },
+    {
+      "source_patch": "godot-4.7.2-shader-decode-length.patch",
+      "sha256": "1d130c0406e0094c686b54426b5c56d61c0603f47fc27b65d0f1068b5c516092"
+    },
+    {
+      "source_patch": "godot-4.7.2-standard-shader-residency.patch",
+      "sha256": "1a5d555c693fd09c3584234a6287d073b5f4d4278f2fe91120e4bc5e6f498129"
+    },
+    {
+      "source_patch": "godot-4.7.2-respv-tls-alias.patch",
+      "sha256": "cf5a90dc06015868ac38c1698be040383c1cfa4ce188027f25c77688a11ce751"
+    },
+    {
+      "source_patch": "godot-4.7.2-image-prefetch.patch",
+      "sha256": "d5f6c64e656190273ac9a2c31ef34a96f98f22643808194179584c0dbc2cb729"
+    },
+    {
+      "source_patch": "godot-4.7.2-windows-file-access.patch",
+      "sha256": "d7bc54fef2dfbf80bc0f8c345ffc042031efdf61ad07d14e39d6bebcb489d80f"
+    },
+    {
+      "manual_port": "cpu-concave-prepare",
+      "change": "Keep 4.8 manager include and GODOT_PHYSICS_3D_NAME registration."
+    },
+    {
+      "manual_port": "per-call-cpu-compression",
+      "change": "Use 4.8 CompressProfile; preserve the legacy compatibility bindings."
+    },
+    {
+      "manual_port": "shape-debug-refresh",
+      "change": "No old release-diagnostic header dependency."
+    },
+    {
+      "manual_port": "dds-partial-blocks",
+      "change": "Preserve new 4.8 is_3d handling and linear-size checks."
+    },
+    {
+      "manual_port": "preload-lookup-cache",
+      "change": "Preserve new container_type_validate include; retain per-script/runtime lookup scopes."
+    },
+    {
+      "manual_port": "shader-data-transfer",
+      "change": "Preserve 4.8 PowerVR shader-module workaround and upstream shader work outside the RD lock."
+    },
+    {
+      "manual_port": "profiler-native-race/callers/selfbase/receiver-attribution",
+      "change": "Keep new intrusive function-list traversal and const MethodBind; guard new super-call timers, bound output and safely collate actual selected table."
+    },
+    {
+      "manual_port": "profiler-explicit-os-header",
+      "change": "Move OS include out of TESTS_ENABLED; 4.8 removed transitive include."
+    },
+    {
+      "manual_port": "collision-frozen-type-registration",
+      "change": "Bind API within PhysicsServer3D::_bind_methods, module registers CPU callback; GDB reproduced FINALIZED state before fix."
+    }
+  ],
+  "files": [
+    {
+      "path": "core/io/image.cpp",
+      "before_sha256": "195526a9113355ce9820305ddc90440a396ffbe7b9b5f92e5aec5b793fa31491",
+      "after_sha256": "44377f62ef44c0dfeddfb485385882cacc79298f72f81d021ed6ff1634ace567"
+    },
+    {
+      "path": "core/io/image.h",
+      "before_sha256": "6deec6ef1f8d6166ac93153eae4d381b7c5a5352fbd4729da06a8bacbb97961c",
+      "after_sha256": "bca1d81f891606d6027f1ad85c94242328f98d8f3c69fbb4a3cf9d784f77ee60"
+    },
+    {
+      "path": "doc/classes/Image.xml",
+      "before_sha256": "5019db39e198c4bb2e5048dececbd6c44634f51e089a6379d6c7af8ca69a22ab",
+      "after_sha256": "05fc4c7e9e5d5248ae05ff60887e72a5e426a98866650f03acf1b58a5cf5dc98"
+    },
+    {
+      "path": "drivers/vulkan/rendering_device_driver_vulkan.cpp",
+      "before_sha256": "8e74a8674701744c5f783ffa55e73ba2d1567551375d0e668fecfea5697c3e8c",
+      "after_sha256": "905e964ab728de0ff48df78d34f3a40e4c389a9df014d883edf86b320c87d9c7"
+    },
+    {
+      "path": "drivers/windows/file_access_windows.cpp",
+      "before_sha256": "0565a9429e9287c05520409b18cc7f64dbd9a5ae9ed0eac92388056f2e2edff4",
+      "after_sha256": "e8d5317ce6de06caf8e54e2a560cc121c7edefcdc6cdfe3a57e18ad740309a98"
+    },
+    {
+      "path": "drivers/windows/file_access_windows.h",
+      "before_sha256": "6d50561b2838967115cb1fe7556732a5b345c08cc4a4690e76ab5c911230c4a4",
+      "after_sha256": "93bbc7f17032278584ba506a82b2e0a81e6fba63982ddedb147d91f02e722767"
+    },
+    {
+      "path": "modules/dds/texture_loader_dds.cpp",
+      "before_sha256": "fd1e656f6435ca93261c9283e9e7174c44293c6ac2ea0d8c806b0f4bb4776ea9",
+      "after_sha256": "20536e90fbf446236b48281b39f311c55ab1bafc2e8f6541b40fd8555bb5f807"
+    },
+    {
+      "path": "modules/gdscript/gdscript.cpp",
+      "before_sha256": "9abfb4ec3989f0f800bc17b96943875a6c4bfdfd00b67577779d322a198c070b",
+      "after_sha256": "0228a58e29bfeaedcf71f4ead0d8db841df49d3c4c98a6dc4e4e01c816239e67"
+    },
+    {
+      "path": "modules/gdscript/gdscript_analyzer.cpp",
+      "before_sha256": "cfb65dd174e84680cee3765145b3abee9e3191e04f53076d9474607afd04f6cd",
+      "after_sha256": "390dd6c8859c44b2eb2cba684881f7c2acc8520d09a7d99264f5db0ac41e0a59"
+    },
+    {
+      "path": "modules/gdscript/gdscript_analyzer.h",
+      "before_sha256": "85582ce103700108bf1afc7b84d034fea32ab822b91ee36a12f8eb5db559de58",
+      "after_sha256": "17654c94e2ff96499114f788366f033f5a75742e74463caec154e97718067910"
+    },
+    {
+      "path": "modules/gdscript/gdscript_vm.cpp",
+      "before_sha256": "7b5628e032a973b9707d8add30a1a39fb3a7f996d10f8c65df57cf9d4642fe86",
+      "after_sha256": "b23db431a4207d01019f8f091b35f01425c8418aefceafd21cc36e31f2c6fd35"
+    },
+    {
+      "path": "modules/godot_physics_3d/godot_concave_prepared_data_3d.h",
+      "before_sha256": null,
+      "after_sha256": "025cd5391974eca045b15e564e6277282dad27a626049ae48e452949fd09da37"
+    },
+    {
+      "path": "modules/godot_physics_3d/godot_shape_3d.cpp",
+      "before_sha256": "02651752ed888a64470d17e415b9f88b581c88b7ad9b96e5194b11c0e364fe75",
+      "after_sha256": "2ce14f50ae8afbeb0a13eaf4b127e505f79bb08adde7a26ce0fe353ac5cd2b73"
+    },
+    {
+      "path": "modules/godot_physics_3d/register_types.cpp",
+      "before_sha256": "c4838fff1a29b3da88b216c6966e81aa6057c4ed40142f5459834cf85246938c",
+      "after_sha256": "fd317a46deda9e0d40553c981db5907a363f81cfdb16b2e3bf244d023e0e04ec"
+    },
+    {
+      "path": "modules/text_server_adv/text_server_adv.cpp",
+      "before_sha256": "17e3c0dfdb715701b36635b77d2c778470cb4b4493cd1b909b5236ba2c1b6247",
+      "after_sha256": "342016316b18bd537edc48c052c886695c681a1f979bda747c038d01327f9ef9"
+    },
+    {
+      "path": "modules/text_server_fb/text_server_fb.cpp",
+      "before_sha256": "8bd4e21ecfd233fb7d7b9e6c5dedf53d6a3f1431a9f74744e19733013404cbb6",
+      "after_sha256": "5c348fd12e229464b76804e0350f323dd3620819abb6ff6948d2500610300f23"
+    },
+    {
+      "path": "platform/windows/godot_windows.cpp",
+      "before_sha256": "0d846194950057828fe323e661232ed8421eb7c2246d5bdff431ccf86f6c1c61",
+      "after_sha256": "63c11eef5e93c43d24c78c246c3c0251863936f385ee1ea7f86447f8050392c1"
+    },
+    {
+      "path": "scene/resources/3d/concave_polygon_shape_3d.cpp",
+      "before_sha256": "a7adc68179249aa3e39c4933177a1bac7ce80c8bcc1328efb9f1e133caf8ebd1",
+      "after_sha256": "90353f44745aa6d69bf150ff5677f0253626a064c4e8a63d407efccdc6b34a43"
+    },
+    {
+      "path": "scene/resources/3d/concave_polygon_shape_3d.h",
+      "before_sha256": "772f46870bc4bdd8896f6274d8bcf1413671eb9c50fa9713319d314df5b411b4",
+      "after_sha256": "3f927ea56ffd18b1ca4a82e7b6971cd5dce1530680cd3c8c6952ab29752192db"
+    },
+    {
+      "path": "scene/resources/3d/shape_3d.cpp",
+      "before_sha256": "eb0c3c2d44359993935135723a3f4359c6939ceb87a5ed1b7187ea45160754a4",
+      "after_sha256": "a7ae3b87c338df1f88d7a832322048e790231cd5e9163fb56dae6fdcaa3f29aa"
+    },
+    {
+      "path": "scene/resources/material.cpp",
+      "before_sha256": "fc0f63a5c3bb8543dcb04020642d65d329e0abf8fc43aa469bf94ce94996bbf4",
+      "after_sha256": "949511f4ead9358d3e7e83b9cbf7cc6cbb96000326884bdd87393ebd3be38150"
+    },
+    {
+      "path": "scene/resources/material.h",
+      "before_sha256": "82382cf162200daf6b81aea19d182afa10cec9b091ea5379474cff3013ebe41d",
+      "after_sha256": "d406b4d8923f4dfdf75cf0dfe792cd78aca56b3e7877e520bb68b86bb7322330"
+    },
+    {
+      "path": "servers/rendering/rendering_device.cpp",
+      "before_sha256": "8ea3c66e5580d0e894a0ea578c8481005b302c8d91f470190e36d0ea254ab9a3",
+      "after_sha256": "5adfdd46ed8b801cf7e530632f106cbf700370abea2d3dd1d920aa553e42dfa8"
+    },
+    {
+      "path": "servers/rendering/rendering_server.cpp",
+      "before_sha256": "2b490b28acbdcb20963307ffce83c0bd113e5652e43c5f2eaac5982319e7ad89",
+      "after_sha256": "2e246df15af105975ba7a43b3825ad5ac561eb75c3336c5943bc9716e4c91ba2"
+    },
+    {
+      "path": "servers/rendering/rendering_server_default.cpp",
+      "before_sha256": "b21dc45c1dfe7f6e5aefecad3ebcba42a15012e1535e0b6131c76ec7f13b4654",
+      "after_sha256": "5e7d3fce189c0ecd35529145b85cdc2c255160fa928d771ed95107ff049fbb1e"
+    },
+    {
+      "path": "servers/rendering/rendering_shader_container.cpp",
+      "before_sha256": "3ca91cd6c1fe129ca0a7f3af0dec5f8d9b69c503800754466074f4b8f7ef6437",
+      "after_sha256": "a813fbf5f420a851d658a17e8fa2d150f02ebc1b31024a16137ee207d3e8017a"
+    },
+    {
+      "path": "thirdparty/re-spirv/re-spirv.cpp",
+      "before_sha256": "c4b1a58358c43013ae4a416a6d60119a54c8dee940d385b65aa073cecea73b3a",
+      "after_sha256": "1d241d8f890d9ea78387dc382f9a6097d89036cb3520f3089ea8e7dd56de5d8a"
+    },
+    {
+      "path": "servers/physics_3d/physics_server_3d.h",
+      "before_sha256": "5d2098aef2a6b6a230b8030a07c4f8ea021525dc4ba91d795c386221fa61c9bc",
+      "after_sha256": "1af320d24d07af649bfc7200d76b75df4334a49d7209a1f40b1f3e9b58acb325"
+    },
+    {
+      "path": "servers/physics_3d/physics_server_3d.cpp",
+      "before_sha256": "1f7afa5940ef5fff81eac191b66256d70d37dc2dcd76006643c0549fd76e4c68",
+      "after_sha256": "0774dea22786ea9eba6028c3d8deba463f6abb68d1cd177a94352b8e86e724c8"
+    }
+  ],
+  "note": "Only overlay files changed. Baseline engine source remains frozen while compiling.",
+  "extension_script_sha256": "20fbe421053e84371b14c9ecb32b4f8e134f63b1574892dc248ac388918cde30",
+  "profiler_script_sha256": "210683fc064df18b585fad99719b5ecf9e5c760769c5afb05f3a7c32872d5786",
+  "previous_patch_sha256": "a83bd8b6800d5f0a2af6149d02cbdfdb2cb87c2fbf9af45ca76723c159714494",
+  "source_archive_sha256": "6d49c02e438935e49a12231d857b2b56131948b004d5b668bf295c9bc3b2281c",
+  "engine_sha256": "fe41da4819801754155ba43728e9541e3a76074021d5b09d34a6293fb0e33d35",
+  "symbols_sha256": "9e016e823051b42d95634c50dbbbdc11fce520e359552f684161a8c92f49e424",
+  "record": "docs/godot_4_8_adoption_20261029.md",
+  "evidence_root": "D:\\code\\rmmo_runtime\\review_artifacts\\godot_4_8_adoption_20261029_01",
+  "verified": [
+    "29 original archive file identities, apply check and final source identities",
+    "six native CPU/GPU/import contracts: 263 assertions",
+    "24 DDS CPU/GPU cases",
+    "profiler self-base on/off, lifetime, thread totals and caller split",
+    "four shader residency limits, exact pixels and owner release",
+    "CPU texture compression GDB: one RD total, four worker cases",
+    "18 shader invalid-input/retry checks",
+    "Zstd upstream TLS cleanup and fixed-work scaling",
+    "candidate streaming worker 23, budget 12 and production surface shader 49 checks",
+    "actual terrain material batching 17 checks on candidate engine",
+    "Advanced glyph atlas integrity: safe/separate 20 checks each, 188 glyphs per case, four update paths with and without mipmaps"
+  ],
+  "pending": [
+    "game/editor integrated load/unload/return low-frame matrix",
+    "formal shared streamed-texture producer/consumer budget integration",
+    "Fallback glyph server is not compiled in this candidate; its source port is not a tested runtime capability"
+  ]
+}

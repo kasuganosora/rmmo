@@ -7,6 +7,20 @@ The separate [4.8 beta1 adoption record](../../docs/godot_4_8_adoption_20261029.
 tracks upstream replacements, missing project APIs, and the new standalone
 `texture_streaming_contract` fixture. Do not apply every 4.7.2 patch blindly.
 
+The separately archived `godot-4.8-beta1-runtime-candidate.patch` applies to
+official beta1 commit `4d10419cacd6d3009976e8f9fd3abd970fd58018` only. Its JSON
+manifest records all 29 before/after file hashes and tested/pending boundaries.
+It includes the reproduced frozen-type registration fix: bind the collision
+preparation API during PhysicsServer3D class initialization, then register the
+module's CPU implementation callback. The aggregate patch was applied to the
+verified official archive and every resulting file matched the compiled source.
+This is a separate candidate; the installed default remains 4.7.2.
+Integrated game/editor load, unload and return testing remains required.
+The reusable `check_glyph_upload.py` runs four glyph update paths with and
+without mipmaps in safe/separate render modes, checks actual thread identity
+and compares final GPU atlas bytes with CPU snapshots after mutation bursts.
+Only compiled dynamic-font servers are exercised; Dummy is explicitly skipped.
+
 Base: official `4.7.2-stable`, commit `ed1daf0bf001b61586d9930840f2f1394092c079`.
 The GDScript VM calls `_profile_count_as_native(base_obj, ...)` after invoking
 the method, which may have freed `base_obj`. Reuse the `StringName base_class`

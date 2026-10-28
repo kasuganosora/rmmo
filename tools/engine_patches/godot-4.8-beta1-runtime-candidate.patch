@@ -1,0 +1,1628 @@
+--- a/core/io/image.cpp
++++ b/core/io/image.cpp
+@@ -3070,11 +3070,15 @@
+ 	return _compress_from_channels(p_mode, p_channels, p_profile, BPTC_DETECT);
+ }
+ 
+-Error Image::_compress_from_channels(CompressMode p_mode, UsedChannels p_channels, CompressProfile p_profile, BPTCFormat p_bptc_format) {
++Error Image::compress_from_channels_cpu(CompressMode p_mode, UsedChannels p_channels, CompressProfile p_profile) {
++	return _compress_from_channels(p_mode, p_channels, p_profile, BPTC_DETECT, false);
++}
++
++Error Image::_compress_from_channels(CompressMode p_mode, UsedChannels p_channels, CompressProfile p_profile, BPTCFormat p_bptc_format, bool p_allow_gpu) {
+ 	ERR_FAIL_COND_V(data.is_empty(), ERR_INVALID_DATA);
+ 
+ 	// RenderingDevice only.
+-	if (GLOBAL_GET("rendering/textures/vram_compression/compress_with_gpu")) {
++	if (p_allow_gpu && GLOBAL_GET("rendering/textures/vram_compression/compress_with_gpu")) {
+ 		switch (p_mode) {
+ 			case COMPRESS_BPTC: {
+ 				// BC7 is unsupported currently.
+@@ -4020,6 +4024,7 @@
+ 	ClassDB::bind_method(D_METHOD("detect_used_channels", "source"), &Image::detect_used_channels, DEFVAL(COMPRESS_SOURCE_GENERIC));
+ 	ClassDB::bind_method(D_METHOD("compress", "mode", "source", "profile"), &Image::compress, DEFVAL(COMPRESS_SOURCE_GENERIC), DEFVAL(COMPRESS_PROFILE_AUTOMATIC));
+ 	ClassDB::bind_method(D_METHOD("compress_from_channels", "mode", "channels", "profile"), &Image::compress_from_channels, DEFVAL(COMPRESS_PROFILE_AUTOMATIC));
++	ClassDB::bind_method(D_METHOD("compress_from_channels_cpu", "mode", "channels", "profile"), &Image::compress_from_channels_cpu, DEFVAL(COMPRESS_PROFILE_AUTOMATIC));
+ 	ClassDB::bind_method(D_METHOD("decompress"), &Image::decompress);
+ 	ClassDB::bind_method(D_METHOD("is_compressed"), &Image::is_compressed);
+ 
+--- a/core/io/image.h
++++ b/core/io/image.h
+@@ -431,7 +431,8 @@
+ 
+ 	Error compress(CompressMode p_mode, CompressSource p_source = COMPRESS_SOURCE_GENERIC, CompressProfile p_profile = COMPRESS_PROFILE_AUTOMATIC);
+ 	Error compress_from_channels(CompressMode p_mode, UsedChannels p_channels, CompressProfile p_profile = COMPRESS_PROFILE_AUTOMATIC);
+-	Error _compress_from_channels(CompressMode p_mode, UsedChannels p_channels, CompressProfile p_profile, BPTCFormat p_bptc_format);
++	Error compress_from_channels_cpu(CompressMode p_mode, UsedChannels p_channels, CompressProfile p_profile = COMPRESS_PROFILE_AUTOMATIC);
++	Error _compress_from_channels(CompressMode p_mode, UsedChannels p_channels, CompressProfile p_profile, BPTCFormat p_bptc_format, bool p_allow_gpu = true);
+ 	Error decompress();
+ 	bool is_compressed() const;
+ 	static bool is_format_compressed(Format p_format);
+--- a/doc/classes/Image.xml
++++ b/doc/classes/Image.xml
+@@ -98,6 +98,15 @@
+ 				This is an alternative to [method compress] that lets the user supply the channels used in order for the compressor to pick the best DXT, ETC2, and ASTC formats. For other formats (non DXT, ETC2, or ASTC), this argument is ignored.
+ 				The [param profile] lets the user pick whether the compression should prioritize quality or a smaller size. Only ASTC compression uses this currently.
+ 				[b]Note:[/b] [method compress_from_channels] is only supported in editor builds. When run in an exported project, this method always returns [constant ERR_UNAVAILABLE].
++			</description>
++		</method>
++		<method name="compress_from_channels_cpu">
++			<return type="int" enum="Error" />
++			<param index="0" name="mode" type="int" enum="Image.CompressMode" />
++			<param index="1" name="channels" type="int" enum="Image.UsedChannels" />
++			<param index="2" name="profile" type="int" enum="Image.CompressProfile" default="0" />
++			<description>
++				Compresses like [method compress_from_channels] using only CPU encoders for this call. Does not change global GPU compression settings or create a RenderingDevice. Returns [constant ERR_UNAVAILABLE] if the CPU encoder is absent. The image must not be accessed concurrently during compression.
+ 			</description>
+ 		</method>
+ 		<method name="compute_image_metrics">
+--- a/drivers/vulkan/rendering_device_driver_vulkan.cpp
++++ b/drivers/vulkan/rendering_device_driver_vulkan.cpp
+@@ -4287,6 +4287,36 @@
+ /**** SHADER ****/
+ /****************/
+ 
++// The former deep copies also discarded the parser's spare vector capacity.
++// Keep that compact live footprint while transferring already-tight buffers.
++template <typename T>
++static void rmmo_compact_shader_vector(std::vector<T> &p_vector) {
++	if (p_vector.capacity() != p_vector.size()) {
++		// libstdc++ shrink_to_fit is a no-op when exceptions are disabled.
++		std::vector<T>(p_vector.begin(), p_vector.end()).swap(p_vector);
++	}
++}
++
++static void rmmo_compact_shader_data(respv::Shader &p_shader) {
++	rmmo_compact_shader_vector(p_shader.inlinedSpirvWords);
++	rmmo_compact_shader_vector(p_shader.instructions);
++	rmmo_compact_shader_vector(p_shader.instructionAdjacentListIndices);
++	rmmo_compact_shader_vector(p_shader.instructionInDegrees);
++	rmmo_compact_shader_vector(p_shader.instructionOutDegrees);
++	rmmo_compact_shader_vector(p_shader.instructionOrder);
++	rmmo_compact_shader_vector(p_shader.blocks);
++	rmmo_compact_shader_vector(p_shader.blockPreOrderIndices);
++	rmmo_compact_shader_vector(p_shader.blockPostOrderIndices);
++	rmmo_compact_shader_vector(p_shader.functions);
++	rmmo_compact_shader_vector(p_shader.variableOrder);
++	rmmo_compact_shader_vector(p_shader.results);
++	rmmo_compact_shader_vector(p_shader.specializations);
++	rmmo_compact_shader_vector(p_shader.decorations);
++	rmmo_compact_shader_vector(p_shader.phis);
++	rmmo_compact_shader_vector(p_shader.loopHeaders);
++	rmmo_compact_shader_vector(p_shader.listNodes);
++}
++
+ static VkShaderStageFlagBits RD_STAGE_TO_VK_SHADER_STAGE_BITS[RDD::SHADER_STAGE_MAX] = {
+ 	VK_SHADER_STAGE_VERTEX_BIT,
+ 	VK_SHADER_STAGE_FRAGMENT_BIT,
+@@ -4301,6 +4331,10 @@
+ };
+ 
+ RDD::ShaderID RenderingDeviceDriverVulkan::shader_create_from_container(const Ref<RenderingShaderContainer> &p_shader_container, const Vector<ImmutableSampler> &p_immutable_samplers) {
++	static const bool profile_respv = OS::get_singleton()->get_environment("RMMO_RESPV_PROFILE") == "1";
++	static const bool move_shader_data = OS::get_singleton()->get_environment("RMMO_SHADER_TRANSFER_MOVE") != "0";
++	const uint64_t profile_begin = profile_respv ? OS::get_singleton()->get_ticks_usec() : 0;
++	uint64_t decode_us = 0, parse_us = 0, transfer_us = 0, module_us = 0;
+ 	ShaderReflection shader_refl = p_shader_container->get_shader_reflection();
+ 	ShaderInfo shader_info;
+ 	shader_info.name = p_shader_container->shader_name.get_data();
+@@ -4411,6 +4445,7 @@
+ 	}
+ 
+ 	for (int i = 0; i < stage_count; i++) {
++		const uint64_t decode_begin = profile_respv ? OS::get_singleton()->get_ticks_usec() : 0;
+ 		const RenderingShaderContainer::Shader &shader = p_shader_container->shaders[i];
+ 		bool requires_decompression = (shader.code_decompressed_size > 0);
+ 		if (requires_decompression) {
+@@ -4440,11 +4475,14 @@
+ 			memcpy(decoded_spirv.ptrw(), smolv_input, decoded_spirv.size());
+ 		}
+ 
++		if (profile_respv) { decode_us += OS::get_singleton()->get_ticks_usec() - decode_begin; }
+ 		shader_info.original_stage_size.push_back(decoded_spirv.size());
+ 
+ 		if (use_respv) {
+ 			const bool inline_data = store_respv || (RESPV_ONLY_INLINE_SHADERS_WITH_SPEC_CONSTANTS == 0);
++			const uint64_t parse_begin = profile_respv ? OS::get_singleton()->get_ticks_usec() : 0;
+ 			respv::Shader respv_shader(decoded_spirv.ptr(), decoded_spirv.size(), inline_data);
++			if (profile_respv) { parse_us += OS::get_singleton()->get_ticks_usec() - parse_begin; }
+ 			if (respv_shader.empty()) {
+ #if RESPV_VERBOSE
+ 				print_line("re-spirv failed to parse the shader, skipping optimization.");
+@@ -4453,7 +4491,14 @@
+ 					shader_info.respv_stage_shaders.push_back(respv::Shader());
+ 				}
+ 			} else if (store_respv) {
+-				shader_info.respv_stage_shaders.push_back(respv_shader);
++				const uint64_t transfer_begin = profile_respv ? OS::get_singleton()->get_ticks_usec() : 0;
++				if (move_shader_data) {
++					rmmo_compact_shader_data(respv_shader);
++					shader_info.respv_stage_shaders.push_back(std::move(respv_shader));
++				} else {
++					shader_info.respv_stage_shaders.push_back(respv_shader);
++				}
++				if (profile_respv) { transfer_us += OS::get_singleton()->get_ticks_usec() - transfer_begin; }
+ 			} else {
+ 				std::vector<uint8_t> respv_optimized_data;
+ 				if (respv::Optimizer::run(respv_shader, nullptr, 0, respv_optimized_data)) {
+@@ -4480,7 +4525,9 @@
+ 		shader_module_create_info.pCode = (const uint32_t *)(decoded_spirv.ptr());
+ 
+ 		POWERVR_ROGUE_SHADER_CRASH_WORKAROUND_MUTEX_LOCK
++		const uint64_t module_begin = profile_respv ? OS::get_singleton()->get_ticks_usec() : 0;
+ 		res = vkCreateShaderModule(vk_device, &shader_module_create_info, VKC::get_allocation_callbacks(VK_OBJECT_TYPE_SHADER_MODULE), &vk_module);
++		if (profile_respv) { module_us += OS::get_singleton()->get_ticks_usec() - module_begin; }
+ 		POWERVR_ROGUE_SHADER_CRASH_WORKAROUND_MUTEX_UNLOCK
+ 
+ 		if (res != VK_SUCCESS) {
+@@ -4565,7 +4612,16 @@
+ 
+ 	// Bookkeep.
+ 	ShaderInfo *shader_info_ptr = VersatileResource::allocate<ShaderInfo>(resources_allocator);
+-	*shader_info_ptr = shader_info;
++	const uint64_t transfer_begin = profile_respv ? OS::get_singleton()->get_ticks_usec() : 0;
++	if (move_shader_data) {
++		*shader_info_ptr = std::move(shader_info);
++	} else {
++		*shader_info_ptr = shader_info;
++	}
++	if (profile_respv) {
++		transfer_us += OS::get_singleton()->get_ticks_usec() - transfer_begin;
++		print_line(vformat("RMMO_SHADER_BUILD name=%s total_us=%d stages=%d decode_us=%d parse_us=%d transfer_us=%d module_us=%d move=%d", shader_info_ptr->name, OS::get_singleton()->get_ticks_usec() - profile_begin, stage_count, decode_us, parse_us, transfer_us, module_us, int(move_shader_data)));
++	}
+ 	return ShaderID(shader_info_ptr);
+ }
+ 
+--- a/drivers/windows/file_access_windows.cpp
++++ b/drivers/windows/file_access_windows.cpp
+@@ -33,8 +33,11 @@
+ #include "file_access_windows.h"
+ 
+ #include "core/config/project_settings.h"
++#include "core/os/mutex.h"
+ #include "core/os/os.h"
++#include "core/os/thread.h"
+ #include "core/string/print_string.h"
++#include "core/templates/hash_map.h"
+ 
+ #include <io.h>
+ #include <share.h> // _SH_DENYNO
+@@ -50,6 +53,26 @@
+ #define S_ISREG(m) ((m) & _S_IFREG)
+ #endif
+ 
++#ifdef TOOLS_ENABLED
++static HashMap<String, String> stored_names;
++static Mutex stored_name_mutex;
++#endif
++
++FILE *FileAccessWindows::trace_file = nullptr;
++static Mutex *trace_mutex = nullptr;
++
++// Columns: kind begin_us end_us thread a b c d e path.
++// O/W (file opened for reading/writing, row written at close): a=read_us b=reads c=bytes_read d=length e=open_cost_us.
++// F (failed open): a=mode e=open_cost_us.  X (exists query): a=exists.
++void FileAccessWindows::trace_row(const char *p_kind, uint64_t p_begin_us, uint64_t p_end_us, uint64_t p_a, uint64_t p_b, uint64_t p_c, uint64_t p_d, uint64_t p_e, const String &p_path) {
++	if (!trace_file) {
++		return;
++	}
++	const CharString utf8 = p_path.utf8();
++	MutexLock lock(*trace_mutex);
++	fprintf(trace_file, "%s\t%llu\t%llu\t%llu\t%llu\t%llu\t%llu\t%llu\t%llu\t%s\n", p_kind, (unsigned long long)p_begin_us, (unsigned long long)p_end_us, (unsigned long long)Thread::get_caller_id(), (unsigned long long)p_a, (unsigned long long)p_b, (unsigned long long)p_c, (unsigned long long)p_d, (unsigned long long)p_e, utf8.get_data());
++}
++
+ void FileAccessWindows::check_errors(bool p_write) const {
+ 	ERR_FAIL_NULL(f);
+ 
+@@ -99,6 +122,7 @@
+ }
+ 
+ Error FileAccessWindows::open_internal(const String &p_path, int p_mode_flags) {
++	const uint64_t trace_begin = trace_file ? OS::get_singleton()->get_ticks_usec() : 0;
+ 	if (is_path_invalid(p_path)) {
+ #ifdef DEBUG_ENABLED
+ 		if (p_mode_flags != READ) {
+@@ -171,15 +195,29 @@
+ 		for (const String &part : parts) {
+ 			working_path = working_path + "\\" + part;
+ 
+-			HANDLE fnd = FindFirstFileW((LPCWSTR)(working_path.utf16().get_data()), &d);
+-			if (fnd == INVALID_HANDLE_VALUE) {
+-				mismatch = false;
+-				break;
+-			}
+-
+-			const String fname = String::utf16((const char16_t *)(d.cFileName));
+-
+-			FindClose(fnd);
++			// Stored names of components already found on disk; the lookup only
++			// feeds the case warning, so a stale entry cannot change what opens.
++			String fname;
++			{
++				MutexLock lock(stored_name_mutex);
++				const String *stored = stored_names.getptr(working_path);
++				if (stored) {
++					fname = *stored;
++				}
++			}
++			if (fname.is_empty()) {
++				HANDLE fnd = FindFirstFileW((LPCWSTR)(working_path.utf16().get_data()), &d);
++				if (fnd == INVALID_HANDLE_VALUE) {
++					mismatch = false;
++					break;
++				}
++
++				fname = String::utf16((const char16_t *)(d.cFileName));
++
++				FindClose(fnd);
++				MutexLock lock(stored_name_mutex);
++				stored_names.insert(working_path, fname);
++			}
+ 
+ 			if (!mismatch) {
+ 				mismatch = (part != fname && part.findn(fname) == 0);
+@@ -216,6 +254,18 @@
+ 	}
+ 
+ 	f = _wfsopen((LPCWSTR)(path.utf16().get_data()), mode_string, is_backup_save_enabled() ? ((p_mode_flags == READ) ? _SH_DENYWR : _SH_DENYRW) : _SH_DENYNO);
++	if (trace_file) {
++		const uint64_t opened = OS::get_singleton()->get_ticks_usec();
++		trace_open_us = trace_begin;
++		trace_open_cost_us = opened - trace_begin;
++		trace_read_bytes = 0;
++		trace_reads = 0;
++		trace_read_us = 0;
++		if (f == nullptr) {
++			trace_row("F", trace_begin, opened, p_mode_flags, 0, 0, 0, trace_open_cost_us, path_src);
++			trace_open_us = 0;
++		}
++	}
+ 
+ 	if (f == nullptr) {
+ 		switch (errno) {
+@@ -239,6 +289,11 @@
+ 		return;
+ 	}
+ 
++	if (trace_file && trace_open_us) {
++		const uint64_t length = get_length();
++		trace_row(flags == READ ? "O" : "W", trace_open_us, OS::get_singleton()->get_ticks_usec(), trace_read_us, trace_reads, trace_read_bytes, length, trace_open_cost_us, path_src);
++		trace_open_us = 0;
++	}
+ 	fclose(f);
+ 	f = nullptr;
+ 
+@@ -344,8 +399,14 @@
+ 		prev_op = READ;
+ 	}
+ 
++	const uint64_t trace_begin = trace_file ? OS::get_singleton()->get_ticks_usec() : 0;
+ 	uint64_t read = fread(p_dst, 1, p_length, f);
+ 	check_errors();
++	if (trace_file) {
++		trace_read_bytes += read;
++		trace_reads++;
++		trace_read_us += OS::get_singleton()->get_ticks_usec() - trace_begin;
++	}
+ 
+ 	return read;
+ }
+@@ -405,8 +466,13 @@
+ 	}
+ 
+ 	String filename = fix_path(p_name);
++	const uint64_t trace_begin = trace_file ? OS::get_singleton()->get_ticks_usec() : 0;
+ 	DWORD file_attr = GetFileAttributesW((LPCWSTR)(filename.utf16().get_data()));
+-	return (file_attr != INVALID_FILE_ATTRIBUTES) && !(file_attr & FILE_ATTRIBUTE_DIRECTORY);
++	const bool exists = (file_attr != INVALID_FILE_ATTRIBUTES) && !(file_attr & FILE_ATTRIBUTE_DIRECTORY);
++	if (trace_file) {
++		trace_row("X", trace_begin, OS::get_singleton()->get_ticks_usec(), exists, 0, 0, 0, 0, p_name);
++	}
++	return exists;
+ }
+ 
+ uint64_t FileAccessWindows::_get_modified_time(const String &p_file) {
+@@ -703,10 +769,24 @@
+ 
+ 	_setmaxstdio(8192);
+ 	print_verbose(vformat("Maximum number of file handles: %d", _getmaxstdio()));
++
++	const wchar_t *trace_path = _wgetenv(L"RMMO_FILE_TRACE");
++	if (trace_path && trace_path[0] && !trace_file) {
++		trace_file = _wfopen(trace_path, L"wb");
++		if (trace_file) {
++			setvbuf(trace_file, nullptr, _IOFBF, 1 << 20);
++			trace_mutex = memnew(Mutex);
++		}
++	}
+ }
+ 
+ void FileAccessWindows::finalize() {
+ 	invalid_files.clear();
++	if (trace_file) {
++		MutexLock lock(*trace_mutex);
++		fclose(trace_file);
++		trace_file = nullptr;
++	}
+ }
+ 
+ #endif // WINDOWS_ENABLED
+--- a/drivers/windows/file_access_windows.h
++++ b/drivers/windows/file_access_windows.h
+@@ -46,6 +46,16 @@
+ 	String path;
+ 	String path_src;
+ 	String save_path;
++
++	// Opt-in IO trace (RMMO_FILE_TRACE=<file>): one row per opened file and per
++	// metadata query, timed with OS ticks so rows align with script timings.
++	uint64_t trace_open_us = 0;
++	uint64_t trace_open_cost_us = 0;
++	mutable uint64_t trace_read_bytes = 0;
++	mutable uint64_t trace_reads = 0;
++	mutable uint64_t trace_read_us = 0;
++	static FILE *trace_file;
++	static void trace_row(const char *p_kind, uint64_t p_begin_us, uint64_t p_end_us, uint64_t p_a, uint64_t p_b, uint64_t p_c, uint64_t p_d, uint64_t p_e, const String &p_path);
+ 
+ 	void _close();
+ 
+--- a/modules/dds/texture_loader_dds.cpp
++++ b/modules/dds/texture_loader_dds.cpp
+@@ -151,20 +151,11 @@
+ 	uint32_t h = p_height;
+ 
+ 	if (info.compressed) {
+-		// BC compressed.
+-		w += w % info.divisor;
+-		h += h % info.divisor;
++		// Preserve logical mip dimensions; round each byte count to complete BC blocks.
+ 
+ 		uint32_t size = MAX(1u, (w + 3) / 4) * MAX(1u, (h + 3) / 4) * info.block_size;
+ 
+ 		if (!p_is_3d) {
+-			if (w != p_width) {
+-				WARN_PRINT(vformat("%s: DDS width '%d' is not divisible by %d. This is not allowed as per the DDS specification, attempting to load anyway.", p_file->get_path(), p_width, info.divisor));
+-			}
+-			if (h != p_height) {
+-				WARN_PRINT(vformat("%s: DDS height '%d' is not divisible by %d. This is not allowed as per the DDS specification, attempting to load anyway.", p_file->get_path(), p_height, info.divisor));
+-			}
+-
+ 			if (p_flags & DDSD_LINEARSIZE) {
+ 				ERR_FAIL_COND_V_MSG(size != p_pitch, Ref<Resource>(), "DDS header flags specify that a linear size of the top-level image is present, but the specified size does not match the expected value.");
+ 			} else {
+--- a/modules/gdscript/gdscript.cpp
++++ b/modules/gdscript/gdscript.cpp
+@@ -42,6 +42,7 @@
+ #include "core/io/resource_loader.h"
+ #include "core/object/callable_mp.h"
+ #include "core/object/class_db.h"
++#include "core/os/os.h"
+ #include "core/templates/rb_set.h"
+ 
+ #ifdef TOOLS_ENABLED
+@@ -51,7 +52,6 @@
+ #ifdef TESTS_ENABLED
+ #ifndef DISABLE_DEPRECATED
+ #include "core/error/error_macros.h"
+-#include "core/os/os.h"
+ #endif
+ #endif
+ 
+@@ -2382,7 +2382,7 @@
+ 
+ 		int nat_time = 0;
+ 		HashMap<String, GDScriptFunction::Profile::NativeProfile>::ConstIterator nat_calls = func.profile.native_calls.begin();
+-		while (nat_calls) {
++		while (nat_calls && current < p_info_max) {
+ 			r_info_arr[current].call_count = nat_calls->value.call_count;
+ 			r_info_arr[current].total_time = nat_calls->value.total_time;
+ 			r_info_arr[current].self_time = nat_calls->value.total_time;
+@@ -2410,7 +2410,7 @@
+ 		if (current >= p_info_max) {
+ 			break;
+ 		}
+-		if (func.profile.last_frame_call_count > 0) {
++		if (func.profile.last_frame_call_count > 0 || func.profile.last_frame_total_time > 0 || !func.profile.last_native_calls.is_empty()) {
+ 			int last_non_internal = current;
+ 			r_info_arr[current].call_count = func.profile.last_frame_call_count;
+ 			r_info_arr[current].self_time = func.profile.last_frame_self_time;
+@@ -2420,7 +2420,7 @@
+ 
+ 			int nat_time = 0;
+ 			HashMap<String, GDScriptFunction::Profile::NativeProfile>::ConstIterator nat_calls = func.profile.last_native_calls.begin();
+-			while (nat_calls) {
++			while (nat_calls && current < p_info_max) {
+ 				r_info_arr[current].call_count = nat_calls->value.call_count;
+ 				r_info_arr[current].total_time = nat_calls->value.total_time;
+ 				r_info_arr[current].self_time = nat_calls->value.total_time;
+@@ -2440,6 +2440,10 @@
+ 
+ void GDScriptLanguage::profiling_collate_native_call_data(bool p_accumulated) {
+ #ifdef DEBUG_ENABLED
++	static const bool by_caller = OS::get_singleton()->get_environment("RMMO_PROFILE_NATIVE_CALLERS") == "1";
++	if (by_caller) {
++		return;
++	}
+ 	// The same native call can be called from multiple functions, so join them together here.
+ 	// Only use the name of the function (ie signature.split[2]).
+ 	HashMap<String, GDScriptFunction::Profile::NativeProfile *> seen_nat_calls;
+@@ -2448,16 +2452,17 @@
+ 		HashMap<String, GDScriptFunction::Profile::NativeProfile>::Iterator it = nat_calls->begin();
+ 
+ 		while (it != nat_calls->end()) {
+-			Vector<String> sig = it->value.signature.split("::");
++			const auto current = it;
++			++it;
++			Vector<String> sig = current->value.signature.split("::");
+ 			HashMap<String, GDScriptFunction::Profile::NativeProfile *>::ConstIterator already_found = seen_nat_calls.find(sig[2]);
+ 			if (already_found) {
+-				already_found->value->total_time += it->value.total_time;
+-				already_found->value->call_count += it->value.call_count;
+-				func.profile.last_native_calls.remove(it);
++				already_found->value->total_time += current->value.total_time;
++				already_found->value->call_count += current->value.call_count;
++				nat_calls->remove(current);
+ 			} else {
+-				seen_nat_calls.insert(sig[2], &it->value);
+-			}
+-			++it;
++				seen_nat_calls.insert(sig[2], &current->value);
++			}
+ 		}
+ 	}
+ #endif
+@@ -2667,9 +2672,9 @@
+ 			func.profile.last_frame_self_time = func.profile.frame_self_time.get();
+ 			func.profile.last_frame_total_time = func.profile.frame_total_time.get();
+ 			func.profile.last_native_calls = func.profile.native_calls;
+-			func.profile.frame_call_count.set(0);
+-			func.profile.frame_self_time.set(0);
+-			func.profile.frame_total_time.set(0);
++			func.profile.frame_call_count.sub(func.profile.last_frame_call_count);
++			func.profile.frame_self_time.sub(func.profile.last_frame_self_time);
++			func.profile.frame_total_time.sub(func.profile.last_frame_total_time);
+ 			func.profile.native_calls.clear();
+ 		}
+ 	}
+--- a/modules/gdscript/gdscript_analyzer.cpp
++++ b/modules/gdscript/gdscript_analyzer.cpp
+@@ -41,6 +41,7 @@
+ #include "core/io/resource_loader.h"
+ #include "core/object/class_db.h"
+ #include "core/object/script_language.h"
++#include "core/os/mutex.h"
+ #include "core/templates/hash_map.h"
+ #include "core/variant/container_type_validate.h"
+ #include "scene/main/node.h"
+@@ -4795,7 +4796,37 @@
+ 			p_preload->resolved_path = parser->script_path.get_base_dir().path_join(p_preload->resolved_path);
+ 		}
+ 		p_preload->resolved_path = p_preload->resolved_path.simplify_path();
+-		if (!ResourceLoader::exists(p_preload->resolved_path)) {
++		PreloadTarget *target = preload_targets.getptr(p_preload->resolved_path);
++		if (!target) {
++			// Outside the editor, resources keep their identity for the whole run
++			// (as with ResourceLoader::get_resource_uid), so found targets are shared
++			// across scripts. Missing targets are always probed again.
++			static HashMap<String, PreloadTarget> runtime_targets;
++			static Mutex runtime_targets_mutex;
++			const bool shared = !Engine::get_singleton()->is_editor_hint();
++			PreloadTarget resolved;
++			bool known = false;
++			if (shared) {
++				MutexLock lock(runtime_targets_mutex);
++				const PreloadTarget *found = runtime_targets.getptr(p_preload->resolved_path);
++				if (found) {
++					resolved = *found;
++					known = true;
++				}
++			}
++			if (!known) {
++				resolved.exists = ResourceLoader::exists(p_preload->resolved_path);
++				if (resolved.exists) {
++					resolved.type = ResourceLoader::get_resource_type(p_preload->resolved_path);
++					if (shared) {
++						MutexLock lock(runtime_targets_mutex);
++						runtime_targets.insert(p_preload->resolved_path, resolved);
++					}
++				}
++			}
++			target = &preload_targets.insert(p_preload->resolved_path, resolved)->value;
++		}
++		if (!target->exists) {
+ 			Ref<FileAccess> file_check = FileAccess::create(FileAccess::ACCESS_RESOURCES);
+ 
+ 			if (file_check->file_exists(p_preload->resolved_path)) {
+@@ -4808,7 +4839,7 @@
+ 
+ 			// Must load GDScript separately to permit cyclic references
+ 			// as ResourceLoader::load() detects and rejects those.
+-			const String &res_type = ResourceLoader::get_resource_type(p_preload->resolved_path);
++			const String res_type = target->type;
+ 			if (res_type == "GDScript") {
+ 				Error err = OK;
+ 				Ref<GDScript> res = get_depended_shallow_script(p_preload->resolved_path, err);
+--- a/modules/gdscript/gdscript_analyzer.h
++++ b/modules/gdscript/gdscript_analyzer.h
+@@ -37,6 +37,16 @@
+ 
+ class GDScriptAnalyzer {
+ 	GDScriptParser *parser = nullptr;
++
++	// Existence and resource type per preloaded path, resolved at most once per
++	// analyzed script. A script can preload the same path hundreds of times
++	// inline; each lookup otherwise probes .remap/.import files and opens the
++	// resource on disk.
++	struct PreloadTarget {
++		bool exists = false;
++		String type;
++	};
++	HashMap<String, PreloadTarget> preload_targets;
+ 
+ 	template <typename Fn>
+ 	class Finally {
+--- a/modules/gdscript/gdscript_vm.cpp
++++ b/modules/gdscript/gdscript_vm.cpp
+@@ -39,15 +39,14 @@
+ 
+ #ifdef DEBUG_ENABLED
+ 
+-static bool _profile_count_as_native(const Object *p_base_obj, const StringName &p_methodname) {
+-	if (!p_base_obj) {
++static bool _profile_count_as_native(const StringName &p_base_class, const StringName &p_methodname) {
++	if (p_base_class == StringName()) {
+ 		return false;
+ 	}
+-	const StringName &cname = p_base_obj->get_class_name();
+-	if ((p_methodname == SNAME("new") && cname == GDScript::get_class_static()) || p_methodname == CoreStringName(call)) {
++	if ((p_methodname == SNAME("new") && p_base_class == GDScript::get_class_static()) || p_methodname == CoreStringName(call)) {
+ 		return false;
+ 	}
+-	return ClassDB::has_method(cname, p_methodname, false);
++	return ClassDB::has_method(p_base_class, p_methodname, false);
+ }
+ 
+ static String _get_element_type(Variant::Type builtin_type, const StringName &native_type, const Ref<Script> &script_type) {
+@@ -106,12 +105,17 @@
+ }
+ 
+ void GDScriptFunction::_profile_native_call(uint64_t p_t_taken, const String &p_func_name, const String &p_instance_class_name) {
+-	HashMap<String, Profile::NativeProfile>::Iterator inner_prof = profile.native_calls.find(p_func_name);
++	// Use the reader's lock while workers append and frame() snapshots counters.
++	MutexLock lock(GDScriptLanguage::get_singleton()->mutex);
++	static const bool by_caller = OS::get_singleton()->get_environment("RMMO_PROFILE_NATIVE_CALLERS") == "1";
++	const String native_name = p_instance_class_name + (p_instance_class_name.is_empty() ? "" : ".") + p_func_name;
++	const String key = by_caller ? native_name : p_func_name;
++	HashMap<String, Profile::NativeProfile>::Iterator inner_prof = profile.native_calls.find(key);
+ 	if (inner_prof) {
+ 		inner_prof->value.call_count += 1;
+ 	} else {
+-		String sig = vformat("%s::0::%s%s%s", get_script()->get_script_path(), p_instance_class_name, p_instance_class_name.is_empty() ? "" : ".", p_func_name);
+-		inner_prof = profile.native_calls.insert(p_func_name, Profile::NativeProfile{ 1, 0, sig });
++		String sig = by_caller ? String(profile.signature) + " [native " + native_name + "]" : vformat("%s::0::%s", get_script()->get_script_path(), native_name);
++		inner_prof = profile.native_calls.insert(key, Profile::NativeProfile{ 1, 0, sig });
+ 	}
+ 	inner_prof->value.total_time += p_t_taken;
+ }
+@@ -1918,6 +1922,14 @@
+ 				}
+ 				Variant::Type base_type = base->get_type();
+ 				Object *base_obj = nullptr;
++				// Preserve attribution even when the call frees or replaces its receiver.
++				StringName base_class;
++				if (GDScriptLanguage::get_singleton()->profiling && base_type == Variant::OBJECT) {
++					Object *profile_base = base->get_validated_object();
++					if (profile_base) {
++						base_class = profile_base->get_class_name();
++					}
++				}
+ #endif
+ 
+ 				Variant temp_ret;
+@@ -1964,10 +1976,9 @@
+ #ifdef DEBUG_ENABLED
+ 
+ 				if (GDScriptLanguage::get_singleton()->profiling) {
+-					base_obj = (base_obj == nullptr) ? base->get_validated_object() : base_obj;
+ 					uint64_t t_taken = OS::get_singleton()->get_ticks_usec() - call_time;
+-					if (GDScriptLanguage::get_singleton()->profile_native_calls && _profile_count_as_native(base_obj, *methodname)) {
+-						_profile_native_call(t_taken, *methodname, base_obj->get_class_name());
++					if (GDScriptLanguage::get_singleton()->profile_native_calls && _profile_count_as_native(base_class, *methodname)) {
++						_profile_native_call(t_taken, *methodname, base_class);
+ 					}
+ 					function_call_time += t_taken;
+ 				}
+@@ -2524,14 +2535,32 @@
+ 				Callable::CallError err;
+ 
+ 				if (E) {
++#ifdef DEBUG_ENABLED
++					uint64_t call_time = GDScriptLanguage::get_singleton()->profiling ? OS::get_singleton()->get_ticks_usec() : 0;
++#endif
+ 					*dst = E->value->call(p_instance, (const Variant **)argptrs, argc, err);
++#ifdef DEBUG_ENABLED
++					if (GDScriptLanguage::get_singleton()->profiling && call_time != 0) {
++						function_call_time += OS::get_singleton()->get_ticks_usec() - call_time;
++					}
++#endif
+ 				} else if (gds->native.ptr()) {
+ 					if (*methodname != GDScriptLanguage::get_singleton()->strings._init) {
+ 						const MethodBind *mb = ClassDB::get_method(gds->native->get_name(), *methodname);
+ 						if (!mb) {
+ 							err.error = Callable::CallError::CALL_ERROR_INVALID_METHOD;
+ 						} else {
++#ifdef DEBUG_ENABLED
++							uint64_t call_time = (GDScriptLanguage::get_singleton()->profiling && GDScriptLanguage::get_singleton()->profile_native_calls) ? OS::get_singleton()->get_ticks_usec() : 0;
++#endif
+ 							*dst = mb->call(p_instance->owner, (const Variant **)argptrs, argc, err);
++#ifdef DEBUG_ENABLED
++							if (GDScriptLanguage::get_singleton()->profiling && GDScriptLanguage::get_singleton()->profile_native_calls && call_time != 0) {
++								uint64_t t_taken = OS::get_singleton()->get_ticks_usec() - call_time;
++								_profile_native_call(t_taken, mb->get_name(), mb->get_instance_class());
++								function_call_time += t_taken;
++							}
++#endif
+ 						}
+ 					} else {
+ 						err.error = Callable::CallError::CALL_OK;
+@@ -3984,7 +4013,7 @@
+ 
+ 	OPCODES_OUT
+ #ifdef DEBUG_ENABLED
+-	if (GDScriptLanguage::get_singleton()->profiling) {
++	if (GDScriptLanguage::get_singleton()->profiling && function_start_time != 0) {
+ 		uint64_t time_taken = OS::get_singleton()->get_ticks_usec() - function_start_time;
+ 		profile.total_time.add(time_taken);
+ 		profile.self_time.add(time_taken - function_call_time);
+--- /dev/null
++++ b/modules/godot_physics_3d/godot_concave_prepared_data_3d.h
+@@ -0,0 +1,57 @@
++/**************************************************************************/
++/*  godot_shape_3d.h                                                      */
++/**************************************************************************/
++/*                         This file is part of:                          */
++/*                             GODOT ENGINE                               */
++/*                        https://godotengine.org                         */
++/**************************************************************************/
++/* Copyright (c) 2014-present Godot Engine contributors (see AUTHORS.md). */
++/* Copyright (c) 2007-2014 Juan Linietsky, Ariel Manzur.                  */
++/*                                                                        */
++/* Permission is hereby granted, free of charge, to any person obtaining  */
++/* a copy of this software and associated documentation files (the        */
++/* "Software"), to deal in the Software without restriction, including    */
++/* without limitation the rights to use, copy, modify, merge, publish,    */
++/* distribute, sublicense, and/or sell copies of the Software, and to     */
++/* permit persons to whom the Software is furnished to do so, subject to  */
++/* the following conditions:                                              */
++/*                                                                        */
++/* The above copyright notice and this permission notice shall be         */
++/* included in all copies or substantial portions of the Software.        */
++/*                                                                        */
++/* THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,        */
++/* EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF     */
++/* MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. */
++/* IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY   */
++/* CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,   */
++/* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE      */
++/* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                 */
++/**************************************************************************/
++
++#pragma once
++
++#include "godot_shape_3d.h"
++#include "core/object/ref_counted.h"
++
++// Immutable, CPU-only result. The private shape has no RID, world, or owners.
++// It runs the exact ordinary BVH builder, then shares the completed COW vectors.
++class GodotConcavePreparedData3D : public RefCounted {
++    GDCLASS(GodotConcavePreparedData3D, RefCounted);
++protected:
++    static void _bind_methods() {}
++public:
++    GodotConcavePolygonShape3D shape;
++    Vector<Vector3> source_faces;
++    static Dictionary prepare(const Vector<Vector3> &p_faces, bool p_backface_collision) {
++        ERR_FAIL_COND_V(p_faces.size() % 3, Dictionary());
++        Ref<GodotConcavePreparedData3D> prepared;
++        prepared.instantiate();
++        prepared->source_faces = p_faces;
++        prepared->shape._setup(p_faces, p_backface_collision);
++        Dictionary data;
++        data["faces"] = p_faces;
++        data["backface_collision"] = p_backface_collision;
++        data["_prepared"] = prepared;
++        return data;
++    }
++};
+--- a/modules/godot_physics_3d/godot_shape_3d.cpp
++++ b/modules/godot_physics_3d/godot_shape_3d.cpp
+@@ -29,6 +29,7 @@
+ /**************************************************************************/
+ 
+ #include "godot_shape_3d.h"
++#include "godot_concave_prepared_data_3d.h"
+ 
+ #include "core/io/image.h"
+ #include "core/math/convex_hull.h"
+@@ -1658,7 +1659,19 @@
+ 	Dictionary d = p_data;
+ 	ERR_FAIL_COND(!d.has("faces"));
+ 
+-	_setup(d["faces"], d["backface_collision"]);
++    // Accept only an engine-built immutable product for this exact COW input.
++    // Altered/custom dictionaries keep the normal validation and setup path.
++    Ref<GodotConcavePreparedData3D> prepared = d.get("_prepared", Variant());
++    Vector<Vector3> input = d["faces"];
++    if (prepared.is_valid() && input.size() == prepared->source_faces.size() && input.ptr() == prepared->source_faces.ptr()) {
++        faces = prepared->shape.faces;
++        vertices = prepared->shape.vertices;
++        bvh = prepared->shape.bvh;
++        backface_collision = d["backface_collision"];
++        configure(prepared->shape.get_aabb());
++        return;
++    }
++    _setup(input, d["backface_collision"]);
+ }
+ 
+ Variant GodotConcavePolygonShape3D::get_data() const {
+--- a/modules/godot_physics_3d/register_types.cpp
++++ b/modules/godot_physics_3d/register_types.cpp
+@@ -31,9 +31,11 @@
+ #include "register_types.h"
+ 
+ #include "godot_physics_server_3d.h"
++#include "godot_concave_prepared_data_3d.h"
+ 
+ #include "core/config/project_settings.h"
+ #include "core/object/callable_mp.h"
++#include "core/object/class_db.h"
+ #include "servers/physics_3d/physics_server_3d.h"
+ #include "servers/physics_3d/physics_server_3d_manager.h"
+ #include "servers/physics_3d/physics_server_3d_wrap_mt.h"
+@@ -54,6 +56,8 @@
+ 	if (p_level != MODULE_INITIALIZATION_LEVEL_SERVERS) {
+ 		return;
+ 	}
++	GDREGISTER_INTERNAL_CLASS(GodotConcavePreparedData3D);
++	PhysicsServer3D::set_concave_shape_prepare_callback(&GodotConcavePreparedData3D::prepare);
+ 	PhysicsServer3DManager::get_singleton()->register_server(PhysicsServer3DManager::GODOT_PHYSICS_3D_NAME, callable_mp_static(_createGodotPhysics3DCallback));
+ 	PhysicsServer3DManager::get_singleton()->set_default_server(PhysicsServer3DManager::GODOT_PHYSICS_3D_NAME);
+ }
+@@ -62,4 +66,5 @@
+ 	if (p_level != MODULE_INITIALIZATION_LEVEL_SERVERS) {
+ 		return;
+ 	}
++	PhysicsServer3D::set_concave_shape_prepare_callback(nullptr);
+ }
+--- a/modules/text_server_adv/text_server_adv.cpp
++++ b/modules/text_server_adv/text_server_adv.cpp
+@@ -39,6 +39,7 @@
+ #include "core/os/os.h"
+ #include "core/string/translation_server.h"
+ #include "scene/resources/image_texture.h"
++#include "servers/rendering/rendering_server.h"
+ 
+ #include "modules/modules_enabled.gen.h" // For freetype, msdfgen, svg.
+ 
+@@ -69,6 +70,16 @@
+ #include "thorvg_svg_in_ot.h"
+ #endif
+ #endif
++
++// Glyphs are rasterized into the atlas image in place. With a separate render
++// thread a queued texture update reads its image later, so it gets a snapshot.
++static Ref<Image> _glyph_atlas_upload(const Ref<Image> &p_atlas, const Ref<Image> &p_image) {
++	Ref<Image> image = p_image;
++	if (image == p_atlas && !RenderingServer::get_singleton()->is_on_render_thread()) {
++		image = p_atlas->duplicate();
++	}
++	return image;
++}
+ 
+ /*************************************************************************/
+ /*  bmp_font_t HarfBuzz Bitmap font interface                            */
+@@ -3823,7 +3834,7 @@
+ 			if (tex.texture.is_null()) {
+ 				tex.texture = ImageTexture::create_from_image(img);
+ 			} else {
+-				tex.texture->update(img);
++				tex.texture->update(_glyph_atlas_upload(tex.image, img));
+ 			}
+ 			tex.dirty = false;
+ 		}
+@@ -3873,7 +3884,7 @@
+ 			if (tex.texture.is_null()) {
+ 				tex.texture = ImageTexture::create_from_image(img);
+ 			} else {
+-				tex.texture->update(img);
++				tex.texture->update(_glyph_atlas_upload(tex.image, img));
+ 			}
+ 			tex.dirty = false;
+ 		}
+@@ -4349,7 +4360,7 @@
+ 				if (tex.texture.is_null()) {
+ 					tex.texture = ImageTexture::create_from_image(img);
+ 				} else {
+-					tex.texture->update(img);
++					tex.texture->update(_glyph_atlas_upload(tex.image, img));
+ 				}
+ 				tex.dirty = false;
+ 			}
+@@ -4488,7 +4499,7 @@
+ 				if (tex.texture.is_null()) {
+ 					tex.texture = ImageTexture::create_from_image(img);
+ 				} else {
+-					tex.texture->update(img);
++					tex.texture->update(_glyph_atlas_upload(tex.image, img));
+ 				}
+ 				tex.dirty = false;
+ 			}
+--- a/modules/text_server_fb/text_server_fb.cpp
++++ b/modules/text_server_fb/text_server_fb.cpp
+@@ -39,6 +39,8 @@
+ #include "core/os/os.h"
+ #include "core/string/print_string.h"
+ #include "core/string/translation_server.h"
++#include "scene/resources/image_texture.h"
++#include "servers/rendering/rendering_server.h"
+ 
+ #include "modules/modules_enabled.gen.h" // For freetype, msdfgen, svg.
+ 
+@@ -65,6 +67,16 @@
+ #include "thorvg_svg_in_ot.h"
+ #endif
+ #endif
++
++// Glyphs are rasterized into the atlas image in place. With a separate render
++// thread a queued texture update reads its image later, so it gets a snapshot.
++static Ref<Image> _glyph_atlas_upload(const Ref<Image> &p_atlas, const Ref<Image> &p_image) {
++	Ref<Image> image = p_image;
++	if (image == p_atlas && !RenderingServer::get_singleton()->is_on_render_thread()) {
++		image = p_atlas->duplicate();
++	}
++	return image;
++}
+ 
+ /*************************************************************************/
+ 
+@@ -2513,7 +2525,7 @@
+ 			if (tex.texture.is_null()) {
+ 				tex.texture = ImageTexture::create_from_image(img);
+ 			} else {
+-				tex.texture->update(img);
++				tex.texture->update(_glyph_atlas_upload(tex.image, img));
+ 			}
+ 			tex.dirty = false;
+ 		}
+@@ -2563,7 +2575,7 @@
+ 			if (tex.texture.is_null()) {
+ 				tex.texture = ImageTexture::create_from_image(img);
+ 			} else {
+-				tex.texture->update(img);
++				tex.texture->update(_glyph_atlas_upload(tex.image, img));
+ 			}
+ 			tex.dirty = false;
+ 		}
+@@ -2994,7 +3006,7 @@
+ 				if (tex.texture.is_null()) {
+ 					tex.texture = ImageTexture::create_from_image(img);
+ 				} else {
+-					tex.texture->update(img);
++					tex.texture->update(_glyph_atlas_upload(tex.image, img));
+ 				}
+ 				tex.dirty = false;
+ 			}
+@@ -3133,7 +3145,7 @@
+ 				if (tex.texture.is_null()) {
+ 					tex.texture = ImageTexture::create_from_image(img);
+ 				} else {
+-					tex.texture->update(img);
++					tex.texture->update(_glyph_atlas_upload(tex.image, img));
+ 				}
+ 				tex.dirty = false;
+ 			}
+--- a/platform/windows/godot_windows.cpp
++++ b/platform/windows/godot_windows.cpp
+@@ -65,7 +65,40 @@
+ 	return ubuf;
+ }
+ 
++// Code pages of a large executable are otherwise faulted in one by one as
++// startup touches them; on a cold hard disk each fault is a seek. Ask the
++// memory manager to read the whole mapped image in large requests on a side
++// thread instead. Already resident pages cost nothing. GODOT_IMAGE_PREFETCH=0
++// disables it.
++static DWORD WINAPI _prefetch_own_image(LPVOID) {
++	typedef BOOL(WINAPI * PrefetchVirtualMemoryFn)(HANDLE, ULONG_PTR, PWIN32_MEMORY_RANGE_ENTRY, ULONG);
++	PrefetchVirtualMemoryFn prefetch = (PrefetchVirtualMemoryFn)(void *)GetProcAddress(GetModuleHandleW(L"kernel32.dll"), "PrefetchVirtualMemory");
++	if (!prefetch) {
++		return 0;
++	}
++	HMODULE image = GetModuleHandleW(nullptr);
++	const IMAGE_DOS_HEADER *dos = (const IMAGE_DOS_HEADER *)image;
++	const IMAGE_NT_HEADERS *nt = (const IMAGE_NT_HEADERS *)((const BYTE *)image + dos->e_lfanew);
++	WIN32_MEMORY_RANGE_ENTRY range;
++	range.VirtualAddress = image;
++	range.NumberOfBytes = nt->OptionalHeader.SizeOfImage;
++	prefetch(GetCurrentProcess(), 1, &range, 0);
++	return 0;
++}
++
++static void _start_image_prefetch() {
++	wchar_t setting[8] = {};
++	if (GetEnvironmentVariableW(L"GODOT_IMAGE_PREFETCH", setting, 8) > 0 && setting[0] == L'0') {
++		return;
++	}
++	HANDLE thread = CreateThread(nullptr, 0, _prefetch_own_image, nullptr, 0, nullptr);
++	if (thread) {
++		CloseHandle(thread);
++	}
++}
++
+ int widechar_main(int argc, wchar_t **argv) {
++	_start_image_prefetch();
+ 	godot_init_profiler();
+ 
+ 	// Prevent Windows from replacing the window with a "ghost" when the main
+--- a/scene/resources/3d/concave_polygon_shape_3d.cpp
++++ b/scene/resources/3d/concave_polygon_shape_3d.cpp
+@@ -97,6 +97,17 @@
+ 	Shape3D::_update_shape();
+ }
+ 
++void ConcavePolygonShape3D::set_prepared_faces(const Dictionary &p_data) {
++    ERR_FAIL_COND(!p_data.has("faces") || p_data["faces"].get_type() != Variant::PACKED_VECTOR3_ARRAY);
++    faces = p_data["faces"];
++    backface_collision = p_data.get("backface_collision", false);
++    Dictionary data = p_data.duplicate();
++    data["backface_collision"] = backface_collision;
++    PhysicsServer3D::get_singleton()->shape_set_data(get_shape(), data);
++    Shape3D::_update_shape();
++    emit_changed();
++}
++
+ void ConcavePolygonShape3D::set_faces(const Vector<Vector3> &p_faces) {
+ 	faces = p_faces;
+ 	_update_shape();
+@@ -121,6 +132,7 @@
+ }
+ 
+ void ConcavePolygonShape3D::_bind_methods() {
++	ClassDB::bind_method(D_METHOD("set_prepared_faces", "data"), &ConcavePolygonShape3D::set_prepared_faces);
+ 	ClassDB::bind_method(D_METHOD("set_faces", "faces"), &ConcavePolygonShape3D::set_faces);
+ 	ClassDB::bind_method(D_METHOD("get_faces"), &ConcavePolygonShape3D::get_faces);
+ 
+--- a/scene/resources/3d/concave_polygon_shape_3d.h
++++ b/scene/resources/3d/concave_polygon_shape_3d.h
+@@ -67,6 +67,7 @@
+ 
+ public:
+ 	void set_faces(const Vector<Vector3> &p_faces);
++	void set_prepared_faces(const Dictionary &p_data);
+ 	Vector<Vector3> get_faces() const;
+ 
+ 	void set_backface_collision_enabled(bool p_enabled);
+--- a/scene/resources/3d/shape_3d.cpp
++++ b/scene/resources/3d/shape_3d.cpp
+@@ -30,6 +30,8 @@
+ 
+ #include "shape_3d.h"
+ 
++#include "core/os/os.h"
++
+ #include "core/config/project_settings.h"
+ #include "core/object/class_db.h"
+ #include "scene/main/scene_tree.h"
+@@ -77,7 +79,13 @@
+ #ifdef DEBUG_ENABLED
+ 	debug_properties_edited = true;
+ #endif // DEBUG_ENABLED
+-	_update_shape();
++	// Presentation changes invalidate the debug mesh, not physics geometry.
++	static const bool debug_refresh_only = OS::get_singleton()->get_environment("RMMO_SHAPE_DEBUG_REFRESH_ONLY") != "0";
++	if (debug_refresh_only) {
++		Shape3D::_update_shape();
++	} else {
++		_update_shape();
++	}
+ }
+ 
+ Color Shape3D::get_debug_color() const {
+@@ -93,7 +101,13 @@
+ #ifdef DEBUG_ENABLED
+ 	debug_properties_edited = true;
+ #endif // DEBUG_ENABLED
+-	_update_shape();
++	// Presentation changes invalidate the debug mesh, not physics geometry.
++	static const bool debug_refresh_only = OS::get_singleton()->get_environment("RMMO_SHAPE_DEBUG_REFRESH_ONLY") != "0";
++	if (debug_refresh_only) {
++		Shape3D::_update_shape();
++	} else {
++		_update_shape();
++	}
+ }
+ 
+ bool Shape3D::get_debug_fill() const {
+--- a/scene/resources/material.cpp
++++ b/scene/resources/material.cpp
+@@ -556,11 +556,22 @@
+ 
+ HashMap<BaseMaterial3D::MaterialKey, BaseMaterial3D::ShaderData, BaseMaterial3D::MaterialKey> BaseMaterial3D::shader_map;
+ Mutex BaseMaterial3D::shader_map_mutex;
++List<BaseMaterial3D::MaterialKey> BaseMaterial3D::unused_shaders;
++int BaseMaterial3D::unused_shader_limit = 0;
++bool BaseMaterial3D::shader_cache_active = false;
++static uint64_t rmmo_shader_created = 0, rmmo_shader_reused = 0, rmmo_shader_evicted = 0;
++static bool rmmo_shader_cache_profile = false;
+ BaseMaterial3D::ShaderNames *BaseMaterial3D::shader_names = nullptr;
+ Mutex BaseMaterial3D::material_mutex;
+ SelfList<BaseMaterial3D>::List BaseMaterial3D::dirty_materials;
+ 
+ void BaseMaterial3D::init_shaders() {
++	unused_shader_limit = CLAMP(int(GLOBAL_DEF("rendering/shader_compiler/max_unused_standard_material_shaders", 32)), 0, 256);
++	if (OS::get_singleton()->has_environment("RMMO_STANDARD_SHADER_CACHE_LIMIT")) {
++		unused_shader_limit = CLAMP(OS::get_singleton()->get_environment("RMMO_STANDARD_SHADER_CACHE_LIMIT").to_int(), 0, 256);
++	}
++	rmmo_shader_cache_profile = OS::get_singleton()->get_environment("RMMO_STANDARD_SHADER_CACHE_PROFILE") == "1";
++	shader_cache_active = true;
+ 	shader_names = memnew(ShaderNames);
+ 
+ 	shader_names->albedo = "albedo";
+@@ -649,11 +660,57 @@
+ 
+ void BaseMaterial3D::finish_shaders() {
+ 	materials_for_2d.clear();
++	{
++		MutexLock lock(shader_map_mutex);
++		shader_cache_active = false;
++		if (rmmo_shader_cache_profile) {
++			print_line(vformat("RMMO_STANDARD_SHADER_CACHE limit=%d created=%d reused=%d evicted=%d unused=%d", unused_shader_limit, rmmo_shader_created, rmmo_shader_reused, rmmo_shader_evicted, unused_shaders.size()));
++		}
++		while (unused_shaders.front()) {
++			MaterialKey key = unused_shaders.front()->get();
++			RS::get_singleton()->free_rid(shader_map[key].shader);
++			shader_map.erase(key);
++			unused_shaders.pop_front();
++		}
++	}
+ 
+ 	dirty_materials.clear();
+ 
+ 	memdelete(shader_names);
+ 	shader_names = nullptr;
++}
++
++void BaseMaterial3D::_reference_shader(ShaderData *p_shader) {
++	if (p_shader->unused) {
++		unused_shaders.erase(p_shader->unused);
++		p_shader->unused = nullptr;
++		rmmo_shader_reused++;
++	}
++	p_shader->users++;
++}
++
++void BaseMaterial3D::_release_shader(const MaterialKey &p_key) {
++	ShaderData *v = shader_map.getptr(p_key);
++	if (!v) {
++		return;
++	}
++	ERR_FAIL_COND(v->users <= 0);
++	if (--v->users > 0) {
++		return;
++	}
++	if (!shader_cache_active || unused_shader_limit == 0) {
++		RS::get_singleton()->free_rid(v->shader);
++		shader_map.erase(p_key);
++		return;
++	}
++	v->unused = unused_shaders.push_back(p_key);
++	while (unused_shaders.size() > unused_shader_limit) {
++		MaterialKey key = unused_shaders.front()->get();
++		RS::get_singleton()->free_rid(shader_map[key].shader);
++		shader_map.erase(key);
++		unused_shaders.pop_front();
++		rmmo_shader_evicted++;
++	}
+ }
+ 
+ void BaseMaterial3D::_update_shader() {
+@@ -668,23 +725,15 @@
+ 
+ 	{
+ 		MutexLock lock(shader_map_mutex);
+-		ShaderData *v = shader_map.getptr(current_key);
+-		if (v) {
+-			v->users--;
+-			if (v->users == 0) {
+-				// Deallocate shader which is no longer in use.
+-				shader_rid = RID();
+-				RS::get_singleton()->free_rid(v->shader);
+-				shader_map.erase(current_key);
+-			}
+-		}
++		_release_shader(current_key);
++		shader_rid = RID();
+ 
+ 		current_key = mk;
+ 
+-		v = shader_map.getptr(mk);
++		ShaderData *v = shader_map.getptr(mk);
+ 		if (v) {
+ 			shader_rid = v->shader;
+-			v->users++;
++			_reference_shader(v);
+ 
+ 			if (_get_material().is_valid()) {
+ 				RS::get_singleton()->material_set_shader(_get_material(), shader_rid);
+@@ -2093,6 +2142,7 @@
+ 	MutexLock lock(shader_map_mutex);
+ 
+ 	ShaderData *v = shader_map.getptr(mk);
++	rmmo_shader_created++;
+ 	if (unlikely(v)) {
+ 		// We raced and managed to create the same key concurrently, so we'll free the shader we just created,
+ 		// given we know it isn't used, and use the winner.
+@@ -2106,7 +2156,7 @@
+ 	}
+ 
+ 	shader_rid = v->shader;
+-	v->users++;
++	_reference_shader(v);
+ 
+ 	if (_get_material().is_valid()) {
+ 		RS::get_singleton()->material_set_shader(_get_material(), shader_rid);
+@@ -4041,14 +4091,7 @@
+ 
+ 	{
+ 		MutexLock lock(shader_map_mutex);
+-		if (shader_map.has(current_key)) {
+-			shader_map[current_key].users--;
+-			if (shader_map[current_key].users == 0) {
+-				// Deallocate shader which is no longer in use.
+-				RS::get_singleton()->free_rid(shader_map[current_key].shader);
+-				shader_map.erase(current_key);
+-			}
+-		}
++		_release_shader(current_key);
+ 	}
+ 
+ 	if (_get_material().is_valid()) {
+--- a/scene/resources/material.h
++++ b/scene/resources/material.h
+@@ -411,10 +411,18 @@
+ 	struct ShaderData {
+ 		RID shader;
+ 		int users = 0;
++		List<MaterialKey>::Element *unused = nullptr;
+ 	};
+ 
+ 	static HashMap<MaterialKey, ShaderData, MaterialKey> shader_map;
+ 	static Mutex shader_map_mutex;
++	static List<MaterialKey> unused_shaders;
++	static int unused_shader_limit;
++	static bool shader_cache_active;
++	// Called with shader_map_mutex held. Keep only shader RIDs, never materials,
++	// textures, meshes or their dependencies.
++	static void _release_shader(const MaterialKey &p_key);
++	static void _reference_shader(ShaderData *p_shader);
+ 
+ 	MaterialKey current_key;
+ 
+--- a/servers/rendering/rendering_device.cpp
++++ b/servers/rendering/rendering_device.cpp
+@@ -8571,7 +8571,9 @@
+ 
+ 	Error err;
+ 	RenderingContextDriver::SurfaceID main_surface = 0;
+-	is_main_instance = (singleton == this) && (p_main_window != DisplayServerEnums::INVALID_WINDOW_ID);
++	const bool main_instance_requested = p_main_window != DisplayServerEnums::INVALID_WINDOW_ID;
++	ERR_FAIL_COND_V_MSG(main_instance_requested && singleton != nullptr && singleton != this, ERR_ALREADY_IN_USE, "A main RenderingDevice is already initialized.");
++	is_main_instance = main_instance_requested;
+ 	if (p_main_window != DisplayServerEnums::INVALID_WINDOW_ID) {
+ 		// Retrieve the surface from the main window if it was specified.
+ 		main_surface = p_context->surface_get_from_window(p_main_window);
+@@ -8833,7 +8835,7 @@
+ 
+ 	bool project_pipeline_cache_enable = GLOBAL_GET("rendering/rendering_device/pipeline_cache/enable");
+ 	if (is_main_instance && project_pipeline_cache_enable) {
+-		// Only the instance that is not a local device and is also the singleton is allowed to manage a pipeline cache.
++		// Only the main display device is allowed to manage a pipeline cache.
+ 		pipeline_cache_file_path = vformat("user://vulkan/pipelines.%s.%s",
+ 				OS::get_singleton()->get_current_rendering_method(),
+ 				device.name.validate_filename().replace_char(' ', '_').to_lower());
+@@ -8852,6 +8854,11 @@
+ 
+ 	// Find the best method available for VRS on the current hardware.
+ 	_vrs_detect_method();
++
++	// Publish only a fully initialized main device. Local devices must never become the global device.
++	if (is_main_instance) {
++		singleton = this;
++	}
+ 
+ 	return OK;
+ }
+@@ -10134,10 +10141,6 @@
+ }
+ 
+ RenderingDevice::RenderingDevice() {
+-	if (singleton == nullptr) {
+-		singleton = this;
+-	}
+-
+ 	render_thread_id = Thread::get_caller_id();
+ }
+ 
+--- a/servers/rendering/rendering_server.cpp
++++ b/servers/rendering/rendering_server.cpp
+@@ -2251,7 +2251,70 @@
+ }
+ #endif
+ 
++// Prepare the same serialized surface accepted by ArrayMesh::_set_surfaces.
++// This only packs caller-owned CPU arrays: no RID, resource, renderer command
++// or GPU readback is created. Independent loading workers may call it in
++// parallel; the receiving thread installs the completed surfaces afterwards.
++static Dictionary _mesh_prepare_surface_from_arrays(RSE::PrimitiveType p_primitive, const Array &p_arrays, const Array &p_blend_shapes, const Dictionary &p_lods, BitField<RSE::ArrayFormat> p_flags) {
++	RenderingServerTypes::SurfaceData surface;
++	Error err = RenderingServer::get_singleton()->mesh_create_surface_data_from_arrays(&surface, p_primitive, p_arrays, p_blend_shapes, p_lods, p_flags);
++	ERR_FAIL_COND_V(err != OK, Dictionary());
++
++	Dictionary data;
++	data["format"] = surface.format;
++	data["primitive"] = surface.primitive;
++	data["vertex_data"] = surface.vertex_data;
++	data["vertex_count"] = surface.vertex_count;
++	data["aabb"] = surface.aabb;
++	data["uv_scale"] = surface.uv_scale;
++	if (!surface.skin_data.is_empty()) {
++		data["skin_data"] = surface.skin_data;
++	}
++	if (!surface.attribute_data.is_empty()) {
++		data["attribute_data"] = surface.attribute_data;
++	}
++	if (surface.index_count) {
++		data["index_data"] = surface.index_data;
++		data["index_count"] = surface.index_count;
++	}
++	Array lods;
++	for (int i = 0; i < surface.lods.size(); i++) {
++		lods.push_back(surface.lods[i].edge_length);
++		lods.push_back(surface.lods[i].index_data);
++	}
++	if (!lods.is_empty()) {
++		data["lods"] = lods;
++	}
++	Array bone_aabbs;
++	for (int i = 0; i < surface.bone_aabbs.size(); i++) {
++		bone_aabbs.push_back(surface.bone_aabbs[i]);
++	}
++	if (!bone_aabbs.is_empty()) {
++		data["bone_aabbs"] = bone_aabbs;
++	}
++	if (!surface.blend_shape_data.is_empty()) {
++		data["blend_shapes"] = surface.blend_shape_data;
++	}
++	if (surface.format & RSE::ARRAY_FLAG_USE_2D_VERTICES) {
++		data["2d"] = true;
++	}
++	return data;
++}
++
++// Return the arrays mesh_surface_get_arrays would read back after uploading
++// these arrays with the same flags. Renderers store the packed buffers
++// unchanged, so this decodes the same bytes on the CPU instead of stalling for
++// a GPU download. Like the function above it is safe on loading workers.
++static Array _mesh_surface_arrays_from_arrays(RSE::PrimitiveType p_primitive, const Array &p_arrays, BitField<RSE::ArrayFormat> p_flags) {
++	RenderingServerTypes::SurfaceData surface;
++	Error err = RenderingServer::get_singleton()->mesh_create_surface_data_from_arrays(&surface, p_primitive, p_arrays, Array(), Dictionary(), p_flags);
++	ERR_FAIL_COND_V(err != OK, Array());
++	return RenderingServer::get_singleton()->mesh_create_arrays_from_surface_data(surface);
++}
++
+ void RenderingServer::_bind_methods() {
++	ClassDB::bind_static_method("RenderingServer", D_METHOD("mesh_prepare_surface_from_arrays", "primitive", "arrays", "blend_shapes", "lods", "flags"), &_mesh_prepare_surface_from_arrays, DEFVAL(Array()), DEFVAL(Dictionary()), DEFVAL(0));
++	ClassDB::bind_static_method("RenderingServer", D_METHOD("mesh_surface_arrays_from_arrays", "primitive", "arrays", "flags"), &_mesh_surface_arrays_from_arrays, DEFVAL(0));
+ 	BIND_CONSTANT(RSE::NO_INDEX_ARRAY);
+ 	BIND_CONSTANT(RSE::ARRAY_WEIGHTS_SIZE);
+ 	BIND_CONSTANT(RSE::CANVAS_ITEM_Z_MIN);
+--- a/servers/rendering/rendering_server_default.cpp
++++ b/servers/rendering/rendering_server_default.cpp
+@@ -297,6 +297,13 @@
+ 			server_task_id = WorkerThreadPool::INVALID_TASK_ID;
+ 		}
+ 		server_thread = Thread::MAIN_ID;
++
++		// The pump task has exited. Return the main RD to the thread that created
++		// it, so the display server can free its screens and finalize it.
++		RenderingDevice *rd = RenderingDevice::get_singleton();
++		if (rd) {
++			rd->make_current();
++		}
+ 	} else {
+ 		_finish();
+ 	}
+--- a/servers/rendering/rendering_shader_container.cpp
++++ b/servers/rendering/rendering_shader_container.cpp
+@@ -1032,11 +1032,13 @@
+ 
+ 	bool uses_zstd = p_compressed_flags & COMPRESSION_FLAG_ZSTD;
+ 	if (uses_zstd) {
+-		if (!Compression::decompress(p_decompressed_bytes, p_decompressed_size, p_compressed_bytes, p_compressed_size, Compression::MODE_ZSTD)) {
+-			ERR_FAIL_V_MSG(false, "Malformed zstd input for decompressing shader code.");
++		const int64_t decompressed_size = Compression::decompress(p_decompressed_bytes, p_decompressed_size, p_compressed_bytes, p_compressed_size, Compression::MODE_ZSTD);
++		if (decompressed_size != p_decompressed_size) {
++			ERR_FAIL_V_MSG(false, "Malformed zstd input or mismatched decompressed size for shader code.");
+ 		}
+ 	} else {
+-		memcpy(p_decompressed_bytes, p_compressed_bytes, MIN(p_compressed_size, p_decompressed_size));
++		ERR_FAIL_COND_V_MSG(p_compressed_size != p_decompressed_size, false, "Mismatched uncompressed shader code size.");
++		memcpy(p_decompressed_bytes, p_compressed_bytes, p_decompressed_size);
+ 	}
+ 
+ 	return true;
+--- a/thirdparty/re-spirv/re-spirv.cpp
++++ b/thirdparty/re-spirv/re-spirv.cpp
+@@ -912,24 +912,43 @@
+             }
+         };
+ 
+-        thread_local std::vector<FunctionResult> functionResultMap;
+-        thread_local std::vector<ResultDecoration> resultDecorations;
+-        thread_local std::vector<uint32_t> loopMergeIdStack;
+-        thread_local std::vector<FunctionDefinition> functionDefinitions;
+-        thread_local std::vector<FunctionParameter> functionParameters;
+-        thread_local std::vector<FunctionCall> functionCalls;
+-        thread_local std::vector<FunctionItem> functionStack;
+-        thread_local std::vector<CallItem> callStack;
+-        thread_local std::vector<uint32_t> shaderResultMap;
+-        thread_local std::vector<uint32_t> storeMap;
+-        thread_local std::vector<uint32_t> storeMapChanges;
+-        thread_local std::vector<uint32_t> loadMap;
+-        thread_local std::vector<uint32_t> loadMapChanges;
+-        thread_local std::vector<uint32_t> phiMap;
+-        thread_local std::vector<uint32_t> opPhis;
+-        thread_local std::vector<uint32_t> remapsPending;
+-        thread_local std::vector<uint32_t> returnParameters;
+-        thread_local std::vector<uint32_t> sameBlockOperations;
++        thread_local std::vector<FunctionResult> rmmo_tls_functionResultMap;
++
++        auto &functionResultMap = rmmo_tls_functionResultMap;
++        thread_local std::vector<ResultDecoration> rmmo_tls_resultDecorations;
++        auto &resultDecorations = rmmo_tls_resultDecorations;
++        thread_local std::vector<uint32_t> rmmo_tls_loopMergeIdStack;
++        auto &loopMergeIdStack = rmmo_tls_loopMergeIdStack;
++        thread_local std::vector<FunctionDefinition> rmmo_tls_functionDefinitions;
++        auto &functionDefinitions = rmmo_tls_functionDefinitions;
++        thread_local std::vector<FunctionParameter> rmmo_tls_functionParameters;
++        auto &functionParameters = rmmo_tls_functionParameters;
++        thread_local std::vector<FunctionCall> rmmo_tls_functionCalls;
++        auto &functionCalls = rmmo_tls_functionCalls;
++        thread_local std::vector<FunctionItem> rmmo_tls_functionStack;
++        auto &functionStack = rmmo_tls_functionStack;
++        thread_local std::vector<CallItem> rmmo_tls_callStack;
++        auto &callStack = rmmo_tls_callStack;
++        thread_local std::vector<uint32_t> rmmo_tls_shaderResultMap;
++        auto &shaderResultMap = rmmo_tls_shaderResultMap;
++        thread_local std::vector<uint32_t> rmmo_tls_storeMap;
++        auto &storeMap = rmmo_tls_storeMap;
++        thread_local std::vector<uint32_t> rmmo_tls_storeMapChanges;
++        auto &storeMapChanges = rmmo_tls_storeMapChanges;
++        thread_local std::vector<uint32_t> rmmo_tls_loadMap;
++        auto &loadMap = rmmo_tls_loadMap;
++        thread_local std::vector<uint32_t> rmmo_tls_loadMapChanges;
++        auto &loadMapChanges = rmmo_tls_loadMapChanges;
++        thread_local std::vector<uint32_t> rmmo_tls_phiMap;
++        auto &phiMap = rmmo_tls_phiMap;
++        thread_local std::vector<uint32_t> rmmo_tls_opPhis;
++        auto &opPhis = rmmo_tls_opPhis;
++        thread_local std::vector<uint32_t> rmmo_tls_remapsPending;
++        auto &remapsPending = rmmo_tls_remapsPending;
++        thread_local std::vector<uint32_t> rmmo_tls_returnParameters;
++        auto &returnParameters = rmmo_tls_returnParameters;
++        thread_local std::vector<uint32_t> rmmo_tls_sameBlockOperations;
++        auto &sameBlockOperations = rmmo_tls_sameBlockOperations;
+         functionResultMap.clear();
+         resultDecorations.clear();
+         loopMergeIdStack.clear();
+@@ -1839,10 +1858,15 @@
+         // Greatly decreases the costs of adding nodes to the linked list.
+         listNodes.reserve(instructions.size() * 2);
+ 
+-        thread_local std::vector<uint32_t> loopMergeBlockStack;
+-        thread_local std::vector<uint32_t> loopMergeInstructionStack;
+-        thread_local std::vector<bool> preOrderVisitedBlocks;
+-        thread_local std::vector<bool> postOrderVisitedBlocks;
++        thread_local std::vector<uint32_t> rmmo_tls_loopMergeBlockStack;
++
++        auto &loopMergeBlockStack = rmmo_tls_loopMergeBlockStack;
++        thread_local std::vector<uint32_t> rmmo_tls_loopMergeInstructionStack;
++        auto &loopMergeInstructionStack = rmmo_tls_loopMergeInstructionStack;
++        thread_local std::vector<bool> rmmo_tls_preOrderVisitedBlocks;
++        auto &preOrderVisitedBlocks = rmmo_tls_preOrderVisitedBlocks;
++        thread_local std::vector<bool> rmmo_tls_postOrderVisitedBlocks;
++        auto &postOrderVisitedBlocks = rmmo_tls_postOrderVisitedBlocks;
+         loopMergeBlockStack.clear();
+         loopMergeInstructionStack.clear();
+         preOrderVisitedBlocks.clear();
+@@ -2041,8 +2065,10 @@
+         
+         // Do a pre-order and post-order traversal of the tree starting from each function. These indices are
+         // later used to figure out whether instructions dominate other instructions when doing optimizations.
+-        thread_local std::vector<uint32_t> blockIndexStack;
+-        thread_local std::vector<uint32_t> blockAdjacentStack;
++        thread_local std::vector<uint32_t> rmmo_tls_blockIndexStack;
++        auto &blockIndexStack = rmmo_tls_blockIndexStack;
++        thread_local std::vector<uint32_t> rmmo_tls_blockAdjacentStack;
++        auto &blockAdjacentStack = rmmo_tls_blockAdjacentStack;
+         uint32_t preOrderIndex = 0;
+         uint32_t postOrderIndex = 0;
+         blockPreOrderIndices.resize(blocks.size(), 0);
+@@ -2139,9 +2165,12 @@
+         }
+ 
+         // Sort degrees doesn't need to be cleared as its contents will be copied over.
+-        thread_local std::vector<uint32_t> sortDegrees;
+-        thread_local std::vector<uint32_t> instructionStack;
+-        thread_local std::vector<InstructionSort> instructionSortVector;
++        thread_local std::vector<uint32_t> rmmo_tls_sortDegrees;
++        auto &sortDegrees = rmmo_tls_sortDegrees;
++        thread_local std::vector<uint32_t> rmmo_tls_instructionStack;
++        auto &instructionStack = rmmo_tls_instructionStack;
++        thread_local std::vector<InstructionSort> rmmo_tls_instructionSortVector;
++        auto &instructionSortVector = rmmo_tls_instructionSortVector;
+         instructionStack.clear();
+         instructionSortVector.clear();
+ 
+@@ -2716,9 +2745,13 @@
+             return false;
+         }
+ 
+-        thread_local std::vector<uint32_t> labelStack;
+-        thread_local std::vector<uint32_t> resultStack;
+-        thread_local std::vector<uint32_t> degreeReductions;
++        thread_local std::vector<uint32_t> rmmo_tls_labelStack;
++
++        auto &labelStack = rmmo_tls_labelStack;
++        thread_local std::vector<uint32_t> rmmo_tls_resultStack;
++        auto &resultStack = rmmo_tls_resultStack;
++        thread_local std::vector<uint32_t> rmmo_tls_degreeReductions;
++        auto &degreeReductions = rmmo_tls_degreeReductions;
+         labelStack.emplace_back(pFirstLabelId);
+         resultStack.clear();
+         degreeReductions.clear();
+@@ -2846,7 +2879,8 @@
+             }
+         }
+         else if (opCode == SpvOpSwitch) {
+-            thread_local std::vector<uint32_t> remainingCaseWords;
++            thread_local std::vector<uint32_t> rmmo_tls_remainingCaseWords;
++            auto &remainingCaseWords = rmmo_tls_remainingCaseWords;
+             remainingCaseWords.clear();
+ 
+             // Switch must compare the integer result of the operator to all the possible labels.
+@@ -2899,7 +2933,8 @@
+ 
+         if (terminatorReduced) {
+             // The condition operator can be discarded.
+-            thread_local std::vector<uint32_t> resultStack;
++            thread_local std::vector<uint32_t> rmmo_tls_resultStack;
++            auto &resultStack = rmmo_tls_resultStack;
+             resultStack.clear();
+             resultStack.emplace_back(operatorId);
+             optimizerReduceResultDegrees(rContext, resultStack);
+@@ -2927,7 +2962,9 @@
+             return false;
+         }
+ 
+-        thread_local std::vector<uint32_t> resultStack;
++        thread_local std::vector<uint32_t> rmmo_tls_resultStack;
++
++        auto &resultStack = rmmo_tls_resultStack;
+         resultStack.clear();
+ 
+         uint32_t wordIndex = rContext.shader.instructions[pInstructionIndex].wordIndex;
+@@ -2998,7 +3035,9 @@
+             return true;
+         }
+ 
+-        thread_local std::vector<uint32_t> resultStack;
++        thread_local std::vector<uint32_t> rmmo_tls_resultStack;
++
++        auto &resultStack = rmmo_tls_resultStack;
+         resultStack.clear();
+ 
+         uint32_t *optimizedWords = reinterpret_cast<uint32_t *>(rContext.optimizedData.data());
+@@ -3123,11 +3162,17 @@
+                 continue;
+             }
+ 
+-            thread_local std::vector<uint32_t> resultStack;
+-            thread_local std::vector<uint32_t> accessStack;
+-            thread_local std::vector<uint32_t> storeInstructionIndices;
+-            thread_local std::vector<uint32_t> partialLoadInstructionIndices;
+-            thread_local std::vector<uint32_t> fullLoadInstructionIndices;
++            thread_local std::vector<uint32_t> rmmo_tls_resultStack;
++
++            auto &resultStack = rmmo_tls_resultStack;
++            thread_local std::vector<uint32_t> rmmo_tls_accessStack;
++            auto &accessStack = rmmo_tls_accessStack;
++            thread_local std::vector<uint32_t> rmmo_tls_storeInstructionIndices;
++            auto &storeInstructionIndices = rmmo_tls_storeInstructionIndices;
++            thread_local std::vector<uint32_t> rmmo_tls_partialLoadInstructionIndices;
++            auto &partialLoadInstructionIndices = rmmo_tls_partialLoadInstructionIndices;
++            thread_local std::vector<uint32_t> rmmo_tls_fullLoadInstructionIndices;
++            auto &fullLoadInstructionIndices = rmmo_tls_fullLoadInstructionIndices;
+             bool storeIsFull = true;
+             resultStack.clear();
+             accessStack.clear();
+@@ -3354,11 +3399,16 @@
+     }
+ 
+     bool Optimizer::run(const Shader &pShader, const SpecConstant *pNewSpecConstants, uint32_t pNewSpecConstantCount, std::vector<uint8_t> &pOptimizedData, Options pOptions) {
+-        thread_local std::vector<uint32_t> instructionAdjacentListIndices;
+-        thread_local std::vector<uint32_t> instructionInDegrees;
+-        thread_local std::vector<uint32_t> instructionOutDegrees;
+-        thread_local std::vector<ListNode> listNodes;
+-        thread_local std::vector<Resolution> resolutions;
++        thread_local std::vector<uint32_t> rmmo_tls_instructionAdjacentListIndices;
++        auto &instructionAdjacentListIndices = rmmo_tls_instructionAdjacentListIndices;
++        thread_local std::vector<uint32_t> rmmo_tls_instructionInDegrees;
++        auto &instructionInDegrees = rmmo_tls_instructionInDegrees;
++        thread_local std::vector<uint32_t> rmmo_tls_instructionOutDegrees;
++        auto &instructionOutDegrees = rmmo_tls_instructionOutDegrees;
++        thread_local std::vector<ListNode> rmmo_tls_listNodes;
++        auto &listNodes = rmmo_tls_listNodes;
++        thread_local std::vector<Resolution> rmmo_tls_resolutions;
++        auto &resolutions = rmmo_tls_resolutions;
+         OptimizerContext context = { pShader, instructionAdjacentListIndices, instructionInDegrees, instructionOutDegrees, listNodes, resolutions, pOptimizedData, pOptions };
+         if (!optimizerPrepareData(context)) {
+             return false;
+--- a/servers/physics_3d/physics_server_3d.h
++++ b/servers/physics_3d/physics_server_3d.h
+@@ -52,6 +52,7 @@
+ 	GDCLASS(PhysicsServer3D, Object);
+ 
+ 	static PhysicsServer3D *singleton;
++	static Dictionary (*concave_shape_prepare_callback)(const Vector<Vector3> &, bool);
+ 
+ 	virtual bool _body_test_motion(RID p_body, RequiredParam<PhysicsTestMotionParameters3D> p_parameters, const Ref<PhysicsTestMotionResult3D> &p_result = Ref<PhysicsTestMotionResult3D>());
+ 
+@@ -64,6 +65,10 @@
+ 
+ public:
+ 	static PhysicsServer3D *get_singleton();
++
++	// Registered before types freeze; modules supply only the CPU implementation.
++	static void set_concave_shape_prepare_callback(Dictionary (*p_callback)(const Vector<Vector3> &, bool));
++	static Dictionary prepare_concave_shape_data(const Vector<Vector3> &p_faces, bool p_backface_collision = false);
+ 
+ 	void debug_set_enabled(bool p_enabled);
+ 	bool debug_is_enabled() const;
+--- a/servers/physics_3d/physics_server_3d.cpp
++++ b/servers/physics_3d/physics_server_3d.cpp
+@@ -35,6 +35,16 @@
+ #include "core/object/ref_counted.h"
+ 
+ PhysicsServer3D *PhysicsServer3D::singleton = nullptr;
++Dictionary (*PhysicsServer3D::concave_shape_prepare_callback)(const Vector<Vector3> &, bool) = nullptr;
++
++void PhysicsServer3D::set_concave_shape_prepare_callback(Dictionary (*p_callback)(const Vector<Vector3> &, bool)) {
++	// Module initialization/shutdown only, outside the lifetime of worker tasks.
++	concave_shape_prepare_callback = p_callback;
++}
++
++Dictionary PhysicsServer3D::prepare_concave_shape_data(const Vector<Vector3> &p_faces, bool p_backface_collision) {
++	return concave_shape_prepare_callback ? concave_shape_prepare_callback(p_faces, p_backface_collision) : Dictionary();
++}
+ 
+ PhysicsServer3D *PhysicsServer3D::get_singleton() {
+ 	return singleton;
+@@ -98,6 +108,7 @@
+ 
+ void PhysicsServer3D::_bind_methods() {
+ #ifndef _3D_DISABLED
++	ClassDB::bind_static_method("PhysicsServer3D", D_METHOD("prepare_concave_shape_data", "faces", "backface_collision"), &PhysicsServer3D::prepare_concave_shape_data, DEFVAL(false));
+ 
+ 	ClassDB::bind_method(D_METHOD("world_boundary_shape_create"), &PhysicsServer3D::world_boundary_shape_create);
+ 	ClassDB::bind_method(D_METHOD("separation_ray_shape_create"), &PhysicsServer3D::separation_ray_shape_create);

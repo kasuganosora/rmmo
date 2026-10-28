@@ -180,3 +180,65 @@ profiler 草稿第一次因为两处 `frame_*.set(0)` 的替换断言失败，�
 修正将 `prepare_concave_shape_data` 绑定移到 `PhysicsServer3D::_bind_methods` 的正常初始化期；模块仅设置 CPU 实现函数指针，卸载时清空。保留原项目 API 和数据格式，不让类型重新变为可修改，也没有引入逐任务互斥。无 Godot 物理模块时返回空准备结果；现有正常构建保留该模块。新加入的两个 physics_server 文件均与已验证官方 archive 的原始字节核对。
 
 `ports_03/critical_runtime.patch` 共 29 文件，SHA `f709dd84d021491ce10f618bdb51fcabd66a6edf85b3746b73b547bc7c7e9ebe`。`candidate_build_03` 正在以同配置、低优先级续编；`validate_candidate_03.py` 等待同一构建，成功后冻结至 `candidate_engine_03` 并串行重跑六组原生合同，拥有构建完成后的下一组 GPU 测试时段。当前只完成复现和源码修正，**未宣称候选 03 已通过编译或运行**。接手先读取这两组 result.json，不重复开启编译，不修改正在编译的源码。
+
+## 候选 03 构建完成与移植合同验收
+
+本节更新上节的进行中状态。`candidate_build_03` 已正常完成，退出 0、343.094 秒，源码前后身份不变。冻结到 `candidate_engine_03`：exe SHA `fe41da4819801754155ba43728e9541e3a76074021d5b09d34a6293fb0e33d35`，符号 SHA `9e016e823051b42d95634c50dbbbdc11fce520e359552f684161a8c92f49e424`。没有安装为默认引擎。
+
+`patch_validation_03` 从已验证的官方 archive 提取 29 个目标，核对原始 SHA、执行 `git apply --check` 和实际应用，全部结果 SHA 与本次编译源码一致。完整补丁与逐文件清单归档为 `tools/engine_patches/godot-4.8-beta1-runtime-candidate.patch/.json`。补丁身份仍为上节的 `f709dd…e9ebe`，不是从一份未经核对的本地 Git 基线生成。
+
+### 原生几何、碰撞和导入数据
+
+`candidate_contracts_04` 六组共 **263 项通过**，无引擎/脚本错误，正常退出，fixture/配置/引擎前后身份一致：
+
+| 测试 | 检查数 | 实际覆盖 |
+| --- | ---: | --- |
+| CPU surface | 12 | 48 jobs × 9 组、1/3/12 worker 正反顺序，60k 顶点数据一致 |
+| CPU concave | 96 | 48 shapes × 6 组，射线、face index、背面及变化输入回退 |
+| 碰撞调试外观 | 49 | 颜色/fill 不改 RID 和几何；真正几何/背面变化仍更新 |
+| GPU surface | 29 | CPU 结果与提交后数据一致，custom channels、LOD、blend flags |
+| renderer arrays | 20 | 显式编辑器 GLB 导入所得 CPU arrays 与 renderer 回读一致 |
+| importer LOD | 57 | 既有导入 LOD 合同 |
+
+GLB 仅用于上述显式导入测试，未恢复游戏 GLB 回退。构建 02 的 frozen-type 错误在候选 03 的这些启动与运行中不再出现。
+
+### 纹理、shader 与 profiler
+
+- `candidate_texture_contracts_04`：DDS **24/24**，覆盖 BC1/3/5 的 8 种尺寸，含 7×7、7×11、1254²；边缘解码及完整 GPU mip bytes 一致。原版 4.8 的 9 项失败保留，候选为 0。profiler self-base 原生开/关合同通过，原版重复 self time 的 red baseline 不覆盖。
+- 同目录 shader residency 的 0/2/32/0 四种容量各 9 项通过。创建数依次 **179/166/46/179**，复用 **0/68/136/0**，最终 unused **0/2/32/0**；红/绿/红画面一致，缓存不持有 Texture/Material/Mesh。容量 32 对本次禁用样本减少约 74.3% 创建数；这是固定工作量缓存收益，不是 4.8 相对 4.7 或整图 FPS 收益。
+- `cpu_compression_candidate_03`：GDB 捕获 **1 次 RD 构造，只有主设备**；真实 worker 完成 RGB/RGBA、32/64 的四次 DXT CPU 编码，mip 完整，主 RD 身份不变，`compress_with_gpu=true` 未改，绘制 123 帧后正常退出。调试器耗时不计性能。
+- `shader_failure_candidate_03`：**18 项通过**。4 次故意损坏 SMOL-V 的失败后，均能用同一个 placeholder RID 重试成功。精确记录 4 条 malformed-stage 与 4 条 `!shader_id` 预期错误，无额外错误；不能将此测试写作“日志无任何错误”。
+- `profiler_lifetime_candidate_04`：释放 **61,440** 个带子节点父节点后正常退出；原生 new/add_child/set_meta 分别为 **122,880/61,440/61,440**。4 worker 的 set_normal/set_uv/add_vertex 各 **200,000** 次，两个调用者 has_meta 分别 **4,000/8,000** 次，均准确归属。4.8 的 Object.free 是虚注册方法，没有真实 ClassDB MethodBind，因此无 native free 行；不能把这一点当漏计。该运行不替代先前释放后访问的 GDB 地址证据，也不宣称发现了新的 4.8 UAF。
+
+### 上游 Zstd 的固定工作量并发
+
+`zstd_scaling_03` 在编译完全结束、无 GDB/profiler 下运行。原始 4.8 与候选各 12 样本，每个样本严格 **384 MiB**，worker 顺序 1/3/12/12/3/1；4 KiB 共 98,304 次、256 KiB 共 1,536 次解码，输出逐字节一致。
+
+| 候选块大小 | 1 worker 两次 wall ms | 3 workers | 12 workers |
+| --- | --- | --- | --- |
+| 4 KiB | 499.592 / 476.952 | 212.396 / 171.494 | 93.353 / 76.032 |
+| 256 KiB | 323.029 / 303.635 | 124.919 / 103.120 | 56.532 / 47.204 |
+
+原版也正常随并发缩短，结合前述 12 个 TLS context 析构证据，继续采用上游 TLS、退役旧全局锁补丁。两个引擎未做 ABBA，不据此声明候选比原版快；各线程 wall 相加也不是进程 CPU 工作量。
+
+### 候选流式与真实合批
+
+`candidate_streaming_04/result.json` 汇总候选的 worker **23/0**、budget **12/0**、surface **49/0**。前两项比旧摘要多一项源文件未变检查，不能当作又增加了新的功能覆盖。worker 复用 `candidate_streaming_03/worker/run.json` 已成功完成的实际证据；预算与表面在 04 运行。覆盖并发共享 owner、释放、自动反馈与预算，以及真正地形/河岸 shader 的七组完整驻留像素和 mip 字节。最终账本归零，预览为真实有损 WebP Q90；全部正常退出、无错误、身份稳定。仍是独立 fixture，正式共享准备队列没有因此自动接通。
+
+`surface_batch_candidate_03` 在冻结候选运行先前相同的真实 `RiverMaterials → GroundBatchGeometry` fixture，**17/0**；原生 CPU surface 接口可用时使用既有准备/发布路径，仍将两份表面合为一份，画面逐字节一致，默认参数惰性填充不拆批，真实参数修改仍拆批。无引擎/脚本错误，源码和引擎身份稳定。
+
+### 字形图集跨线程上传
+
+新增可复用 `tools/check_glyph_upload.py` 和 `glyph_upload_contract/probe.gd`。在连续创建新字形、触发图集更新的循环中不做同步 GPU 回读，避免先把待测重叠串行化；每批结束才比对 CPU/GPU 的完整图集和 mip 链。四个更新入口为 RID、size、draw、outline，各覆盖 mip 开/关。
+
+`glyph_candidate_04` 使用系统 Arial 的只读输入，safe/separate 两进程各 **20/0**、8 个场景，每场景 **188 字形**、2–3 张图集，工作量一致，所有 GPU 字节等于 CPU 快照，正常退出且没有引擎/脚本错误。渲染回调实际线程分别为主线程 1 和独立线程 5，确认并非只传了参数。fixture/字体/引擎 SHA 前后一致。该候选只编译 Advanced 文本服务器，Fallback 源码虽在补丁中但未编译，不能称已验证它；Dummy 无动态字体能力，明确跳过。此压力合同不宣称能够证明任意调度下不存在竞争。
+
+### 保留的测试宿主失败与证据边界
+
+- `candidate_contracts_03` 的碰撞外观实际 49 项通过、退出 0，宿主误要求逐条 `PASS` 文本而判失败。04 修正为检查它真实的 JSON 断言；日志型 fixture 继续检查文本，未放宽错误检查。
+- `candidate_validation_04` 六个子测试都完成后，发布状态 JSON 的 `os.replace` 遭遇一次 Windows WinError 5。核对终态、pending payload 与子进程结束后，仅重试发布，不重复 GPU 测试；原异常与 `publication_retry.json` 保留。
+- `profiler_lifetime_candidate_03` 错误要求虚方法 free 出现在 native MethodBind 表；真实释放流程正常。检查源代码与绑定模型后，04 用实际原生操作计数及释放完成记录验证，未改引擎统计掩盖失败。
+- `candidate_streaming_03` 的 worker 实际完成通过，宿主误读 `result.json` 而非规范的 `run.json`。04 验证并复用原结果，未重跑以挑选更好样本。
+- `glyph_candidate_03` 首轮把没有动态字体能力的 Dummy 也当实际光栅化器测试，16 项失败均来自 Dummy；Advanced 的 16 项图集检查已通过。04 按 TextServer 的动态字体能力筛选并记录跳过者，保留首轮失败日志，未把不存在的 fallback 编译项记为通过。
+
+**接续边界：**默认仍为已验 4.7.2；4.8 尚待正式共享队列的流式产品接收、动态驻留预算，以及真实游戏/编辑器加载、卸载、返回重载和 low 帧对照。候选的独立合同通过不等于可替换整图性能结论。正式接入首先要去除 `SurfaceMaterials` 先要完整 Image 才接受 prepared Texture2D 的限制，并保持身份失效与共享去重；不能先全解码，再额外读一遍流式产品。默认保留原像素、DDS 显式可选的编辑器策略不变。
