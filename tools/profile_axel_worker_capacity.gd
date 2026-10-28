@@ -9,7 +9,8 @@ var capacity_timeline:Array=[]
 var texture_job_timeline:Array=[]
 var frame_split_probe:=false
 var frame_split:Array=[]
-var frame_split_previous:Dictionary={}
+const FrameBudgetProbe=preload("res://tools/frame_budget_probe.gd")
+var frame_budget_probe:=FrameBudgetProbe.new()
 var completed_job_audit_enabled:=false
 var completed_job_audit:RefCounted
 var completed_job_audit_samples:Array=[]
@@ -23,13 +24,10 @@ func sample_frame_split(tick_us:int)->void:
 		RenderingServer.frame_pre_draw.connect(func():draw_marks[0]=Time.get_ticks_usec();draw_marks[3]=draw_marks[0]-draw_marks[1] if draw_marks[1]>0 else -1)
 		RenderingServer.frame_post_draw.connect(func():draw_marks[1]=Time.get_ticks_usec();draw_marks[2]=draw_marks[1]-draw_marks[0])
 	var queue:Node=mesh_map.get_node("DeferredAssets")
-	var budgets:Dictionary=queue.profile.get("main_thread_budgets",{}).get("interactive",{})
+	var observed:=frame_budget_probe.sample(queue.profile)
 	var batcher:Node=mesh_map.get_node_or_null("GroundRenderBatches")
-	var current:={"svc_us":int(budgets.get("elapsed_us",0)),"pub_us":int(budgets.get("publication_us",0)),"pub_units":int(budgets.get("publication_units",0))}
 	var row:Array=[Time.get_ticks_usec()-began,phase,tick_us,
-		current.svc_us-int(frame_split_previous.get("svc_us",current.svc_us)),
-		current.pub_us-int(frame_split_previous.get("pub_us",current.pub_us)),
-		current.pub_units-int(frame_split_previous.get("pub_units",current.pub_units)),
+		observed.delta.elapsed_us,observed.delta.publication_us,observed.delta.publication_units,
 		int(Performance.get_monitor(Performance.TIME_PROCESS)*1000000.),
 		int(Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS)*1000000.),
 		int(RenderingServer.viewport_get_measured_render_time_cpu(viewport)*1000.),
@@ -39,9 +37,10 @@ func sample_frame_split(tick_us:int)->void:
 		mesh_map.get_meta("stream_jobs",[]).size(),mesh_map.get_meta("stream_cursor",0),
 		batcher.pending.size() if batcher!=null else -1,
 		draw_marks[2],draw_marks[3]]
-	frame_split_previous=current
+	row.append_array(FrameBudgetProbe.extra_values(observed))
+	row.append(Engine.get_process_frames())
 	frame_split.append(row)
-	report.frame_split={"columns":["at_us","phase","geometry_tick_us","deferred_service_us","publication_us","publication_units","engine_process_us","engine_physics_us","render_cpu_us","frame_setup_cpu_us","draw_calls","primitives","stream_jobs","stream_cursor","batches_pending","previous_draw_wall_us","previous_process_wall_us"],"rows":frame_split}
+	report.frame_split={"schema_version":2,"contract":FrameBudgetProbe.CONTRACT+" engine_frame is Engine.get_process_frames() at this observation, not the previous draw's frame ID.","columns":["at_us","phase","geometry_tick_us","deferred_service_us","publication_us","publication_units","engine_process_us","engine_physics_us","render_cpu_us","frame_setup_cpu_us","draw_calls","primitives","stream_jobs","stream_cursor","batches_pending","previous_draw_wall_us","previous_process_wall_us"]+FrameBudgetProbe.EXTRA_COLUMNS+["engine_frame"],"rows":frame_split}
 var publication_block_probe:=false
 var publication_blocks:Array=[]
 var job_lifecycle:Dictionary={}
@@ -105,9 +104,11 @@ func sample_publication_blocks()->void:
 			if packet.has("index_preparation"):index_work+=int(packet.index_preparation.profile.get("elapsed_us",0))
 		job_rows.append([path,generation,queue._job_consumed(job),reasons,staged.size(),instance.get("uuid",""),instance.get("phase",""),cursor_work,queue._publication_queues.get(path,{}).get("cursor",0),queue._path_priority(path),queue._path_rank(path),job.get("dispatch_us",0),job.get("publication_packets",{}).size(),retained_bytes,index_work])
 	counts.support_targets=supports_waiting.size()
-	var budgets:Dictionary=queue.profile.get("main_thread_budgets",{}).get("interactive",{})
+	var observation:=FrameBudgetProbe.snapshot(queue.profile)
+	var budgets:Dictionary=observation.totals
 	counts.pub_units=int(budgets.get("publication_units",0));counts.pub_us=int(budgets.get("publication_us",0))
 	counts.svc_us=int(budgets.get("elapsed_us",0));counts.svc_frames=int(budgets.get("frames",0))
+	counts.budget_last_mode=observation.last_mode;counts.budget_by_mode=observation.by_mode
 	counts.demand_revision=queue._demand_revision;counts.candidates_revision=queue._candidates_revision
 	counts.frame=Engine.get_process_frames()
 	var support_jobs:Dictionary={}
@@ -120,7 +121,7 @@ func sample_publication_blocks()->void:
 	publication_blocks.append([now,phase,counts])
 	publication_job_samples.append([now,phase,job_rows])
 	report.publication_jobs={"columns":["path","generation","consumed","reasons","staged","instance_uuid","instance_phase","instance_work_us","queue_cursor","priority","rank","dispatch_us","retained_packets","replacement_workspace_bytes","index_work_us"],"samples":publication_job_samples,"contract":"Diagnostic only: accepted result owners and progress after each geometry tick. Reasons describe commit dependencies; private instance work may progress despite those dependencies. No eligibility mutation; integer IDs never retain task tokens or results. unstarted_paths is separate from unpublished instances."}
-	report.publication_blocks={"samples":publication_blocks,"contract":"Per geometry tick, read-only classification of unpublished items in accepted jobs, first failing gate only."}
+	report.publication_blocks={"schema_version":2,"samples":publication_blocks,"contract":"Per geometry tick, read-only classification of unpublished items in accepted jobs, first failing gate only. v2 pub/svc fields retain names but sum cumulative counters across all budget modes; budget_by_mode preserves individual cumulative values. Last mode is not the scope of the totals; publication is contained in service wall time."}
 	if publication_blocks.size()%30!=1 and not queue._jobs.is_empty():return
 	var lifecycles:Array=[]
 	for key:String in job_lifecycle:
@@ -218,6 +219,7 @@ func _initialize()->void:
 func source_snapshot(folder:String="res://scripts")->Dictionary:
 	var result:=super.source_snapshot(folder)
 	if folder=="res://scripts":result["res://tools/profile_axel_worker_capacity.gd"]=FileAccess.get_sha256("res://tools/profile_axel_worker_capacity.gd")
+	if folder=="res://scripts":result["res://tools/frame_budget_probe.gd"]=FileAccess.get_sha256("res://tools/frame_budget_probe.gd")
 	if folder=="res://scripts":result["res://tools/completed_job_audit_probe.gd"]=FileAccess.get_sha256("res://tools/completed_job_audit_probe.gd")
 	return result
 func save()->void:

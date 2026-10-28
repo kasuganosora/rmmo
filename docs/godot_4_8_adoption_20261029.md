@@ -1,6 +1,6 @@
 # Godot 4.8 beta1 接入：源码、独立验证与剩余合同
 
-编辑器适配先于本工作完成，提交 `90a2fcc5` 已推送；默认新贴图保留原像素，DDS 显式可选，用户已确认。当前默认引擎仍为已验过的 4.7.2 补丁版；本记录不代表 4.8 已用于正式内容设计或游戏。
+编辑器适配先于本工作完成，提交 `90a2fcc5` 已推送；默认新贴图保留原像素，DDS 显式可选，用户已确认。用户于 2026-10-29 明确要求默认使用 4.8，当前默认引擎与工程配置已切到已验证的 candidate03 补丁构建，详见文末“默认迁移”。下文按时间保留此前的候选与 4.7 对照记录；完整加载与 low 帧优化仍未完成。
 
 ## 固定版本与隔离范围
 
@@ -361,3 +361,35 @@ GLB 仅用于上述显式导入测试，未恢复游戏 GLB 回退。构建 02 �
 默认 4.7.2 的 `full_map_entry_legacy_01` 完成真实完整地图入口、卸载、返回和带在途任务退出：正常退出、功能/身份检查通过、零错误。入口纹理 **51.924ms**，初始 85 次 Image 上传 **360,666,036 bytes**，全路线 170 次 **721,332,072 bytes**；其中 DDS 为初始 74 次、全路线 148 次。没有入口 PNG 回退或内容 SHA。初始池 61 + 入口 24，与原生流式的独立 owner 工作量一致，末尾 lease/outputs 零。入口 **19.706s**、完整就绪 **38.720s**，卸载/返回/重载最大 **32.477/47.175/57.478ms**，>50ms 为 **0/0/13**，对应 1% low **100.76/33.87/21.11 FPS**；退出 **230.866ms**。私有缓存来自 4.8/off 对照，对 4.7 shader 和部分索引并非暖缓存，首轮重新建索引且首次显示 **2,217.952ms**；这是兼容回归和保留的慢样本，不与 4.8 暖样本直接比较。
 
 本轮入口重复工作修复可以保留；完整加载和 low 目标仍未完成。接下来应控制相同引擎/配置/资源表示和缓存种子，采集实例准备、初始需求发布及退出长段的栈/trace，再独立复现。尚待：入口/区块统一内存准入、动态 mip 预算、原就绪点之外的实际画质收敛、内嵌纹理接入。用户随后要求道路支持平头，本会话先补该编辑器 UI/3D MCP 功能；不会因此把性能目标标为完成或替换默认引擎。
+
+## 默认迁移：用户明确切到 4.8
+
+上述候选阶段之后，用户明确要求“默认使用4.8，然后把工程也转为4.8，不要再在4.7折腾”。本机默认入口已改为 `D:/tools/godot/godot.windows.editor.x86_64.exe`，版本 `4.8.beta1.custom_build.4d10419ca`，即通过上述合同的 candidate03；exe SHA `fe41da4819801754155ba43728e9541e3a76074021d5b09d34a6293fb0e33d35`，匹配的完整独立符号 SHA `9e016e823051b42d95634c50dbbbdc11fce520e359552f684161a8c92f49e424`。GUI、console、`godot.exe` 和版本别名均已核对；正常与调试使用同一个优化构建，不是无符号 release。安装清单在 `D:/tools/godot/patched_build_manifest.json`，旧默认程序已存入 `_backup/before_default_48_20261029_071907`，不作为运行回退。
+
+当前分支和本机主工作区的工程版本声明、默认启动路径已对齐；只定点更新主工作区的这些配置和工具路径，其余已有工作不纳入本分支提交。Windows 用户级 `GODOT` / `GODOT_PATH` 指向稳定入口，用户 PATH 加入引擎目录，新开的终端可用 `godot`。工程启用 native streaming 和 512 MiB streaming-texture budget；这是沿用已测配置的 mip 驻留预算，不是全部 VRAM、总资源准入或导入大小上限，也不冒称已完成动态统一预算。新样本统一用 4.8，不再新增 4.7 兼容测试；历史证据保留原版本。
+
+迁移同时修复 `StandardMaterialSchema` 的版本门槛：旧代码在 4.8 静默回退为每次原生属性枚举。先在同一 candidate03 上复现 5 检查中的 3 项失败，再核对 `BaseMaterial3D::_validate_property` 实际存储条件后启用 4.8.0 缓存。独立合同 **6,490/0**，覆盖 1,619 状态、默认值、合法模式、新属性、metadata、脚本动态 usage、未知版本回退、64 项上限和四线程读取；真实材质序列化/合批 digest 消费者 **5,924/0**。原测试使用非法透明模式 MAX 哨兵的问题也已修正。
+
+512 材质微测 ABBA 为关闭 **552.875ms**、开启 **141.942ms / 141.628ms**、关闭 **545.496ms**，序列化字节与 digest 完全相同，开启时仅枚举一次。这是独立微测收益，整图收益仍须同配置对照。完整证据位于本文公共证据根的 `standard_material_schema_48_report.md`、`default_48_installation.json`、`migration_defaults_changes.json`。
+
+## 入口关键路径：官方 profiler 和 GDB 的新证据
+
+对已有 `full_map_streamed_entry_green_01` 只解析一次的归因结果在 `trace_attribution_01/analysis.md`。入口 CPU capture 活跃 **2.378s**、墙钟 **2.793s**，涉及 2,007 meshes / 2,099 surfaces；后续 cover 中 deferred service **6.683s**，包含 publication **4.908s**，不能相加。末尾生产队列空后仍有 stream 应用和第二轮合批扫描，不能再统称“纹理后台收尾”。
+
+`full_map_entry_official_01` 官方 profiler 完成全部路线，零引擎错误，源码/配置/产品身份稳定，保存 28,720 帧及 2,824 签名。入口 11.729s / 完整就绪 22.594s **只作诊断**，外层 scope 已标记 profiler，即使内层 runner 的 diagnostic 字段为 false 也不能当普通性能样本。原 probe 缺少 engine-frame ID，故本轮官方帧不能可靠逐帧对齐阶段，不用插值补造。该样本未复现此前 348ms 小网格提交事件。
+
+`full_map_entry_gdb_01_stacks` 在预先装入符号后采集 103 次 all-stop 栈；42 次仍在启动脚本编译，7 次明确抓到主线程 `surface_get_arrays` / `mesh_get_surface → RD.buffer_get_data → _flush_and_stall_for_all_frames`，其中 3 次进入 Vulkan fence wait。另有 `PackedScene.instantiate → set_surface_override_material → get_rid → shader cache load`。未抓到 mesh_add_surface、transfer-pool wait 或 texture_replace_rid，不能把此前 348ms 事件归罪于纹理上传锁。GDB 显著干扰墙钟，其 44.466s / 52.964s 不作性能比较。下一步直接针对已证实的 GPU 回读往返；尚未宣称引擎已修复该路径。
+
+当前 probe 另有已复现的统计缺口：旧 `frame_split` 只读 interactive 模式，会把 cover 发布记成零。修复保留原 17 列，改为所有模式的累计差量，再附各模式差量/累计值、reset/baseline 和真实 engine-frame ID。红样本 17 检查 / 11 失败，绿样本 20/20、schema 6/6；1 万次 helper 操作 232.319ms 只是局部开销，不能当完整 observer 开销。零 publication 的旧记录不能再用作“主线程空闲”证据。
+
+两次后续普通整图完成集成验证：control 36,183 行、候选 47,041 行，全部为 33 列，原 17 列一致，engine_frame / at_us 严格递增、跨阶段不重置。control cover 的 service/publication 为 7,777,413 / 5,633,837us，465 行非零；候选为 6,701,227 / 4,031,346us，7,270 行非零。这只是 probe 统计正确性的验证，不代表候选更快；publication 包含在 service 中。证据见 `initial_native_probe_v2_integration.json`。
+
+### 入口后台准备实验：主线程减负没有变成加载收益
+
+候选把私有 SCN scene 的首次实例化、CPU 几何/碰撞面准备提前到 worker，首个实例消费同一 scene，后续复用 PackedScene 和 CPU cache；没有增加 worker、驻留额度或原 8ms pump 预算。独立有效 red_03 为 53 检查 / 3 个预期失败，green_01 为 62/62、零引擎错误。但该 fixture 64 meshes 的主线程 readback 仍有 71.34ms、worker 等待 113.21ms，因此不能称全部几何工作已后台化。
+
+普通整图 `full_map_initial_native_cpu_01` 和随后严格 control 使用同一已安装 candidate03、4.8 配置、schema 缓存、v2 probe、fixture、相同缓存种子；控制组仅将入口的 3 个生产文件恢复到 `59667b87`。两次均完整正常退出、零错误和失败、输入 SHA 稳定。控制组入口 **10.297s / 完整就绪 22.864s**，新准备路径入口 **15.377s / 完整就绪 35.632s**。这一对不构成 p95，但足以否决默认启用；实验与慢样本保留，继续追查入口之后额外的工作和等待。
+
+候选原主 capture 降到 38.98ms、实例化最大切片 8.105ms，却新增私有准备 **5.547s**，其中 worker 等 readback **4.390s**，主线程 readback **2.112s**；这些 span 包含/并行，不能相加。其对象数仍为 2,007 meshes，碰撞面 16,228,944 bytes，准入估计仍为 5,450,944,511 bytes。跨线程搬运并没有消除 GPU 往返。GDB 已证实的往返将由独立 candidate04 原型处理，当前默认引擎仍是已验过的 candidate03。
+
+另一个已量化但尚未解决的边界是模型包内嵌纹理。该入口模型的已发布 footprint 显示：281,810,329 bytes 的 SCN，60 textures/images、149 materials；`image_mip_bytes=563431377`，`mesh_storage_bytes=11641784`，`native_uncompressed_bytes=576645460`。这是离线资源统计，不是实际 RSS/VRAM。`CompiledAssetCache._build_prepared` 仍用 BUNDLE_RESOURCES 打包原始图像，`ModelTextureCache.apply` 在加载后才共享。因此“入口源图解码/项目层 ImageTexture 上传计数为零”不代表 SCN 内嵌图像无需读取或上传。该路径尚未接入流式，不能把 4.8 开关启用等同于全部模型纹理已完成改造；先完成当前几何回读实验，再独立处理内嵌图像产品和编辑器合同。

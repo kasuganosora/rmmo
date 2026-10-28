@@ -27,7 +27,7 @@ def sources():
     files += [ROOT / "tools" / name for name in (
         "profile_axel_game_pipeline.gd", "profile_axel_white_streaming.gd",
         "profile_axel_predictive_streaming.gd",
-        "profile_axel_worker_capacity.gd", "profile_axel_fault_capture.gd", "run_godot_background.py",
+        "profile_axel_worker_capacity.gd", "frame_budget_probe.gd", "profile_axel_fault_capture.gd", "run_godot_background.py",
         "run_axel_texture_phase.py", "full_native_fixture_audit.py")]
     return {str(p.relative_to(ROOT)).replace("\\", "/"): digest(p) for p in files}
 
