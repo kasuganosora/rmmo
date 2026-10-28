@@ -391,8 +391,10 @@ static func _connect(original:Dictionary,target:Dictionary,entry:Dictionary,setb
 		for e:Dictionary in graph.edges:
 			if e.id==target.edge.id:
 				e.to=join;e.width_end=mid_width
+				e.erase("cap_end")
 				if curve:e.controls=subcurves[0]
 		var tail:Dictionary=target.edge.duplicate(true);tail.id=prefix+"_tail";tail.from=join;tail.to=old_to;tail.width_start=mid_width
+		tail.erase("cap_start")
 		if curve:tail.controls=subcurves[1]
 		graph.edges.append(tail);graph.nodes.append({"id":join,"position":projection.position if curve else Data.xyz(end)})
 	for edge:Dictionary in original.roads.edges:

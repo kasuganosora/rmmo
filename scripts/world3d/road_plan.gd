@@ -106,6 +106,9 @@ static func build(graph: Dictionary, settings: Dictionary, portals: Array=[]) ->
 						if Poly.area(polygon)<0: polygon.reverse()
 						sources.append({"polygon":polygon,"plane":Vector3(0,0,path[i].y),"kind":edge.kind,"edge":edge})
 					continue
+				# Dead ends can stop at the authored cross section (e.g. stairs).
+				# Junction fill above remains independent of endpoint styling.
+				if edge.get("cap_start" if i==0 else "cap_end","round")=="flat":continue
 			if i>0 and i<path.size()-1:
 				if joins.has(i): continue
 				if ramp: continue

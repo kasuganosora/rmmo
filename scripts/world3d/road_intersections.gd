@@ -61,6 +61,9 @@ static func split(graph: Dictionary) -> Dictionary:
 		for i in points.size()-1:
 			var lo: float=points[i].t; var hi: float=points[i+1].t; var part: Dictionary=edge.duplicate(true)
 			part.from=points[i].node; part.to=points[i+1].node
+			# Styling belongs to original endpoints, never newly created joins.
+			if i>0:part.erase("cap_start")
+			if i<points.size()-2:part.erase("cap_end")
 			if i>0: part.id=edge.id.left(60)+"_"+str([part.from,part.to]).sha256_text().left(10)
 			part.width_start=lerpf(edge.width_start,edge.width_end,lo); part.width_end=lerpf(edge.width_start,edge.width_end,hi)
 			if edge.has("controls"):

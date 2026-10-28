@@ -1,5 +1,9 @@
 # 当前 3D 地图编辑器 MCP
 
+## 道路端头（2026-10-29）
+
+`update_road_graph` 的完整 `edges[]` 条目增加可选 `cap_start`、`cap_end`，各取 `round`（省略时默认）或 `flat`。分别控制 `from`、`to` 的独立端头；平头在节点横截面结束，已连接的路口不受此样式裁断。UI 线段属性使用相同 schema 和业务操作，沿用 expected_token、锁定/隐藏保护、路缘自动重建、撤销和保存。工具名称与二维下线状态不变。操作说明及实际 HTTP/GPU 回归见 [道路平头](world_editor_roads.md#道路平头2026-10-29)。
+
 ## 可变材质源与 native 加载准备（2026-10-28）
 
 默认配置下，`open_world` 会刷新同路径重导出的纹理，并保留旧材质 owner；UI 与 3D MCP 继续共用材质刷写、撤销和保存业务。模型打开、预览及普通保存使用已发布原生产物，GLB 只用于显式导入/转换。真实 HTTP/GPU 材质回归 49/0、原生散布/缩略图回归 26/0；详细证据见 [编辑器材质管线适配](editor_material_pipeline_20261028.md)，旧素材增量迁移 59/59 见 [原生迁移记录](editor_native_migration_20261028.md)。普通物件保存重开的纹理准备、共享去重及取消回收补验见 [表面纹理准备补齐](editor_surface_texture_preparation_20261029.md)。

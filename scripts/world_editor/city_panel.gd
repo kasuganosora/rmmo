@@ -150,9 +150,10 @@ func fill_node() -> void:
 	node_form.build(Data.node_schema(),values,{"position":"节点 XYZ（米）","locked":"锁定节点","hidden":"隐藏节点"})
 func fill_edge() -> void:
 	var edge:=selected(city.data.roads.edges,edges)
-	var values:={} if edge.is_empty() else {"name":edge.get("name",""),"width_start":edge.width_start,"width_end":edge.width_end,"kind":edge.kind,"locked":edge.get("locked",false),"hidden":edge.get("hidden",false)}
+	var values:={} if edge.is_empty() else {"name":edge.get("name",""),"width_start":edge.width_start,"width_end":edge.width_end,"cap_start":edge.get("cap_start","round"),"cap_end":edge.get("cap_end","round"),"kind":edge.kind,"locked":edge.get("locked",false),"hidden":edge.get("hidden",false)}
 	var schema:=Data.edge_schema(); schema.properties.erase("bridge_ref")
-	edge_form.build(schema,values,{"name":"道路线段名称","width_start":"起点宽度（米）","width_end":"终点宽度（米）","kind":"通行层","locked":"锁定线段","hidden":"隐藏线段"},{"kind":[{"id":"ground","name":"地面道路"},{"id":"bridge","name":"桥梁 / 跨越"}]})
+	var caps:=[{"id":"round","name":"圆头"},{"id":"flat","name":"平头（沿端点截面）"}]
+	edge_form.build(schema,values,{"name":"道路线段名称","width_start":"起点宽度（米）","width_end":"终点宽度（米）","cap_start":"起点端头（仅断头处生效）","cap_end":"终点端头（仅断头处生效）","kind":"通行层","locked":"锁定线段","hidden":"隐藏线段"},{"cap_start":caps,"cap_end":caps,"kind":[{"id":"ground","name":"地面道路"},{"id":"bridge","name":"桥梁 / 跨越"}]})
 	curve.set_pressed_no_signal(edge.has("controls")); controls.visible=curve.button_pressed
 	var handles:={}
 	if not edge.is_empty():
