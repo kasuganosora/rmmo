@@ -33,6 +33,8 @@ godot --path . -- --backend=real --server-url=http://127.0.0.1:7777
 
 See [real server connection](docs/real_server_connection.md) for map mappings,
 protocol generation, supported flows, remaining business UI adapters and live tests.
+See [conditional gameplay snapshots](docs/runtime_snapshot_sync.md) for resource
+versions, bounded batch fallback and compatibility with older servers.
 
 See [MockServer architecture](docs/mock_server_architecture.md) for module ownership,
 generated interfaces, simulation settings and asset-free regression commands.

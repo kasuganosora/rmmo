@@ -9,8 +9,15 @@ var _jobs:Array=[]
 var _running:=false
 var _epoch:=0
 var _event_cursor:=0
+var _event_acked:=0
 var _event_busy:=false
 var _events_at:=0
+var _event_stream_active:=false
+var _event_stream_legacy:=false
+var _event_ack_busy:=false
+var _event_scope:Dictionary={}
+var _event_applied:Dictionary={}
+var _event_identity:=""
 
 func busy()->bool:return _running or not _jobs.is_empty()
 
@@ -18,8 +25,17 @@ func _init(owner:Node)->void:
 	environment=preload("res://scripts/net/remote/environment.gd").new(owner)
 	transport=owner;projection=preload("res://scripts/net/remote/projection.gd").new(owner)
 
+func reset_event_stream()->void:
+	if not _event_identity.is_empty():
+		_event_applied.erase(_event_identity);_event_applied[_event_identity]=_event_cursor
+		var limit:=clampi(int(ProjectSettings.get_setting("rmmo/network/event_resume_cache_entries",64)),8,512)
+		while _event_applied.size()>limit:_event_applied.erase(_event_applied.keys()[0])
+	_event_identity=""
+	_event_cursor=0;_event_acked=0;_event_busy=false;_events_at=0
+	_event_stream_active=false;_event_stream_legacy=false;_event_ack_busy=false;_event_scope.clear()
+
 func cancel()->void:
-	_epoch+=1;_event_cursor=0;_event_busy=false;_events_at=0
+	_epoch+=1;reset_event_stream()
 	var jobs:=_jobs;_jobs=[]
 	for job:Dictionary in jobs:transport.response_ready.emit(int(job.id),{"ok":false,"error":"connection_closed","actions":[]})
 	projection.reset();environment.reset()
@@ -93,7 +109,7 @@ func _execute(operation:String,args:Array,scope:Dictionary,epoch:int,shop_revisi
 		"cancel_cast":
 			var cast_id:=str(snapshots.get("skills",{}).get("last",{}).get("cast_id",""))
 			if cast_id.is_empty():return failure("当前没有可中断的施法")
-			path="/v1/gameplay/casts/"+cast_id.uri_encode()+"/cancel"
+			path="/v1/gameplay/casts/"+cast_id.uri_encode()+"/cancel";body={"cast_id":cast_id}
 		"interact":
 			var target:Dictionary=projection.target(str(args[0]))
 			if target.is_empty():return failure("交互对象已离开")
@@ -141,7 +157,13 @@ func _execute(operation:String,args:Array,scope:Dictionary,epoch:int,shop_revisi
 		_:
 			return failure("未识别的真实服务器请求："+operation)
 	if scope!=transport.context() or epoch!=_epoch:return failure("请求所属世界已变更")
-	var response:Dictionary=await transport.request_api(path,method,body)
+	var response:Dictionary
+	if transport.world_session.get("gameplay_protocol",0)==1 and operation in ["attack","skill","item","cancel_cast"]:
+		var kind:="attack" if operation=="attack" else ("cancel" if operation=="cancel_cast" else "cast")
+		response=await transport.gameplay_command(kind,body)
+	else:
+		# HTTP cancel has an empty body; only the WS command carries cast_id.
+		response=await transport.request_api(path,method,{} if operation=="cancel_cast" else body)
 	if operation=="respawn" and epoch==_epoch:
 		# Respawn may commit a new actor generation before HTTP arrives. Recover
 		# the authoritative receipt and session; never repeat the mutation.
@@ -163,7 +185,7 @@ func _execute(operation:String,args:Array,scope:Dictionary,epoch:int,shop_revisi
 			var item:Dictionary=offer.get("item",{});projection.register_item(str(item.get("uuid","")),item)
 			listings.append({"item_id":item.get("uuid",""),"name":item.get("name",""),"buy_price":int(offer.get("price",0))})
 		actions.append({"type":"open_shop","shop_id":data.get("target",{}).get("id",""),"title":data.get("name","商店"),"listings":listings,"gold":int(data.get("gold",0)),"buyback":data.get("buyback",[])})
-	var refreshed:Dictionary=await transport.refresh_world_snapshots()
+	var refreshed:Dictionary=await transport.refresh_world_snapshots() if operation=="respawn" else await transport.refresh_gameplay_snapshots()
 	if not refreshed.ok:return failure("操作已提交，状态刷新失败，请等待同步；不要重复提交")
 	if operation=="claim_reward":actions.append({"type":"system_message","text":"已领取服务器掉落"})
 	transport._project_snapshots()
@@ -171,10 +193,13 @@ func _execute(operation:String,args:Array,scope:Dictionary,epoch:int,shop_revisi
 	return {"ok":true,"data":data,"actions":actions}
 
 func poll_events()->void:
+	if transport.world_session.get("gameplay_protocol",0)==1 and not _event_stream_legacy:
+		_poll_stream_events();return
 	if _event_busy or not transport.is_world_ready():return
 	var now:=Time.get_ticks_msec()
 	if now<_events_at:return
-	_events_at=now+int(clampf(float(ProjectSettings.get_setting("rmmo/network/event_interval_sec",.1)),.05,5.)*1000.)
+	var interval:=clampf(float(ProjectSettings.get_setting("rmmo/network/runtime_fallback_interval_sec",2.)),1.,30.) if transport.world_session.get("gameplay_protocol",0)==1 else clampf(float(ProjectSettings.get_setting("rmmo/network/event_interval_sec",.1)),.05,5.)
+	_events_at=now+int(interval*1000.)
 	_event_busy=true;var epoch:=_epoch;var scope:Dictionary=transport.context()
 	var result:Dictionary=await transport.request_api("/v1/gameplay/combat-events?after="+str(_event_cursor)+"&limit=100")
 	if result.ok and epoch==_epoch and scope==transport.context():
@@ -186,5 +211,57 @@ func poll_events()->void:
 			if event.get("map","")==transport.world_session.get("map_ref",""):
 				transport._network_actions.append({"type":"remote_combat_event","event":event.duplicate(true)})
 			_event_cursor=cursor
-		if _event_cursor>0:await transport.request_api("/v1/gameplay/combat-events/ack",HTTPClient.METHOD_POST,{"through":_event_cursor})
+		if _event_cursor>_event_acked:
+			var through:=_event_cursor
+			var acknowledged:Dictionary=await transport.request_api("/v1/gameplay/combat-events/ack",HTTPClient.METHOD_POST,{"through":through})
+			if acknowledged.ok and epoch==_epoch and scope==transport.context():_event_acked=through
 	if epoch==_epoch:_event_busy=false
+
+func _poll_stream_events()->void:
+	if not transport.is_world_ready():return
+	if _event_scope!=transport.context():
+		reset_event_stream();_event_scope=transport.context().duplicate(true)
+		_event_identity=str(transport.endpoint_address)+"|"+str(transport._session_user)+"|"+str(transport._selected_id)
+		_event_cursor=int(_event_applied.get(_event_identity,0))
+	if _event_stream_active:
+		if _event_cursor>_event_acked and not _event_ack_busy and Time.get_ticks_msec()>=_events_at:_ack_stream_events()
+		return
+	if _event_busy or Time.get_ticks_msec()<_events_at:return
+	_event_busy=true;var scope:=_event_scope.duplicate();var epoch:=_epoch
+	var result:Dictionary=await transport.gameplay_command("subscribe_events",{"after":_event_cursor})
+	if epoch!=_epoch or scope!=transport.context():return
+	_event_busy=false
+	if result.ok:_event_stream_active=true
+	elif result.get("error")=="combat_stream_unavailable":_event_stream_legacy=true
+	elif result.get("error")=="invalid_combat_cursor":
+		_event_cursor=0;_event_acked=0;_event_applied.erase(_event_identity);_events_at=Time.get_ticks_msec()+1000
+	else:_events_at=Time.get_ticks_msec()+1000
+
+func receive_stream_events(payload:String)->void:
+	if transport.world_session.get("gameplay_protocol",0)!=1:return
+	var page:Variant=JSON.parse_string(payload)
+	if not page is Dictionary or not page.get("events") is Array:transport.disconnect_server("服务器战斗事件格式无效");return
+	if _event_scope!=transport.context():return
+	for delivery:Variant in page.events:
+		if not delivery is Dictionary or not delivery.get("event") is Dictionary:transport.disconnect_server("服务器战斗事件格式无效");return
+		var cursor:int=transport._runtime_snapshot._integer(delivery.get("cursor"))
+		if cursor<=0:transport.disconnect_server("服务器战斗事件游标无效");return
+		if cursor<=_event_cursor:continue
+		var event:Dictionary=delivery.event
+		if event.get("map","")==transport.world_session.get("map_ref",""):transport._network_actions.append({"type":"remote_combat_event","event":event.duplicate(true)})
+		_event_cursor=cursor
+	# A duplicated pending page must be acknowledged again, even when the
+	# earlier receipt was applied but its ACK was lost.
+	var next:int=transport._runtime_snapshot._integer(page.get("next_cursor",0))
+	if next<0 or next>_event_cursor:transport.disconnect_server("服务器战斗事件游标无效");return
+	if next>0:
+		_event_acked=mini(_event_acked,next-1)
+		if _event_stream_active and not _event_ack_busy:_ack_stream_events()
+
+func _ack_stream_events()->void:
+	_event_ack_busy=true;var through:=_event_cursor;var scope:=_event_scope.duplicate();var epoch:=_epoch
+	var result:Dictionary=await transport.gameplay_command("ack_events",{"through":through})
+	if epoch!=_epoch or scope!=transport.context():return
+	_event_ack_busy=false
+	if result.ok:_event_acked=maxi(_event_acked,through)
+	_events_at=Time.get_ticks_msec()+100

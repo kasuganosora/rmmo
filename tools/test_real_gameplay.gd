@@ -24,9 +24,22 @@ func finish(request:Dictionary,label:String,expected:bool=true,peer:Node=null)->
 			if int(reply[0])==int(request.request_id):result=reply[1];break
 	check(bool(result.get("ok",false))==expected,label)
 	if bool(result.get("ok",false))!=expected:print(result)
-	check(result.get("actions",[]).is_empty(),label+" delivers actions only through polling")
+	check(result.get("actions",[]).is_empty(),label+" delivers actions only through the durable event channel")
 	return result
 func pause(seconds:float)->void:await create_timer(seconds).timeout
+func wait_for_basic_attack()->bool:
+	# Fast conditional snapshots no longer hide the skill's one-second GCD
+	# behind fourteen serial HTTP reads. Observe the authoritative deadline.
+	var deadline:=Time.get_ticks_msec()+3000
+	while Time.get_ticks_msec()<deadline:
+		var skills:Dictionary=await server.request_api("/v1/gameplay/skills")
+		var state:Dictionary=await server.request_api("/v1/gameplay/combat-state")
+		if not skills.ok or not state.ok:return false
+		var timing:Dictionary=skills.body.data
+		var game_time:=float(state.body.data.server_elapsed)*1000000.
+		if timing.get("last",{}).get("status","")!="casting" and game_time>=float(timing.get("busy_until_game_us",0)) and game_time>=float(timing.get("groups_game_us",{}).get("combat",0)) and float(state.body.data.server_elapsed)>=float(state.body.data.get("ready_at_game",0)):return true
+		await pause(.05)
+	return false
 func item_instance(definition:String)->String:
 	for row:Dictionary in server.gameplay.projection.bag():
 		if row.definition_id==definition:return str(row.id)
@@ -100,7 +113,7 @@ func run()->void:
 	await pause(1.)
 	await finish(server.request_cast(STRIKE,DUMMY),"windup skill dispatch")
 	check(server.combat_stats.skill_cd_remaining(STRIKE)>0.,"server skill cooldown projected")
-	await pause(.7)
+	check(await wait_for_basic_attack(),"server skill recovery and global cooldown finish before basic attack")
 	await finish(server.try_attack(DUMMY,0,0),"basic attack with entity generation")
 	await pause(.3)
 	check(int(server.gameplay.projection.entities[DUMMY].state.hp)<1000,"server damage reaches target projection")

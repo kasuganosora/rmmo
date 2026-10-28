@@ -17,6 +17,7 @@ def main():
     parser.add_argument('--server-repo', required=True, type=Path)
     parser.add_argument('--godot', default='godot')
     parser.add_argument('--gameplay', action='store_true', help='Exercise real gameplay with disposable synthetic records and policy')
+    parser.add_argument('--stream', action='store_true', help='Verify actual WebSocket gameplay and absence of HTTP polling')
     parser.add_argument('--aoi', action='store_true', help='Exercise two real clients crossing distance visibility boundaries')
     args = parser.parse_args()
     with tempfile.TemporaryDirectory(prefix='rmmo-network-') as temporary:
@@ -30,11 +31,13 @@ def main():
         command = [str(args.server_bin.resolve()), '-env-file=', '-config=', '-content', str(content),
                    '-map', 'tutorial/yard', '-db', str(directory/'game.sqlite'),
                    '-ntp-required=false', '-ntp-servers=', '-addr', f'127.0.0.1:{port}']
-        if args.gameplay:
+        if args.gameplay or args.stream:
             from real_gameplay_fixture import configure
             command += configure(content,directory)
         script='res://tools/test_real_gameplay.gd' if args.gameplay else 'res://tools/test_real_server.gd'
         marker='REAL_GAMEPLAY_TESTS failures=0' if args.gameplay else 'REAL_SERVER_TESTS failures=0'
+        if args.stream:
+            script, marker = 'res://tools/test_real_runtime_stream.gd', 'REAL_RUNTIME_STREAM_TESTS failures=0'
         if args.aoi:
             # Keep this disposable fixture focused on player visibility; a
             # wandering example NPC otherwise blocks the boundary walk.

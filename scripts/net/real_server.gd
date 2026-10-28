@@ -44,6 +44,17 @@ var _local_loaded_context:Dictionary={}
 var _http_requests:Dictionary={}
 var _snapshot_inflight:=false
 var _snapshot_revision:=0
+var _runtime_snapshot=preload("res://scripts/net/remote/runtime_snapshot.gd").new()
+var _unclaimed_rewards_supported:=0
+var _published_runtime_revision:=0
+var _published_runtime_versions:Dictionary={}
+var _environment_request_serial:=0
+var _environment_applied_serial:=0
+var _environment_context:Dictionary={}
+var _environment_snapshot:Dictionary={}
+var _snapshot_read_serial:=0
+var _snapshot_published_serial:=0
+var runtime_stream=preload("res://scripts/net/remote/runtime_stream.gd").new(self)
 
 func is_remote_transport()->bool:return true
 
@@ -88,8 +99,11 @@ func _process(_delta:float)->void:
 			if not entry.scope.is_empty():disconnect_server("世界请求超时，已停止发送输入，请重连恢复快照");return
 	if is_world_ready() and not _move_inflight and now>=_movement_at and not _movement.is_empty():
 		_movement_at=now+int(1000./_hz());_send_movement()
-	if is_world_ready() and not _snapshot_inflight and now>=_snapshot_at:
-		if not gameplay.busy():_snapshot_at=now+int(clampf(float(ProjectSettings.get_setting("rmmo/network/snapshot_interval_sec",.25)),.1,5.)*1000);_refresh_runtime_snapshots()
+	if is_world_ready():
+		runtime_stream.tick(now)
+		if not _snapshot_inflight and now>=_snapshot_at and not gameplay.busy() and (not runtime_stream.enabled() or not runtime_stream.active):
+			var interval:=clampf(float(ProjectSettings.get_setting("rmmo/network/runtime_fallback_interval_sec",2.)),1.,30.) if runtime_stream.enabled() else clampf(float(ProjectSettings.get_setting("rmmo/network/snapshot_interval_sec",.25)),.1,5.)
+			_snapshot_at=now+int(interval*1000.);_refresh_runtime_snapshots()
 		gameplay.poll_events()
 
 func disconnect_server(message:String="")->void:
@@ -103,6 +117,8 @@ func disconnect_server(message:String="")->void:
 	world_session.clear();self_actor.clear();actors.clear();_retired_actors.clear();_peer_visibility.clear();_visibility_recovering=false;business_snapshots.clear();_local_loaded_context.clear()
 	_movement.clear();_move_inflight=false;_login_inflight=false
 	_snapshot_inflight=false;_fetch_inflight=false;_create_inflight=false;_enter_inflight=false
+	_runtime_snapshot.clear();runtime_stream.reset();_unclaimed_rewards_supported=0
+	_published_runtime_revision=0;_published_runtime_versions.clear();_environment_context.clear();_environment_snapshot.clear()
 	world3d_authority.release()
 	var pending:=_pending;_pending={}
 	for entry:Dictionary in pending.values():entry.ticket.resolve({"ok":false,"error":"connection_closed"})
@@ -153,7 +169,7 @@ func reconnect()->Dictionary:
 	if _token.is_empty() or _selected_id==0:return {"ok":false,"error":"login_required"}
 	disconnect_server()
 	if not await _connect_socket(true):return {"ok":false,"error":"connection_failed"}
-	var result:Dictionary=await rpc_call("enter_world",{"character_id":_selected_id,"visibility_protocol":1})
+	var result:Dictionary=await rpc_call("enter_world",{"character_id":_selected_id,"visibility_protocol":1,"gameplay_protocol":1})
 	if result.get("ok",false):result=prepare_authoritative_map()
 	if result.get("ok",false):result=await refresh_world_snapshots()
 	if result.get("ok",false):_project_snapshots();world_changed.emit(world_session.duplicate(true))
@@ -167,7 +183,7 @@ func _send(operation:String,body:Dictionary)->Ticket:
 	_request_serial=(_request_serial%4294967295)+1
 	while _pending.has(_request_serial):_request_serial=(_request_serial%4294967295)+1
 	var request:={"request_id":_request_serial,operation:body};var scope:Dictionary={}
-	if operation in ["try_move","find_path","snapshot_actors","world_ready","leave_world"]:
+	if operation in ["try_move","find_path","snapshot_actors","world_ready","leave_world","runtime_stream","gameplay_command"]:
 		scope=context()
 		if scope.is_empty():ticket.resolve({"ok":false,"error":"world_not_entered"});return ticket
 		request.world_context=scope
@@ -189,7 +205,8 @@ func is_world_ready()->bool:return is_logged_in() and world_session.get("ready",
 
 func _valid_session(value:Dictionary)->bool:
 	var visibility:Variant=value.get("visibility_protocol",0)
-	return _peer_visibility._integer(visibility) and int(visibility)<=1 and value.get("protocol_version",0)==2 and not str(value.get("boot_id","")).is_empty() and int(value.get("session_epoch",0))>0 and int(value.get("session_epoch",0))<=9007199254740991 and int(value.get("map_generation",0))>0 and int(value.get("map_generation",0))<=9007199254740991 and preload("res://scripts/world3d/world_location.gd").map_ref_ok(str(value.get("map_ref",""))) and not str(value.get("ready_token","")).is_empty()
+	var stream:Variant=value.get("gameplay_protocol",0)
+	return _peer_visibility._integer(stream) and int(stream)<=1 and _peer_visibility._integer(visibility) and int(visibility)<=1 and value.get("protocol_version",0)==2 and not str(value.get("boot_id","")).is_empty() and int(value.get("session_epoch",0))>0 and int(value.get("session_epoch",0))<=9007199254740991 and int(value.get("map_generation",0))>0 and int(value.get("map_generation",0))<=9007199254740991 and preload("res://scripts/world3d/world_location.gd").map_ref_ok(str(value.get("map_ref",""))) and not str(value.get("ready_token","")).is_empty()
 
 func _receive(data:Dictionary)->void:
 	var id:=int(data.get("request_id",0));var entry:Dictionary=_pending.get(id,{})
@@ -197,7 +214,7 @@ func _receive(data:Dictionary)->void:
 	if not incoming.is_empty():
 		if not _valid_session(incoming):disconnect_server("不支持的服务器世界会话协议");return
 		incoming=incoming.duplicate(true)
-		for key:String in ["session_epoch","map_generation","movement_sequence","protocol_version","visibility_protocol"]:
+		for key:String in ["session_epoch","map_generation","movement_sequence","protocol_version","visibility_protocol","gameplay_protocol"]:
 			var value:Variant=incoming.get(key,0)
 			if typeof(value) not in [TYPE_INT,TYPE_FLOAT] or not is_finite(float(value)) or float(value)!=floorf(float(value)):
 				disconnect_server("服务器会话序号无效");return
@@ -210,6 +227,7 @@ func _receive(data:Dictionary)->void:
 			if incoming.boot_id!=world_session.boot_id or incoming.session_epoch<world_session.session_epoch or (incoming.session_epoch==world_session.session_epoch and incoming.map_generation<=world_session.map_generation):return
 			if not data.get("resync",false) and entry.get("operation","")!="enter_world":return
 		if changed:
+			runtime_stream.reset();gameplay.reset_event_stream();_runtime_snapshot.clear();_published_runtime_versions.clear()
 			_movement.clear();_local_loaded_context.clear();actors.clear();_retired_actors.clear();_peer_visibility.clear();_visibility_recovering=false;business_snapshots.clear()
 			_network_actions.clear()
 			world3d_authority.release()
@@ -240,6 +258,9 @@ func _receive(data:Dictionary)->void:
 			actors.erase(left);_network_actions.append({"type":"remote_despawn","id":left})
 		if changed and entry.get("operation","")!="enter_world":world_changed.emit(world_session.duplicate(true))
 	elif data.has("actor_3d") or data.has("actors_3d") or data.get("push",false):return
+	if not incoming.is_empty():
+		runtime_stream.receive(data)
+		if data.has("combat_events_json"):gameplay.receive_stream_events(str(data.combat_events_json))
 	if entry.is_empty():return
 	_pending.erase(id)
 	if not entry.scope.is_empty() and entry.scope!=context():
@@ -323,7 +344,7 @@ func enter_world(character_id:int)->void:enter_world3d(character_id)
 func enter_world3d(character_id:int)->void:
 	if _enter_inflight:return
 	_enter_inflight=true;_selected_id=character_id
-	var result:Dictionary=await rpc_call("enter_world",{"character_id":character_id,"visibility_protocol":1})
+	var result:Dictionary=await rpc_call("enter_world",{"character_id":character_id,"visibility_protocol":1,"gameplay_protocol":1})
 	if result.get("ok",false):result=prepare_authoritative_map()
 	if result.get("ok",false):result=await refresh_world_snapshots()
 	_enter_inflight=false
@@ -337,31 +358,117 @@ func enter_world3d(character_id:int)->void:
 
 func refresh_world_snapshots()->Dictionary:
 	var scope:=context();var snapshots:Dictionary={}
-	for name:String in ["inventory","attributes","progression","combat-state","entities","skills","statuses","areas","party","alliance","rewards","resurrection"]:
-		var result:Dictionary=await _read_rewards() if name=="rewards" else await request_api("/v1/gameplay/"+name)
-		if not result.ok:return {"ok":false,"error":"无法恢复服务器快照："+name+" "+str(result.get("error",""))}
-		snapshots[name]=result.body.get("data",{})
-	var sky:Dictionary=await request_api("/v1/environment")
+	_snapshot_read_serial+=1;var serial:=_snapshot_read_serial
+	var batch:Dictionary=await _read_runtime_batch()
+	if not batch.get("legacy",false):
+		if not batch.ok:return batch
+		snapshots=batch.snapshots
+	else:
+		for name:String in ["inventory","attributes","progression","combat-state","entities","skills","statuses","areas","party","alliance","rewards","resurrection"]:
+			var result:Dictionary=await _read_rewards() if name=="rewards" else await request_api("/v1/gameplay/"+name)
+			if not result.ok:return {"ok":false,"error":"无法恢复服务器快照："+name+" "+str(result.get("error",""))}
+			snapshots[name]=result.body.get("data",{})
+	var sky:Dictionary=await _read_runtime_environment()
 	if not sky.ok:return sky
 	snapshots.environment=sky.body
-	var interactions:Dictionary=await _read_interactions()
-	if not interactions.ok:return interactions
-	snapshots.interactions=interactions.data
+	if batch.get("legacy",false):
+		var interactions:Dictionary=await _read_interactions()
+		if not interactions.ok:return interactions
+		snapshots.interactions=interactions.data
 	var final:Dictionary=await request_api("/v1/world/session")
 	if not final.ok or scope!=context() or _http_context(final.body.get("data",{}))!=scope:return {"ok":false,"error":"world_changed_during_snapshot"}
 	_receive_world_snapshot(final.body)
-	business_snapshots=snapshots;_snapshot_revision+=1
+	if serial<_snapshot_published_serial:return {"ok":true,"ignored":true}
+	if batch.get("legacy",false):business_snapshots=snapshots;_snapshot_revision+=1;_snapshot_published_serial=serial
+	else:
+		# Environment/session HTTP replies may have yielded to a newer batch.
+		# Publish the newest accepted cache, never the earlier local batch copy.
+		var published:Dictionary=_publish_runtime_cache(scope,serial)
+		if not published.ok:return published
 	return await gameplay.projection.hydrate()
+
+func gameplay_command(kind:String,body:Dictionary)->Dictionary:
+	var result:Dictionary=await rpc_call("gameplay_command",{"kind":kind,"json":JSON.stringify(body)})
+	if not result.get("ok",false):return result
+	var envelope:Variant=JSON.parse_string(str(result.get("gameplay_result_json","")))
+	if not envelope is Dictionary:return {"ok":false,"error":"invalid_gameplay_result"}
+	return {"ok":envelope.get("ok",false),"body":envelope,"error":envelope.get("error","")}
+
+func refresh_gameplay_snapshots()->Dictionary:
+	if not runtime_stream.enabled():return await refresh_world_snapshots()
+	var scope:=context();var batch:Dictionary=await _read_runtime_batch()
+	if batch.get("legacy",false):return await refresh_world_snapshots()
+	if not batch.ok:return batch
+	_snapshot_read_serial+=1
+	var published:Dictionary=_publish_runtime_cache(scope,_snapshot_read_serial)
+	if not published.ok:return published
+	return await gameplay.projection.hydrate()
+
+func _publish_runtime_cache(scope:Dictionary,serial:int)->Dictionary:
+	if scope!=context() or _runtime_snapshot.scope!=scope:return {"ok":false,"error":"stale_gameplay_snapshot"}
+	if serial<_snapshot_published_serial:return {"ok":true,"ignored":true,"changed":[]}
+	if _runtime_snapshot.revision<=0 or _runtime_snapshot.snapshots.size()!=_runtime_snapshot.RESOURCES.size():return {"ok":false,"error":"snapshot_base_missing"}
+	var changed:Array=[]
+	for name:String in _runtime_snapshot.RESOURCES:
+		if not business_snapshots.has(name) or _published_runtime_versions.get(name)!=_runtime_snapshot.versions.get(name):changed.append(name)
+	business_snapshots=_runtime_snapshot.snapshots.duplicate(true)
+	if _environment_context==scope:business_snapshots.environment=_environment_snapshot.duplicate(true)
+	_published_runtime_revision=_runtime_snapshot.revision
+	_snapshot_published_serial=serial
+	_published_runtime_versions=_runtime_snapshot.versions.duplicate()
+	if "interactions" in changed:_snapshot_revision+=1
+	return {"ok":true,"revision":_published_runtime_revision,"changed":changed}
+
+func _read_runtime_environment()->Dictionary:
+	var scope:=context();var connection:=_connection_revision
+	_environment_request_serial+=1;var serial:=_environment_request_serial
+	var result:Dictionary=await request_api("/v1/environment")
+	if connection!=_connection_revision or scope!=context():return {"ok":false,"error":"stale_environment_snapshot"}
+	if result.ok and (_environment_context!=scope or serial>_environment_applied_serial):
+		_environment_context=scope;_environment_applied_serial=serial;_environment_snapshot=result.body.duplicate(true)
+	if result.ok:result.body=_environment_snapshot.duplicate(true)
+	return result
+
+func _read_runtime_batch()->Dictionary:
+	if runtime_stream.enabled():
+		var streamed:Dictionary=await runtime_stream.read()
+		if not streamed.get("http_fallback",false):return streamed
+	if _runtime_snapshot.supported<0:return {"ok":true,"legacy":true}
+	var scope:=context();var known:Dictionary=_runtime_snapshot.known(scope)
+	if _runtime_snapshot.retry_scope==scope and Time.get_ticks_msec()<_runtime_snapshot.retry_at:return {"ok":true,"legacy":true}
+	for attempt in 2:
+		var path:="/v1/gameplay/snapshot"
+		if not known.is_empty():path+="?known="+JSON.stringify(known).uri_encode()
+		var response:Dictionary=await request_api(path)
+		if scope!=context():return {"ok":false,"error":"stale_gameplay_snapshot"}
+		if response.get("status",0) in [404,405] and _runtime_snapshot.supported==0:
+			_runtime_snapshot.supported=-1;return {"ok":true,"legacy":true}
+		if response.get("status",0)==413 and response.get("body",{}).get("error")=="snapshot_too_large":
+			# Legal rewards/objects can exceed the batch body cap while their
+			# existing bounded pages remain readable. Never drop those resources.
+			_runtime_snapshot.supported=1;_runtime_snapshot.versions.clear();_runtime_snapshot.snapshots.clear();_runtime_snapshot.revision=0
+			_runtime_snapshot.retry_scope=scope;_runtime_snapshot.retry_at=Time.get_ticks_msec()+int(clampf(float(ProjectSettings.get_setting("rmmo/network/snapshot_capacity_retry_sec",30.)),1.,300.)*1000.)
+			_published_runtime_versions.clear()
+			return {"ok":true,"legacy":true,"capacity_fallback":true}
+		if not response.ok:return response
+		var applied:Dictionary=_runtime_snapshot.apply(response.body,scope)
+		if applied.get("need_full",false):known={};continue
+		return applied
+	return {"ok":false,"error":"snapshot_base_missing"}
 
 func _read_rewards()->Dictionary:
 	var rows:Array=[];var after:=""
 	for page in 64:
-		var result:Dictionary=await request_api("/v1/gameplay/rewards?limit=50"+("&after="+after if not after.is_empty() else ""))
+		var path:="/v1/gameplay/rewards?limit=50"+("&after="+after if not after.is_empty() else "")
+		var result:Dictionary=await request_api(path+("&unclaimed=true" if _unclaimed_rewards_supported>=0 else ""))
+		if result.get("status",0)==400 and _unclaimed_rewards_supported==0:
+			_unclaimed_rewards_supported=-1;result=await request_api(path)
 		if not result.ok:return result
+		if _unclaimed_rewards_supported==0:_unclaimed_rewards_supported=1
 		var data:Dictionary=result.body.get("data",{})
 		for row:Dictionary in data.get("rewards",[]):
 			if not row.get("claimed",false):rows.append(row)
-		if rows.size()>512:return {"ok":false,"error":"reward_snapshot_budget"}
+		if rows.size()>1024:return {"ok":false,"error":"reward_snapshot_budget"}
 		if not data.get("more",false):return {"ok":true,"body":{"data":{"rewards":rows}}}
 		var next:=str(data.get("next",""))
 		if next.is_empty() or next==after:return {"ok":false,"error":"reward_cursor_loop"}
@@ -406,16 +513,34 @@ func _equipment_rows()->Array:
 
 func _refresh_runtime_snapshots()->void:
 	_snapshot_inflight=true;var scope:=context();var revision:=_connection_revision
+	_snapshot_read_serial+=1;var serial:=_snapshot_read_serial
+	var batch:Dictionary=await _read_runtime_batch()
+	if scope!=context():_finish_runtime_snapshot(revision);return
+	if not batch.get("legacy",false):
+		if not batch.ok:_finish_runtime_snapshot(revision);return
+		if not runtime_stream.enabled():await _read_runtime_environment()
+		if scope!=context():_finish_runtime_snapshot(revision);return
+		var published:Dictionary=_publish_runtime_cache(scope,serial)
+		if not published.ok:_finish_runtime_snapshot(revision);return
+		if not published.changed.is_empty():
+			var projected:Dictionary=await gameplay.projection.hydrate()
+			if scope!=context() or not projected.ok:_finish_runtime_snapshot(revision);return
+		_project_snapshots()
+		_network_actions.append_array(gameplay.projection.actions())
+		_finish_runtime_snapshot(revision);return
+	var snapshots:Dictionary=business_snapshots.duplicate(true)
 	for name:String in ["combat-state","inventory","attributes","progression","entities","skills","statuses","areas","party","alliance","rewards","resurrection"]:
 		var response:Dictionary=await _read_rewards() if name=="rewards" else await request_api("/v1/gameplay/"+name)
 		if scope!=context():_finish_runtime_snapshot(revision);return
-		if response.ok:business_snapshots[name]=response.body.get("data",{})
-	var sky:Dictionary=await request_api("/v1/environment")
+		if response.ok:snapshots[name]=response.body.get("data",{})
+	var sky:Dictionary=await _read_runtime_environment()
 	if scope!=context():_finish_runtime_snapshot(revision);return
-	if sky.ok:business_snapshots.environment=sky.body
+	if sky.ok:snapshots.environment=sky.body
 	var interactions:Dictionary=await _read_interactions()
 	if scope!=context():_finish_runtime_snapshot(revision);return
-	if interactions.ok:business_snapshots.interactions=interactions.data;_snapshot_revision+=1
+	if interactions.ok:snapshots.interactions=interactions.data
+	if serial<_snapshot_published_serial:_finish_runtime_snapshot(revision);return
+	business_snapshots=snapshots;_snapshot_published_serial=serial;_snapshot_revision+=1
 	var projected:Dictionary=await gameplay.projection.hydrate()
 	if scope!=context():_finish_runtime_snapshot(revision);return
 	if not projected.ok:_finish_runtime_snapshot(revision);return
@@ -527,6 +652,7 @@ func request_api(path:String,method:int=HTTPClient.METHOD_GET,body:Dictionary={}
 	var headers:=PackedStringArray(["Authorization: Bearer "+_token,"Content-Type: application/json","Accept: application/json"])
 	if method not in [HTTPClient.METHOD_GET,HTTPClient.METHOD_HEAD]:
 		if not is_world_ready():return {"ok":false,"error":"world_not_ready"}
+	if not scope.is_empty():
 		headers.append_array(PackedStringArray(["X-RMMO-Boot-ID: "+scope.boot_id,"X-RMMO-Session-Epoch: "+str(scope.session_epoch),"X-RMMO-Map-Generation: "+str(scope.map_generation),"X-RMMO-Map-Ref: "+scope.map_ref]))
 	if _http_requests.size()>=32:return {"ok":false,"error":"http_request_limit"}
 	var request:=HTTPRequest.new();request.timeout=_timeout();request.body_size_limit=8*1048576;request.max_redirects=0;add_child(request)

@@ -29,6 +29,11 @@ godot --path /path/to/rmmo -- --backend=mock
 | `rmmo/network/request_timeout_sec` | `10` | 连接、RPC 和 HTTP 超时，限制在 1–60 秒 |
 | `rmmo/network/movement_hz` | `20` | 方向意图发送频率，限制在 5–30 Hz |
 | `rmmo/network/snapshot_interval_sec` | `0.25` | 业务快照刷新间隔，限制在 0.1–5 秒 |
+| `rmmo/network/environment_interval_sec` | `5` | 新服流式模式环境时钟采样间隔（秒，1–60）。 |
+| `rmmo/network/runtime_fallback_interval_sec` | `2` | 新服容量不足时低频 HTTP 恢复（秒，1–30）。 |
+| `rmmo/network/projection_retry_sec` | `1` | 定义临时失败后投影重试（秒，0.1–30）。 |
+| `rmmo/network/event_resume_cache_entries` | `64` | 按服务器/账号/角色保存已应用事件游标数量（8–512）。 |
+| `rmmo/network/snapshot_capacity_retry_sec` | `30` | 合法资源超过批次容量后，当前世界上下文重试批次的间隔，限制在 1–300 秒 |
 | `rmmo/network/event_interval_sec` | `0.1` | 战斗事件轮询间隔，限制在 0.05–5 秒 |
 | `rmmo/network/map_paths` | `{}` | 服务端地图身份到本地资源路径的显式映射 |
 

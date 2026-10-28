@@ -24,6 +24,8 @@ message ClientMessage {
     FindPathRequest find_path = 19;
     WorldReadyRequest world_ready = 20;
     LeaveWorldRequest leave_world = 21;
+    RuntimeStreamRequest runtime_stream = 22;
+    GameplayCommand gameplay_command = 23;
   }
 }
 
@@ -49,6 +51,11 @@ message ServerMessage {
   uint64 actor_left_generation = 25;
   // Negotiated peer stream; self state remains in actor_3d.
   ActorVisibility visibility = 26;
+  // Negotiated runtime state and durable combat deliveries use independent ACKs.
+  string runtime_snapshot_json = 27;
+  uint32 runtime_stream_protocol = 28;
+  string gameplay_result_json = 29;
+  string combat_events_json = 30;
 }
 
 // Hidden is a temporary visibility transition, never a permanent generation tombstone.
@@ -83,6 +90,7 @@ message EnterWorldRequest {
   uint32 character_id = 1;
   // 0 preserves map-wide legacy delivery, 1 requests scoped visibility deltas.
   uint32 visibility_protocol = 2;
+  uint32 gameplay_protocol = 3;
 }
 
 message TryMoveRequest {
@@ -123,6 +131,7 @@ message WorldSession {
   uint32 protocol_version = 8;
   // 1 confirms distance AOI; 0 remains compatible with existing clients.
   uint32 visibility_protocol = 9;
+  uint32 gameplay_protocol = 10;
 }
 
 message WorldReadyRequest { string ready_token = 1; }
@@ -145,3 +154,16 @@ message Character {
 message Health {
   bool ok = 1;
 }
+
+// WebSocket-only subscriptions; version 1 is explicitly negotiated at entry.
+message RuntimeStreamRequest {
+  uint32 protocol = 1;
+  uint64 ack_revision = 2;
+  bool resync = 3;
+  bool stop = 4;
+}
+
+// Fixed allowlist: attack, cast, cancel, subscribe_events, ack_events.
+// JSON retains each gameplay command's typed, bounded HTTP contract; no URL
+// or method is accepted. The authenticated world context scopes every command.
+message GameplayCommand { string kind = 1; string json = 2; }

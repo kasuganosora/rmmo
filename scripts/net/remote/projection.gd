@@ -32,10 +32,13 @@ func definition(kind:String,id:String)->Dictionary:
 
 func hydrate()->Dictionary:
 	var scope:Dictionary=transport.context()
-	var inventory:Dictionary=transport.business_snapshots.get("inventory",{})
+	var publication:int=transport._snapshot_published_serial
+	var snapshots:Dictionary=transport.business_snapshots.duplicate(true)
+	var pending_items:Array=[];var pending_skills:Array=[];var pending_entities:Dictionary={}
+	var inventory:Dictionary=snapshots.get("inventory",{})
 	var rows:Array=inventory.get("bag",[]).duplicate(true)
 	for value in inventory.get("equipment",{}).values():rows.append(value)
-	for quest:Dictionary in transport.business_snapshots.get("progression",{}).get("quests",[]):
+	for quest:Dictionary in snapshots.get("progression",{}).get("quests",[]):
 		var rewards:Variant=quest.get("reward_items",[])
 		if rewards is Array:
 			for reward:Dictionary in rewards:
@@ -45,13 +48,13 @@ func hydrate()->Dictionary:
 		if id.is_empty():continue
 		var frozen:Dictionary=row.get("equipment",{}).get("definition",{}) if row.get("equipment") is Dictionary else {}
 		var data:Dictionary=frozen if not frozen.is_empty() else await definition("items",id)
-		if scope!=transport.context():return {"ok":false,"error":"stale_projection"}
+		if scope!=transport.context() or publication!=transport._snapshot_published_serial:return {"ok":false,"error":"stale_projection"}
 		if data.is_empty():return {"ok":false,"error":"missing_item_definition","item":id}
-		register_item(id,data)
-	for skill:String in transport.business_snapshots.get("skills",{}).get("grants",{}):
-		if not transport.business_snapshots.skills.grants[skill]:continue
+		pending_items.append({"id":id,"data":data})
+	for skill:String in snapshots.get("skills",{}).get("grants",{}):
+		if not snapshots.skills.grants[skill]:continue
 		var data:Dictionary=await definition("skills",skill)
-		if scope!=transport.context():return {"ok":false,"error":"stale_projection"}
+		if scope!=transport.context() or publication!=transport._snapshot_published_serial:return {"ok":false,"error":"stale_projection"}
 		if data.is_empty():return {"ok":false,"error":"missing_skill_definition","skill":skill}
 		var row:=data.duplicate(true);row.id=skill
 		row.cooldown=float(data.get("timing",{}).get("cooldown_ms",0))/1000.
@@ -60,15 +63,18 @@ func hydrate()->Dictionary:
 		row.range=data.get("target",{}).get("range_m",0)
 		row.requires_target=data.get("target",{}).get("mode","")=="unit"
 		row.target_mode="ground" if data.get("target",{}).get("mode","")=="area" else data.get("target",{}).get("mode","self")
-		transport.skill_catalog.register_skill(row)
-	entities.clear()
-	for entity:Dictionary in transport.business_snapshots.get("entities",[]):
+		pending_skills.append(row)
+	for entity:Dictionary in snapshots.get("entities",[]):
 		var id:=str(entity.get("uuid",""))
 		if id.is_empty():continue
 		var data:Dictionary=await definition(str(entity.get("kind","npcs")),str(entity.get("definition","")))
-		if scope!=transport.context():return {"ok":false,"error":"stale_projection"}
+		if scope!=transport.context() or publication!=transport._snapshot_published_serial:return {"ok":false,"error":"stale_projection"}
 		if data.is_empty():return {"ok":false,"error":"missing_creature_definition"}
-		var row:=entity.duplicate(true);row["details"]=data;entities[id]=row
+		var row:=entity.duplicate(true);row["details"]=data;pending_entities[id]=row
+	if scope!=transport.context() or publication!=transport._snapshot_published_serial:return {"ok":false,"error":"stale_projection"}
+	for item:Dictionary in pending_items:register_item(str(item.id),item.data)
+	for skill:Dictionary in pending_skills:transport.skill_catalog.register_skill(skill)
+	entities=pending_entities
 	apply()
 	return {"ok":true}
 
