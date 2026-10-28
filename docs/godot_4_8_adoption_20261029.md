@@ -242,3 +242,27 @@ GLB 仅用于上述显式导入测试，未恢复游戏 GLB 回退。构建 02 �
 - `glyph_candidate_03` 首轮把没有动态字体能力的 Dummy 也当实际光栅化器测试，16 项失败均来自 Dummy；Advanced 的 16 项图集检查已通过。04 按 TextServer 的动态字体能力筛选并记录跳过者，保留首轮失败日志，未把不存在的 fallback 编译项记为通过。
 
 **接续边界：**默认仍为已验 4.7.2；4.8 尚待正式共享队列的流式产品接收、动态驻留预算，以及真实游戏/编辑器加载、卸载、返回重载和 low 帧对照。候选的独立合同通过不等于可替换整图性能结论。正式接入首先要去除 `SurfaceMaterials` 先要完整 Image 才接受 prepared Texture2D 的限制，并保持身份失效与共享去重；不能先全解码，再额外读一遍流式产品。默认保留原像素、DDS 显式可选的编辑器策略不变。
+
+## 接收端复现：完整 Image 依赖与表示切换失效
+
+`texture_only_red_01` 用真实 `StreamedTexture2D`、外部 128² RGBA 源图和完整 mip 原生产品进入现有 `HousePrefab.begin_texture_publication → SurfaceMaterials.make_material`。原代码 **16 项中 6 项失败**：尽管传入已完成纹理，仍进行 1 次源图解码；全测试额外上传 **174,760 bytes**。同一源 SHA 切换 `runtime_texture_representation`，并清空 hot/weak 纹理条目只保留材质 owner 时，旧分片快路径还会复用旧材质。嵌套外层 Image 也可能遮住新的内层纹理。没有借白模、关闭纹理或强制完整 mip 掩盖问题。
+
+修正沿用同一个发布协议：
+
+- Texture2D-only 结果在源图/DDS 回读和 Image 上传之前直接交接。使用生产者已有的源身份、表示身份、alpha、法线编码与字节元数据；不调用 `get_image()`，不制造占位 Image。
+- Image 与 Texture2D 复用旧 owner 失效逻辑；成对 image/upload 包仍以 Image 身份为准，保留原有后台上传路径。
+- 发布 scope、调用者材质池和分片复用同时比较表示身份。分片状态只保存字符串，不额外持有 GPU/CPU 资源；新表示只重新初始化一次，后续切片继续复用。
+- 嵌套作用域结束时恢复原来的两个 Dictionary owner；缓存淘汰不改变已经显示的旧材质。缓存插入复用同一实现，不新增独立热缓存或重复去重表。
+
+`texture_only_green_01` 同一候选、相同 fixture **16/0**，保留 red 结果；额外源图解码 **0**、重复上传 **0 bytes**，两个不同表示各直接交接一次，100 次未改变切片维持 **100 次复用、总共 2 次初始化**。alpha、零 hot-cache 和嵌套 owner 恢复均通过。这里的工作量下降属于发布接收端，不等同于整图加载已经加快。
+
+串行回归 `texture_handoff_regressions_01` 全部正常退出、无引擎/脚本错误、选定源码及引擎前后 SHA 一致：
+
+| 运行 | 检查数 | 覆盖 |
+| --- | ---: | --- |
+| `background_upload_handoff_01` | 31 | 两共享变体各上传一次、取消后的新 producer 接管、迟到结果隔离、最后 owner 与全部预算释放 |
+| `prepared_material_handoff_01` | 97 | 正常/分片发布、共享材质、失效和失败路径、外层 scope 精确恢复 |
+| `editor_pool_handoff_01` | 8 | 编辑器同源不同表示、材质别名、失败修复；1000 次不变记录无重复整池扫描 |
+| `texture_only_47_01` | 16 | 当前默认 4.7.2 使用已有 ImageTexture 同样直接交接，无新增引擎 API 依赖 |
+
+本轮调整的是游戏与编辑器共用的内部接收协议，没有新增 UI/MCP 操作、改变保存格式或默认压缩选项。原生流式产品由测试显式提供，正式调度器尚未生成这种 packet。GPU 热缓存当前使用完整 mip 链的保守字节上界，不把它写成动态 VRAM 实测。下一步是接上已发布流式产品的共享生产/取消/预算，处理需要 CPU 像素的消费者，再做真实地图与编辑器整体验证；默认引擎和生产流式开关尚未切换。

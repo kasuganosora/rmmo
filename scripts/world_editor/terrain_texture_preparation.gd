@@ -104,17 +104,22 @@ static func reconcile_pool(prepared:Dictionary,material_pool:Variant,sources:Dic
 static func install(prepared:Dictionary)->Dictionary:
 	var previous:Dictionary=Paint.prepared_images
 	Paint.prepared_images={}
+	var resources:Dictionary=prepared.images
+	var uploaded:Dictionary=prepared.get("uploaded_textures",{})
+	if not uploaded.is_empty():
+		resources=uploaded.duplicate();resources.merge(prepared.images,true)
 	var invalidated:Dictionary={}
 	for key in prepared.failed:
 		Paint._textures.erase(key);Paint._texture_refs.erase(key);invalidated[key]=true
 		TextureCache.discard_failed_source(Paint.texture_source_path(key),str(key).ends_with("|flip_y"),true)
-	for key in prepared.images:
+	for key in resources:
 		var retained:Texture2D=Paint.retained_texture(key)
-		if retained==null or not Paint._same_prepared_texture(retained,prepared.images[key]):invalidated[key]=true
+		if retained==null or not Paint._same_prepared_texture(retained,resources[key]):invalidated[key]=true
 	# Materials can outlive their texture's LRU entry. Invalidating only the
 	# texture dictionary would retain old pixels through cached material refs.
 	if not invalidated.is_empty():
 		Paint._materials.clear();Paint._material_refs.clear();River.cache.clear();Prefab.invalidate_texture_materials(invalidated)
+	if not uploaded.is_empty():Paint.prepare_textures(uploaded)
 	Paint.prepare_images(prepared.images)
 	return previous
 

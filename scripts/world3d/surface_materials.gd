@@ -148,10 +148,15 @@ static func _same_prepared_texture(texture:Texture2D,prepared:Resource)->bool:
 	# Immutable game packets have no representation identity and retain their
 	# previous cache behavior; editor snapshots distinguish DDS/PNG generations.
 	return not prepared.has_meta("runtime_texture_representation") or texture.get_meta("runtime_texture_representation","")==prepared.get_meta("runtime_texture_representation")
+static func _prepared_resource(key:String)->Resource:
+	# CPU images remain authoritative for the existing image+upload pair. A
+	# native streaming packet instead supplies a texture with no full Image.
+	return prepared_images.get(key,prepared_textures.get(key))
 static func retained_texture(key:String)->Texture2D:
 	var texture:Texture2D=_textures.get(key)
 	if texture==null and residency_budget_enabled and _texture_refs.has(key):texture=_texture_refs[key].get_ref()
-	if texture!=null and prepared_images.has(key) and not _same_prepared_texture(texture,prepared_images[key]):return null
+	var prepared:=_prepared_resource(key)
+	if texture!=null and prepared!=null and not _same_prepared_texture(texture,prepared):return null
 	return texture
 
 static func publish_import_texture(path:String,image:Image)->bool:
@@ -255,7 +260,8 @@ static func _material_current(material:StandardMaterial3D)->bool:
 		if path.is_empty():continue
 		var key:=definition_texture_key(definition,MAP_FIELDS[i])
 		var texture:Texture2D=material.get(TEXTURE_PROPERTIES[i])
-		if prepared_images.has(key) and not _same_prepared_texture(texture,prepared_images[key]):return false
+		var prepared:=_prepared_resource(key)
+		if prepared!=null and not _same_prepared_texture(texture,prepared):return false
 		if _textures.has(key) and not _same_prepared_texture(texture,_textures[key]):return false
 	return true
 
@@ -305,16 +311,25 @@ static func reset_profile()->void:TextureCache.reset_profile()
 static func profile_snapshot()->Dictionary:return TextureCache.profile_snapshot("paint.")
 
 static func prepare_images(images:Dictionary)->void:
+	_discard_stale_prepared_owners(images)
+	prepared_images.merge(images,true)
+
+static func prepare_textures(textures:Dictionary)->void:
+	# Borrowed only for this publication scope. Producers supply source/variant,
+	# alpha, normal encoding and conservative byte metadata without get_image().
+	_discard_stale_prepared_owners(textures)
+	prepared_textures=textures
+
+static func _discard_stale_prepared_owners(resources:Dictionary)->void:
 	var changed:=false
-	for key in images:
+	for key in resources:
 		var weak:Variant=_texture_refs.get(key)
 		if weak!=null:
 			var texture:Texture2D=weak.get_ref()
-			if texture!=null and not _same_prepared_texture(texture,images[key]):_texture_refs.erase(key);changed=true
-		if _textures.has(key) and not _same_prepared_texture(_textures[key],images[key]):
+			if texture!=null and not _same_prepared_texture(texture,resources[key]):_texture_refs.erase(key);changed=true
+		if _textures.has(key) and not _same_prepared_texture(_textures[key],resources[key]):
 			_textures.erase(key);changed=true
-	if changed:_materials.clear();_material_refs.clear()
-	prepared_images.merge(images,true)
+	if changed:_materials.clear();_material_refs.clear();_cache_estimate_valid=false
 
 static func fail(message: String) -> Dictionary: return {"ok": false, "error": message}
 
@@ -564,7 +579,8 @@ static func _texture(material:Dictionary,field:String,path_checks:Variant)->Text
 	var capacity_retired_id:=0
 	if not _textures.has(cache_key) and residency_budget_enabled and _texture_refs.has(cache_key):
 		var retained:Texture2D=_texture_refs[cache_key].get_ref()
-		if retained!=null and (not prepared_images.has(cache_key) or _same_prepared_texture(retained,prepared_images[cache_key])):
+		var prepared:=_prepared_resource(cache_key)
+		if retained!=null and (prepared==null or _same_prepared_texture(retained,prepared)):
 			if _textures.size()>=64:
 				var oldest:String=_textures.keys()[0]
 				if capacity_eviction_accounting_enabled:capacity_retired_id=_textures[oldest].get_instance_id()
@@ -578,6 +594,17 @@ static func _texture(material:Dictionary,field:String,path_checks:Variant)->Text
 		if restored_weak:_trim_after_insert(cached,capacity_retired_id)
 		else:_trim_changed_cache()
 		return cached
+	if not prepared_images.has(cache_key) and prepared_textures.has(cache_key):
+		# A completed native streaming product already owns its GPU identity.
+		# Never call get_image(), decode the source or upload a replacement here.
+		var began:=Time.get_ticks_usec() if texture_profile_enabled else 0
+		var texture:Texture2D=prepared_textures[cache_key]
+		_store_texture(cache_key,texture)
+		if texture_profile_enabled:
+			TextureCache._profile_count("paint.texture.background_handoffs")
+			TextureCache._profile_count("paint.texture.texture_only_handoffs")
+			TextureCache._profile_elapsed("paint.texture.background_handoff",began,{"path":path,"flip":flip_normal,"texture_only":true})
+		return texture
 	if key!="checker" and not prepared_images.has(cache_key):
 		var side:=_load_compressed_sidecar(path,flip_normal,field=="normal_path")
 		if not side.is_empty():
@@ -644,13 +671,17 @@ static func _texture(material:Dictionary,field:String,path_checks:Variant)->Text
 	result.set_meta("runtime_normal_xy",image.get_format()==Image.FORMAT_RGTC_RG)
 	result.set_meta("runtime_source_sha256",image.get_meta("runtime_source_sha256",""))
 	if image.has_meta("runtime_texture_representation"):result.set_meta("runtime_texture_representation",image.get_meta("runtime_texture_representation"))
+	_store_texture(cache_key,result)
+	return result
+
+static func _store_texture(cache_key:String,result:Texture2D)->void:
+	var capacity_retired_id:=0
 	if _textures.size() >= 64:
 		var oldest:String=_textures.keys()[0]
 		if capacity_eviction_accounting_enabled:capacity_retired_id=_textures[oldest].get_instance_id()
 		_textures.erase(oldest);_cache_use.erase("t:"+oldest)
 	_textures[cache_key] = result
 	_touch_cache("t:",cache_key);_remember_weak(_texture_refs,cache_key,result);_trim_after_insert(result,capacity_retired_id)
-	return result
 
 static func texture_error(record: Dictionary, checks: Variant = null) -> String:
 	if preload("res://scripts/world3d/runtime_probe_controls.gd").discard_map_textures:return ""

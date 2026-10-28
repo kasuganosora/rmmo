@@ -148,7 +148,7 @@ static func tickets_valid(tickets:Dictionary,sources:Dictionary)->bool:
 		if current!=null and current.get_meta("runtime_source_sha256","")!=ticket.source_sha:return false
 	return true
 
-static func _stale_material_keys(materials:Array,sources:Dictionary)->Dictionary:
+static func _stale_material_keys(materials:Array,sources:Dictionary,prepared:Dictionary={})->Dictionary:
 	var changed:Dictionary={}
 	for value:Variant in materials:
 		if not value is StandardMaterial3D:continue
@@ -157,9 +157,10 @@ static func _stale_material_keys(materials:Array,sources:Dictionary)->Dictionary
 			var path:String=definition.get(field,"")
 			if not sources.has(path):continue
 			var texture:Texture2D=value.get(TEXTURE_PROPERTIES[field])
-			if texture!=null and texture.get_meta("runtime_source_sha256","")==sources[path]:continue
 			var flip:bool=field=="normal_path" and definition.get("normal_format","opengl")=="directx"
-			changed[Cook.Paint.texture_key(path,flip,field=="normal_path")]=true
+			var key:String=Cook.Paint.texture_key(path,flip,field=="normal_path")
+			if texture!=null and texture.get_meta("runtime_source_sha256","")==sources[path] and (not prepared.has(key) or Cook.Paint._same_prepared_texture(texture,prepared[key])):continue
+			changed[key]=true
 	return changed
 
 static func invalidate_texture_materials(keys:Dictionary)->void:
@@ -452,14 +453,21 @@ static func publish_prepared(record:Dictionary,prepared:Dictionary,paint_validat
 
 static func begin_texture_publication(record:Dictionary,material_pool:Variant,texture_packet:Dictionary,state:Variant=null,materials:Array=[])->Dictionary:
 	# Installation and resource caches are main-thread-only. Scope the supplied
-	# CPU images to one synchronous publication or material slice. The matching
-	# end call restores the prior scope; unconsumed pixels stay in the charged job.
+	# CPU images or completed textures to one synchronous publication/material
+	# slice. The matching end restores the prior scope; the job retains its lease.
 	var previous:Variant=null
 	var resident:Dictionary=texture_packet.get("resident_textures",{})
 	if not tickets_valid(resident,texture_packet.get("sources",{})):return {"ok":false}
 	var previous_uploaded:Dictionary=Cook.Paint.prepared_textures
 	Cook.Paint.prepared_textures=texture_packet.get("uploaded_textures",{})
-	if state!=null and _texture_scope_current(record,texture_packet,state,material_pool,materials):
+	var resources:Dictionary=texture_packet.get("images",{})
+	if not Cook.Paint.prepared_textures.is_empty():
+		if resources.is_empty():resources=Cook.Paint.prepared_textures
+		else:
+			resources=resources.duplicate()
+			for key:String in Cook.Paint.prepared_textures:
+				if not resources.has(key):resources[key]=Cook.Paint.prepared_textures[key]
+	if state!=null and _texture_scope_current(record,texture_packet,state,material_pool,materials,resources):
 		# The first slice already invalidated older generations. Missing GPU
 		# entries mean this packet has work left, not another source replacement.
 		# Keep only the synchronous Image handoff; do not sweep all render caches.
@@ -482,20 +490,24 @@ static func begin_texture_publication(record:Dictionary,material_pool:Variant,te
 	for key:String in resident:
 		if not Cook.Paint._textures.has(key):
 			Cook.Paint.remember_texture_owner(key,resident[key].texture)
-	if not texture_packet.get("images",{}).is_empty():
+	if not resources.is_empty():
 		# Cook's caller-owned pool can outlive a texture's small global LRU too.
 		# Its old materials must not bypass the image-generation invalidation.
 		if material_pool!=null:
 			# Hot-cache eviction is not a source replacement: live materials may
 			# still own the exact verified texture. Invalidate actual old versions.
-			if not _stale_material_keys(material_pool.values(),texture_packet.get("sources",{})).is_empty():material_pool.clear()
-		previous=load("res://scripts/world_editor/terrain_texture_preparation.gd").install({"images":texture_packet.images,"failed":[]})
+			if not _stale_material_keys(material_pool.values(),texture_packet.get("sources",{}),resources).is_empty():material_pool.clear()
+		previous=load("res://scripts/world_editor/terrain_texture_preparation.gd").install({"images":texture_packet.get("images",{}),"uploaded_textures":Cook.Paint.prepared_textures,"failed":[]})
 	if state!=null:
 		state.sources=texture_packet.get("sources",{}).duplicate()
+		state.representations={}
+		for key:String in resources:
+			var representation:String=resources[key].get_meta("runtime_texture_representation","")
+			if not representation.is_empty():state.representations[key]=representation
 		state.initialized=true;state.initializations=int(state.get("initializations",0))+1
 	return {"ok":true,"previous":previous,"previous_uploaded":previous_uploaded}
 
-static func _texture_scope_current(record:Dictionary,packet:Dictionary,state:Dictionary,material_pool:Variant,materials:Array)->bool:
+static func _texture_scope_current(record:Dictionary,packet:Dictionary,state:Dictionary,material_pool:Variant,materials:Array,resources:Dictionary)->bool:
 	if not state.get("initialized",false) or state.get("sources",{})!=packet.get("sources",{}):return false
 	# A resident-only packet has no Images to expose a changed weak-cache owner.
 	# Reinstall its valid immutable tickets if the catalogue no longer resolves
@@ -506,18 +518,21 @@ static func _texture_scope_current(record:Dictionary,packet:Dictionary,state:Dic
 		if texture==null or texture.get_meta("runtime_source_sha256","")!=packet.resident_textures[key].source_sha:return false
 	# Another publication may have replaced a source between slices. Re-enter
 	# the full invalidation protocol only for an actually different live owner.
-	for key:String in packet.get("images",{}):
+	for key:String in resources:
+		# A new representation can share the source digest even after all hot
+		# owners evict. Keep only scalar identity in slice state, never resources.
+		if state.get("representations",{}).get(key,"")!=resources[key].get_meta("runtime_texture_representation",""):return false
 		var texture:Texture2D=Cook.Paint._textures.get(key)
 		if texture==null and Cook.Paint._texture_refs.has(key):texture=Cook.Paint._texture_refs[key].get_ref()
-		if texture!=null and texture.get_meta("runtime_source_sha256","")!=packet.images[key].get_meta("runtime_source_sha256",""):return false
+		if texture!=null and not Cook.Paint._same_prepared_texture(texture,resources[key]):return false
 	# A cache catalogue may be empty while actual materials still own another
 	# generation. Inspect only this target's live owners, never all map caches.
 	if material_pool!=null:
 		for slot:Dictionary in materials:
-			if material_pool.has([slot]) and not _stale_material_keys([material_pool[[slot]]],state.sources).is_empty():return false
+			if material_pool.has([slot]) and not _stale_material_keys([material_pool[[slot]]],state.sources,resources).is_empty():return false
 	var entry:Dictionary=_meshes.get(record.get("house_prefab",{}).get("sha256",""),{})
 	for field:String in ["mesh","source"]:
-		if entry.has(field) and not _stale_material_keys(entry[field].materials,state.sources).is_empty():return false
+		if entry.has(field) and not _stale_material_keys(entry[field].materials,state.sources,resources).is_empty():return false
 	return true
 
 static func end_texture_publication(scope:Dictionary)->void:
