@@ -163,8 +163,9 @@ static func encode_dds(image:Image,encoder:Callable=Callable())->Dictionary:
 
 ## Source bytes are read once. The content ID is the SHA of the canonical PNG,
 ## exactly matching the existing library naming and mutable DDS source schema.
-static func prepare(path:String,directory:String,token:RefCounted,root:String="",expected:Dictionary={},read_observer:Callable=Callable())->Dictionary:
+static func prepare(path:String,directory:String,token:RefCounted,root:String="",expected:Dictionary={},read_observer:Callable=Callable(),compression:String="dds")->Dictionary:
 	if OS.get_thread_caller_id()==OS.get_main_thread_id():return _fail("贴图导入必须在后台执行")
+	if compression not in ["source","dds"]:return _fail("贴图质量选项无效")
 	if root.is_empty():root=Paths.external_root()
 	if _cancelled(token):return _fail("贴图导入已取消")
 	var extension:=path.get_extension().to_lower()
@@ -190,18 +191,22 @@ static func prepare(path:String,directory:String,token:RefCounted,root:String=""
 	var png:=image.save_png_to_buffer()
 	if png.is_empty():return _fail("贴图 PNG 编码失败")
 	var content_id:=_digest(png)
-	var texture_path:=directory.path_join(content_id+".png")
+	# Keep old DDS identities stable. An explicit source variant must not pick
+	# up an existing compressed sibling through ordinary sidecar discovery.
+	var texture_path:=directory.path_join(content_id+(".source" if compression=="source" else "")+".png")
 	if not Paths.allowed(texture_path,root) or not Paths.allowed(texture_path+".previous",root):return _fail("材质库路径无效")
 	if _cancelled(token):return _fail("贴图导入已取消")
 	# The caller retains this packet under its original lease until encoding and
 	# publication finish. PNG and image are borrowed, not copied by phase two.
-	return {"ok":true,"texture_path":texture_path,"content_id":content_id,"source_name":path.get_file().get_basename(),"png":png,"image":image}
+	return {"ok":true,"texture_path":texture_path,"content_id":content_id,"source_name":path.get_file().get_basename(),"png":png,"image":image,"compression":compression}
 
 static func encode_publish(prepared:Dictionary,token:RefCounted,root:String="",encoder:Callable=Callable(),writer:Callable=Callable(),retain_pixels:bool=false,stage_observer:Callable=Callable())->Dictionary:
 	if OS.get_thread_caller_id()==OS.get_main_thread_id():return _fail("贴图导入必须在后台执行")
 	if root.is_empty():root=Paths.external_root()
 	if _cancelled(token):return _fail("贴图导入已取消")
 	if not prepared.get("ok",false):return prepared
+	var compression:String=prepared.get("compression","dds")
+	if compression not in ["source","dds"]:return _fail("贴图质量选项无效")
 	var texture_path:=str(prepared.texture_path)
 	var content_id:=str(prepared.content_id)
 	var directory:=texture_path.get_base_dir()
@@ -243,8 +248,13 @@ static func encode_publish(prepared:Dictionary,token:RefCounted,root:String="",e
 			var thumb_identity:={"version":1,"source_sha256":content_id,"source_bytes":png.size(),"source_modified_time":source_mtime}
 			if source_unchanged and not _cancelled(token):Library._write(thumb_metadata,JSON.stringify(thumb_identity).to_utf8_buffer())
 	# Ordinary game/package reads never perform this explicit-import comparison.
-	var result:={"ok":true,"texture_path":texture_path,"content_id":content_id,"source_name":str(prepared.source_name),"dds_ready":false,"dds_reason":""}
+	var result:={"ok":true,"texture_path":texture_path,"content_id":content_id,"source_name":str(prepared.source_name),"dds_ready":false,"dds_reason":"","compression":compression}
 	if _cancelled(token):return _fail("贴图导入已取消")
+	if compression=="source":
+		if not DDS.sidecar_path(texture_path,false,false).is_empty():return _fail("保真贴图存在外部压缩副产物，未使用该副产物")
+		result.dds_reason="source_requested"
+		if retain_pixels:result.prepared_image=_prepared_image(image,content_id,"source",image.detect_alpha()!=Image.ALPHA_NONE)
+		return result
 	var expected:=Image.FORMAT_DXT5 if image.detect_alpha()!=Image.ALPHA_NONE else Image.FORMAT_DXT1
 	var existing:=DDS.plan_mutable(texture_path,false,false,root,content_id)
 	var existing_image:Image=DDS.read(existing) if not existing.is_empty() and existing.format==expected else null
@@ -358,12 +368,17 @@ static func _write_immutable(path:String,bytes:PackedByteArray,root:String,token
 	if status=="cancelled":return ERR_SKIP
 	return OK if status=="match" else ERR_ALREADY_EXISTS
 
+static func _label_identity(prepared:Dictionary,label:String)->String:
+	# A marker inside the hash input can be supplied by a DDS label. Prefix
+	# the final ID instead, outside the legacy 64-hex namespace.
+	return ("source_" if prepared.get("compression","dds")=="source" else "")+(str(prepared.content_id)+label).sha256_text()
+
 static func prepare_label(prepared:Dictionary,label:String,token:RefCounted,fallback_name:String="")->Dictionary:
 	if OS.get_thread_caller_id()==OS.get_main_thread_id():return _fail("材质名称准备必须在后台执行")
 	if _cancelled(token):return _fail("贴图导入已取消")
 	var name:=label.strip_edges()
 	if name.is_empty():name=fallback_name
-	var id:=(str(prepared.content_id)+name).sha256_text()
+	var id:=_label_identity(prepared,name)
 	if _cancelled(token):return _fail("贴图导入已取消")
 	# Return only the fixed-size identity. The original request owns the label;
 	# no large normalized copy survives after this worker's lease is released.
@@ -377,7 +392,7 @@ static func publish_material(prepared:Dictionary,label:String,token:RefCounted,r
 	var texture_path:=str(prepared.texture_path)
 	var name:=label.strip_edges()
 	if name.is_empty():name=fallback_name if not known_id.is_empty() else str(prepared.source_name)
-	var id:=known_id if not known_id.is_empty() else (str(prepared.content_id)+name).sha256_text()
+	var id:=known_id if not known_id.is_empty() else _label_identity(prepared,name)
 	var metadata:=texture_path.get_base_dir().path_join(id+".json")
 	if not Paths.allowed(metadata,root) or not Paths.allowed(metadata+".previous",root):return _fail("材质库路径无效")
 	var material:={"name":name,"texture_path":texture_path.get_file(),"color":[1,1,1,1],"roughness":0.9}
@@ -389,7 +404,7 @@ static func publish_material(prepared:Dictionary,label:String,token:RefCounted,r
 	var error:=Library._write(metadata,JSON.stringify({"material":material}).to_utf8_buffer())
 	if error!=OK:return _fail("材质写入失败："+error_string(error))
 	material.texture_path=texture_path
-	return {"ok":true,"material_id":id,"material":material,"dds_ready":prepared.dds_ready,"dds_reason":prepared.dds_reason,"dds_reused":prepared.get("dds_reused",false),"dds_sha":prepared.get("dds_sha","")}
+	return {"ok":true,"material_id":id,"material":material,"dds_ready":prepared.dds_ready,"dds_reason":prepared.dds_reason,"dds_reused":prepared.get("dds_reused",false),"dds_sha":prepared.get("dds_sha",""),"compression":prepared.get("compression","dds")}
 
 static func run(path:String,directory:String,label:String,token:RefCounted,root:String="",encoder:Callable=Callable())->Dictionary:
 	var prepared:=prepare(path,directory,token,root)

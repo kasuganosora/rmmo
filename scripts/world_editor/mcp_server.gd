@@ -9,6 +9,7 @@ var _ops := Ops.new()
 var _definitions := {}
 var _pending_saves := {}
 var _pending_imports := {}
+var _import_peers := {}
 
 func server_name() -> String:
 	return "rmmo-world-editor"
@@ -128,10 +129,12 @@ func _handle_http(peer: StreamPeerTCP, method: String, path: String, body: Strin
 				var payload:Variant=JSON.parse_string(reply.get("result",{}).get("content",[{"text":"{}"}])[0].text)
 				if payload is Dictionary and payload.get("pending",false):
 					var request_id:int=payload.request_id
-					var callback:=_imported_http.bind(peer,msg.id,request_id)
 					_pending_saves[peer.get_instance_id()]=true
-					_pending_imports[peer.get_instance_id()]={"request_id":request_id,"callback":callback}
-					editor._surface_texture_imports.finished.connect(callback)
+					_pending_imports[peer.get_instance_id()]={"request_id":request_id,"peer":peer,"id":msg.id}
+					_import_peers[request_id]=peer.get_instance_id()
+					# One signal handler dispatches by request identity. Bound
+					# argument values do not distinguish connections in this engine.
+					if not editor._surface_texture_imports.finished.is_connected(_imported_http):editor._surface_texture_imports.finished.connect(_imported_http)
 				else:_write_http(peer,200,"application/json",_stringify_rpc(reply))
 				return
 			if params.get("name")=="open_world":
@@ -156,18 +159,18 @@ func _handle_http(peer: StreamPeerTCP, method: String, path: String, body: Strin
 func _cancel_import(peer_id:int)->void:
 	if not _pending_imports.has(peer_id):return
 	var pending:Dictionary=_pending_imports[peer_id];_pending_imports.erase(peer_id)
+	_import_peers.erase(pending.request_id)
 	if is_instance_valid(editor) and is_instance_valid(editor._surface_texture_imports):
 		var service:Node=editor._surface_texture_imports
-		if service.finished.is_connected(pending.callback):service.finished.disconnect(pending.callback)
+		if _pending_imports.is_empty() and service.finished.is_connected(_imported_http):service.finished.disconnect(_imported_http)
 		service.cancel(pending.request_id)
 
-func _imported_http(request_id:int,result:Dictionary,peer:StreamPeerTCP,id:Variant,expected:int)->void:
-	if request_id!=expected:return
-	var peer_id:=peer.get_instance_id()
-	if _pending_imports.has(peer_id):
-		var callback:Callable=_pending_imports[peer_id].callback
-		_pending_imports.erase(peer_id)
-		if is_instance_valid(editor) and is_instance_valid(editor._surface_texture_imports) and editor._surface_texture_imports.finished.is_connected(callback):editor._surface_texture_imports.finished.disconnect(callback)
+func _imported_http(request_id:int,result:Dictionary)->void:
+	if not _import_peers.has(request_id):return
+	var peer_id:int=_import_peers[request_id];_import_peers.erase(request_id)
+	var pending:Dictionary=_pending_imports[peer_id];_pending_imports.erase(peer_id)
+	var peer:StreamPeerTCP=pending.peer;var id:Variant=pending.id
+	if _pending_imports.is_empty() and is_instance_valid(editor) and is_instance_valid(editor._surface_texture_imports) and editor._surface_texture_imports.finished.is_connected(_imported_http):editor._surface_texture_imports.finished.disconnect(_imported_http)
 	_pending_saves.erase(peer_id)
 	peer.poll()
 	if result.get("ok",false) and is_instance_valid(editor):editor._material_panel.refresh(result.material_id)

@@ -28,7 +28,7 @@ func run()->void:
 	for kind:String in ["dds","png"]:
 		var image:=Image.create(32 if kind=="dds" else 31,32,false,Image.FORMAT_RGB8);image.fill(Color(.3,.5,.8))
 		var source:=directory.path_join(kind+".png");check(image.save_png(source)==OK,kind+": save import source")
-		var imported:=await call_tool("import_surface_material",{"path":source,"name":"reopen "+kind})
+		var imported:=await call_tool("import_surface_material",{"path":source,"name":"reopen "+kind,"compression":"dds"})
 		check(imported.get("dds_ready",false)==(kind=="dds"),kind+": actual import selects DDS or genuine PNG fallback")
 		if not imported.get("ok",false):editor.queue_free();await settle();quit(1);return
 		var doc:=Doc.new();var ids:Array[String]=[]

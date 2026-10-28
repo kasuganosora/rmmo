@@ -8,6 +8,7 @@ const Drainer=preload("res://scripts/world3d/asset_worker_drainer.gd")
 
 const PROBE_WORK_BYTES:=64*1024
 const LABEL_WORK_BASE:=512*1024
+const DEFAULT_COMPRESSION:="source"
 
 class CommitToken extends RefCounted:
 	var _mutex:=Mutex.new()
@@ -71,8 +72,9 @@ func configure(ledger:RefCounted)->void:
 	_queue=Queue.new();_queue.ledger=ledger;_queue.shared_ledger_enabled=true
 	add_child(_queue)
 
-func submit(library:RefCounted,path:String,label:String="")->Dictionary:
+func submit(library:RefCounted,path:String,label:String="",compression:String=DEFAULT_COMPRESSION)->Dictionary:
 	if _stopping or not is_instance_valid(_queue) or library==null:return {"ok":false,"error":"贴图导入服务不可用"}
+	if compression not in ["source","dds"]:return {"ok":false,"error":"贴图质量选项无效"}
 	_queue.set_process(true)
 	_next_id+=1;var id:=_next_id
 	var directory:String=library.directory
@@ -82,7 +84,7 @@ func submit(library:RefCounted,path:String,label:String="")->Dictionary:
 	var dir_key:=directory.replace("\\","/").simplify_path()
 	var path_key:=path.replace("\\","/").simplify_path()
 	if OS.get_name()=="Windows":dir_key=dir_key.to_lower();path_key=path_key.to_lower()
-	var key:=JSON.stringify([dir_key,path_key])
+	var key:=JSON.stringify([dir_key,path_key,compression])
 	if _groups.has(key) and _groups[key].token.is_cancelled():
 		# A cancelled in-flight generation can still own a worker and lease.
 		# Retire it under its own key; a new request must get a fresh token.
@@ -95,7 +97,7 @@ func submit(library:RefCounted,path:String,label:String="")->Dictionary:
 		_groups[key].subscribers.append(id)
 	else:
 		var token:=Drainer.CancelToken.new()
-		_groups[key]={"subscribers":[id],"token":token,"path":path,"directory":directory,"root":content_root}
+		_groups[key]={"subscribers":[id],"token":token,"path":path,"directory":directory,"root":content_root,"compression":compression}
 		if not _start_probe(_groups[key]):
 			_groups.erase(key);_requests.erase(id)
 			return {"ok":false,"error":"贴图导入任务无法启动"}
@@ -133,10 +135,10 @@ func _start_prepare(group:Dictionary,probe:Dictionary)->bool:
 	_serial+=1;var job:="surface_import:%d:%d"%[get_instance_id(),_serial]
 	group.job=job;group.state="preparing"
 	var estimate:={"estimated_bytes":int(probe.estimated_bytes),"exclusive":false,"cpu_only":true,"stage":"surface_texture_import"}
-	return _queue.enqueue(job,_prepare_and_publish.bind(group.path,group.directory,group.token,_broker,probe,group.root,producer_observer),estimate,"texture")
+	return _queue.enqueue(job,_prepare_and_publish.bind(group.path,group.directory,group.token,_broker,probe,group.root,producer_observer,group.compression),estimate,"texture")
 
-static func _prepare_and_publish(path:String,directory:String,token:RefCounted,broker:RefCounted,probe:Dictionary,root:String,observer:Callable)->Dictionary:
-	var prepared:Dictionary=Worker.prepare(path,directory,token,root,probe)
+static func _prepare_and_publish(path:String,directory:String,token:RefCounted,broker:RefCounted,probe:Dictionary,root:String,observer:Callable,compression:String=DEFAULT_COMPRESSION)->Dictionary:
+	var prepared:Dictionary=Worker.prepare(path,directory,token,root,probe,Callable(),compression)
 	if not prepared.get("ok",false):return prepared
 	var key:String=prepared.texture_path
 	if not broker.claim(key):

@@ -1,6 +1,6 @@
 # 编辑器 DDS 编码与局部渲染设备初始化
 
-编辑器后台导入现在有真实 DDS 路径的图形测试证据。候选引擎为自编译 **4.7.2**，尚未安装为默认引擎；这不是 Godot 4.8 的验证结果，也不是整图加载或 low 帧收益结论。
+编辑器后台导入现在有真实 DDS 路径的图形测试证据。候选引擎为自编译 **4.7.2**，已于 2026-10-29 安装到 `D:/tools/godot` 并验证实际入口和符号；这不是 Godot 4.8 的验证结果，也不是整图加载或 low 帧收益结论。
 
 ## 问题与修复范围
 
@@ -47,4 +47,12 @@
 
 仓库保留可移植的 CPU/GPU 入口 probe 与 GDB 构造计数脚本，位于 `tools/engine_patches/cpu_texture_compression/`。将其复制到外部测试目录；每个样本启动前固定 `test/cpu_only` 与 `compress_with_gpu`，运行过程中不修改设置。CPU 测试用前者 true、后者 true；旧 CPU 对照 false/false；GPU 阳性对照 false/true。通过私有桌面 runner 启动 `--script probe.gd`，渲染方式分别指定 Compatibility / Forward+。原始输入与构建过程以外部证据为准，项目模板不是早期样本原文件。
 
-剩余：实际大纹理的尺寸/额度清理、画质与导入工作量评测、全部原生素材的真实编辑器集成、DDS 分支合并。完成编辑器后再评估和编译 4.8，不能提前视为交付。
+后续编辑器交付：实际 8K/额度及首次使用见 [首次涂材质](editor_first_paint_preparation_20261028.md)；真实画质、保真默认与 DDS 可选见 [质量选择](editor_texture_quality_20261029.md)；59/59 原生迁移和真实编辑器操作见 [迁移记录](editor_native_migration_20261028.md)。DDS 分支已合入当前工作分支，编辑器整图残余关闭长帧仍单列，不能以这些功能验证宣称性能问题全部消失。
+
+## 默认安装验证（2026-10-29）
+
+`editor_engine_install_20261029_01/install.json` 记录六个目标文件的旧/新 SHA、备份位置和版本检查。旧版 exe SHA `0f0bf446…583e0` 及匹配符号保存到 `D:/tools/godot/_backup/editor_cpu_dds_20261029_024034`。标准命名和 `Godot_v4.7.2-stable_win64.exe` 入口均为上面的候选 SHA；新 console wrapper 与两份匹配符号一起安装。
+
+实际 `D:/tools/godot/godot.windows.editor.x86_64.exe` 的版本检查返回 `4.7.2.stable.custom_build.ed1daf0bf`；私有桌面 `installed_quality_01` 真实 HTTP/UI 质量选择、并发导入和保存重开 0 失败、无脚本/引擎错误，运行前后身份一致。GDB 18.1 从已安装 exe 自动读取匹配符号，解析 `RenderingDevice::RenderingDevice()` 与 `Image::compress_from_channels_cpu(...)` 地址，记录在安装证据的 `gdb_symbols.log`。该符号检查没有启动 inferior，不能当作新的一轮崩溃复现。
+
+原构建时 `build.result.json` 和 `restore_audit.json` 保留原始“当时尚未安装”状态，不追改旧证据。安装的新 manifest 引用本轮运行证据；4.8 仍需独立源码、构建与兼容性验证。

@@ -30,7 +30,7 @@ func _frame_probe()->void:
 	if previous_frame_usec>0:frame_intervals.append(now-previous_frame_usec)
 	previous_frame_usec=now
 func _do_import(path:String)->void:
-	import_result=await call_tool("import_surface_material",{"path":path,"name":"first paint fixture"})
+	import_result=await call_tool("import_surface_material",{"path":path,"name":"first paint fixture","compression":"dds"})
 	import_done=true
 func _do_paint(args:Dictionary)->void:
 	paint_result=await call_tool("paint_surface",args)

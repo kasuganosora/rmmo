@@ -7,6 +7,10 @@ const Library=preload("res://scripts/world_editor/surface_material_library.gd")
 var checks:=0
 var failures:Array[String]=[]
 var source_reads:Array=[]
+class ForbiddenEncoder extends RefCounted:
+	var calls:=0
+	func encode(_image:Image,_channels:int)->int:
+		calls+=1;return ERR_UNAVAILABLE
 class ShortJpegReader extends RefCounted:
 	func read(offset:int,count:int)->PackedByteArray:
 		if offset==0:
@@ -96,6 +100,16 @@ func run()->void:
 		check(not grown_result.ok and grown_result.get("retry_probe",false) and source_reads.is_empty(),"grown source retries before allocating or reading the new 16 MiB buffer")
 	var prepared:Dictionary=await _work(Worker.prepare.bind(source,library,token,root))
 	check(prepared.ok and not FileAccess.file_exists(prepared.get("texture_path","")),"prepare retains private pixels without publication")
+	var source_prepared:Dictionary=await _work(Worker.prepare.bind(source,library,token,root,{},Callable(),"source"))
+	var forbidden:=ForbiddenEncoder.new()
+	var preserved:Dictionary=await _work(Worker.encode_publish.bind(source_prepared,token,root,forbidden.encode,Callable(),true))
+	check(preserved.get("ok",false) and preserved.get("dds_reason","")=="source_requested" and forbidden.calls==0,"source choice performs zero compression calls")
+	check(preserved.get("texture_path","")!=prepared.texture_path and not FileAccess.file_exists(prepared.texture_path),"source publication does not touch the sibling DDS namespace")
+	if preserved.get("prepared_image") is Image:
+		var level_zero:Image=preserved.prepared_image.duplicate();level_zero.clear_mipmaps();level_zero.convert(Image.FORMAT_RGBA8)
+		check(level_zero.get_data()==image.get_data(),"source handoff preserves all original RGBA pixels")
+	else:check(false,"source result retains upload-ready pixels")
+	preserved.clear();source_prepared.clear()
 	var first:Dictionary=await _work(Worker.encode_publish.bind(prepared,token,root,Callable(self,"_headless_encoder"))) if prepared.ok else prepared
 	check(first.ok,"background preparation succeeds")
 	if first.ok:

@@ -13,7 +13,7 @@ func _gated(task:Callable)->Variant:
 	delayed_gate.wait()
 	return task.call()
 func _import_http(path:String)->void:
-	pending_result=await call_tool("import_surface_material",{"path":path,"name":"HTTP texture"})
+	pending_result=await call_tool("import_surface_material",{"path":path,"name":"HTTP texture","compression":"dds"})
 
 func run()->void:
 	rpc_timeout_ms=30000

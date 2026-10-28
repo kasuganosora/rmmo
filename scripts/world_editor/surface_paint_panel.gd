@@ -29,6 +29,7 @@ var _apply_button: Button
 var _reset_button: Button
 var _custom_button: Button
 var _drawer: PanelContainer
+var _import_requests:Dictionary={}
 
 func setup(owner: Node3D) -> void:
 	editor = owner
@@ -314,25 +315,29 @@ func _import() -> void:
 	dialog.file_mode = FileDialog.FILE_MODE_OPEN_FILE
 	dialog.current_dir = preload("res://scripts/world3d/map_paths.gd").external_root()
 	dialog.filters = PackedStringArray(["*.png,*.jpg,*.jpeg,*.webp ; 表面贴图"])
+	dialog.add_option("图像质量",PackedStringArray(["保留原像素","有损压缩（节省显存）"]),0 if editor._surface_texture_imports.DEFAULT_COMPRESSION=="source" else 1)
 	dialog.file_selected.connect(func(path):
-		var result: Dictionary = editor._surface_texture_imports.submit(editor._material_tool.library,path)
+		var compression:="dds" if int(dialog.get_selected_options().get("图像质量",0))==1 else "source"
+		var result: Dictionary = editor._surface_texture_imports.submit(editor._material_tool.library,path,"",compression)
 		if result.ok:
 			editor._status.text="正在后台导入贴图"
-			editor._surface_texture_imports.finished.connect(_import_finished.bind(result.request_id))
+			_import_requests[result.request_id]=true
+			if not editor._surface_texture_imports.finished.is_connected(_import_finished):editor._surface_texture_imports.finished.connect(_import_finished)
 		else:editor._status.text=str(result.error)
 		dialog.queue_free()
 	)
 	dialog.canceled.connect(dialog.queue_free)
 	editor.add_child(dialog); dialog.popup_centered(Vector2i(860, 560))
 
-func _import_finished(request_id:int,result:Dictionary,expected:int)->void:
-	if request_id!=expected:return
-	var callback:=_import_finished.bind(expected)
-	if editor._surface_texture_imports.finished.is_connected(callback):editor._surface_texture_imports.finished.disconnect(callback)
+func _import_finished(request_id:int,result:Dictionary)->void:
+	if not _import_requests.has(request_id):return
+	_import_requests.erase(request_id)
+	if _import_requests.is_empty() and editor._surface_texture_imports.finished.is_connected(_import_finished):editor._surface_texture_imports.finished.disconnect(_import_finished)
 	if result.get("ok",false):refresh(result.material_id)
 	if not result.get("ok",false):editor._status.text=str(result.get("error","贴图导入失败"));return
-	if result.get("dds_ready",false):editor._status.text="贴图已导入（DDS）";return
+	if result.get("dds_ready",false):editor._status.text="贴图已导入（有损压缩）";return
 	var reason:=str(result.get("dds_reason",""))
+	if reason=="source_requested":editor._status.text="贴图已导入，保留原像素";return
 	var explanation:=str({"dimensions_not_multiple_of_four":"尺寸不是 4 的倍数","encoder_unavailable_or_failed":"CPU 编码器不可用或失败","mipmap_failed":"无法生成 mip 贴图","unsupported_encoder_output":"编码输出不受支持","invalid_dds_output":"编码输出无效","dds_write_failed":"DDS 写入失败","dds_identity_write_failed":"DDS 身份写入失败"}.get(reason,"DDS 不可用"))
 	editor._status.text="贴图已导入，使用 PNG（%s）"%explanation
 

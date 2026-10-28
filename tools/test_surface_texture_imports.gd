@@ -65,11 +65,12 @@ func run()->void:
 		if first.get("ok",false) and second.get("ok",false) and third.get("ok",false):
 			check(first.material_id!=second.material_id and second.material_id!=third.material_id,"labels produce independent material identities")
 			check(first.material.texture_path==second.material.texture_path and first.material.texture_path==third.material.texture_path,"same canonical content shares the texture")
-			check(imports.snapshot().broker.producers==2 and imports.snapshot().broker.joined==1,"one DDS producer for two identical source paths plus independent retry content")
+			check(imports.snapshot().broker.producers==2 and imports.snapshot().broker.joined==1,"one content producer for two identical source paths plus independent retry content")
 			check(library.find(first.material_id).texture_path==first.material.texture_path,"published material reopens from catalog")
 			var key:String=Paint.texture_key(first.material.texture_path)
 			var texture:Texture2D=Paint.retained_texture(key)
-			check(texture!=null and texture.get_meta("runtime_source_sha256","")==first.material.texture_path.get_file().get_basename(),"joined producer publishes the exact source identity before signaling subscribers")
+			var canonical_sha:=FileAccess.get_sha256(first.material.texture_path)
+			check(texture!=null and texture.get_meta("runtime_source_sha256","")==canonical_sha,"joined producer publishes the exact source identity before signaling subscribers")
 			check(not first.has("prepared_image") and not second.has("prepared_image") and not third.has("prepared_image"),"Image never enters HTTP subscriber results")
 			var thumbnail_path:String=first.material.texture_path+".thumbnail.png"
 			var thumbnail_identity:String=first.material.texture_path+".thumbnail.json"
@@ -77,7 +78,7 @@ func run()->void:
 			var thumb_file:=FileAccess.open(thumbnail_identity,FileAccess.READ)
 			var thumb_meta:Variant=JSON.parse_string(thumb_file.get_as_text()) if thumb_file!=null else null
 			check(thumbnail!=null and thumbnail.get_width()<=104 and thumbnail.get_height()<=64 and thumbnail.get_width()*8==thumbnail.get_height()*16,"one aspect-preserving small thumbnail is published")
-			check(thumb_meta is Dictionary and thumb_meta.get("source_sha256","")==first.material.texture_path.get_file().get_basename() and int(thumb_meta.get("source_bytes",0))==FileAccess.get_file_as_bytes(first.material.texture_path).size() and int(thumb_meta.get("source_modified_time",0))==FileAccess.get_modified_time(first.material.texture_path),"thumbnail identity binds the canonical source length and modification time")
+			check(thumb_meta is Dictionary and thumb_meta.get("source_sha256","")==canonical_sha and int(thumb_meta.get("source_bytes",0))==FileAccess.get_file_as_bytes(first.material.texture_path).size() and int(thumb_meta.get("source_modified_time",0))==FileAccess.get_modified_time(first.material.texture_path),"thumbnail identity binds the canonical source length and modification time")
 	check(ledger.count()==0 and ledger.reserved_bytes==0,"all shared admission leases return")
 	check(not publication_observations.is_empty() and publication_observations.all(func(row):return row.held and row.charged and row.reserved>0),"main publication runs only while joined CPU result remains charged")
 	check(imports.snapshot().requests==0 and imports.snapshot().groups==0,"coordinator releases request and group state")

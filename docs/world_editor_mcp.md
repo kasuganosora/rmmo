@@ -2,7 +2,9 @@
 
 ## 可变材质源与 native 加载准备（2026-10-28）
 
-默认配置下，`open_world` 会刷新同路径重导出的纹理，并保留旧材质 owner；UI 与 3D MCP 继续共用材质刷写、撤销和保存业务。模型打开、预览及普通保存使用已发布原生产物，GLB 只用于显式导入/转换。真实 HTTP/GPU 材质回归 49/0、原生散布/缩略图回归 26/0；详细证据、DDS 来源回退与尚未完成的旧模型转换见 [编辑器材质管线适配](editor_material_pipeline_20261028.md)。工具名和 schema 不变。普通物件保存重开的纹理准备、共享去重及取消回收补验见 [表面纹理准备补齐](editor_surface_texture_preparation_20261029.md)。
+默认配置下，`open_world` 会刷新同路径重导出的纹理，并保留旧材质 owner；UI 与 3D MCP 继续共用材质刷写、撤销和保存业务。模型打开、预览及普通保存使用已发布原生产物，GLB 只用于显式导入/转换。真实 HTTP/GPU 材质回归 49/0、原生散布/缩略图回归 26/0；详细证据见 [编辑器材质管线适配](editor_material_pipeline_20261028.md)，旧素材增量迁移 59/59 见 [原生迁移记录](editor_native_migration_20261028.md)。普通物件保存重开的纹理准备、共享去重及取消回收补验见 [表面纹理准备补齐](editor_surface_texture_preparation_20261029.md)。
+
+`import_surface_material` 增加可选 `compression: "source" | "dds"`，省略为 `source`；UI 文件选择框对应“保留原像素”和“有损压缩（节省显存）”。两者共享后台服务及预算，同模式同源请求去重，跨模式产品独立。返回结果含 `compression`、`dds_ready` 和 `dds_reason`；DDS 编码不可用时保留原尺寸 PNG。旧 DDS 资源不自动重写。真实 HTTP/UI、并发与断线清理、撤销保存重开及实际图像证据见 [导入质量选择](editor_texture_quality_20261029.md)。
 
 ## 素材预览与缩略图反射环境（2026-10-16）
 
