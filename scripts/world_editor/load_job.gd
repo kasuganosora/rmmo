@@ -170,8 +170,8 @@ func _run() -> void:
 			if not await _publication_slot():
 				_release_texture_payload(texture_payload);Drainer.dispose_result(prepared_asset);return
 			if TerrainTextures.owners_current(texture_payload):break
-			# Source refresh during an await invalidated a borrowed owner. Return
-			# the current pixel lease before asynchronously preparing replacements.
+			# Source refresh invalidated a borrowed owner, or an in-flight import
+			# superseded PNG pixels with DDS. Release before borrowing/preparing again.
 			_release_texture_payload(texture_payload)
 		var prepared_pixels:bool=not str(texture_payload.get("queue_key","")).is_empty()
 		if prepared_asset.get("yielded",false) or prepared_pixels or Engine.get_process_frames()!=texture_frame:slice=Time.get_ticks_usec();slice_first_uuid=""

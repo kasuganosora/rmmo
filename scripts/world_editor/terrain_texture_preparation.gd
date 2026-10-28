@@ -32,6 +32,17 @@ static func owners_current(prepared:Dictionary)->bool:
 	# borrowed old allocation must not resurrect an invalidated cache generation.
 	for key:String in prepared.get("owners",{}):
 		if Paint.retained_texture(key)!=prepared.owners[key]:return false
+	# A worker can have captured PNG pixels before an import publishes the same
+	# source as DDS. Return its CPU lease and borrow that GPU owner on the next
+	# preparation pass; installing the old image would undo the import and upload
+	# it again. Compare existing identities only, with no filesystem/cache scan.
+	for key:String in prepared.get("images",{}):
+		var image:Image=prepared.images[key]
+		if image.get_meta("runtime_texture_representation","")!="source":continue
+		var digest:String=image.get_meta("runtime_source_sha256","")
+		if digest.is_empty():continue
+		var retained:=Paint.retained_texture(key)
+		if retained!=null and retained.get_meta("runtime_source_sha256","")==digest and str(retained.get_meta("runtime_texture_representation","")).begins_with("dds:"):return false
 	return true
 
 static func decode(requested:Dictionary,content_root:String)->Dictionary:
