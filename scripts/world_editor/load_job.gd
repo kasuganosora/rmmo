@@ -250,7 +250,10 @@ func _add_record_bodies(visual:Node,uuid:String,slice:int,first_uuid:String)->Di
 			_build_elapsed("picking_lod_skipped",0,uuid)
 		elif node is MeshInstance3D and node.mesh!=null and editor._body_layers(node)!=0:
 			var mark:=Time.get_ticks_usec()
-			var snapshot:=PickingPreparation.snapshot(node.get_meta("paint_source",node.mesh))
+			# Local terrain consumes its exact bounded shapes below. Preparing a
+			# whole-mesh soup/shape here would only allocate a discarded duplicate.
+			var local_terrain:=preload("res://scripts/world_editor/terrain_local_publish.gd").can_initialize(node,node.get_meta("ground_batch_record",{}))
+			var snapshot:Dictionary={} if local_terrain else PickingPreparation.snapshot(node.get_meta("paint_source",node.mesh))
 			_build_timing("picking_capture",mark,uuid)
 			if not snapshot.is_empty():
 				_thread=Thread.new();var prepared:Dictionary
@@ -273,7 +276,7 @@ func _add_record_bodies(visual:Node,uuid:String,slice:int,first_uuid:String)->Di
 				PickingPreparation.publish(snapshot,prepared.faces)
 				prepared.clear();snapshot.clear();report("build",completed,total)
 			var source:Mesh=node.get_meta("paint_source",node.mesh)
-			if not source is BoxMesh:
+			if not local_terrain and not source is BoxMesh:
 				# Cooking the native shape and attaching it to a physics body are
 				# separate expensive calls. Keep the original shared full shape,
 				# but give the UI a frame between them when the budget is spent.

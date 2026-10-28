@@ -28,10 +28,12 @@ static func faces(r:Dictionary,key:Vector2i)->PackedVector3Array:
 				var j:=(i+1)%4
 				for v:Vector3 in [p[i],bottom[i],bottom[j],p[i],bottom[j],p[j]]:result.append(v)
 	return result
-static func initialize(node:MeshInstance3D,r:Dictionary,body:StaticBody3D,context:Dictionary={})->bool:
+static func can_initialize(node:MeshInstance3D,r:Dictionary)->bool:
 	if not eligible(r) or node.mesh==null:return false
+	return Cpu.capture(node.mesh).surfaces.size()==2
+static func initialize(node:MeshInstance3D,r:Dictionary,body:StaticBody3D,context:Dictionary={})->bool:
+	if not can_initialize(node,r):return false
 	var cpu:Mesh=Cpu.capture(node.mesh)
-	if cpu.surfaces.size()!=2:return false
 	var blocks:Dictionary={}
 	for z in ceili(float(r.terrain_mesh.rows)/BLOCK):
 		for x in ceili(float(r.terrain_mesh.columns)/BLOCK):

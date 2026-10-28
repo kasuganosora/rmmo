@@ -337,6 +337,17 @@ func _input(event: InputEvent) -> void:
 
 
 func _notification(what: int) -> void:
+	if what==NOTIFICATION_PREDELETE:
+		# Script PREDELETE runs before Node removes this subtree. A later
+		# _exit_tree is too late: source callbacks have already restored meshes
+		# that are about to die. Preserve any unusual external surviving member.
+		if is_instance_valid(_ground_batches) and is_ancestor_of(_ground_batches):
+			var retiring:Dictionary={}
+			for group:Dictionary in _ground_batches.groups.values():
+				for member in group.members:
+					if is_instance_valid(member) and is_ancestor_of(member):retiring[member.get_instance_id()]=true
+			_ground_batches.clear(true,retiring)
+		return
 	if what == NOTIFICATION_APPLICATION_FOCUS_OUT:
 		if _camera_navigation!=null: _camera_navigation.reset()
 		if _walk_mode!=null: _walk_mode.reset_input()

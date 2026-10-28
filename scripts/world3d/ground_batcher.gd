@@ -183,14 +183,14 @@ static func restore(node: MeshInstance3D) -> void:
 	if node.mesh is Cpu: node.mesh = preload("res://scripts/world3d/prepared_cpu_upload.gd").restore(node.mesh,str(node.name))
 	if node.has_meta(SUSPENDED_DRAW):node.remove_meta(SUSPENDED_DRAW)
 
-func clear(restore_sources: bool = true) -> void:
+func clear(restore_sources: bool = true,retiring:Dictionary={}) -> void:
 	if Timeline.enabled:_trace_bin_reset("clear")
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.ground_batcher.clear") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	if get_parent()!=null:
 		var proxy:=get_parent().get_node_or_null("DistantBuildingProxy")
 		if proxy!=null:proxy.clear()
 	_preparation.clear();_residency_descriptors.clear();_residency_bins.clear();_next_residency.clear()
-	for group: Dictionary in groups.values(): _drop(group,restore_sources)
+	for group: Dictionary in groups.values(): _drop(group,restore_sources,retiring)
 	groups.clear(); pending.clear(); _material_keys.clear(); _instance_meshes.clear(); _member_groups.clear();_building_meshes.clear()
 	_audit_keys.clear();_audit_cursor=0
 
