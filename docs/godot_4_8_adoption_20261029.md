@@ -96,7 +96,15 @@
 python -X utf8 tools/check_texture_streaming.py --engine D:/tools/godot-4.8-build/official/Godot_v4.8-beta1_win64.exe --source D:/code/rmmo_runtime/packs/default/assets/materials/paving/natural_fieldstone/texture.png --output D:/code/rmmo_runtime/review_artifacts/NEW_UNIQUE_DIRECTORY --probe camera
 ```
 
-`--probe forced|camera|world-uv` 分别检查强制切换、自动相机/共享回收、世界坐标反馈。每次必须使用新目录，输出包含源图、引擎、fixture、runner 前后 SHA。GPU 回读、测试轮询和 forced 的 flush 不加入生产加载链。
+`--probe forced|camera|world-uv|worker|budget` 分别检查强制切换、自动相机/共享回收、世界坐标反馈、后台加载交接和驻留预算。每次必须使用新目录，输出包含源图、引擎、fixture、runner 前后 SHA。GPU 回读、测试轮询和 forced 的 flush 不加入生产加载链。
+
+### 后台加载与可见纹理预算
+
+`streaming_worker_01` **22 项通过、0 失败**，实际在独立 `Thread` 执行 `StreamedTexture2D.load`，核对线程身份。连续三次在绑定材质前丢弃结果，流式账本均归零；第四次交给主线程材质后自动升至完整 2048²，GPU mip 字节等于源图生成的链。升清晰度保持同一纹理 RID，主 RenderingDevice 身份未变，最后 owner 释放后归零。没有设置 LOD override 或调用 flush。此结果没有证明项目共享队列已经接入，也没有证明后台 GPU 上传从不等待锁。
+
+`streaming_budget_01` **11 项通过、0 失败**。保持近处可见、启用流式预算，4 MiB 限制下为 512² / 1,398,100 bytes；放宽至 64 MiB 后自动恢复 2048² / 22,369,620 bytes，完整 mip 链逐字节一致；再收紧至 4 MiB 后降回 512²，最终释放归零。没有显式指定 mip 或 flush。证明预算可以驱动仍可见纹理降级，不能将上游流式账本称为物理显存分配量。
+
+两项均使用官方 4.8、私有桌面及前述只读石铺源图，日志无脚本/引擎错误，输入、fixture、runner 和引擎前后 SHA 一致。编译仍在同时进行，仅作为功能合同；没有整图耗时或 low 帧收益结论。共享 CPU 准备预算与引擎动态 mip 驻留预算的协调仍待正式链路实现。
 
 ## 4.7 已发布 native 的兼容性抽样
 
