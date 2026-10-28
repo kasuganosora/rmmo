@@ -1,0 +1,59 @@
+--- a/core/io/image.h
++++ b/core/io/image.h
+@@ -405,7 +405,8 @@
+ 
+ 	Error compress(CompressMode p_mode, CompressSource p_source = COMPRESS_SOURCE_GENERIC, ASTCFormat p_astc_format = ASTC_FORMAT_4x4);
+ 	Error compress_from_channels(CompressMode p_mode, UsedChannels p_channels, ASTCFormat p_astc_format = ASTC_FORMAT_4x4);
+-	Error _compress_from_channels(CompressMode p_mode, UsedChannels p_channels, ASTCFormat p_astc_format, BPTCFormat p_bptc_format);
++	Error compress_from_channels_cpu(CompressMode p_mode, UsedChannels p_channels, ASTCFormat p_astc_format = ASTC_FORMAT_4x4);
++	Error _compress_from_channels(CompressMode p_mode, UsedChannels p_channels, ASTCFormat p_astc_format, BPTCFormat p_bptc_format, bool p_allow_gpu = true);
+ 
+ 	Error decompress();
+ 	bool is_compressed() const;
+--- a/core/io/image.cpp
++++ b/core/io/image.cpp
+@@ -2952,11 +2952,15 @@
+ 	return _compress_from_channels(p_mode, p_channels, p_astc_format, BPTC_DETECT);
+ }
+ 
+-Error Image::_compress_from_channels(CompressMode p_mode, UsedChannels p_channels, ASTCFormat p_astc_format, BPTCFormat p_bptc_format) {
++Error Image::compress_from_channels_cpu(CompressMode p_mode, UsedChannels p_channels, ASTCFormat p_astc_format) {
++	return _compress_from_channels(p_mode, p_channels, p_astc_format, BPTC_DETECT, false);
++}
++
++Error Image::_compress_from_channels(CompressMode p_mode, UsedChannels p_channels, ASTCFormat p_astc_format, BPTCFormat p_bptc_format, bool p_allow_gpu) {
+ 	ERR_FAIL_COND_V(data.is_empty(), ERR_INVALID_DATA);
+ 
+ 	// RenderingDevice only.
+-	if (GLOBAL_GET("rendering/textures/vram_compression/compress_with_gpu")) {
++	if (p_allow_gpu && GLOBAL_GET("rendering/textures/vram_compression/compress_with_gpu")) {
+ 		switch (p_mode) {
+ 			case COMPRESS_BPTC: {
+ 				// BC7 is unsupported currently.
+@@ -3897,6 +3901,7 @@
+ 	ClassDB::bind_method(D_METHOD("detect_used_channels", "source"), &Image::detect_used_channels, DEFVAL(COMPRESS_SOURCE_GENERIC));
+ 	ClassDB::bind_method(D_METHOD("compress", "mode", "source", "astc_format"), &Image::compress, DEFVAL(COMPRESS_SOURCE_GENERIC), DEFVAL(ASTC_FORMAT_4x4));
+ 	ClassDB::bind_method(D_METHOD("compress_from_channels", "mode", "channels", "astc_format"), &Image::compress_from_channels, DEFVAL(ASTC_FORMAT_4x4));
++	ClassDB::bind_method(D_METHOD("compress_from_channels_cpu", "mode", "channels", "astc_format"), &Image::compress_from_channels_cpu, DEFVAL(ASTC_FORMAT_4x4));
+ 	ClassDB::bind_method(D_METHOD("decompress"), &Image::decompress);
+ 	ClassDB::bind_method(D_METHOD("is_compressed"), &Image::is_compressed);
+ 
+--- a/doc/classes/Image.xml
++++ b/doc/classes/Image.xml
+@@ -97,6 +97,16 @@
+ 				This is an alternative to [method compress] that lets the user supply the channels used in order for the compressor to pick the best DXT and ETC2 formats. For other formats (non DXT or ETC2), this argument is ignored.
+ 				The [param astc_format] parameter is only taken into account when using ASTC compression; it is ignored for all other formats.
+ 				[b]Note:[/b] [method compress_from_channels] is only supported in editor builds. When run in an exported project, this method always returns [constant ERR_UNAVAILABLE].
++			</description>
++		</method>
++		<method name="compress_from_channels_cpu">
++			<return type="int" enum="Error" />
++			<param index="0" name="mode" type="int" enum="Image.CompressMode" />
++			<param index="1" name="channels" type="int" enum="Image.UsedChannels" />
++			<param index="2" name="astc_format" type="int" enum="Image.ASTCFormat" default="0" />
++			<description>
++				Compresses the image like [method compress_from_channels], using only CPU compressors for this call. This does not change [member ProjectSettings.rendering/textures/vram_compression/compress_with_gpu] and does not create a RenderingDevice.
++				Returns [constant ERR_UNAVAILABLE] if the selected CPU compressor is not included in this build. The image must not be accessed concurrently while it is being compressed.
+ 			</description>
+ 		</method>
+ 		<method name="compute_image_metrics">

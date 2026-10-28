@@ -1,0 +1,45 @@
+--- a/servers/rendering/rendering_device.cpp
++++ b/servers/rendering/rendering_device.cpp
+@@ -8340,7 +8340,9 @@
+ 
+ 	Error err;
+ 	RenderingContextDriver::SurfaceID main_surface = 0;
+-	is_main_instance = (singleton == this) && (p_main_window != DisplayServerEnums::INVALID_WINDOW_ID);
++	const bool main_instance_requested = p_main_window != DisplayServerEnums::INVALID_WINDOW_ID;
++	ERR_FAIL_COND_V_MSG(main_instance_requested && singleton != nullptr && singleton != this, ERR_ALREADY_IN_USE, "A main RenderingDevice is already initialized.");
++	is_main_instance = main_instance_requested;
+ 	if (p_main_window != DisplayServerEnums::INVALID_WINDOW_ID) {
+ 		// Retrieve the surface from the main window if it was specified.
+ 		main_surface = p_context->surface_get_from_window(p_main_window);
+@@ -8597,7 +8599,7 @@
+ 
+ 	bool project_pipeline_cache_enable = GLOBAL_GET("rendering/rendering_device/pipeline_cache/enable");
+ 	if (is_main_instance && project_pipeline_cache_enable) {
+-		// Only the instance that is not a local device and is also the singleton is allowed to manage a pipeline cache.
++		// Only the main display device is allowed to manage a pipeline cache.
+ 		pipeline_cache_file_path = vformat("user://vulkan/pipelines.%s.%s",
+ 				OS::get_singleton()->get_current_rendering_method(),
+ 				device.name.validate_filename().replace_char(' ', '_').to_lower());
+@@ -8616,6 +8618,11 @@
+ 
+ 	// Find the best method available for VRS on the current hardware.
+ 	_vrs_detect_method();
++
++	// Publish only a fully initialized main device. Local devices must never become the global device.
++	if (is_main_instance) {
++		singleton = this;
++	}
+ 
+ 	return OK;
+ }
+@@ -9900,10 +9907,6 @@
+ }
+ 
+ RenderingDevice::RenderingDevice() {
+-	if (singleton == nullptr) {
+-		singleton = this;
+-	}
+-
+ 	render_thread_id = Thread::get_caller_id();
+ }
+ 

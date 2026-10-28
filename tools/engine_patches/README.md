@@ -438,3 +438,21 @@ reproduces the candidate code modulo CRLF normalization, not byte-identical
 original source hashes. See [module report](../../docs/axel_shader_module_share_20261028.md)
 and [decode report](../../docs/axel_shader_decode_contract_20261028.md) for exact
 binaries, evidence, retained failures, test controls and limits.
+
+## Editor CPU texture encoding and local device publication (2026-10-28)
+
+On the GREEN overlay described above, apply
+`godot-4.7.2-main-device-publication.patch` and
+`godot-4.7.2-per-call-cpu-compression.patch`. Local RenderingDevices never become
+the global device, and the main device is published only after initialization.
+`Image.compress_from_channels_cpu` selects the existing CPU encoder per call,
+without mutating global GPU settings or creating a RenderingDevice.
+
+The isolated candidate passes the original Compatibility GPU crash fixture,
+CPU/legacy output comparisons, GDB constructor counts (CPU 0 / GPU 1), main RD
+identity checks on Forward+, and 32 actual editor DDS HTTP/UI checks. These are
+functional tests, not a map performance result or an attribution of old crashes
+without stacks. The binary is not installed. Copy `cpu_texture_compression` to
+an external directory for the private-desktop probe. See
+[engine contract](../../docs/editor_dds_engine_contract_20261028.md) for exact
+identities, commands, retained runner failure and remaining acceptance work.

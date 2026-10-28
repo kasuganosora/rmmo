@@ -1,0 +1,12 @@
+config_version=5
+
+[application]
+config/name="RMMO CPU texture compression contract"
+
+[test]
+cpu_only=true
+
+[rendering]
+renderer/rendering_method="gl_compatibility"
+textures/vram_compression/compress_with_gpu=true
+textures/vram_compression/cache_gpu_compressor=true
