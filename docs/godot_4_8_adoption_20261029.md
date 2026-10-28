@@ -50,7 +50,7 @@
 
 先构建未加项目补丁的官方源码，作为可诊断基线。配置 `target=editor use_mingw=yes debug_symbols=yes separate_debug_symbols=yes dev_build=no optimize=speed lto=none d3d12=no accesskit=no angle=no -j4`，低于正常进程优先级，独立工具目录。首轮 `baseline_build_01` 因 4.8 新增 Python Zstandard 生成依赖失败，完整日志保留；不是 C++ 或项目错误。
 
-随后创建 4.8 专用 Python 环境，安装 SCons 4.11.1、zstandard 0.25.0，安装报告保存全部 wheel 出处/摘要，不改 4.7.2 的构建环境。`baseline_build_02` 正在构建；最终结果和 exe/符号 SHA 以该目录 `result.json` 为准，当前不宣称编译或运行验收完成。
+随后创建 4.8 专用 Python 环境，安装 SCons 4.11.1、zstandard 0.25.0，安装报告保存全部 wheel 出处/摘要，不改 4.7.2 的构建环境。`baseline_build_02` 已正常编译完成、选定源码前后不变，产物已冻结到 `baseline_engine_01`。版本为 `4.8.beta1.custom_build.4d10419ca`；exe SHA `3e8bb909b8386eb0cd68d90fc7018efc25180a09c62d0b383c049a2f67ee55a5`，独立符号 SHA `891b46e4611ddc4f02eaa9937f9496c8ee4a19c7a0d6ca002baffecb7c72182e`。GDB 18.1 已解析 RD 构造函数和 StreamedTexture2D::texture_reload 地址。仅版本/符号通过，不等于全部运行合同通过。
 
 新源码目录的全量 Git 快照索引因大量小文件写入停止了本任务拥有的索引进程；没有改引擎源码。官方 archive 本来携带只用于版本标识的 `.git/HEAD`。编译和原始源码身份引用已验证 archive，不以未完成的本地 Git 快照当作来源证明。
 
@@ -106,6 +106,14 @@ python -X utf8 tools/check_texture_streaming.py --engine D:/tools/godot-4.8-buil
 
 两项均使用官方 4.8、私有桌面及前述只读石铺源图，日志无脚本/引擎错误，输入、fixture、runner 和引擎前后 SHA 一致。编译仍在同时进行，仅作为功能合同；没有整图耗时或 low 帧收益结论。共享 CPU 准备预算与引擎动态 mip 驻留预算的协调仍待正式链路实现。
 
+### 共用 CPU 产品写入器
+
+`scripts/world3d/streamed_texture_product.gd` 从调用方已有的 Image 写入 GSTF v1 暂存文件。直接保留像素、格式和完整 mip 链；已有 BC 块也直接封装，不重新读源图、生成 mip、编码或创建 GPU 资源。只检查容器 uint32 和上游读取器的固有限制，取消、路径、原子发布及共享 lease 继续归调用方负责。当前由独立 fixture 使用，正式导入/加载接入仍待完成，不会使现有地图自动开启流式。
+
+`streaming_product_03` **194 项通过、0 失败**：32 组程序化数据，尺寸为 1×1、7×11、64×32、256×128，格式为 R8、RG8、RGB8、RGBA8、BC1、BC3、BC4、BC5。覆盖输入不变、完整文件逐字节重开、初始 GPU 仅上传对应 mip 尾部及每次释放归零。这里的 `get_image()` 完整读取是离线合同检查，禁止加入生产逐帧路径。另以真实石铺源图运行 `streaming_product_camera_01`，**13/0**，共用写入器仍能支持相机升清晰度、共享 owner、不可见回收与返回加载。
+
+保留两份失败样本：`streaming_product_01` 的 fixture 将 Image.get_size() 的 Vector2i 与 Vector2 比较，解析失败；`02` 的 4 个 RGB8 GPU 断言错误地预期 RGBA8，源码确认 texture_2d_get 会转换回原格式，修正预期后使用新目录重跑，不属于引擎修复。所有通过样本无脚本/引擎错误、身份稳定。写入器亦通过当前 4.7.2 的 check-only；没有加入 4.8 专属静态类型。正式 runner 增加 `--probe product` 并复制共用写入器到隔离项目。
+
 ## 4.7 已发布 native 的兼容性抽样
 
 `native_compatibility_02` 从已完成迁移的 14 类中各选 native 文件最小的一件，以控制本轮兼容性抽样的 I/O；不是最重资源压测，也不是 220 件全量验收。沿用 `review_native_migration.gd --mode=metadata`，在官方 4.8、隔离项目和私有桌面实际重开 4.7 生成的发布 SCN，而非现场重新转换。依次覆盖路灯、旧树、静态花池、街道道具、彩旗柱、围栏、招牌、建筑装饰、摊位、路面、院墙、风场布幡、风场花池和带 LOD 松树。
@@ -118,12 +126,16 @@ python -X utf8 tools/check_texture_streaming.py --engine D:/tools/godot-4.8-buil
 
 ## 候选移植与构建交接
 
-外部 `ports_01/critical_runtime.patch` 为 **27 文件的未编译草稿**。原始目标与 overlay 的逐文件 SHA、对 pristine source 的 `git apply --check` 均通过；并非运行验收。涵盖 CPU surface pack/decode、Godot Physics BVH、单次 CPU 图片编码、主 RD 发布、DDS、shader transfer/TLS、profiler、退出/字形及已有查找优化。手动适配了 4.8 的 `CompressProfile`、物理管理器头文件、Vulkan PowerVR mutex 宏和 profiler 函数链表。
+外部 `ports_01/critical_runtime.patch` 为 **27 文件的首版移植草稿**。原始目标与 overlay 的逐文件 SHA、对 pristine source 的 `git apply --check` 均通过；并非运行验收。涵盖 CPU surface pack/decode、Godot Physics BVH、单次 CPU 图片编码、主 RD 发布、DDS、shader transfer/TLS、profiler、退出/字形及已有查找优化。手动适配了 4.8 的 `CompressProfile`、物理管理器头文件、Vulkan PowerVR mutex 宏和 profiler 函数链表。
 
 旧 Zstd 全局锁修补由上游 TLS 实现替代；旧 shader CPU 拆锁结构不移植；旧默认关闭的 module-share/source-key 实验及 release 诊断补丁不直接带入。shader transfer 的实际重复拷贝仍存在，移植它时保留上游锁范围和 PowerVR workaround。
 
 profiler 草稿第一次因为两处 `frame_*.set(0)` 的替换断言失败，失败草稿保留在 `ports_01/profiler_draft_failed_01`。修正后仅在 frame snapshot 减去捕获值，profiling_start 仍正常清零；没有修改正在编译的 baseline。
 
-`build_candidate_01.py` 已启动并等待 `baseline_build_02` 正常完成。它依次核对结果、复制原版 exe/符号到 `baseline_engine_01`、验证版本和 GDB 符号、核对全部目标原始 SHA，之后才应用冻结的草稿并编译。任一步异常停止，保留日志；不会安装到 `D:/tools/godot`。观察构建状态须以两份 `result.json` 为准，不能因为观察超时就另启编译或宣称成功。准备好的 `pause_baseline_worker.py` 尚未运行，待原版符号就绪后验证一个 worker 停住时另一 worker 和主线程是否继续。
+`build_candidate_01.py` 已完成原版结果核对、exe/符号冻结、版本与 GDB 符号验证以及全部目标原始 SHA 核对，冻结的草稿已应用到独立源码，候选正在编译。任一步异常停止，保留日志；不会安装到 `D:/tools/godot`。观察构建状态须以两份 `result.json` 为准，不能因为观察超时就另启编译或宣称成功。单 worker 暂停验证单独记录，不把 GDB 时间作为性能数据。
 
-下一步按顺序：完成并验证带符号基线和单 worker 暂停；编译候选并跑 CPU 准备/碰撞/DDS/profiler/退出等合同；补正式表面 shader 反馈及保真/已有 DDS 的流式产品与统一预算对照；最后比较真实地图加载、卸载、返回重载和 low 帧。当前没有更改生产纹理加载路径、正式地图或默认引擎，尚无 4.8 整图性能收益结论。
+`pause_baseline_01` 使用冻结的未修改基线和 GDB 18.1。在 Vulkan driver shader CPU 准备入口断住，核对自有 PID、创建时间、exe、线程名称及调用栈，删除断点后用 Win32 SuspendThread 仅保持其中一个 fixture worker；恢复其余线程观察两秒。另一个 worker 完成 **128 次创建、0 无效结果**，主线程记录 **116 次采样**；恢复被暂停 worker 后总共 **256 次创建、256 次释放、180 项检查、0 失败**，正常退出、无引擎/脚本错误。主线程与暂停 worker 的栈、平衡的 ResumeThread 记录保存在同目录。watchdog 没有触发。Windows GDB 本身仍使用 all-stop，这不是声称其支持 non-stop；含调试器暂停的长帧和 wall time 不参与性能比较。此实测支持沿用上游已经拆开的 shader CPU 准备路径，不移植旧拆锁结构。
+
+`candidate_build_01` 在 gdscript.cpp 的 profiler 调用者分组处编译失败：OS 没有声明。4.8 的该文件仅在 TESTS_ENABLED 块内 include OS，旧版补丁依赖的传递头文件已变化。完整日志和首版源码 SHA 保留；确认进程退出后，将 core/os/os.h 移到无条件 include，生成 `ports_02` 的完整 patch/逐文件身份，启动 `candidate_build_02` 同配置续编。没有修改冻结基线，不能把这处编译修正当 profiler 运行通过。
+
+下一步按顺序：完成候选编译并跑 CPU 准备/碰撞/DDS/profiler/退出等合同；补正式表面 shader 反馈及保真/已有 DDS 的流式产品与统一预算对照；最后比较真实地图加载、卸载、返回重载和 low 帧。当前没有更改生产纹理加载路径、正式地图或默认引擎，尚无 4.8 整图性能收益结论。

@@ -21,16 +21,10 @@ func check(value:bool,label:String)->void:
 	print("PASS " if value else "FAIL ",label)
 
 func write_stex(image:Image,path:String)->void:
-	var bytes:=image.get_data();var count:=image.get_mipmap_count()
 	var file:=FileAccess.open(path,FileAccess.WRITE)
-	file.store_buffer("GSTF".to_ascii_buffer())
-	for value:int in [1,image.get_width(),image.get_height(),bytes.size(),image.get_format(),count]:file.store_32(value)
-	for mip:int in count+1:
-		var offset:=image.get_mipmap_offset(mip)
-		var end:=image.get_mipmap_offset(mip+1) if mip<count else bytes.size()
-		file.store_32(offset);file.store_32(end-offset)
-	for i:int in 4:file.store_32(0)
-	file.store_buffer(bytes);file.close()
+	var error:=preload("streamed_texture_product.gd").write(file,image)
+	if file!=null:file.close()
+	check(error==OK,"write staged streaming product")
 
 func sample(texture:Texture2D,label:String)->Image:
 	var image:=RenderingServer.texture_2d_get(texture.get_rid())

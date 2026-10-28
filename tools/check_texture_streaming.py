@@ -25,7 +25,7 @@ def main():
     parser.add_argument('--engine', type=Path, required=True)
     parser.add_argument('--source', type=Path, required=True)
     parser.add_argument('--output', type=Path, required=True)
-    parser.add_argument('--probe', choices=('forced', 'camera', 'world-uv', 'worker', 'budget'), default='camera')
+    parser.add_argument('--probe', choices=('forced', 'camera', 'world-uv', 'worker', 'budget', 'product'), default='camera')
     args = parser.parse_args()
     root = Path(__file__).resolve().parents[1]
     output = args.output.resolve()
@@ -38,8 +38,9 @@ def main():
     project = output / 'project'
     project.mkdir(parents=True)
     for name in ('project.godot', 'probe.gd', 'camera_probe.gd', 'world_uv_probe.gd',
-                 'worker_probe.gd', 'budget_probe.gd'):
+                 'worker_probe.gd', 'budget_probe.gd', 'product_probe.gd'):
         shutil.copy2(fixture / name, project / name)
+    shutil.copy2(root / 'scripts/world3d/streamed_texture_product.gd', project / 'streamed_texture_product.gd')
     config = project / 'project.godot'
     if args.probe != 'forced':
         text = config.read_text().replace('viewport_width=640', 'viewport_width=1280')
@@ -51,7 +52,7 @@ def main():
         # the upstream production default remains 5000 ms.
         config.write_text(text + 'textures/streaming/inactivity_decay_rate_ms=1000\n', encoding='utf8')
     script = {'forced': 'probe.gd', 'camera': 'camera_probe.gd', 'world-uv': 'world_uv_probe.gd',
-              'worker': 'worker_probe.gd', 'budget': 'budget_probe.gd'}[args.probe]
+              'worker': 'worker_probe.gd', 'budget': 'budget_probe.gd', 'product': 'product_probe.gd'}[args.probe]
     command = [str(engine), '--path', str(project), '--rendering-method', 'forward_plus',
                '--rendering-driver', 'vulkan', '--script', str(project / script), '--',
                '--source=' + str(source), '--output=' + str(output / 'evidence')]
