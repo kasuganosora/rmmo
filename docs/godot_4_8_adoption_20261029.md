@@ -39,6 +39,7 @@
 | 单次 CPU 图片编码 | 没有 `compress_from_channels_cpu`；上游第三参数已改为 `CompressProfile` | 保留单次 CPU 选择，适配新签名；不能复制旧 ASTC 参数声明 |
 | 局部 RenderingDevice | 构造时仍可能写 singleton，initialize 仍依赖该身份 | 移植明确主设备发布逻辑，再跑原竞态和 GDB 构造计数 |
 | DDS 非整块 mip | 基础宽高仍先执行 `w += w % divisor` | 对照已有 partial-block 测试，不能仅因旧 patch 上下文冲突就当作上游已修 |
+| shader CPU 准备与 RD 锁 | 上游已把容器解析、driver shader 创建放在 RD 全局锁之前，锁只包后续 RID 发布 | 不移植旧拆锁结构，避免反向加锁；仍需带符号单 worker 暂停验证 |
 | shader 完整解码 | 旧完整长度修补能匹配当前源码 | 检查依赖并重跑坏数据/重试合同 |
 | 碰撞调试外观 | debug color/fill 仍虚调用 `_update_shape()` | 保留仅刷新外观的修复与 BVH 次数对照 |
 | profiler、线程退出、glyph、shader cache 等 | 部分代码已变，部分旧 patch 仍匹配 | 逐项核对；4.8 VM 已在动态调用后重新取 validated object，不冒称旧 UAF 原样存在 |
@@ -59,4 +60,52 @@
 
 `official_gpu_01` 在 Forward+ 私有桌面完成真实双客户端 HTTP 源贴图共享、断线与停止服务清理，0 失败、无脚本/引擎错误，运行前后身份一致。它使用保真模式，不冒称缺少自定义 CPU API 的官方版本已通过 DDS 编码合同。
 
-下一步按顺序：完成并验证带符号基线；在独立候选中移植仍必要的 CPU 准备和正确性补丁，跑既有合同；补自动相机反馈、保真/已有 DDS 的流式产品与共享预算对照；最后比较真实地图加载、卸载、返回重载和 low 帧。当前没有更改生产纹理加载路径或默认引擎。
+## 第二批独立复现与自动相机反馈
+
+以下均为官方 beta1，不是尚未编译完成的自制候选。并行存在本任务编译器，因此不把运行秒数、帧时间当性能对照。
+
+- `profiler_official_01`：沿用 self-base fixture，native profiling 开/关两组都复现脚本 `super` 重复计入调用者 self time。调用次数、返回值、退出状态正常，`baseline_red_reproduced=true`。这是诊断正确性问题，不计作游戏加载收益。
+- `dds_official_01`：24 个 BC1/BC3/BC5 和尺寸组合中 **9 个失败**，为 7×7、7×11、1254×1254 三种尺寸的三个格式。前两种返回读取失败，后一种报告的 mip 数据字节数与 Image 所需不符。保留全部错误，不能把 DDS 上下文变动误当上游已修。
+- `shader_official_01`：固定 16 个先前 GDB 捕获的 SPIR-V，2 worker，**256 次创建 / 256 次释放**，0 失败、无引擎/脚本错误、输入身份稳定。没有暂停 worker，尚不能替代解锁验证。
+
+`streaming_camera_01` 在 1280×960、预算关闭的独立场景运行，不设置 LOD override、不调用 flush。为了缩短功能测试等待，明确将 inactivity decay 从上游默认 5000ms 改为 fixture 的 1000ms；不是项目默认配置。**12 项通过、0 失败**，无错误，所有输入前后身份一致：
+
+| 相机 / 所有权状态 | GPU 回读尺寸 | mip 数据 / 系统账本 bytes |
+| --- | --- | ---: |
+| 初始远处，两个 mesh 共用一个材质/纹理 | 256² | 349,524 |
+| 靠近 | 2048² | 22,369,620 |
+| 删除一个共享 mesh | 2048² | 22,369,620 |
+| 再远离且仍可见，观察 3 秒 | 2048² | 22,369,620 |
+| 隐藏，完成不可见衰减 | 256² | 349,524 |
+| 返回近处 | 2048² | 22,369,620 |
+| 释放最后 owner | — | 0 |
+
+近处与返回的完整 GPU mip 链逐字节等于源图 mip 链。账本不是物理显存分配量。远离后不降级符合上游 `_feedback_buffer_process` 的当前策略：自由改善，降级由预算或 inactivity decay 驱动；可见对象仍持续反馈，不能宣传为“仅因相机远离自动回收高清 mip”。后续必须验证预算、传送和实际材质组合。
+
+### 世界坐标采样必须提供实际反馈
+
+4.8 Forward+ 的反馈分支仅在 `UV_USED` 或 `STREAMING_LOD_USED` 时生成，默认 footprint 来自 `uv_interp`。项目 `river_terrain.gdshader` 的表面采样使用 `world_position / tile`，没有网格 `UV` 使用；`river_bank.gdshader` 则会修改 UV 的缩放/偏移。不能直接把这些材质的 ImageTexture 换成 StreamedTexture2D 就宣告适配完成。
+
+`streaming_world_uv_01` 使用最小世界坐标 shader 复现：近相机等待 5 秒仍只有 256²；在同一 shader 中加入按实际采样坐标导数计算的 `STREAMING_LOD` 后自动升到 2048²，完整 mip 字节一致、最终回收为 0。**7 项通过**包含“缺失反馈已复现”和修复路径，不表示原项目地形已修复。公式直接遵循上游 StandardMaterial3D 三平面分支及 `scene_forward_streaming_inc.glsl`，包含 16× anisotropy footprint 和 `+12.0` 的 4096 参考尺寸偏移；不能直接把纹理尺寸的 mip 序号赋给该内建变量。
+
+正式项目仍使用 4.7.2，尚未注入 4.8 才存在的 shader 内建变量。后续接入要同时处理多层表面、不同 tile 尺寸和法线采样，并在实际地形固定镜头验证。此最小复现没有替代那些验收。
+
+三个探针均可通过入库的 `tools/check_texture_streaming.py` 复制到外部空项目运行。`streaming_runner_01` 用正式 runner 重跑 world-uv，7/0、无错误、前后身份稳定。例：
+
+```powershell
+python -X utf8 tools/check_texture_streaming.py --engine D:/tools/godot-4.8-build/official/Godot_v4.8-beta1_win64.exe --source D:/code/rmmo_runtime/packs/default/assets/materials/paving/natural_fieldstone/texture.png --output D:/code/rmmo_runtime/review_artifacts/NEW_UNIQUE_DIRECTORY --probe camera
+```
+
+`--probe forced|camera|world-uv` 分别检查强制切换、自动相机/共享回收、世界坐标反馈。每次必须使用新目录，输出包含源图、引擎、fixture、runner 前后 SHA。GPU 回读、测试轮询和 forced 的 flush 不加入生产加载链。
+
+## 候选移植与构建交接
+
+外部 `ports_01/critical_runtime.patch` 为 **27 文件的未编译草稿**。原始目标与 overlay 的逐文件 SHA、对 pristine source 的 `git apply --check` 均通过；并非运行验收。涵盖 CPU surface pack/decode、Godot Physics BVH、单次 CPU 图片编码、主 RD 发布、DDS、shader transfer/TLS、profiler、退出/字形及已有查找优化。手动适配了 4.8 的 `CompressProfile`、物理管理器头文件、Vulkan PowerVR mutex 宏和 profiler 函数链表。
+
+旧 Zstd 全局锁修补由上游 TLS 实现替代；旧 shader CPU 拆锁结构不移植；旧默认关闭的 module-share/source-key 实验及 release 诊断补丁不直接带入。shader transfer 的实际重复拷贝仍存在，移植它时保留上游锁范围和 PowerVR workaround。
+
+profiler 草稿第一次因为两处 `frame_*.set(0)` 的替换断言失败，失败草稿保留在 `ports_01/profiler_draft_failed_01`。修正后仅在 frame snapshot 减去捕获值，profiling_start 仍正常清零；没有修改正在编译的 baseline。
+
+`build_candidate_01.py` 已启动并等待 `baseline_build_02` 正常完成。它依次核对结果、复制原版 exe/符号到 `baseline_engine_01`、验证版本和 GDB 符号、核对全部目标原始 SHA，之后才应用冻结的草稿并编译。任一步异常停止，保留日志；不会安装到 `D:/tools/godot`。观察构建状态须以两份 `result.json` 为准，不能因为观察超时就另启编译或宣称成功。准备好的 `pause_baseline_worker.py` 尚未运行，待原版符号就绪后验证一个 worker 停住时另一 worker 和主线程是否继续。
+
+下一步按顺序：完成并验证带符号基线和单 worker 暂停；编译候选并跑 CPU 准备/碰撞/DDS/profiler/退出等合同；补正式表面 shader 反馈及保真/已有 DDS 的流式产品与统一预算对照；最后比较真实地图加载、卸载、返回重载和 low 帧。当前没有更改生产纹理加载路径、正式地图或默认引擎，尚无 4.8 整图性能收益结论。
