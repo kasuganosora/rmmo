@@ -98,6 +98,16 @@ python -X utf8 tools/check_texture_streaming.py --engine D:/tools/godot-4.8-buil
 
 `--probe forced|camera|world-uv` 分别检查强制切换、自动相机/共享回收、世界坐标反馈。每次必须使用新目录，输出包含源图、引擎、fixture、runner 前后 SHA。GPU 回读、测试轮询和 forced 的 flush 不加入生产加载链。
 
+## 4.7 已发布 native 的兼容性抽样
+
+`native_compatibility_02` 从已完成迁移的 14 类中各选 native 文件最小的一件，以控制本轮兼容性抽样的 I/O；不是最重资源压测，也不是 220 件全量验收。沿用 `review_native_migration.gd --mode=metadata`，在官方 4.8、隔离项目和私有桌面实际重开 4.7 生成的发布 SCN，而非现场重新转换。依次覆盖路灯、旧树、静态花池、街道道具、彩旗柱、围栏、招牌、建筑装饰、摊位、路面、院墙、风场布幡、风场花池和带 LOD 松树。
+
+**14/14、616 项检查、0 失败**，无引擎/脚本错误，各次输入和实际产品 SHA 不变。包括发布身份、原生读取/实例化、保守边界、建筑描述和可用 absence 数据。逻辑 GLB 路径只作为发布键，未读 GLB、未生成替代 SCN、未写正式地图。此模式没有渲染对照，不升级旧画质报告或宣称 4.8 外观已经通过；也不把有编译器并行的进程时间当加载成绩。
+
+首个 `native_compatibility_01` 在启动引擎前因 Python 字典键的 Windows 路径分隔符差异失败，保留 runner 和失败说明。修正路径归一化后另开 `02`，没有覆盖失败证据。
+
+接入共享队列时还需保持两个边界：当前 `PrefabTexturePreparation` 产出完整 Image、`SurfaceMaterials` 发布 ImageTexture，不能在这条链后再加一次 `.stex` 读取而保留原完整解码；流式产品应替代对应准备任务，并继续复用共享身份、取消和预算。`StreamedTexture2D.get_image()` 会重新读完整文件，现有草地/模型纹理去重、旗槽转换等像素消费者需逐项处理，不能拿它作逐帧驻留查询。静态 `runtime_upload_bytes` 也不能冒充后续动态 mip 上传总量。
+
 ## 候选移植与构建交接
 
 外部 `ports_01/critical_runtime.patch` 为 **27 文件的未编译草稿**。原始目标与 overlay 的逐文件 SHA、对 pristine source 的 `git apply --check` 均通过；并非运行验收。涵盖 CPU surface pack/decode、Godot Physics BVH、单次 CPU 图片编码、主 RD 发布、DDS、shader transfer/TLS、profiler、退出/字形及已有查找优化。手动适配了 4.8 的 `CompressProfile`、物理管理器头文件、Vulkan PowerVR mutex 宏和 profiler 函数链表。
