@@ -1,5 +1,12 @@
 # Godot 4.7.2 native profiler lifetime fix
 
+Current status (2026-10-29): the verified 4.7.2 CPU-compression/main-device
+candidate is installed with matching symbols; older sections retain their
+historical installation status. See the [installation contract](../../docs/editor_dds_engine_contract_20261028.md).
+The separate [4.8 beta1 adoption record](../../docs/godot_4_8_adoption_20261029.md)
+tracks upstream replacements, missing project APIs, and the new standalone
+`texture_streaming_contract` fixture. Do not apply every 4.7.2 patch blindly.
+
 Base: official `4.7.2-stable`, commit `ed1daf0bf001b61586d9930840f2f1394092c079`.
 The GDScript VM calls `_profile_count_as_native(base_obj, ...)` after invoking
 the method, which may have freed `base_obj`. Reuse the `StringName base_class`

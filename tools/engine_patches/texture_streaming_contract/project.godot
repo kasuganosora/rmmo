@@ -1,0 +1,15 @@
+config_version=5
+
+[application]
+config/name="RMMO streaming texture contract"
+
+[display]
+window/size/viewport_width=640
+window/size/viewport_height=480
+
+[rendering]
+renderer/rendering_method="gl_compatibility"
+textures/streaming/enabled=true
+textures/streaming/min_lod=0
+textures/streaming/max_lod=3
+textures/streaming/memory_budget_enabled=false
