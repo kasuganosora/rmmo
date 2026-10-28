@@ -19,6 +19,17 @@ var resident_eligible:Callable # Main-thread owner proves this joined packet may
 var diagnostics_enabled:=false # Enable identically in both comparison arms before enqueue.
 var thread_starter:Callable # CPU fixture injection only.
 var ledger=Admission.new()
+# An editor can share the same admission ledger between independent operations.
+# Each queue still owns and cancels only its own keys and retained packets.
+var shared_ledger_enabled:=false
+
+func _ledger_key(key:String)->String:
+	return "editor_queue:%d:%s"%[get_instance_id(),key] if shared_ledger_enabled else key
+
+func _local_key(key:String)->String:
+	if not shared_ledger_enabled:return key
+	var prefix:="editor_queue:%d:"%get_instance_id()
+	return key.trim_prefix(prefix) if key.begins_with(prefix) else ""
 var rows:Dictionary={}
 var order:Array[String]=[]
 var cancelled:=false
@@ -65,10 +76,18 @@ func release(key:String)->void:
 	# Clearing the actual packet also removes aliases held by the consumer.
 	_dispose(rows[key])
 	_resident_exit(key,"consumed")
-	ledger.release(key);rows[key].state="done";rows[key].task=Callable()
+	ledger.release(_ledger_key(key));rows[key].state="done";rows[key].task=Callable()
 	rows[key].erase("held_origin")
 	metrics.consumed+=1
 	_event("release",key)
+
+func forget_terminal(key:String)->bool:
+	# Long-lived coordinators may retire completed bookkeeping, but cannot
+	# forget a detached worker whose admission lease still belongs to drainer.
+	if not rows.has(key) or rows[key].state not in ["done","cancelled"] or ledger._entries.has(_ledger_key(key)):return false
+	if demand_key==key:demand_key=""
+	rows.erase(key);order.erase(key);_task_timings.erase(key)
+	return true
 
 func retry_as_raw(key:String,task:Callable,estimate:Dictionary)->bool:
 	# Only a joined fixed-native attempt or explicit legacy source-change result
@@ -86,7 +105,7 @@ func retry_as_raw(key:String,task:Callable,estimate:Dictionary)->bool:
 	var retired:int=row.estimate.estimated_bytes
 	Drainer.dispose_result(row.packet)
 	_resident_exit(key,"native_retry")
-	ledger.release(key)
+	ledger.release(_ledger_key(key))
 	_event("release",key,"native_retry")
 	row.task=task;row.estimate=estimate.duplicate();row.estimate.stage="raw_import"
 	row.state="pending";row.packet={};row.erase("held_origin")
@@ -109,7 +128,7 @@ func retry_cached_model(key:String,task:Callable,estimate:Dictionary)->bool:
 	if not estimate.get("estimated_bytes") is int or estimate.estimated_bytes<=0 or not estimate.get("exclusive") is bool or estimate.get("cpu_only",false):return false
 	if estimate.get("stage") not in ["compiled_read","legacy_model"]:return false
 	var demanded:bool=demand_key==key or row.state=="held"
-	_dispose(row);ledger.release(key);_event("release",key,"cache_changed")
+	_dispose(row);ledger.release(_ledger_key(key));_event("release",key,"cache_changed")
 	row.task=task;row.estimate=estimate.duplicate();row.state="pending";row.packet={};row.erase("held_origin")
 	if demanded:demand_key=key
 	metrics.cache_retries=int(metrics.get("cache_retries",0))+1
@@ -126,7 +145,8 @@ func pump()->void:
 	FrameBudget.charge("publication",began)
 
 func _pump(deadline:int)->void:
-	ledger.worker_limit=worker_limit;ledger.byte_limit=byte_limit
+	if not shared_ledger_enabled:
+		ledger.worker_limit=worker_limit;ledger.byte_limit=byte_limit
 	if not is_instance_valid(_drainer):_drainer=Drainer.for_tree(get_tree())
 	# A consumed resident slot can accept a previously joined ready result.
 	# This is an ownership label change, not publication or resource disposal.
@@ -139,7 +159,7 @@ func _pump(deadline:int)->void:
 		if row.state!="running" or row.worker.is_alive():continue
 		row.packet=row.worker.wait_to_finish();_drainer.forget(row.worker)
 		row.erase("worker");row.erase("token");row.state="ready"
-		ledger.park(key);ledger.set_stage(key,"ready")
+		ledger.park(_ledger_key(key));ledger.set_stage(_ledger_key(key),"ready")
 		metrics.joined+=1;metrics.worker_elapsed_us+=int(row.packet.get("elapsed_us",0))
 		_event("join",key)
 		_promote_resident(key)
@@ -156,8 +176,8 @@ func _pump_fifo(deadline:int)->void:
 		if rows[key].state=="pending" and key!=demand_key:pending.append(key)
 	for key:String in pending:
 		var row:Dictionary=rows[key]
-		var reason:String=ledger.blocking_reason(key,row.estimate)
-		if reason.is_empty() and ledger.count()>=ready_limit:reason="ready_limit"
+		var reason:String=ledger.blocking_reason(_ledger_key(key),row.estimate)
+		if reason.is_empty() and _owned_count()>=ready_limit:reason="ready_limit"
 		if not reason.is_empty() and key==demand_key:
 			# A repaired/missed texture can be demanded before already-prefetched
 			# later records. Retire only JOINED, unconsumed later packets so an
@@ -165,10 +185,10 @@ func _pump_fifo(deadline:int)->void:
 			for later:String in order:
 				if later==key or rows[later].state!="ready":continue
 				_preempt_ready(later)
-				reason=ledger.blocking_reason(key,row.estimate)
-				if reason.is_empty() and ledger.count()>=ready_limit:reason="ready_limit"
+				reason=ledger.blocking_reason(_ledger_key(key),row.estimate)
+				if reason.is_empty() and _owned_count()>=ready_limit:reason="ready_limit"
 				if reason.is_empty() or Time.get_ticks_usec()>=deadline:break
-		if not reason.is_empty() or ledger.count()>=ready_limit:
+		if not reason.is_empty() or _owned_count()>=ready_limit:
 			if reason.is_empty():reason="ready_limit"
 			_observe_blocked(key,reason)
 			break # First-use ordering also prevents retained-result starvation.
@@ -237,16 +257,25 @@ static func _is_resident(row:Dictionary)->bool:
 func _resident_count(owner:RefCounted=null)->int:
 	if owner==null:owner=ledger
 	var count_:=0
-	for key:String in owner._entries:
-		if rows.has(key) and _is_resident(rows[key]):count_+=1
+	for entry_key:String in owner._entries:
+		var key:=_local_key(entry_key)
+		if not key.is_empty() and rows.has(key) and _is_resident(rows[key]):count_+=1
+	return count_
+
+func _owned_count(owner:RefCounted=null)->int:
+	if owner==null:owner=ledger
+	var count_:=0
+	for entry_key:String in owner._entries:
+		var key:=_local_key(entry_key)
+		if not key.is_empty() and rows.has(key):count_+=1
 	return count_
 
 func _inflight_count(owner:RefCounted=null)->int:
 	if owner==null:owner=ledger
-	return owner.count()-_resident_count(owner) if resident_enabled else owner.count()
+	return _owned_count(owner)-_resident_count(owner) if resident_enabled else _owned_count(owner)
 
 func _update_peaks()->void:
-	metrics.peak_unconsumed=maxi(metrics.peak_unconsumed,ledger.count())
+	metrics.peak_unconsumed=maxi(metrics.peak_unconsumed,_owned_count())
 	metrics.peak_inflight=maxi(metrics.peak_inflight,_inflight_count())
 	metrics.peak_resident=maxi(metrics.peak_resident,_resident_count())
 	metrics.peak_private_bytes=maxi(metrics.peak_private_bytes,ledger.reserved_bytes)
@@ -254,12 +283,12 @@ func _update_peaks()->void:
 func _promote_resident(key:String)->void:
 	if not resident_enabled or resident_limit<=0 or not resident_eligible.is_valid() or _resident_count()>=resident_limit:return
 	var row:Dictionary=rows[key]
-	if row.state!="ready" or row.has("worker") or not ledger._entries.has(key):return
+	if row.state!="ready" or row.has("worker") or not ledger._entries.has(_ledger_key(key)):return
 	if OS.get_thread_caller_id()!=OS.get_main_thread_id():return
 	if not resident_eligible.call(key,row.packet):return
 	# Keep exactly the same packet and full lease. No alias is destroyed, no
 	# renderer barrier is needed, and exclusivity still fences the entire ledger.
-	row.state="resident";ledger.set_stage(key,"resident")
+	row.state="resident";ledger.set_stage(_ledger_key(key),"resident")
 	metrics.resident_entered+=1;_update_peaks();_event("resident_enter",key)
 
 func _resident_exit(key:String,reason:String)->void:
@@ -268,7 +297,7 @@ func _resident_exit(key:String,reason:String)->void:
 
 func _global_reason(key:String,owner:RefCounted=null)->String:
 	if owner==null:owner=ledger
-	var reason:String=owner.blocking_reason(key,rows[key].estimate)
+	var reason:String=owner.blocking_reason(_ledger_key(key),rows[key].estimate)
 	return "ready_limit" if reason.is_empty() and _inflight_count(owner)>=ready_limit else reason
 
 func _demand_retirements(key:String)->Array[String]:
@@ -281,7 +310,7 @@ func _demand_retirements(key:String)->Array[String]:
 		if other!=key and rows[other].state=="ready":ready.append(other)
 	var probe:=Admission.new();probe.worker_limit=ledger.worker_limit;probe.byte_limit=ledger.byte_limit
 	probe._entries=ledger._entries.duplicate(true);probe.reserved_bytes=ledger.reserved_bytes
-	for other:String in ready:probe.release(other)
+	for other:String in ready:probe.release(_ledger_key(other))
 	if not _global_reason(key,probe).is_empty():return []
 	# Global count needs one victim; byte pressure needs the fewest largest
 	# victims. Equal sizes retain first-use order by preferring later results.
@@ -293,7 +322,7 @@ func _demand_retirements(key:String)->Array[String]:
 	var retire:Array[String]=[]
 	for other:String in ready:
 		if _global_reason(key,probe).is_empty():break
-		probe.release(other);retire.append(other)
+		probe.release(_ledger_key(other));retire.append(other)
 	return retire
 
 func _resident_demand_retirements(key:String)->Array[String]:
@@ -305,7 +334,7 @@ func _resident_demand_retirements(key:String)->Array[String]:
 		if other!=key and rows[other].state in ["ready","resident"]:ready.append(other)
 	var probe:=Admission.new();probe.worker_limit=ledger.worker_limit;probe.byte_limit=ledger.byte_limit
 	probe._entries=ledger._entries.duplicate(true);probe.reserved_bytes=ledger.reserved_bytes
-	for other:String in ready:probe.release(other)
+	for other:String in ready:probe.release(_ledger_key(other))
 	if not _global_reason(key,probe).is_empty():return []
 	ready.sort_custom(func(a:String,b:String)->bool:
 		var left:int=rows[a].estimate.estimated_bytes;var right:int=rows[b].estimate.estimated_bytes
@@ -323,27 +352,28 @@ func _resident_demand_retirements(key:String)->Array[String]:
 	for seed:String in seeds:
 		probe._entries=ledger._entries.duplicate(true);probe.reserved_bytes=ledger.reserved_bytes
 		var retire:Array[String]=[]
-		if not seed.is_empty():probe.release(seed);retire.append(seed)
+		if not seed.is_empty():probe.release(_ledger_key(seed));retire.append(seed)
 		for other:String in ready:
 			if _global_reason(key,probe).is_empty():break
 			if other==seed:continue
-			probe.release(other);retire.append(other)
+			probe.release(_ledger_key(other));retire.append(other)
 		if _global_reason(key,probe).is_empty() and (best.is_empty() or retire.size()<best.size()):best=retire
 	return best
 
 func _launch(key:String)->bool:
 	var row:Dictionary=rows[key]
-	if not ledger.reserve(key,row.estimate):return false
+	if not ledger.reserve(_ledger_key(key),row.estimate):return false
 	_close_blocked(key)
 	var token:=Drainer.CancelToken.new()
+	if row.estimate.get("cpu_only",false):token.set_meta("cpu_metadata_only",true)
 	# The detached drainer owns the lease, not this queue's freed Node.
 	token.set_meta("admission_owner",ledger)
-	token.set_meta("admission_release",ledger.release.bind(key))
+	token.set_meta("admission_release",ledger.release.bind(_ledger_key(key)))
 	var worker:=Thread.new();var task:=_invoke.bind(row.task,token)
 	var err:int=thread_starter.call(worker,task) if thread_starter.is_valid() else worker.start(task,Thread.PRIORITY_LOW)
 	if err!=OK:
 		# Never move expensive decode onto main after a launch failure.
-		ledger.park(key);row.state="ready";row.packet={"error":err,"elapsed_us":0,"start_failed":true}
+		ledger.park(_ledger_key(key));row.state="ready";row.packet={"error":err,"elapsed_us":0,"start_failed":true}
 		metrics.start_failures+=1;_event("start_failed",key)
 	else:
 		row.worker=worker;row.token=token;row.state="running"
@@ -357,7 +387,7 @@ func _preempt_ready(key:String)->void:
 	# estimate of extra entry latency. Retries are counted as separate attempts.
 	metrics.preempted_worker_elapsed_us+=int(row.packet.get("elapsed_us",0))
 	metrics.preempted_by_lane[row.lane]=int(metrics.preempted_by_lane.get(row.lane,0))+1
-	_dispose(row);_resident_exit(key,"preempted");ledger.release(key);row.state="pending";row.erase("held_origin");metrics.preempted+=1
+	_dispose(row);_resident_exit(key,"preempted");ledger.release(_ledger_key(key));row.state="pending";row.erase("held_origin");metrics.preempted+=1
 	_event("release",key,"preempted")
 
 static func _invoke(task:Callable,token:RefCounted)->Dictionary:
@@ -380,7 +410,7 @@ func cancel()->void:
 			else:Drainer.drain_shutdown(row.worker,row.token)
 			row.erase("worker");row.erase("token")
 		elif row.state in ["ready","resident","held"]:
-			_dispose(row);_resident_exit(key,"cancelled");ledger.release(key)
+			_dispose(row);_resident_exit(key,"cancelled");ledger.release(_ledger_key(key))
 			_event("release",key,"cancelled")
 		_close_blocked(key);_event("cancel",key)
 		row.state="cancelled";row.task=Callable();row.erase("held_origin")

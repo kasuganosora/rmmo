@@ -109,7 +109,7 @@ func estimate(requested:Dictionary,root:String)->Dictionary:
 			# Long/unusual paths retain the original uncached behavior; this is a
 			# cache bound, not a new package validation or authoring restriction.
 			if _rows.size()<MAX_ENTRIES and key.length()<=1024 and root.length()<=1024:_rows[key]=row
-		if row.is_empty() or output+int(row.output_bytes)>Prep.MAX_OUTPUT_BYTES:continue
+		if row.is_empty():continue
 		result[key]=row;output+=int(row.output_bytes);scratch=maxi(scratch,Prep.workspace_bytes(row))
 	return {"rows":result,"estimated_bytes":output*2+scratch,"output_bytes":output}
 

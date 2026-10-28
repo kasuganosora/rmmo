@@ -118,9 +118,11 @@ func paint(id: String, target: Dictionary, chosen: String, settings: Dictionary 
 	next.surface_paint = entries
 	if not Paint.valid(next): return Paint.fail("材质参数无效或超过 128 个已绘制面")
 	var mesh_entries := entries.filter(func(old): return old.mesh == target.mesh)
-	var preview := Paint.painted_mesh(resolved.node, mesh_entries)
+	var preview := Paint.validate_paint(resolved.node, mesh_entries)
 	if not preview.ok: return preview
-	return _commit(id, next)
+	var result:=_commit(id,next)
+	preview.texture_owners.clear()
+	return result
 
 func clear_paint(id: String, target: Dictionary = {}) -> Dictionary:
 	if editor._load_failed: return Paint.fail("地图只读")

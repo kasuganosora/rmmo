@@ -34,7 +34,8 @@ func setup(owner: Node3D) -> void:
 	editor = owner
 	_catalog_root = preload("res://scripts/world3d/map_paths.gd").external_root()
 	_placeholder = ImageTexture.create_from_image(Thumbnails.decode("", {"color": [0.16, 0.17, 0.19, 1.0]}))
-	_loader = Thumbnails.new(); _loader.placeholder = _placeholder; add_child(_loader)
+	_loader = Thumbnails.new(); _loader.placeholder = _placeholder
+	_loader.shared_ledger = editor._shared_preparation_ledger; add_child(_loader)
 	_loader.available.connect(_thumbnail_ready)
 	name = "材质"
 	add_theme_constant_override("separation", 8)
@@ -314,13 +315,26 @@ func _import() -> void:
 	dialog.current_dir = preload("res://scripts/world3d/map_paths.gd").external_root()
 	dialog.filters = PackedStringArray(["*.png,*.jpg,*.jpeg,*.webp ; 表面贴图"])
 	dialog.file_selected.connect(func(path):
-		var result: Dictionary = editor._material_tool.library.import_texture(path)
-		if result.ok: refresh(result.material_id)
-		editor._status.text = "贴图已复制到材质库" if result.ok else str(result.error)
+		var result: Dictionary = editor._surface_texture_imports.submit(editor._material_tool.library,path)
+		if result.ok:
+			editor._status.text="正在后台导入贴图"
+			editor._surface_texture_imports.finished.connect(_import_finished.bind(result.request_id))
+		else:editor._status.text=str(result.error)
 		dialog.queue_free()
 	)
 	dialog.canceled.connect(dialog.queue_free)
 	editor.add_child(dialog); dialog.popup_centered(Vector2i(860, 560))
+
+func _import_finished(request_id:int,result:Dictionary,expected:int)->void:
+	if request_id!=expected:return
+	var callback:=_import_finished.bind(expected)
+	if editor._surface_texture_imports.finished.is_connected(callback):editor._surface_texture_imports.finished.disconnect(callback)
+	if result.get("ok",false):refresh(result.material_id)
+	if not result.get("ok",false):editor._status.text=str(result.get("error","贴图导入失败"));return
+	if result.get("dds_ready",false):editor._status.text="贴图已导入（DDS）";return
+	var reason:=str(result.get("dds_reason",""))
+	var explanation:=str({"dimensions_not_multiple_of_four":"尺寸不是 4 的倍数","encoder_unavailable_or_failed":"CPU 编码器不可用或失败","mipmap_failed":"无法生成 mip 贴图","unsupported_encoder_output":"编码输出不受支持","invalid_dds_output":"编码输出无效","dds_write_failed":"DDS 写入失败","dds_identity_write_failed":"DDS 身份写入失败"}.get(reason,"DDS 不可用"))
+	editor._status.text="贴图已导入，使用 PNG（%s）"%explanation
 
 func _exit_tree() -> void:
 	if _catalog_thread != null:

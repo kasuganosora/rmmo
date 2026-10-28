@@ -61,6 +61,15 @@ func run()->void:
 	certify(target,changed,replacement)
 	row=Source.plan_mutable(path,false,false,directory,sha(changed))
 	check(not row.is_empty() and Source.read(row)!=null,"completed rebuild binds replacement source and blocks")
+	# Header/identity-only check: no huge source allocation is needed to verify
+	# that its recorded byte count no longer has the old 128 MiB policy cap.
+	var large_record:=certify(target,changed,replacement)
+	large_record.source_bytes=128*1024*1024+1
+	put(target+".source.json",JSON.stringify(large_record).to_utf8_buffer())
+	check(not Source.plan_mutable(path,false,false,directory,sha(changed)).is_empty(),"mutable metadata supports source length beyond 128 MiB")
+	large_record.source_bytes=9007199254740992
+	put(target+".source.json",JSON.stringify(large_record).to_utf8_buffer())
+	check(Source.plan_mutable(path,false,false,directory,sha(changed)).is_empty(),"metadata rejects source lengths outside exact JSON integer range")
 	for field:String in ["source_sha256","dds_sha256","version","encoder_version","source_bytes","dds_bytes","normal","flip"]:
 		var broken:=record.duplicate();broken.erase(field);put(target+".source.json",JSON.stringify(broken).to_utf8_buffer())
 		check(Source.plan_mutable(path,false,false,directory,sha(original)).is_empty(),"missing metadata field rejected: "+field)

@@ -8,6 +8,7 @@ const CLIENT_IDLE_MS := 10000
 var _ops := Ops.new()
 var _definitions := {}
 var _pending_saves := {}
+var _pending_imports := {}
 
 func server_name() -> String:
 	return "rmmo-world-editor"
@@ -32,6 +33,11 @@ func start(p_port: int = PORT) -> Dictionary:
 	_session = "world-" + Crypto.new().generate_random_bytes(16).hex_encode()
 	set_process(true)
 	return {"ok": true, "url": url(), "port": port, "session": _session}
+
+func stop()->void:
+	for peer_id:int in _pending_imports.keys():_cancel_import(peer_id)
+	_pending_saves.clear()
+	super.stop()
 
 func tools_list() -> Array:
 	return Schema.tools()
@@ -82,6 +88,11 @@ func _process(_dt: float) -> void:
 		peer.poll()
 		# A pending save owns this connection's response, but not the server loop.
 		if _pending_saves.has(peer.get_instance_id()):
+			if peer.get_status()!=StreamPeerTCP.STATUS_CONNECTED:
+				_cancel_import(peer.get_instance_id())
+				_pending_saves.erase(peer.get_instance_id())
+				peer.disconnect_from_host();_clients.remove_at(i)
+				continue
 			client.last_active = Time.get_ticks_msec()
 			continue
 		if peer.get_status() == StreamPeerTCP.STATUS_CONNECTED and peer.get_available_bytes() > 0: client.last_active = Time.get_ticks_msec()
@@ -112,6 +123,17 @@ func _handle_http(peer: StreamPeerTCP, method: String, path: String, body: Strin
 		if msg is Dictionary and msg.get("method") == "tools/call" and msg.has("id") and msg.get("params") is Dictionary:
 			var params: Dictionary = msg.params
 			var args: Variant = params.get("arguments", {})
+			if params.get("name")=="import_surface_material":
+				var reply:Dictionary=handle_rpc(msg)
+				var payload:Variant=JSON.parse_string(reply.get("result",{}).get("content",[{"text":"{}"}])[0].text)
+				if payload is Dictionary and payload.get("pending",false):
+					var request_id:int=payload.request_id
+					var callback:=_imported_http.bind(peer,msg.id,request_id)
+					_pending_saves[peer.get_instance_id()]=true
+					_pending_imports[peer.get_instance_id()]={"request_id":request_id,"callback":callback}
+					editor._surface_texture_imports.finished.connect(callback)
+				else:_write_http(peer,200,"application/json",_stringify_rpc(reply))
+				return
 			if params.get("name")=="open_world":
 				var reply: Dictionary=handle_rpc(msg)
 				var payload: Variant=JSON.parse_string(reply.get("result",{}).get("content",[{"text":"{}"}])[0].text)
@@ -130,6 +152,27 @@ func _handle_http(peer: StreamPeerTCP, method: String, path: String, body: Strin
 				else: _write_http(peer, 200, "application/json", _stringify_rpc(reply))
 				return
 	super._handle_http(peer, method, path, body)
+
+func _cancel_import(peer_id:int)->void:
+	if not _pending_imports.has(peer_id):return
+	var pending:Dictionary=_pending_imports[peer_id];_pending_imports.erase(peer_id)
+	if is_instance_valid(editor) and is_instance_valid(editor._surface_texture_imports):
+		var service:Node=editor._surface_texture_imports
+		if service.finished.is_connected(pending.callback):service.finished.disconnect(pending.callback)
+		service.cancel(pending.request_id)
+
+func _imported_http(request_id:int,result:Dictionary,peer:StreamPeerTCP,id:Variant,expected:int)->void:
+	if request_id!=expected:return
+	var peer_id:=peer.get_instance_id()
+	if _pending_imports.has(peer_id):
+		var callback:Callable=_pending_imports[peer_id].callback
+		_pending_imports.erase(peer_id)
+		if is_instance_valid(editor) and is_instance_valid(editor._surface_texture_imports) and editor._surface_texture_imports.finished.is_connected(callback):editor._surface_texture_imports.finished.disconnect(callback)
+	_pending_saves.erase(peer_id)
+	peer.poll()
+	if result.get("ok",false) and is_instance_valid(editor):editor._material_panel.refresh(result.material_id)
+	if peer.get_status()==StreamPeerTCP.STATUS_CONNECTED:
+		_write_http(peer,200,"application/json",_stringify_rpc({"jsonrpc":"2.0","id":id,"result":{"isError":not result.get("ok",false),"content":[{"type":"text","text":JSON.stringify(result)}]}}))
 
 func _opened_http(result: Dictionary, peer: StreamPeerTCP, id: Variant) -> void:
 	_pending_saves.erase(peer.get_instance_id())

@@ -8,9 +8,6 @@ const Headers=preload("res://scripts/world3d/asset_memory_estimate.gd")
 const Trace=preload("res://scripts/world3d/load_trace.gd")
 const Compressed=preload("res://scripts/world3d/compressed_texture_source.gd")
 const FIELDS=["texture_path","normal_path","roughness_path","metallic_path","ao_path","height_path"]
-const MAX_SOURCES=256
-const MAX_SOURCE_BYTES=128*1024*1024
-const MAX_OUTPUT_BYTES=512*1024*1024
 ## Diagnostic A/B: ordinary mounted loads share one source identity per pool.
 ## Standalone/strict callers retain the prior per-job read and final check.
 static var mounted_source_reuse_enabled:=true
@@ -30,11 +27,10 @@ static func sources(record:Dictionary)->Dictionary:
 			if path.is_empty():continue
 			var flip:bool=field=="normal_path" and definition.get("normal_format","opengl")=="directx"
 			result[preload("res://scripts/world3d/surface_materials.gd").texture_key(path,flip,field=="normal_path")]=[path,flip,field=="normal_path"]
-			if result.size()>MAX_SOURCES:return {} # Optional prefetch, never a new authoring limit.
 	return result
 
 static func valid_sources(value:Variant)->bool:
-	if not value is Dictionary or value.size()>MAX_SOURCES:return false
+	if not value is Dictionary:return false
 	for key:Variant in value:
 		var source:Variant=value[key]
 		if not key is String or not source is Array or source.size()!=3 or not source[0] is String or not source[1] is bool or not source[2] is bool:return false
@@ -49,17 +45,19 @@ static func _header(path:String,root:String)->Dictionary:
 	if file==null:return {}
 	if Pixels.profile_enabled:Pixels._profile_count("texture.prefab_source_header_reads")
 	var length:int=file.get_length()
-	if length<8 or length>MAX_SOURCE_BYTES:return {}
+	if length<8:return {}
 	var header:=Headers._image_header(file,0,length,"image/png" if extension=="png" else "image/jpeg")
-	# Only 8-bit LDR inputs: float/16-bit codecs need a separate allocation proof.
-	if header.is_empty() or header.pixel_bytes!=4 or header.width>4096 or header.height>4096:return {}
-	return {"width":header.width,"height":header.height,"source_bytes":length,"extension":extension}
+	# Godot's PNG simplified decoder converts 16-bit samples to 8-bit output;
+	# retain input depth so a later replacement cannot enlarge codec workspace.
+	if header.is_empty() or header.pixel_bytes not in [4,8]:return {}
+	return {"width":header.width,"height":header.height,"source_bytes":length,"extension":extension,"input_pixel_bytes":header.pixel_bytes}
 
 static func workspace_bytes(row:Dictionary)->int:
 	# One contract for standalone and shared-pool admission. DDS has no PNG
 	# cache envelope or decompression/normal-conversion pixel workspace.
 	if row.get("extension")=="dds":return int(row.source_bytes)*2+int(row.output_bytes)*2+4*1024*1024
-	return int(row.cache_limit)*3+int(row.output_bytes)*4+int(row.source_bytes)*2+4*1024*1024
+	var codec_rows:=int(row.width)*int(row.height)*int(row.get("input_pixel_bytes",4))
+	return int(row.cache_limit)*3+int(row.output_bytes)*4+int(row.source_bytes)*2+codec_rows+4*1024*1024
 
 static func estimate(requested:Dictionary,root:String,mutable_source:bool=false)->Dictionary:
 	if preload("res://scripts/world3d/runtime_probe_controls.gd").discard_map_textures:return {"rows":{},"estimated_bytes":0,"output_bytes":0}
@@ -75,7 +73,6 @@ static func estimate(requested:Dictionary,root:String,mutable_source:bool=false)
 		if row.is_empty():row=_header(source[0],root)
 		if row.is_empty():continue
 		var pixels:int=int(row.output_bytes) if row.extension=="dds" else Headers._mip_bytes(row.width,row.height,4)
-		if output+pixels>MAX_OUTPUT_BYTES:continue
 		row.path=source[0];row.flip=source[1];row.normal=source[2];row.output_bytes=pixels
 		if row.extension=="dds":
 			# DDS is already the upload format. Charge the retained block image,
@@ -163,7 +160,7 @@ static func _source_sha(path:String,root:String,token:RefCounted,profile:Diction
 	# read and hash the whole source again. Strict diagnostics keep content SHA.
 	if Pixels.Policy.trusted():return path.sha256_text()
 	var file:=FileAccess.open(path,FileAccess.READ)
-	if file==null or file.get_length()>MAX_SOURCE_BYTES:return ""
+	if file==null:return ""
 	profile.source_sha_reads=int(profile.get("source_sha_reads",0))+1
 	var context:=HashingContext.new();context.start(HashingContext.HASH_SHA256)
 	var left:int=file.get_length()
@@ -185,7 +182,7 @@ static func _snapshot_matches(row:Dictionary,bytes:PackedByteArray)->bool:
 	# Validate dimensions from the SAME immutable bytes used by the codec. A
 	# filesystem header recheck alone has a resize race before Image allocation.
 	if row.extension=="png":
-		return bytes.size()>=33 and bytes.slice(0,8)==PackedByteArray([137,80,78,71,13,10,26,10]) and Headers._be32(bytes,8)==13 and bytes.slice(12,16).get_string_from_ascii()=="IHDR" and Headers._be32(bytes,16)==row.width and Headers._be32(bytes,20)==row.height and bytes[24]<=8
+		return bytes.size()>=33 and bytes.slice(0,8)==PackedByteArray([137,80,78,71,13,10,26,10]) and Headers._be32(bytes,8)==13 and bytes.slice(12,16).get_string_from_ascii()=="IHDR" and Headers._be32(bytes,16)==row.width and Headers._be32(bytes,20)==row.height and (8 if bytes[24]==16 else 4)==int(row.get("input_pixel_bytes",4))
 	if bytes.size()<4 or bytes[0]!=255 or bytes[1]!=216:return false
 	var at:=2;var end:=mini(bytes.size(),Headers.MAX_HEADER)
 	for _segment in 1024:

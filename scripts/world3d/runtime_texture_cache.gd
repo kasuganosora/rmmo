@@ -80,7 +80,9 @@ static func prepare_upload(image:Image)->Image:
 static func valid_pixels(data:Dictionary)->bool:
 	for field in ["width","height","format","size"]:
 		if not data.get(field) is int:return false
-	if data.width<1 or data.height<1 or data.width>4096 or data.height>4096:return false
+	# This validates the optional disk cache, not the authored source. Oversized
+	# entries miss this bounded cache and may still load via the admitted source.
+	if data.width<1 or data.height<1 or data.width>Image.MAX_WIDTH or data.height>Image.MAX_HEIGHT or data.width>268435456/data.height:return false
 	var strides:={Image.FORMAT_L8:1,Image.FORMAT_LA8:2,Image.FORMAT_R8:1,Image.FORMAT_RG8:2,Image.FORMAT_RGB8:3,Image.FORMAT_RGBA8:4,Image.FORMAT_RF:4,Image.FORMAT_RGF:8,Image.FORMAT_RGBF:12,Image.FORMAT_RGBAF:16}
 	if not strides.has(data.format):return false
 	var width:int=data.width;var height:int=data.height;var expected:=0
@@ -137,7 +139,7 @@ static func _image(path:String,flip:bool,mutable_source:bool=false)->Image:
 		# Editor fallback formats use one captured source for identity and decode.
 		# This also avoids hashing and then reopening a different file generation.
 		var source:=FileAccess.open(path,FileAccess.READ)
-		if source==null or source.get_length()<=0 or source.get_length()>128*1024*1024:return null
+		if source==null or source.get_length()<=0:return null
 		var length:=source.get_length();source_bytes=source.get_buffer(length);source.close()
 		if source_bytes.size()!=length:return null
 		var hash:=HashingContext.new();hash.start(HashingContext.HASH_SHA256);hash.update(source_bytes);digest=hash.finish().hex_encode()
@@ -186,7 +188,7 @@ static func _image(path:String,flip:bool,mutable_source:bool=false)->Image:
 		if error!=OK:return null
 	else:result=Image.load_from_file(path)
 	if profile_enabled:_profile_elapsed("texture.image.source_decode",began,{"path":path,"flip":flip,"ok":result!=null})
-	if result==null or result.is_empty() or result.get_width()>4096 or result.get_height()>4096:return null
+	if result==null or result.is_empty():return null
 	if flip:
 		began=Time.get_ticks_usec() if profile_enabled else 0
 		result.convert(Image.FORMAT_RGBA8)

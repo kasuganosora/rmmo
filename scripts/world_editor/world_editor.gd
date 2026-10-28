@@ -83,6 +83,7 @@ var _recovery_button: Button
 var _material_tool: Control
 var _material_panel: VBoxContainer
 var _material_directory := "" # Isolated fixtures may supply an external test library.
+var _surface_texture_imports:Node
 var _gameplay = preload("res://scripts/world_editor/gameplay_tools.gd").new()
 var _event_panel: VBoxContainer
 var _environment_panel: VBoxContainer
@@ -118,9 +119,17 @@ var _city = preload("res://scripts/world_editor/city_tools.gd").new()
 var _camera_navigation: Node
 var _walk_mode: Node
 var _walk_button: Button
+## Load preparation and interactive texture imports draw from one editor-wide
+## worker/byte envelope. Outstanding workers keep the RefCounted ledger alive.
+var _shared_preparation_ledger = preload("res://scripts/world3d/resource_admission.gd").new()
 
 
 func _ready() -> void:
+	var load_job_script=preload("res://scripts/world_editor/load_job.gd")
+	_shared_preparation_ledger.worker_limit=clampi(load_job_script.preparation_worker_limit,1,4) if load_job_script.parallel_preparation_enabled else 1
+	_shared_preparation_ledger.byte_limit=preload("res://scripts/world3d/definition_cache_policy.gd").work_budget(_shared_preparation_ledger.byte_limit)
+	_surface_texture_imports=preload("res://scripts/world_editor/surface_texture_imports.gd").new()
+	add_child(_surface_texture_imports);_surface_texture_imports.configure(_shared_preparation_ledger)
 	_workspace_preferences.setup(self)
 	var initial_path := ""
 	var dir := Paths.cache_directory("editor_yard")
