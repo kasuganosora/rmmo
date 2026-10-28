@@ -1,7 +1,7 @@
 extends RefCounted
-## Bounded CPU-only pixels for a reference job. Never accesses shared render
-## caches. Its images remain owned by that job's admission lease until main
-## publishes or discards them. Unsupported headers keep the ordinary path.
+## Admitted worker preparation for a reference job; no shared render-cache access.
+## Images or completed native Texture2D owners remain under the job/pool lease
+## until main publishes or discards them. Unsupported headers keep the ordinary path.
 const Paths=preload("res://scripts/world3d/map_paths.gd")
 const Pixels=preload("res://scripts/world3d/runtime_texture_cache.gd")
 const Headers=preload("res://scripts/world3d/asset_memory_estimate.gd")
@@ -54,8 +54,8 @@ static func _header(path:String,root:String)->Dictionary:
 	return {"width":header.width,"height":header.height,"source_bytes":length,"extension":extension,"input_pixel_bytes":header.pixel_bytes}
 
 static func workspace_bytes(row:Dictionary)->int:
-	# One contract for standalone and shared-pool admission. DDS has no PNG
-	# cache envelope or decompression/normal-conversion pixel workspace.
+	# One contract for standalone and shared-pool admission. Native/DDS products
+	# have no PNG cache envelope or normal-conversion pixel workspace.
 	if row.get("extension")=="stex":return int(row.output_bytes)*2+65536
 	if row.get("extension")=="dds":return int(row.source_bytes)*2+int(row.output_bytes)*2+4*1024*1024
 	var codec_rows:=int(row.width)*int(row.height)*int(row.get("input_pixel_bytes",4))
@@ -78,8 +78,8 @@ static func estimate(requested:Dictionary,root:String,mutable_source:bool=false)
 		var pixels:int=int(row.output_bytes) if row.extension in ["dds","stex"] else Headers._mip_bytes(row.width,row.height,4)
 		row.path=source[0];row.flip=source[1];row.normal=source[2];row.output_bytes=pixels
 		if row.extension in ["dds","stex"]:
-			# DDS is already the upload format. Charge the retained block image,
-			# staging and one bounded file/codec workspace, never an RGBA decode.
+			# Published data is already the upload format. Keep the complete chain
+			# as a conservative bound, including the native streaming route.
 			rows[key]=row;output+=pixels
 			scratch=maxi(scratch,workspace_bytes(row))
 			continue

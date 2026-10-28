@@ -38,6 +38,8 @@ var _generator_key:=""
 var _model_signatures:Dictionary={}
 var _needed_textures:Dictionary={}
 var _decoded_images:Dictionary={}
+var _decoded_textures:Dictionary={}
+var _texture_cancel_token:=preload("res://scripts/world3d/asset_worker_drainer.gd").CancelToken.new()
 var _texture_thread:Thread
 var _terrain_thread:Thread
 var _terrain_context:RefCounted
@@ -156,6 +158,7 @@ func _startup_context_drawn(serial:int)->void:
 func cancel() -> void:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.map_loader.cancel") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	_cancelled = true
+	_texture_cancel_token.cancel()
 	_early_models.cancel()
 	_source_hash_preparation.cancel()
 	_model_preparation.cancel()
@@ -842,15 +845,21 @@ func _prepare_record_assets_inner()->void:
 	var decoded:Dictionary=_texture_thread.wait_to_finish() if _texture_thread!=null else _decode_textures(_needed_textures)
 	Trace.elapsed("game.texture_join_wait",texture_wait_started)
 	_texture_thread=null
+	if not decoded.get("error","").is_empty():
+		_error=ERR_SKIP if _texture_cancel_token.is_cancelled() else ERR_FILE_CORRUPT
+		_failure_reason=decoded.error;return
 	_decoded_images=decoded.images
+	_decoded_textures=decoded.get("uploaded_textures",{})
 	_profile.texture_decode_us=decoded.elapsed
 	# The dependency hint is optional. Full validated records remain authoritative.
+	var missing:Dictionary={}
 	for key:String in _needed_textures:
-		if not _decoded_images.has(key):
-			var source:Array=_needed_textures[key]
-			var image:Image=preload("res://scripts/world3d/runtime_texture_cache.gd").image(source[0],source[1])
-			if image==null:_error=ERR_FILE_CORRUPT;return
-			_decoded_images[key]=image
+		if not _decoded_images.has(key) and not _decoded_textures.has(key):missing[key]=_needed_textures[key]
+	if not missing.is_empty():
+		var extra:=_decode_textures(missing)
+		if not extra.error.is_empty():_error=ERR_FILE_CORRUPT;_failure_reason=extra.error;return
+		_decoded_images.merge(extra.images,true);_decoded_textures.merge(extra.uploaded_textures,true)
+		_profile.texture_decode_us+=extra.elapsed
 
 
 static func _terrain_region_records(records:Array)->Array:
@@ -895,24 +904,41 @@ func _decode_textures(requested:Dictionary)->Dictionary:
 	var began:=Trace.begin("game.texture_decode")
 	var buckets:Array=[[],[],[]];var at:=0
 	for key:String in requested:
-		buckets[at%3].append({"key":key,"source":requested[key],"image":null});at+=1
+		buckets[at%3].append({"key":key,"source":requested[key]});at+=1
 	var workers:Array=[]
+	var results:Array=[]
 	for bucket:Array in buckets:
+		if bucket.is_empty():continue
+		var result:Dictionary={};results.append(result)
 		var worker:=Thread.new()
 		var task:=func():
 			var requests:Dictionary={}
 			for entry:Dictionary in bucket:requests[entry.key]=entry.source
-			var prepared:Dictionary=preload("res://scripts/world_editor/terrain_texture_preparation.gd").decode(requests,_content_root)
-			for entry:Dictionary in bucket:entry.image=prepared.images.get(entry.key)
+			# Game entry consumes the same immutable representation/path identity
+			# as later chunks. Editor mutable-source decoding would hash/decode PNG
+			# even when a published DDS/native product already exists.
+			var prep=preload("res://scripts/world3d/prefab_texture_preparation.gd")
+			var plan:Dictionary=prep.estimate(requests,_content_root)
+			var prepared:Dictionary=prep.prepare(requests,plan,_content_root,_texture_cancel_token)
+			if prepared.error.is_empty():
+				# Only formats without a bounded plan retain the existing full decode.
+				for key:String in requests:
+					if plan.rows.has(key):continue
+					if _texture_cancel_token.is_cancelled():prepared.error="Entry texture preparation cancelled";break
+					var source:Array=requests[key]
+					var image:Image=prep.Pixels.image(source[0],source[1]) if prep.Paths.allowed(source[0],_content_root) else null
+					if image==null:prepared.error="Cannot prepare entry texture: "+source[0];break
+					prepared.images[key]=image
+			result.merge(prepared,true)
 		if not background_preload and worker.start(task)==OK:workers.append(worker)
 		else:task.call()
 	for worker:Thread in workers:worker.wait_to_finish()
-	var images:Dictionary={}
-	for bucket:Array in buckets:
-		for entry:Dictionary in bucket:
-			if entry.image!=null:images[entry.key]=entry.image
+	var images:Dictionary={};var textures:Dictionary={};var error:=""
+	for result:Dictionary in results:
+		if not result.get("error","").is_empty():error=result.error
+		images.merge(result.get("images",{}),true);textures.merge(result.get("uploaded_textures",{}),true)
 	Trace.elapsed("game.texture_decode",began,{"requests":requested.size()})
-	return {"images":images,"elapsed":Time.get_ticks_usec()-began}
+	return {"images":images,"uploaded_textures":textures,"error":error,"elapsed":Time.get_ticks_usec()-began}
 
 
 func _process(_delta: float) -> void:
@@ -992,6 +1018,7 @@ func _exit_tree() -> void:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.map_loader._exit_tree") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	if _startup_first_serial>0 and Frames.clock().presented.is_connected(_startup_context_drawn):Frames.clock().presented.disconnect(_startup_context_drawn)
 	_cancelled=true
+	_texture_cancel_token.cancel()
 	_early_models.cancel()
 	_model_preparation.cancel()
 	if is_instance_valid(_early_deferred):
@@ -1020,6 +1047,17 @@ func _exit_tree() -> void:
 	for key in _decoded_images:
 		if images.get(key)==_decoded_images[key]:images.erase(key)
 	_decoded_images.clear()
+	var textures:Dictionary=preload("res://scripts/world3d/surface_materials.gd").prepared_textures
+	for key:String in _decoded_textures:
+		if textures.get(key)==_decoded_textures[key]:textures.erase(key)
+	_decoded_textures.clear()
+
+func _install_texture_handoff()->void:
+	var paint=preload("res://scripts/world3d/surface_materials.gd")
+	paint.prepare_images(_decoded_images)
+	if not _decoded_textures.is_empty():
+		var owners:Dictionary=paint.prepared_textures.duplicate()
+		owners.merge(_decoded_textures,true);paint.prepare_textures(owners)
 
 func _new_deferred()->Node:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.map_loader._new_deferred") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
@@ -1306,7 +1344,7 @@ func _build_records() -> void:
 	doc.load_surface_bounds=_surface_bounds
 	if _terrain_context!=null:doc.terrain_neighbors=_terrain_context
 	var Cook=preload("res://scripts/world3d/runtime_mesh_cache.gd")
-	preload("res://scripts/world3d/surface_materials.gd").prepare_images(_decoded_images)
+	_install_texture_handoff()
 	var restore_started:=Time.get_ticks_usec()
 	_profile.cooked_restore_parts={}
 	doc.load_box_meshes=Cook.restore(_mesh_cache_data,doc.load_paint_validation,doc.load_material_pool,_profile.cooked_restore_parts)
