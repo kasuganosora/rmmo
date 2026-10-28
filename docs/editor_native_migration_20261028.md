@@ -1,5 +1,21 @@
 # 编辑器旧素材原生迁移（2026-10-28）
 
+## 最新补验：三棵树的 LOD 阈值
+
+`test_native_migration_lod_gpu.gd` 对三棵实际发布的松树完成源/native 对照。在 34.75、35.25、84.75、85.25m 分别采集静止与固定风时刻 t=1/4，正常 authored ranges 必须与只强制显示预期 LOD 的像素及绘制计数一致；隐藏全部 ranged meshes 的负对照确认它们确实参与渲染。每棵 source 140/0、native 139/0，12/12 组画面逐像素相同，三棵共 36 张 native 的原尺寸 Q90 WebP 已查看。
+
+| 模型 | 源 SHA 前缀 | 实际 native SHA 前缀 | 阈值复验 |
+| --- | --- | --- | --- |
+| mature | `191e57178860` | `a7fff5106286` | 通过 |
+| compact | `9d3988f8bd0f` | `707f53fb135e` | 通过 |
+| windswept | `ccd30347b1af` | `4cbcb09bda60` | 通过 |
+
+证据为外部 `editor_native_migration_20261028_01/lod_review_summary_01.json` 及每件 `lod_attempt_*/manual_lod_review.json`、`model_review.md`。mature 使用 attempt 02，另两件 attempt 01；每臂输入、产品和代码身份保持不变，GPU 测试在私有桌面串行运行。首次 mature attempt 01 在渲染前因夹具比较 JSON 数值与原始浮点值失败；改为经过相同 JSON 数值往返后严格比较，没有增加 epsilon，失败样本保留。
+
+这些截图仍能看见源模型已有的 LOD 叶片尺度/密度变化。结论仅为迁移保持既有选择、风时刻与画面，不宣称切换平滑、连续穿越已验或资产质量无需改善。未修改模型、地图或恢复普通消费 GLB；源臂 GLB 读取只用于离线 A/B。
+
+完整模型画质验收仍是 **5/59**，其余 **54** 件未因本次阈值专项而提前升级为通过。旧素材已转换和真实编辑器操作 59/59 的状态保持，接下来补完其余固定画面与完整编辑器地图复测，再开始 4.8。
+
 当前优先完成编辑器原生素材和贴图导入适配，再回到游戏加载/low 优化及 Godot 4.8 beta 评估。白模专项已在 `6b17a555` 退役，见 [退役记录](white_mode_retirement_20261028.md)。本轮不恢复白模分支，也不修改用户的地图布局。
 
 ## 固定范围与身份

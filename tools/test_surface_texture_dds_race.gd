@@ -210,4 +210,3 @@ func run()->void:
   await race_orphan(source,normal.bytes)
  print("DDS_NO_REPLACE_RESULT ",JSON.stringify({"checks":checks,"failures":failures,"fixture":fixture}))
  quit(0 if failures.is_empty() else 1)
-
