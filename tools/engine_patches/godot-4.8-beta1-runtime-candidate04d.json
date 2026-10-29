@@ -1,0 +1,764 @@
+{
+  "schema_version": 1,
+  "status": "candidate04d_source_reproduced_functional_contracts_passed_not_installed",
+  "recorded_utc": "2026-10-29T02:30:47.430920+00:00",
+  "candidate": "04d",
+  "source_archive": {
+    "name": "godot-4.8-beta1.tar.xz",
+    "path_at_verification": "D:\\tools\\godot-4.8-build\\godot-4.8-beta1.tar.xz",
+    "url": "https://github.com/godotengine/godot-builds/releases/download/4.8-beta1/godot-4.8-beta1.tar.xz",
+    "sha256": "6d49c02e438935e49a12231d857b2b56131948b004d5b668bf295c9bc3b2281c",
+    "bytes": 47242444,
+    "source_commit": "4d10419cacd6d3009976e8f9fd3abd970fd58018"
+  },
+  "patch": {
+    "path": "godot-4.8-beta1-runtime-candidate04d.patch",
+    "sha256": "0dabbe8ad1df0b5b1e30dcca6d007d1eae4d6c993a983ba750e50b66da774a6e",
+    "bytes": 129159,
+    "format": "UTF-8 LF unified diff",
+    "apply_to": "official pristine beta1 only; replaces the entire chain, do not stack on candidate03/04b/renderer/04d"
+  },
+  "historical_candidate03_unchanged": {
+    "patch_sha256": "f709dd84d021491ce10f618bdb51fcabd66a6edf85b3746b73b547bc7c7e9ebe",
+    "manifest_sha256": "806991e1b8446a6b674f5573547e5ccacd015c90d1e64a2f6a928087864052eb"
+  },
+  "chain_provenance": [
+    {
+      "name": "candidate03",
+      "patch": "D:\\code\\rmmo\\tools\\engine_patches\\godot-4.8-beta1-runtime-candidate.patch",
+      "patch_sha256": "f709dd84d021491ce10f618bdb51fcabd66a6edf85b3746b73b547bc7c7e9ebe",
+      "metadata": "D:\\code\\rmmo\\tools\\engine_patches\\godot-4.8-beta1-runtime-candidate.json",
+      "metadata_sha256": "806991e1b8446a6b674f5573547e5ccacd015c90d1e64a2f6a928087864052eb",
+      "verified_before_files": 29,
+      "verified_after_files": 29
+    },
+    {
+      "name": "native_cpu_capture_04b",
+      "patch": "D:\\code\\rmmo_runtime\\review_artifacts\\godot_4_8_adoption_20261029_01\\native_cpu_capture_04\\native_cpu_capture_candidate04b.delta.patch",
+      "patch_sha256": "1bffbac20b2d283ee1f4e23e6acf5c5ad678e10ef1be4013085532336801fca7",
+      "metadata": "D:\\code\\rmmo_runtime\\review_artifacts\\godot_4_8_adoption_20261029_01\\native_cpu_capture_04\\candidate04b.json",
+      "metadata_sha256": "c15d14ee1079453005f1a9be5e46146f8b40b9032721fe81a65bb4b0897ce17e",
+      "verified_before_files": 9,
+      "verified_after_files": 9
+    },
+    {
+      "name": "renderer_rg16f_internal_extent",
+      "patch": "D:\\code\\rmmo_runtime\\review_artifacts\\godot_4_8_adoption_20261029_01\\graphics_format_01\\taa_rg16_internal_extent.patch",
+      "patch_sha256": "2c73703ace7a2868b2d146d8536616b5ad781e236f14d18a8bb1efae4a0a9cd5",
+      "metadata": "D:\\code\\rmmo_runtime\\review_artifacts\\godot_4_8_adoption_20261029_01\\graphics_format_01\\renderer_delta.json",
+      "metadata_sha256": "6f744dd4ccf4f115304e1d2f8bcf85bfc1348179aa93b83f601a0ba00a43b8e4",
+      "verified_before_files": 4,
+      "verified_after_files": 4
+    },
+    {
+      "name": "loader_lifetime_04d",
+      "patch": "D:\\code\\rmmo_runtime\\review_artifacts\\godot_4_8_adoption_20261029_01\\loader_lifetime_04c_01\\candidate04d.patch",
+      "patch_sha256": "055c23c8f80bd7b03e331ff2798bccd59126d2ac39991df0bebe33f9c6dfa0ed",
+      "metadata": "D:\\code\\rmmo_runtime\\review_artifacts\\godot_4_8_adoption_20261029_01\\loader_lifetime_04c_01\\candidate04d.json",
+      "metadata_sha256": "61f2aea94fd045d0fe468cdb7910f769921767460e1b676e7ee6c2746dc8e782",
+      "verified_before_files": 4,
+      "verified_after_files": 4
+    }
+  ],
+  "files": [
+    {
+      "path": "core/io/image.cpp",
+      "before_sha256": "195526a9113355ce9820305ddc90440a396ffbe7b9b5f92e5aec5b793fa31491",
+      "after_sha256": "44377f62ef44c0dfeddfb485385882cacc79298f72f81d021ed6ff1634ace567",
+      "archive_member": "godot-4.8-beta1/core/io/image.cpp",
+      "before_bytes": 168859,
+      "after_bytes": 169260,
+      "intermediate_sha256": {
+        "candidate03": "44377f62ef44c0dfeddfb485385882cacc79298f72f81d021ed6ff1634ace567",
+        "native_cpu_capture_04b": "44377f62ef44c0dfeddfb485385882cacc79298f72f81d021ed6ff1634ace567",
+        "renderer_rg16f_internal_extent": "44377f62ef44c0dfeddfb485385882cacc79298f72f81d021ed6ff1634ace567"
+      }
+    },
+    {
+      "path": "core/io/image.h",
+      "before_sha256": "6deec6ef1f8d6166ac93153eae4d381b7c5a5352fbd4729da06a8bacbb97961c",
+      "after_sha256": "bca1d81f891606d6027f1ad85c94242328f98d8f3c69fbb4a3cf9d784f77ee60",
+      "archive_member": "godot-4.8-beta1/core/io/image.h",
+      "before_bytes": 22050,
+      "after_bytes": 22212,
+      "intermediate_sha256": {
+        "candidate03": "bca1d81f891606d6027f1ad85c94242328f98d8f3c69fbb4a3cf9d784f77ee60",
+        "native_cpu_capture_04b": "bca1d81f891606d6027f1ad85c94242328f98d8f3c69fbb4a3cf9d784f77ee60",
+        "renderer_rg16f_internal_extent": "bca1d81f891606d6027f1ad85c94242328f98d8f3c69fbb4a3cf9d784f77ee60"
+      }
+    },
+    {
+      "path": "core/io/resource_loader.cpp",
+      "before_sha256": "761bb7eb224de8f2dfa4513342a9f11c03cae3291ed4125569d44c3fc8f6c22c",
+      "after_sha256": "fab4b31c6a29f6c63c4fb11be32b8ae985f92b9631b0dd88bc98857e8afd2af6",
+      "archive_member": "godot-4.8-beta1/core/io/resource_loader.cpp",
+      "before_bytes": 59269,
+      "after_bytes": 61613,
+      "intermediate_sha256": {
+        "candidate03": "761bb7eb224de8f2dfa4513342a9f11c03cae3291ed4125569d44c3fc8f6c22c",
+        "native_cpu_capture_04b": "c95f0d877042579deccd074455edf99c353088f74beb8441dfb94997b23bd72d",
+        "renderer_rg16f_internal_extent": "c95f0d877042579deccd074455edf99c353088f74beb8441dfb94997b23bd72d"
+      }
+    },
+    {
+      "path": "core/io/resource_loader.h",
+      "before_sha256": "9031249328aff1c94606f1d56261d040a6a0bd3fed53f831a754674e11f0f1ee",
+      "after_sha256": "e4d3b8b23d8259c534f0eb79f48f62740c4c190eac0ab69a903a79396a7ae4a5",
+      "archive_member": "godot-4.8-beta1/core/io/resource_loader.h",
+      "before_bytes": 15009,
+      "after_bytes": 15635,
+      "intermediate_sha256": {
+        "candidate03": "9031249328aff1c94606f1d56261d040a6a0bd3fed53f831a754674e11f0f1ee",
+        "native_cpu_capture_04b": "3f137ac35ae613c497bf0c0dd4f252854c5f66ae5420bc64de9ff0e091153e6a",
+        "renderer_rg16f_internal_extent": "3f137ac35ae613c497bf0c0dd4f252854c5f66ae5420bc64de9ff0e091153e6a"
+      }
+    },
+    {
+      "path": "core/object/worker_thread_pool.cpp",
+      "before_sha256": "d2a694a99c4f1b9f162404ef5acdc7ea0c9e17017de426d062fd15cd744a8ae6",
+      "after_sha256": "7d8a76de17e61e87e00f312a0e4ddf1cb37e9af9932603f644e7d58259c2937a",
+      "archive_member": "godot-4.8-beta1/core/object/worker_thread_pool.cpp",
+      "before_bytes": 31705,
+      "after_bytes": 32424,
+      "intermediate_sha256": {
+        "candidate03": "d2a694a99c4f1b9f162404ef5acdc7ea0c9e17017de426d062fd15cd744a8ae6",
+        "native_cpu_capture_04b": "d2a694a99c4f1b9f162404ef5acdc7ea0c9e17017de426d062fd15cd744a8ae6",
+        "renderer_rg16f_internal_extent": "d2a694a99c4f1b9f162404ef5acdc7ea0c9e17017de426d062fd15cd744a8ae6"
+      }
+    },
+    {
+      "path": "core/object/worker_thread_pool.h",
+      "before_sha256": "3030ced542f922c66ed32a5a9d2d4bef9fba36644d07f7d24d9b5990bab2873c",
+      "after_sha256": "ef18a6760d92936fc4c66443d87841183ff1fa4049d89a0f9318576bc7eb8099",
+      "archive_member": "godot-4.8-beta1/core/object/worker_thread_pool.h",
+      "before_bytes": 11712,
+      "after_bytes": 11945,
+      "intermediate_sha256": {
+        "candidate03": "3030ced542f922c66ed32a5a9d2d4bef9fba36644d07f7d24d9b5990bab2873c",
+        "native_cpu_capture_04b": "3030ced542f922c66ed32a5a9d2d4bef9fba36644d07f7d24d9b5990bab2873c",
+        "renderer_rg16f_internal_extent": "3030ced542f922c66ed32a5a9d2d4bef9fba36644d07f7d24d9b5990bab2873c"
+      }
+    },
+    {
+      "path": "doc/classes/Image.xml",
+      "before_sha256": "5019db39e198c4bb2e5048dececbd6c44634f51e089a6379d6c7af8ca69a22ab",
+      "after_sha256": "05fc4c7e9e5d5248ae05ff60887e72a5e426a98866650f03acf1b58a5cf5dc98",
+      "archive_member": "godot-4.8-beta1/doc/classes/Image.xml",
+      "before_bytes": 59566,
+      "after_bytes": 60231,
+      "intermediate_sha256": {
+        "candidate03": "05fc4c7e9e5d5248ae05ff60887e72a5e426a98866650f03acf1b58a5cf5dc98",
+        "native_cpu_capture_04b": "05fc4c7e9e5d5248ae05ff60887e72a5e426a98866650f03acf1b58a5cf5dc98",
+        "renderer_rg16f_internal_extent": "05fc4c7e9e5d5248ae05ff60887e72a5e426a98866650f03acf1b58a5cf5dc98"
+      }
+    },
+    {
+      "path": "drivers/vulkan/rendering_device_driver_vulkan.cpp",
+      "before_sha256": "8e74a8674701744c5f783ffa55e73ba2d1567551375d0e668fecfea5697c3e8c",
+      "after_sha256": "905e964ab728de0ff48df78d34f3a40e4c389a9df014d883edf86b320c87d9c7",
+      "archive_member": "godot-4.8-beta1/drivers/vulkan/rendering_device_driver_vulkan.cpp",
+      "before_bytes": 373941,
+      "after_bytes": 377215,
+      "intermediate_sha256": {
+        "candidate03": "905e964ab728de0ff48df78d34f3a40e4c389a9df014d883edf86b320c87d9c7",
+        "native_cpu_capture_04b": "905e964ab728de0ff48df78d34f3a40e4c389a9df014d883edf86b320c87d9c7",
+        "renderer_rg16f_internal_extent": "905e964ab728de0ff48df78d34f3a40e4c389a9df014d883edf86b320c87d9c7"
+      }
+    },
+    {
+      "path": "drivers/windows/file_access_windows.cpp",
+      "before_sha256": "0565a9429e9287c05520409b18cc7f64dbd9a5ae9ed0eac92388056f2e2edff4",
+      "after_sha256": "e8d5317ce6de06caf8e54e2a560cc121c7edefcdc6cdfe3a57e18ad740309a98",
+      "archive_member": "godot-4.8-beta1/drivers/windows/file_access_windows.cpp",
+      "before_bytes": 21974,
+      "after_bytes": 25124,
+      "intermediate_sha256": {
+        "candidate03": "e8d5317ce6de06caf8e54e2a560cc121c7edefcdc6cdfe3a57e18ad740309a98",
+        "native_cpu_capture_04b": "e8d5317ce6de06caf8e54e2a560cc121c7edefcdc6cdfe3a57e18ad740309a98",
+        "renderer_rg16f_internal_extent": "e8d5317ce6de06caf8e54e2a560cc121c7edefcdc6cdfe3a57e18ad740309a98"
+      }
+    },
+    {
+      "path": "drivers/windows/file_access_windows.h",
+      "before_sha256": "6d50561b2838967115cb1fe7556732a5b345c08cc4a4690e76ab5c911230c4a4",
+      "after_sha256": "93bbc7f17032278584ba506a82b2e0a81e6fba63982ddedb147d91f02e722767",
+      "archive_member": "godot-4.8-beta1/drivers/windows/file_access_windows.h",
+      "before_bytes": 5297,
+      "after_bytes": 5828,
+      "intermediate_sha256": {
+        "candidate03": "93bbc7f17032278584ba506a82b2e0a81e6fba63982ddedb147d91f02e722767",
+        "native_cpu_capture_04b": "93bbc7f17032278584ba506a82b2e0a81e6fba63982ddedb147d91f02e722767",
+        "renderer_rg16f_internal_extent": "93bbc7f17032278584ba506a82b2e0a81e6fba63982ddedb147d91f02e722767"
+      }
+    },
+    {
+      "path": "modules/dds/texture_loader_dds.cpp",
+      "before_sha256": "fd1e656f6435ca93261c9283e9e7174c44293c6ac2ea0d8c806b0f4bb4776ea9",
+      "after_sha256": "20536e90fbf446236b48281b39f311c55ab1bafc2e8f6541b40fd8555bb5f807",
+      "archive_member": "godot-4.8-beta1/modules/dds/texture_loader_dds.cpp",
+      "before_bytes": 24265,
+      "after_bytes": 23836,
+      "intermediate_sha256": {
+        "candidate03": "20536e90fbf446236b48281b39f311c55ab1bafc2e8f6541b40fd8555bb5f807",
+        "native_cpu_capture_04b": "20536e90fbf446236b48281b39f311c55ab1bafc2e8f6541b40fd8555bb5f807",
+        "renderer_rg16f_internal_extent": "20536e90fbf446236b48281b39f311c55ab1bafc2e8f6541b40fd8555bb5f807"
+      }
+    },
+    {
+      "path": "modules/gdscript/gdscript.cpp",
+      "before_sha256": "9abfb4ec3989f0f800bc17b96943875a6c4bfdfd00b67577779d322a198c070b",
+      "after_sha256": "0228a58e29bfeaedcf71f4ead0d8db841df49d3c4c98a6dc4e4e01c816239e67",
+      "archive_member": "godot-4.8-beta1/modules/gdscript/gdscript.cpp",
+      "before_bytes": 89692,
+      "after_bytes": 90097,
+      "intermediate_sha256": {
+        "candidate03": "0228a58e29bfeaedcf71f4ead0d8db841df49d3c4c98a6dc4e4e01c816239e67",
+        "native_cpu_capture_04b": "0228a58e29bfeaedcf71f4ead0d8db841df49d3c4c98a6dc4e4e01c816239e67",
+        "renderer_rg16f_internal_extent": "0228a58e29bfeaedcf71f4ead0d8db841df49d3c4c98a6dc4e4e01c816239e67"
+      }
+    },
+    {
+      "path": "modules/gdscript/gdscript_analyzer.cpp",
+      "before_sha256": "cfb65dd174e84680cee3765145b3abee9e3191e04f53076d9474607afd04f6cd",
+      "after_sha256": "390dd6c8859c44b2eb2cba684881f7c2acc8520d09a7d99264f5db0ac41e0a59",
+      "archive_member": "godot-4.8-beta1/modules/gdscript/gdscript_analyzer.cpp",
+      "before_bytes": 279083,
+      "after_bytes": 280194,
+      "intermediate_sha256": {
+        "candidate03": "390dd6c8859c44b2eb2cba684881f7c2acc8520d09a7d99264f5db0ac41e0a59",
+        "native_cpu_capture_04b": "390dd6c8859c44b2eb2cba684881f7c2acc8520d09a7d99264f5db0ac41e0a59",
+        "renderer_rg16f_internal_extent": "390dd6c8859c44b2eb2cba684881f7c2acc8520d09a7d99264f5db0ac41e0a59"
+      }
+    },
+    {
+      "path": "modules/gdscript/gdscript_analyzer.h",
+      "before_sha256": "85582ce103700108bf1afc7b84d034fea32ab822b91ee36a12f8eb5db559de58",
+      "after_sha256": "17654c94e2ff96499114f788366f033f5a75742e74463caec154e97718067910",
+      "archive_member": "godot-4.8-beta1/modules/gdscript/gdscript_analyzer.h",
+      "before_bytes": 14047,
+      "after_bytes": 14413,
+      "intermediate_sha256": {
+        "candidate03": "17654c94e2ff96499114f788366f033f5a75742e74463caec154e97718067910",
+        "native_cpu_capture_04b": "17654c94e2ff96499114f788366f033f5a75742e74463caec154e97718067910",
+        "renderer_rg16f_internal_extent": "17654c94e2ff96499114f788366f033f5a75742e74463caec154e97718067910"
+      }
+    },
+    {
+      "path": "modules/gdscript/gdscript_vm.cpp",
+      "before_sha256": "7b5628e032a973b9707d8add30a1a39fb3a7f996d10f8c65df57cf9d4642fe86",
+      "after_sha256": "b23db431a4207d01019f8f091b35f01425c8418aefceafd21cc36e31f2c6fd35",
+      "archive_member": "godot-4.8-beta1/modules/gdscript/gdscript_vm.cpp",
+      "before_bytes": 130342,
+      "after_bytes": 131910,
+      "intermediate_sha256": {
+        "candidate03": "b23db431a4207d01019f8f091b35f01425c8418aefceafd21cc36e31f2c6fd35",
+        "native_cpu_capture_04b": "b23db431a4207d01019f8f091b35f01425c8418aefceafd21cc36e31f2c6fd35",
+        "renderer_rg16f_internal_extent": "b23db431a4207d01019f8f091b35f01425c8418aefceafd21cc36e31f2c6fd35"
+      }
+    },
+    {
+      "path": "modules/godot_physics_3d/godot_concave_prepared_data_3d.h",
+      "before_sha256": null,
+      "after_sha256": "025cd5391974eca045b15e564e6277282dad27a626049ae48e452949fd09da37",
+      "archive_member": null,
+      "before_bytes": null,
+      "after_bytes": 3231,
+      "intermediate_sha256": {
+        "candidate03": "025cd5391974eca045b15e564e6277282dad27a626049ae48e452949fd09da37",
+        "native_cpu_capture_04b": "025cd5391974eca045b15e564e6277282dad27a626049ae48e452949fd09da37",
+        "renderer_rg16f_internal_extent": "025cd5391974eca045b15e564e6277282dad27a626049ae48e452949fd09da37"
+      }
+    },
+    {
+      "path": "modules/godot_physics_3d/godot_shape_3d.cpp",
+      "before_sha256": "02651752ed888a64470d17e415b9f88b581c88b7ad9b96e5194b11c0e364fe75",
+      "after_sha256": "2ce14f50ae8afbeb0a13eaf4b127e505f79bb08adde7a26ce0fe353ac5cd2b73",
+      "archive_member": "godot-4.8-beta1/modules/godot_physics_3d/godot_shape_3d.cpp",
+      "before_bytes": 63744,
+      "after_bytes": 64430,
+      "intermediate_sha256": {
+        "candidate03": "2ce14f50ae8afbeb0a13eaf4b127e505f79bb08adde7a26ce0fe353ac5cd2b73",
+        "native_cpu_capture_04b": "2ce14f50ae8afbeb0a13eaf4b127e505f79bb08adde7a26ce0fe353ac5cd2b73",
+        "renderer_rg16f_internal_extent": "2ce14f50ae8afbeb0a13eaf4b127e505f79bb08adde7a26ce0fe353ac5cd2b73"
+      }
+    },
+    {
+      "path": "modules/godot_physics_3d/register_types.cpp",
+      "before_sha256": "c4838fff1a29b3da88b216c6966e81aa6057c4ed40142f5459834cf85246938c",
+      "after_sha256": "fd317a46deda9e0d40553c981db5907a363f81cfdb16b2e3bf244d023e0e04ec",
+      "archive_member": "godot-4.8-beta1/modules/godot_physics_3d/register_types.cpp",
+      "before_bytes": 3465,
+      "after_bytes": 3754,
+      "intermediate_sha256": {
+        "candidate03": "fd317a46deda9e0d40553c981db5907a363f81cfdb16b2e3bf244d023e0e04ec",
+        "native_cpu_capture_04b": "fd317a46deda9e0d40553c981db5907a363f81cfdb16b2e3bf244d023e0e04ec",
+        "renderer_rg16f_internal_extent": "fd317a46deda9e0d40553c981db5907a363f81cfdb16b2e3bf244d023e0e04ec"
+      }
+    },
+    {
+      "path": "modules/text_server_adv/text_server_adv.cpp",
+      "before_sha256": "17e3c0dfdb715701b36635b77d2c778470cb4b4493cd1b909b5236ba2c1b6247",
+      "after_sha256": "342016316b18bd537edc48c052c886695c681a1f979bda747c038d01327f9ef9",
+      "archive_member": "godot-4.8-beta1/modules/text_server_adv/text_server_adv.cpp",
+      "before_bytes": 312971,
+      "after_bytes": 313567,
+      "intermediate_sha256": {
+        "candidate03": "342016316b18bd537edc48c052c886695c681a1f979bda747c038d01327f9ef9",
+        "native_cpu_capture_04b": "342016316b18bd537edc48c052c886695c681a1f979bda747c038d01327f9ef9",
+        "renderer_rg16f_internal_extent": "342016316b18bd537edc48c052c886695c681a1f979bda747c038d01327f9ef9"
+      }
+    },
+    {
+      "path": "modules/text_server_fb/text_server_fb.cpp",
+      "before_sha256": "8bd4e21ecfd233fb7d7b9e6c5dedf53d6a3f1431a9f74744e19733013404cbb6",
+      "after_sha256": "5c348fd12e229464b76804e0350f323dd3620819abb6ff6948d2500610300f23",
+      "archive_member": "godot-4.8-beta1/modules/text_server_fb/text_server_fb.cpp",
+      "before_bytes": 184839,
+      "after_bytes": 185478,
+      "intermediate_sha256": {
+        "candidate03": "5c348fd12e229464b76804e0350f323dd3620819abb6ff6948d2500610300f23",
+        "native_cpu_capture_04b": "5c348fd12e229464b76804e0350f323dd3620819abb6ff6948d2500610300f23",
+        "renderer_rg16f_internal_extent": "5c348fd12e229464b76804e0350f323dd3620819abb6ff6948d2500610300f23"
+      }
+    },
+    {
+      "path": "platform/windows/godot_windows.cpp",
+      "before_sha256": "0d846194950057828fe323e661232ed8421eb7c2246d5bdff431ccf86f6c1c61",
+      "after_sha256": "63c11eef5e93c43d24c78c246c3c0251863936f385ee1ea7f86447f8050392c1",
+      "archive_member": "godot-4.8-beta1/platform/windows/godot_windows.cpp",
+      "before_bytes": 5403,
+      "after_bytes": 6764,
+      "intermediate_sha256": {
+        "candidate03": "63c11eef5e93c43d24c78c246c3c0251863936f385ee1ea7f86447f8050392c1",
+        "native_cpu_capture_04b": "63c11eef5e93c43d24c78c246c3c0251863936f385ee1ea7f86447f8050392c1",
+        "renderer_rg16f_internal_extent": "63c11eef5e93c43d24c78c246c3c0251863936f385ee1ea7f86447f8050392c1"
+      }
+    },
+    {
+      "path": "scene/register_scene_types.cpp",
+      "before_sha256": "8968e4214eb741f13469efb4a9f44bd994415262f0ab62da9f10eb61255daa96",
+      "after_sha256": "afc96c34d157fd767b3c704e204b38e5071334e755bdc750c7b1045348a6ee13",
+      "archive_member": "godot-4.8-beta1/scene/register_scene_types.cpp",
+      "before_bytes": 58849,
+      "after_bytes": 58943,
+      "intermediate_sha256": {
+        "candidate03": "8968e4214eb741f13469efb4a9f44bd994415262f0ab62da9f10eb61255daa96",
+        "native_cpu_capture_04b": "afc96c34d157fd767b3c704e204b38e5071334e755bdc750c7b1045348a6ee13",
+        "renderer_rg16f_internal_extent": "afc96c34d157fd767b3c704e204b38e5071334e755bdc750c7b1045348a6ee13"
+      }
+    },
+    {
+      "path": "scene/resources/3d/concave_polygon_shape_3d.cpp",
+      "before_sha256": "a7adc68179249aa3e39c4933177a1bac7ce80c8bcc1328efb9f1e133caf8ebd1",
+      "after_sha256": "90353f44745aa6d69bf150ff5677f0253626a064c4e8a63d407efccdc6b34a43",
+      "archive_member": "godot-4.8-beta1/scene/resources/3d/concave_polygon_shape_3d.cpp",
+      "before_bytes": 5329,
+      "after_bytes": 5931,
+      "intermediate_sha256": {
+        "candidate03": "90353f44745aa6d69bf150ff5677f0253626a064c4e8a63d407efccdc6b34a43",
+        "native_cpu_capture_04b": "90353f44745aa6d69bf150ff5677f0253626a064c4e8a63d407efccdc6b34a43",
+        "renderer_rg16f_internal_extent": "90353f44745aa6d69bf150ff5677f0253626a064c4e8a63d407efccdc6b34a43"
+      }
+    },
+    {
+      "path": "scene/resources/3d/concave_polygon_shape_3d.h",
+      "before_sha256": "772f46870bc4bdd8896f6274d8bcf1413671eb9c50fa9713319d314df5b411b4",
+      "after_sha256": "3f927ea56ffd18b1ca4a82e7b6971cd5dce1530680cd3c8c6952ab29752192db",
+      "archive_member": "godot-4.8-beta1/scene/resources/3d/concave_polygon_shape_3d.h",
+      "before_bytes": 3465,
+      "after_bytes": 3517,
+      "intermediate_sha256": {
+        "candidate03": "3f927ea56ffd18b1ca4a82e7b6971cd5dce1530680cd3c8c6952ab29752192db",
+        "native_cpu_capture_04b": "3f927ea56ffd18b1ca4a82e7b6971cd5dce1530680cd3c8c6952ab29752192db",
+        "renderer_rg16f_internal_extent": "3f927ea56ffd18b1ca4a82e7b6971cd5dce1530680cd3c8c6952ab29752192db"
+      }
+    },
+    {
+      "path": "scene/resources/3d/shape_3d.cpp",
+      "before_sha256": "eb0c3c2d44359993935135723a3f4359c6939ceb87a5ed1b7187ea45160754a4",
+      "after_sha256": "a7ae3b87c338df1f88d7a832322048e790231cd5e9163fb56dae6fdcaa3f29aa",
+      "archive_member": "godot-4.8-beta1/scene/resources/3d/shape_3d.cpp",
+      "before_bytes": 6983,
+      "after_bytes": 7530,
+      "intermediate_sha256": {
+        "candidate03": "a7ae3b87c338df1f88d7a832322048e790231cd5e9163fb56dae6fdcaa3f29aa",
+        "native_cpu_capture_04b": "a7ae3b87c338df1f88d7a832322048e790231cd5e9163fb56dae6fdcaa3f29aa",
+        "renderer_rg16f_internal_extent": "a7ae3b87c338df1f88d7a832322048e790231cd5e9163fb56dae6fdcaa3f29aa"
+      }
+    },
+    {
+      "path": "scene/resources/material.cpp",
+      "before_sha256": "fc0f63a5c3bb8543dcb04020642d65d329e0abf8fc43aa469bf94ce94996bbf4",
+      "after_sha256": "949511f4ead9358d3e7e83b9cbf7cc6cbb96000326884bdd87393ebd3be38150",
+      "archive_member": "godot-4.8-beta1/scene/resources/material.cpp",
+      "before_bytes": 156274,
+      "after_bytes": 158013,
+      "intermediate_sha256": {
+        "candidate03": "949511f4ead9358d3e7e83b9cbf7cc6cbb96000326884bdd87393ebd3be38150",
+        "native_cpu_capture_04b": "949511f4ead9358d3e7e83b9cbf7cc6cbb96000326884bdd87393ebd3be38150",
+        "renderer_rg16f_internal_extent": "949511f4ead9358d3e7e83b9cbf7cc6cbb96000326884bdd87393ebd3be38150"
+      }
+    },
+    {
+      "path": "scene/resources/material.h",
+      "before_sha256": "82382cf162200daf6b81aea19d182afa10cec9b091ea5379474cff3013ebe41d",
+      "after_sha256": "d406b4d8923f4dfdf75cf0dfe792cd78aca56b3e7877e520bb68b86bb7322330",
+      "archive_member": "godot-4.8-beta1/scene/resources/material.h",
+      "before_bytes": 28014,
+      "after_bytes": 28404,
+      "intermediate_sha256": {
+        "candidate03": "d406b4d8923f4dfdf75cf0dfe792cd78aca56b3e7877e520bb68b86bb7322330",
+        "native_cpu_capture_04b": "d406b4d8923f4dfdf75cf0dfe792cd78aca56b3e7877e520bb68b86bb7322330",
+        "renderer_rg16f_internal_extent": "d406b4d8923f4dfdf75cf0dfe792cd78aca56b3e7877e520bb68b86bb7322330"
+      }
+    },
+    {
+      "path": "scene/resources/mesh.cpp",
+      "before_sha256": "2b9cae0f6350f4210f67b7a91f6458f99020ac22154de695ad3257432d023960",
+      "after_sha256": "6e7c0f2652eb078c9bc4c4107e65c25c113b00c817d1684831e0693e12e75a52",
+      "archive_member": "godot-4.8-beta1/scene/resources/mesh.cpp",
+      "before_bytes": 86160,
+      "after_bytes": 87084,
+      "intermediate_sha256": {
+        "candidate03": "2b9cae0f6350f4210f67b7a91f6458f99020ac22154de695ad3257432d023960",
+        "native_cpu_capture_04b": "6e7c0f2652eb078c9bc4c4107e65c25c113b00c817d1684831e0693e12e75a52",
+        "renderer_rg16f_internal_extent": "6e7c0f2652eb078c9bc4c4107e65c25c113b00c817d1684831e0693e12e75a52"
+      }
+    },
+    {
+      "path": "scene/resources/mesh.h",
+      "before_sha256": "c3539d54df2af0ee20a06d02cd55f437e7b9938dd5bbaf108d178123069db815",
+      "after_sha256": "26185b2bd91c1c1627c57c6d04aebf1cd5558194875a4dc2a202f9ad5316af2f",
+      "archive_member": "godot-4.8-beta1/scene/resources/mesh.h",
+      "before_bytes": 18824,
+      "after_bytes": 18939,
+      "intermediate_sha256": {
+        "candidate03": "c3539d54df2af0ee20a06d02cd55f437e7b9938dd5bbaf108d178123069db815",
+        "native_cpu_capture_04b": "26185b2bd91c1c1627c57c6d04aebf1cd5558194875a4dc2a202f9ad5316af2f",
+        "renderer_rg16f_internal_extent": "26185b2bd91c1c1627c57c6d04aebf1cd5558194875a4dc2a202f9ad5316af2f"
+      }
+    },
+    {
+      "path": "scene/resources/native_mesh_cpu_capture.cpp",
+      "before_sha256": null,
+      "after_sha256": "1a202f5847a8248c82b5b4af0d237d310ec2679e0bf96f04971f0079b1d61bf3",
+      "archive_member": null,
+      "before_bytes": null,
+      "after_bytes": 10508,
+      "intermediate_sha256": {
+        "candidate03": null,
+        "native_cpu_capture_04b": "1a202f5847a8248c82b5b4af0d237d310ec2679e0bf96f04971f0079b1d61bf3",
+        "renderer_rg16f_internal_extent": "1a202f5847a8248c82b5b4af0d237d310ec2679e0bf96f04971f0079b1d61bf3"
+      }
+    },
+    {
+      "path": "scene/resources/native_mesh_cpu_capture.h",
+      "before_sha256": null,
+      "after_sha256": "4b094ccbe2a90945f960d50f7857cb2a23b29ec5d035c5356bfbfd260a8f1d98",
+      "archive_member": null,
+      "before_bytes": null,
+      "after_bytes": 4030,
+      "intermediate_sha256": {
+        "candidate03": null,
+        "native_cpu_capture_04b": "4b094ccbe2a90945f960d50f7857cb2a23b29ec5d035c5356bfbfd260a8f1d98",
+        "renderer_rg16f_internal_extent": "4b094ccbe2a90945f960d50f7857cb2a23b29ec5d035c5356bfbfd260a8f1d98"
+      }
+    },
+    {
+      "path": "servers/physics_3d/physics_server_3d.cpp",
+      "before_sha256": "1f7afa5940ef5fff81eac191b66256d70d37dc2dcd76006643c0549fd76e4c68",
+      "after_sha256": "0774dea22786ea9eba6028c3d8deba463f6abb68d1cd177a94352b8e86e724c8",
+      "archive_member": "godot-4.8-beta1/servers/physics_3d/physics_server_3d.cpp",
+      "before_bytes": 36467,
+      "after_bytes": 37234,
+      "intermediate_sha256": {
+        "candidate03": "0774dea22786ea9eba6028c3d8deba463f6abb68d1cd177a94352b8e86e724c8",
+        "native_cpu_capture_04b": "0774dea22786ea9eba6028c3d8deba463f6abb68d1cd177a94352b8e86e724c8",
+        "renderer_rg16f_internal_extent": "0774dea22786ea9eba6028c3d8deba463f6abb68d1cd177a94352b8e86e724c8"
+      }
+    },
+    {
+      "path": "servers/physics_3d/physics_server_3d.h",
+      "before_sha256": "5d2098aef2a6b6a230b8030a07c4f8ea021525dc4ba91d795c386221fa61c9bc",
+      "after_sha256": "1af320d24d07af649bfc7200d76b75df4334a49d7209a1f40b1f3e9b58acb325",
+      "archive_member": "godot-4.8-beta1/servers/physics_3d/physics_server_3d.h",
+      "before_bytes": 21036,
+      "after_bytes": 21422,
+      "intermediate_sha256": {
+        "candidate03": "1af320d24d07af649bfc7200d76b75df4334a49d7209a1f40b1f3e9b58acb325",
+        "native_cpu_capture_04b": "1af320d24d07af649bfc7200d76b75df4334a49d7209a1f40b1f3e9b58acb325",
+        "renderer_rg16f_internal_extent": "1af320d24d07af649bfc7200d76b75df4334a49d7209a1f40b1f3e9b58acb325"
+      }
+    },
+    {
+      "path": "servers/rendering/renderer_rd/effects/copy_effects.cpp",
+      "before_sha256": "5c4d90165de78ddf7bab0745793e6610dd4e6c184c1ec6600c168e61c01bf0b4",
+      "after_sha256": "78999578aa5231cdc331d13c454370e100dd1893f0164c5c0e4fd40b8c5b563c",
+      "archive_member": "godot-4.8-beta1/servers/rendering/renderer_rd/effects/copy_effects.cpp",
+      "before_bytes": 75869,
+      "after_bytes": 76563,
+      "intermediate_sha256": {
+        "candidate03": "5c4d90165de78ddf7bab0745793e6610dd4e6c184c1ec6600c168e61c01bf0b4",
+        "native_cpu_capture_04b": "5c4d90165de78ddf7bab0745793e6610dd4e6c184c1ec6600c168e61c01bf0b4",
+        "renderer_rg16f_internal_extent": "78999578aa5231cdc331d13c454370e100dd1893f0164c5c0e4fd40b8c5b563c"
+      }
+    },
+    {
+      "path": "servers/rendering/renderer_rd/effects/copy_effects.h",
+      "before_sha256": "107735749f70e897c246b88db98c026d85624b275a1ebebb784f431dbc1720d8",
+      "after_sha256": "7900b758b943d8ef5355c756f220b6b47425b6337149a60b90053ee1d90eee9b",
+      "archive_member": "godot-4.8-beta1/servers/rendering/renderer_rd/effects/copy_effects.h",
+      "before_bytes": 14767,
+      "after_bytes": 15101,
+      "intermediate_sha256": {
+        "candidate03": "107735749f70e897c246b88db98c026d85624b275a1ebebb784f431dbc1720d8",
+        "native_cpu_capture_04b": "107735749f70e897c246b88db98c026d85624b275a1ebebb784f431dbc1720d8",
+        "renderer_rg16f_internal_extent": "7900b758b943d8ef5355c756f220b6b47425b6337149a60b90053ee1d90eee9b"
+      }
+    },
+    {
+      "path": "servers/rendering/renderer_rd/effects/taa.cpp",
+      "before_sha256": "a28d9f7a48c88ffd354a25acc527038c5146c28a158199016bac069159f33fe2",
+      "after_sha256": "f0915bece51f1bb8b53e179554ab62ddcf145d29a92b9add10e2d154ee9e81b0",
+      "archive_member": "godot-4.8-beta1/servers/rendering/renderer_rd/effects/taa.cpp",
+      "before_bytes": 7374,
+      "after_bytes": 7404,
+      "intermediate_sha256": {
+        "candidate03": "a28d9f7a48c88ffd354a25acc527038c5146c28a158199016bac069159f33fe2",
+        "native_cpu_capture_04b": "a28d9f7a48c88ffd354a25acc527038c5146c28a158199016bac069159f33fe2",
+        "renderer_rg16f_internal_extent": "f0915bece51f1bb8b53e179554ab62ddcf145d29a92b9add10e2d154ee9e81b0"
+      }
+    },
+    {
+      "path": "servers/rendering/renderer_rd/shaders/effects/copy.glsl",
+      "before_sha256": "5d35b131600fc6428e5e062cd9b53afbaa2f85ff03024df1fe099378c180fa64",
+      "after_sha256": "1d4dd0f5cac3d6ecdf8b91d3aab2a8417540ad87904314b7f365232ab750a2c6",
+      "archive_member": "godot-4.8-beta1/servers/rendering/renderer_rd/shaders/effects/copy.glsl",
+      "before_bytes": 10243,
+      "after_bytes": 10358,
+      "intermediate_sha256": {
+        "candidate03": "5d35b131600fc6428e5e062cd9b53afbaa2f85ff03024df1fe099378c180fa64",
+        "native_cpu_capture_04b": "5d35b131600fc6428e5e062cd9b53afbaa2f85ff03024df1fe099378c180fa64",
+        "renderer_rg16f_internal_extent": "1d4dd0f5cac3d6ecdf8b91d3aab2a8417540ad87904314b7f365232ab750a2c6"
+      }
+    },
+    {
+      "path": "servers/rendering/rendering_device.cpp",
+      "before_sha256": "8ea3c66e5580d0e894a0ea578c8481005b302c8d91f470190e36d0ea254ab9a3",
+      "after_sha256": "5adfdd46ed8b801cf7e530632f106cbf700370abea2d3dd1d920aa553e42dfa8",
+      "archive_member": "godot-4.8-beta1/servers/rendering/rendering_device.cpp",
+      "before_bytes": 465220,
+      "after_bytes": 465475,
+      "intermediate_sha256": {
+        "candidate03": "5adfdd46ed8b801cf7e530632f106cbf700370abea2d3dd1d920aa553e42dfa8",
+        "native_cpu_capture_04b": "5adfdd46ed8b801cf7e530632f106cbf700370abea2d3dd1d920aa553e42dfa8",
+        "renderer_rg16f_internal_extent": "5adfdd46ed8b801cf7e530632f106cbf700370abea2d3dd1d920aa553e42dfa8"
+      }
+    },
+    {
+      "path": "servers/rendering/rendering_server.cpp",
+      "before_sha256": "2b490b28acbdcb20963307ffce83c0bd113e5652e43c5f2eaac5982319e7ad89",
+      "after_sha256": "574569e6026bb35cacaff4f2706179b59ed054f6556d78e83afd4037e84bde40",
+      "archive_member": "godot-4.8-beta1/servers/rendering/rendering_server.cpp",
+      "before_bytes": 199465,
+      "after_bytes": 202657,
+      "intermediate_sha256": {
+        "candidate03": "2e246df15af105975ba7a43b3825ad5ac561eb75c3336c5943bc9716e4c91ba2",
+        "native_cpu_capture_04b": "574569e6026bb35cacaff4f2706179b59ed054f6556d78e83afd4037e84bde40",
+        "renderer_rg16f_internal_extent": "574569e6026bb35cacaff4f2706179b59ed054f6556d78e83afd4037e84bde40"
+      }
+    },
+    {
+      "path": "servers/rendering/rendering_server.h",
+      "before_sha256": "f397b4ad9fe72a904b3b47563cd12fb60a7418c5881fc2e82e3430cdf82f7fc6",
+      "after_sha256": "86f82c8d4436dde6a49ed057c1dd4fad7c71e3fe1e4f75f7c67a4b7b258942d6",
+      "archive_member": "godot-4.8-beta1/servers/rendering/rendering_server.h",
+      "before_bytes": 74323,
+      "after_bytes": 74426,
+      "intermediate_sha256": {
+        "candidate03": "f397b4ad9fe72a904b3b47563cd12fb60a7418c5881fc2e82e3430cdf82f7fc6",
+        "native_cpu_capture_04b": "86f82c8d4436dde6a49ed057c1dd4fad7c71e3fe1e4f75f7c67a4b7b258942d6",
+        "renderer_rg16f_internal_extent": "86f82c8d4436dde6a49ed057c1dd4fad7c71e3fe1e4f75f7c67a4b7b258942d6"
+      }
+    },
+    {
+      "path": "servers/rendering/rendering_server_default.cpp",
+      "before_sha256": "b21dc45c1dfe7f6e5aefecad3ebcba42a15012e1535e0b6131c76ec7f13b4654",
+      "after_sha256": "5e7d3fce189c0ecd35529145b85cdc2c255160fa928d771ed95107ff049fbb1e",
+      "archive_member": "godot-4.8-beta1/servers/rendering/rendering_server_default.cpp",
+      "before_bytes": 16907,
+      "after_bytes": 17151,
+      "intermediate_sha256": {
+        "candidate03": "5e7d3fce189c0ecd35529145b85cdc2c255160fa928d771ed95107ff049fbb1e",
+        "native_cpu_capture_04b": "5e7d3fce189c0ecd35529145b85cdc2c255160fa928d771ed95107ff049fbb1e",
+        "renderer_rg16f_internal_extent": "5e7d3fce189c0ecd35529145b85cdc2c255160fa928d771ed95107ff049fbb1e"
+      }
+    },
+    {
+      "path": "servers/rendering/rendering_shader_container.cpp",
+      "before_sha256": "3ca91cd6c1fe129ca0a7f3af0dec5f8d9b69c503800754466074f4b8f7ef6437",
+      "after_sha256": "a813fbf5f420a851d658a17e8fa2d150f02ebc1b31024a16137ee207d3e8017a",
+      "archive_member": "godot-4.8-beta1/servers/rendering/rendering_shader_container.cpp",
+      "before_bytes": 46993,
+      "after_bytes": 47181,
+      "intermediate_sha256": {
+        "candidate03": "a813fbf5f420a851d658a17e8fa2d150f02ebc1b31024a16137ee207d3e8017a",
+        "native_cpu_capture_04b": "a813fbf5f420a851d658a17e8fa2d150f02ebc1b31024a16137ee207d3e8017a",
+        "renderer_rg16f_internal_extent": "a813fbf5f420a851d658a17e8fa2d150f02ebc1b31024a16137ee207d3e8017a"
+      }
+    },
+    {
+      "path": "thirdparty/re-spirv/re-spirv.cpp",
+      "before_sha256": "c4b1a58358c43013ae4a416a6d60119a54c8dee940d385b65aa073cecea73b3a",
+      "after_sha256": "1d241d8f890d9ea78387dc382f9a6097d89036cb3520f3089ea8e7dd56de5d8a",
+      "archive_member": "godot-4.8-beta1/thirdparty/re-spirv/re-spirv.cpp",
+      "before_bytes": 154844,
+      "after_bytes": 157882,
+      "intermediate_sha256": {
+        "candidate03": "1d241d8f890d9ea78387dc382f9a6097d89036cb3520f3089ea8e7dd56de5d8a",
+        "native_cpu_capture_04b": "1d241d8f890d9ea78387dc382f9a6097d89036cb3520f3089ea8e7dd56de5d8a",
+        "renderer_rg16f_internal_extent": "1d241d8f890d9ea78387dc382f9a6097d89036cb3520f3089ea8e7dd56de5d8a"
+      }
+    }
+  ],
+  "verification": {
+    "basis": "Known official archive SHA and archived per-file hashes; no engine Git HEAD or index used.",
+    "archive_before_hashes_verified": true,
+    "intermediate_chain_before_after_hashes_verified": true,
+    "cumulative_check_and_apply_exit": 0,
+    "exact_compiled_source_matches": 43,
+    "changed_file_count": 43,
+    "new_file_count": 3,
+    "tree_scope": "43 affected paths only, 40 original files extracted as exact archive bytes plus 3 patch additions; no compile claimed from these validation trees.",
+    "trees": {
+      "original": "D:\\code\\rmmo_runtime\\review_artifacts\\godot_4_8_adoption_20261029_01\\engine_patch_delivery_04d_02\\original",
+      "chain_applied": "D:\\code\\rmmo_runtime\\review_artifacts\\godot_4_8_adoption_20261029_01\\engine_patch_delivery_04d_02\\chain_applied",
+      "cumulative_applied": "D:\\code\\rmmo_runtime\\review_artifacts\\godot_4_8_adoption_20261029_01\\engine_patch_delivery_04d_02\\cumulative_applied"
+    },
+    "commands": "D:\\code\\rmmo_runtime\\review_artifacts\\godot_4_8_adoption_20261029_01\\engine_patch_delivery_04d_02\\apply_commands.json",
+    "commands_sha256": "10506f30e1c9e6880d074bcb90bc47c57fdaa80a41abd3d7a6921ec041c54a04",
+    "source_root_at_build": "D:\\tools\\godot-4.8-build\\source\\godot-4.8-beta1",
+    "build_source_snapshot": "D:\\code\\rmmo_runtime\\review_artifacts\\godot_4_8_adoption_20261029_01\\loader_lifetime_04c_01\\source_04d",
+    "identity_limit": "Exact source reproduction is proven. Binary hashes identify the tested build, not a promise of bit-identical PE/DWARF across another toolchain, timestamp or source directory."
+  },
+  "build": {
+    "command": [
+      "D:\\tools\\godot-4.8-build\\python-env\\Scripts\\python.exe",
+      "-m",
+      "SCons",
+      "platform=windows",
+      "arch=x86_64",
+      "target=editor",
+      "use_mingw=yes",
+      "debug_symbols=yes",
+      "separate_debug_symbols=yes",
+      "dev_build=no",
+      "optimize=speed",
+      "lto=none",
+      "d3d12=no",
+      "accesskit=no",
+      "angle=no",
+      "-j4"
+    ],
+    "environment": {
+      "PATH_prepend": "C:/mingw64/bin",
+      "GODOT_VERSION_STATUS": "beta1",
+      "PYTHONUTF8": "1"
+    },
+    "exit": 0,
+    "metadata": "D:\\code\\rmmo_runtime\\review_artifacts\\godot_4_8_adoption_20261029_01\\loader_lifetime_04c_01\\candidate04d.json",
+    "artifacts": [
+      {
+        "path": "D:\\code\\rmmo_runtime\\review_artifacts\\godot_4_8_adoption_20261029_01\\loader_lifetime_04c_01\\candidate_engine_04d\\godot.windows.editor.x86_64.console.exe",
+        "bytes": 199477,
+        "sha256": "28aa54e4f40267786100af07def79d482a3e5b73d3d168cfb02d6c248ce88e17"
+      },
+      {
+        "path": "D:\\code\\rmmo_runtime\\review_artifacts\\godot_4_8_adoption_20261029_01\\loader_lifetime_04c_01\\candidate_engine_04d\\godot.windows.editor.x86_64.console.exe.debugsymbols",
+        "bytes": 78178,
+        "sha256": "4d45a0e4b89ed5a16e7153af938cfa024615a0f0335b1eca4ea191298a87fd1b"
+      },
+      {
+        "path": "D:\\code\\rmmo_runtime\\review_artifacts\\godot_4_8_adoption_20261029_01\\loader_lifetime_04c_01\\candidate_engine_04d\\godot.windows.editor.x86_64.exe",
+        "bytes": 163153290,
+        "sha256": "b15441fd50cfcec8072150d8025770952339d86faa91e95b09d0a7d6a193621e"
+      },
+      {
+        "path": "D:\\code\\rmmo_runtime\\review_artifacts\\godot_4_8_adoption_20261029_01\\loader_lifetime_04c_01\\candidate_engine_04d\\godot.windows.editor.x86_64.exe.debugsymbols",
+        "bytes": 2167152044,
+        "sha256": "e5bc18436cc7187f861fb9d958d7cd71cf4cb3a4c517254d9a7707e52e7939ef"
+      }
+    ],
+    "compiler_sha256_recorded_at_native04b": "b17a8ff7fd1e888e4d81d5d71a64e79aa1414f70f0f8e7322136770a2d37ad68"
+  },
+  "installed_default_at_recording": {
+    "candidate": "03",
+    "path": "D:\\tools\\godot\\godot.windows.editor.x86_64.exe",
+    "sha256": "fe41da4819801754155ba43728e9541e3a76074021d5b09d34a6293fb0e33d35",
+    "manifest": "D:/tools/godot/patched_build_manifest.json",
+    "candidate04d_installed": false
+  },
+  "validation": {
+    "record": "D:\\code\\rmmo_runtime\\review_artifacts\\godot_4_8_adoption_20261029_01\\loader_lifetime_04c_01\\final_summary.json",
+    "record_sha256": "d2c36dea49de7e9201c769c98b44b29d400d059abb4fb8101d5c5473421a11e5",
+    "lifecycle_contracts": {
+      "cases": 13,
+      "script_assertions": 46,
+      "unexpected_diagnostics": 0,
+      "expected_cancellation_diagnostics": 1
+    },
+    "lifecycle_repeats": {
+      "cases": 56,
+      "script_assertions": 208,
+      "unexpected_diagnostics": 0,
+      "expected_cancellation_diagnostics": 8
+    },
+    "native_api": {
+      "headless_assertions": 179,
+      "gpu_assertions": 179,
+      "expected_missing_file_errors_each": 2,
+      "unexpected_diagnostics_headless": 0,
+      "unexpected_diagnostics_gpu": 0
+    },
+    "worker_scope": {
+      "failed": [],
+      "observed_threads": [
+        6,
+        5,
+        7
+      ],
+      "passed": true,
+      "peak_active_calls": 3,
+      "requested_group_workers": 12,
+      "tasks": 96
+    },
+    "taa": {
+      "real_gpu_cases": 4,
+      "pixel_mismatches_per_case": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "visible_box_each": true,
+      "record": "D:\\code\\rmmo_runtime\\review_artifacts\\godot_4_8_adoption_20261029_01\\loader_lifetime_04c_01\\taa_gpu_04d\\report.json"
+    },
+    "ordinary_project_gpu": {
+      "assertions": 35,
+      "exit": 0,
+      "errors": [],
+      "warning_count": 74,
+      "warning_boundary": "74 pre-existing glTF stride warnings match the frozen baseline; no new diagnostic.",
+      "record": "D:\\code\\rmmo_runtime\\review_artifacts\\godot_4_8_adoption_20261029_01\\loader_lifetime_04c_01\\automatic_gpu_04d\\result.json",
+      "record_sha256": "7f1cb72acef7e8cb5697cee616325c9577a3208db76a850f9b38ddeece33fe84"
+    },
+    "performance_claim": false,
+    "remaining_boundaries": [
+      "Rare dying-token reuse still clears under the caller outer loader mutex; not all graph disposal is unlocked.",
+      "Female-world flow previously stayed Loading and timed out at 330s; this fixture has not been rerun or causally attributed to the renderer/lifetime fixes.",
+      "No new full-map timing/low-FPS proof, no blanket acceptance of all 218 models, and no installed-default change.",
+      "Native model texture 65-assertion GPU fixture ran on 04b+renderer, not 04d; its result must not be relabeled as an 04d run.",
+      "Vulkan Forward+ contracts are the GPU evidence here; other GPU backends and external OpenXR devices were not exercised."
+    ]
+  }
+}

@@ -37,3 +37,5 @@
 
 # Unified patches must keep LF context lines for git apply on engine LF sources.
 /tools/engine_patches/*.patch text eol=lf whitespace=-blank-at-eol,-blank-at-eof
+# This manifest is referenced by its exact SHA in the installed build receipt.
+/tools/engine_patches/godot-4.8-beta1-runtime-candidate04d.json text eol=lf

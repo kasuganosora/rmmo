@@ -1,25 +1,107 @@
-# Godot 4.7.2 native profiler lifetime fix
+# Godot engine patches
 
-Current status (2026-10-29): the verified 4.7.2 CPU-compression/main-device
-candidate is installed with matching symbols; older sections retain their
-historical installation status. See the [installation contract](../../docs/editor_dds_engine_contract_20261028.md).
-The separate [4.8 beta1 adoption record](../../docs/godot_4_8_adoption_20261029.md)
-tracks upstream replacements, missing project APIs, and the new standalone
-`texture_streaming_contract` fixture. Do not apply every 4.7.2 patch blindly.
+Current status (2026-10-29 10:35 +08:00): the project and the installed default use **Godot
+4.8 beta1 candidate04d**, with matching symbols, at
+`D:/tools/godot/godot.windows.editor.x86_64.exe`. Its executable SHA-256 is
+`b15441fd50cfcec8072150d8025770952339d86faa91e95b09d0a7d6a193621e`.
+The installation record is `D:/tools/godot/patched_build_manifest.json`.
+The [installation evidence](D:/code/rmmo_runtime/review_artifacts/godot_4_8_adoption_20261029_01/default_04d_installation.json)
+verifies all default/version aliases and matching symbols, plus three version
+probes. The candidate04d manifest below preserves its **pre-installation
+snapshot** unchanged; this installation record supersedes that snapshot's
+installation status.
+The [4.8 adoption record](../../docs/godot_4_8_adoption_20261029.md) tracks
+runtime/editor integration and remaining boundaries. The 4.7.2 sections below
+are historical experiments, not instructions to downgrade or resume 4.7 work.
 
-The separately archived `godot-4.8-beta1-runtime-candidate.patch` applies to
-official beta1 commit `4d10419cacd6d3009976e8f9fd3abd970fd58018` only. Its JSON
-manifest records all 29 before/after file hashes and tested/pending boundaries.
-It includes the reproduced frozen-type registration fix: bind the collision
-preparation API during PhysicsServer3D class initialization, then register the
-module's CPU implementation callback. The aggregate patch was applied to the
-verified official archive and every resulting file matched the compiled source.
-This is a separate candidate; the installed default remains 4.7.2.
-Integrated game/editor load, unload and return testing remains required.
-The reusable `check_glyph_upload.py` runs four glyph update paths with and
-without mipmaps in safe/separate render modes, checks actual thread identity
-and compares final GPU atlas bytes with CPU snapshots after mutation bursts.
-Only compiled dynamic-font servers are exercised; Dummy is explicitly skipped.
+## Reproducible 4.8 beta1 candidate04d
+
+[`godot-4.8-beta1-runtime-candidate04d.patch`](godot-4.8-beta1-runtime-candidate04d.patch)
+is a cumulative patch against the pristine official **4.8 beta1 source archive**,
+commit `4d10419cacd6d3009976e8f9fd3abd970fd58018`. Apply it once to that source;
+do not stack it on candidate03, 04b, the renderer delta, or a patched build.
+The [manifest](godot-4.8-beta1-runtime-candidate04d.json) records the archive,
+patch, executable/symbol identities, all 43 before/after file hashes, each
+intermediate stage, build command, tests and unresolved boundaries.
+
+The verified sequence is official beta1 → archived candidate03 → native CPU
+capture04b → renderer velocity-copy fix → loader/WTP lifetime04d. An independent
+external tree passed every intermediate before/after hash. A second pristine
+tree accepted the cumulative patch and matched all **43 compiled source files
+byte for byte**, including three additions. These validation trees contain the
+affected files only; this delivery does not claim a fresh complete engine build.
+Neither proof uses the local engine repository's Git HEAD or index as a source
+baseline. Preserve LF bytes and verify the archive SHA before applying.
+
+The additions after 03 provide scoped CPU-only native mesh capture, an RG16F
+velocity-copy shader using the TAA internal extent, and ResourceLoader/worker
+task lifetime and scoped-work fixes. The normal RGBA16F copy branches remain
+unchanged. The renderer change preserves sampled/storage access and does not
+require external OpenXR velocity textures to support transfer-source usage.
+
+04d passes 13 lifecycle cases/46 assertions, 56 repeated cases/208 assertions,
+179 original API assertions in both headless and real GPU modes, four TAA
+scale/MSAA GPU cases with zero pixel mismatches, and the frozen ordinary-project
+35-assertion GPU regression. The latter retains exactly 74 existing glTF stride
+warnings and adds no diagnostic. These are functional contracts, not proof of a
+whole-map loading/FPS improvement. The former female-world Loading timeout has
+not been rerun or attributed to these fixes; a rare dying-token cleanup still
+runs under the caller's outer loader mutex. The native-texture 65-assertion GPU
+fixture used **04b + renderer**, and must not be relabeled as an 04d run.
+
+To reproduce, first extract a fresh full copy of
+`godot-4.8-beta1.tar.xz` outside the project. Its SHA-256 must be
+`6d49c02e438935e49a12231d857b2b56131948b004d5b668bf295c9bc3b2281c`.
+Do not use the existing patched engine tree as the baseline. Run the following
+from the new archive's `godot-4.8-beta1` directory, adjusting the repository path:
+
+```powershell
+$ErrorActionPreference = 'Stop'
+$patchDir = 'D:/code/rmmo/tools/engine_patches'
+$patch = Join-Path $patchDir 'godot-4.8-beta1-runtime-candidate04d.patch'
+$manifest = Get-Content -Raw (Join-Path $patchDir 'godot-4.8-beta1-runtime-candidate04d.json') | ConvertFrom-Json
+if ((Get-FileHash -Algorithm SHA256 -LiteralPath $patch).Hash.ToLowerInvariant() -ne $manifest.patch.sha256) { throw 'Patch SHA mismatch' }
+foreach ($row in $manifest.files) {
+    if ($null -eq $row.before_sha256) {
+        if (Test-Path -LiteralPath $row.path) { throw "Expected absent: $($row.path)" }
+    } elseif ((Get-FileHash -Algorithm SHA256 -LiteralPath $row.path).Hash.ToLowerInvariant() -ne $row.before_sha256) {
+        throw "Original source SHA mismatch: $($row.path)"
+    }
+}
+git -c core.autocrlf=false apply --check $patch
+if ($LASTEXITCODE -ne 0) { throw 'Patch check failed' }
+git -c core.autocrlf=false apply $patch
+if ($LASTEXITCODE -ne 0) { throw 'Patch apply failed' }
+foreach ($row in $manifest.files) {
+    if ((Get-FileHash -Algorithm SHA256 -LiteralPath $row.path).Hash.ToLowerInvariant() -ne $row.after_sha256) { throw "Patched source SHA mismatch: $($row.path)" }
+}
+$env:PATH = 'C:/mingw64/bin;' + $env:PATH
+$env:GODOT_VERSION_STATUS = 'beta1'
+$env:PYTHONUTF8 = '1'
+& 'D:/tools/godot-4.8-build/python-env/Scripts/python.exe' -m SCons platform=windows arch=x86_64 target=editor use_mingw=yes debug_symbols=yes separate_debug_symbols=yes dev_build=no optimize=speed lto=none d3d12=no accesskit=no angle=no -j4
+if ($LASTEXITCODE -ne 0) { throw 'Build failed' }
+```
+
+The recorded executable and symbols identify the tested build. Exact source
+reproduction does not promise identical PE/DWARF bytes with another toolchain,
+timestamp or source path. Keep each rebuilt executable with its own symbols;
+run GPU fixtures through `tools/run_godot_background.py` with isolated external
+projects. Applying or compiling this patch does not install it or enable the
+split-model pipeline in ordinary package builds.
+
+## Archived candidate03
+
+The original `godot-4.8-beta1-runtime-candidate.patch` and its JSON manifest are
+preserved unchanged, including their historical pre-installation status. They
+record 29 before/after hashes against the same official archive. Candidate03
+includes the frozen-type registration fix: bind the collision preparation API
+during PhysicsServer3D class initialization, then register its CPU callback.
+The reusable `check_glyph_upload.py` covers four glyph update paths with and
+without mipmaps in safe/separate render modes, checking actual thread identity
+and final GPU atlas bytes. Only compiled dynamic-font servers are exercised;
+Dummy is explicitly skipped.
+
+## Historical 4.7.2 native profiler lifetime fix
 
 Base: official `4.7.2-stable`, commit `ed1daf0bf001b61586d9930840f2f1394092c079`.
 The GDScript VM calls `_profile_count_as_native(base_obj, ...)` after invoking
