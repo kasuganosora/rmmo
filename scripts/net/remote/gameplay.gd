@@ -4,6 +4,7 @@ extends RefCounted
 var transport:Node
 var projection:RefCounted
 var environment:RefCounted
+var social:RefCounted
 var _serial:=0
 var _jobs:Array=[]
 var _running:=false
@@ -23,6 +24,7 @@ func busy()->bool:return _running or not _jobs.is_empty()
 
 func _init(owner:Node)->void:
 	environment=preload("res://scripts/net/remote/environment.gd").new(owner)
+	social=preload("res://scripts/net/remote/social.gd").new(owner)
 	transport=owner;projection=preload("res://scripts/net/remote/projection.gd").new(owner)
 
 func reset_event_stream()->void:
@@ -38,11 +40,19 @@ func cancel()->void:
 	_epoch+=1;reset_event_stream()
 	var jobs:=_jobs;_jobs=[]
 	for job:Dictionary in jobs:transport.response_ready.emit(int(job.id),{"ok":false,"error":"connection_closed","actions":[]})
-	projection.reset();environment.reset()
+	projection.reset();environment.reset();social.reset()
 
 func dispatch(operation:String,args:Array=[])->Dictionary:
 	if not transport.is_world_ready():return failure("世界尚未就绪，请等待加载完成")
 	if _jobs.size()>=64:return failure("请求过多，请稍后重试")
+	args=args.duplicate(true)
+	if operation=="abandon_quest":args.append(projection.acceptance(str(args[0])))
+	if operation=="quest" and str(args[0])=="complete":args.append(projection.acceptance(str(args[1])))
+	if operation=="guild_change":
+		var observed:Dictionary=social.snapshot_guild()
+		if observed.get("loaded",false):
+			args[0].expected_revision=int(observed.get("revision",0))
+			if args[0].action not in ["create","accept","decline"]:args[0].guild_id=str(observed.get("id",""))
 	_serial+=1
 	_jobs.append({"id":_serial,"operation":operation,"args":args.duplicate(true),"scope":transport.context(),"epoch":_epoch,"shop_revision":projection.shop_revision})
 	if not _running:_pump.call_deferred()
@@ -70,6 +80,19 @@ func _pump()->void:
 	_running=false
 
 func _execute(operation:String,args:Array,scope:Dictionary,epoch:int,shop_revision:int)->Dictionary:
+	if operation in ["quest_history","guild_refresh","guild_change"]:
+		var result:Dictionary=await social.execute(operation,args)
+		if scope!=transport.context() or epoch!=_epoch:return failure("请求所属世界已变更")
+		if not result.ok:
+			result.actions=social.actions()
+			result.actions.append({"type":"system_message","text":str(result.get("error","请求失败"))})
+			return result
+		if operation=="guild_change":
+			var refreshed:Dictionary=await transport.refresh_gameplay_snapshots()
+			if scope!=transport.context() or epoch!=_epoch:return failure("请求所属世界已变更")
+			if not refreshed.ok:return failure("操作已提交，状态刷新失败，请等待同步；不要重复提交")
+			transport._project_snapshots();result.actions.append_array(projection.actions())
+		return result
 	var path:="";var body:Dictionary={};var method:=HTTPClient.METHOD_POST
 	var snapshots:Dictionary=transport.business_snapshots
 	match operation:
@@ -118,16 +141,14 @@ func _execute(operation:String,args:Array,scope:Dictionary,epoch:int,shop_revisi
 			var target:Dictionary=projection.target(str(projection.last_dialogue.get("target",{}).get("id","")))
 			if target.is_empty():return failure("请先与任务 NPC 交谈")
 			path="/v1/gameplay/interactions";body={"target":target,"action":str(args[0]),"quest":str(args[1])}
+			if str(args[0])=="complete" and args.size()>2 and args[2].has("acceptance_id"):body.acceptance_id=str(args[2].acceptance_id)
 		"respawn":
 			path="/v1/gameplay/respawn";body={"sequence":int(snapshots.get("resurrection",{}).get("respawn_sequence",0))+1}
 		"abandon_quest":
-			var accepted:Dictionary={}
-			for quest:Dictionary in snapshots.get("progression",{}).get("quests",[]):
-				if quest.get("definition",{}).get("uuid","")==str(args[0]):accepted=quest
+			var accepted:Dictionary=args[1] if args.size()>1 else {}
 			if accepted.is_empty():return failure("任务接受记录已变化，请刷新任务列表")
 			path="/v1/gameplay/quests";body={"action":"abandon","quest":str(args[0])}
-			if accepted.has("accepted_at_key"):body.accepted_at_key=str(accepted.accepted_at_key)
-			else:body.accepted_at_game=accepted.get("accepted_at_game")
+			body.merge(accepted)
 		"fixture":
 			var value:float=args[2]
 			if not is_finite(value) or value not in [0.,1.]:return failure("服务器门窗只接受完全打开或关闭")

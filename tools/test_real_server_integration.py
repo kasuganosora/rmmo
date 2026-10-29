@@ -17,9 +17,12 @@ def main():
     parser.add_argument('--server-repo', required=True, type=Path)
     parser.add_argument('--godot', default='godot')
     parser.add_argument('--gameplay', action='store_true', help='Exercise real gameplay with disposable synthetic records and policy')
+    parser.add_argument('--quest-social', action='store_true', help='Extend gameplay with new quest objectives, history pages and guild management')
     parser.add_argument('--stream', action='store_true', help='Verify actual WebSocket gameplay and absence of HTTP polling')
     parser.add_argument('--aoi', action='store_true', help='Exercise two real clients crossing distance visibility boundaries')
     args = parser.parse_args()
+    if args.quest_social:
+        args.gameplay = True
     with tempfile.TemporaryDirectory(prefix='rmmo-network-') as temporary:
         directory = Path(temporary)
         content = directory / 'content'
@@ -33,7 +36,7 @@ def main():
                    '-ntp-required=false', '-ntp-servers=', '-addr', f'127.0.0.1:{port}']
         if args.gameplay or args.stream:
             from real_gameplay_fixture import configure
-            command += configure(content,directory)
+            command += configure(content,directory,quest_social=args.quest_social)
         script='res://tools/test_real_gameplay.gd' if args.gameplay else 'res://tools/test_real_server.gd'
         marker='REAL_GAMEPLAY_TESTS failures=0' if args.gameplay else 'REAL_SERVER_TESTS failures=0'
         if args.stream:
@@ -62,7 +65,8 @@ def main():
                 try:
                     run = subprocess.run([args.godot, '--headless', '--path', str(ROOT), '--script',
                                           script, '--', '--backend=real',
-                                          '--test-server='+address, '--test-content-root='+str(content)],
+                                          '--test-server='+address, '--test-content-root='+str(content)] +
+                                         (['--test-quest-social'] if args.quest_social else []),
                                          cwd=ROOT, text=True, stdout=subprocess.PIPE,
                                          stderr=subprocess.STDOUT, timeout=105)
                 except subprocess.TimeoutExpired as error:

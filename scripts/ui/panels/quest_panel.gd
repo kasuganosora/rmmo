@@ -2,10 +2,20 @@ extends RefCounted
 ## UI panel: quests, tracker, drawer, quest toasts.
 
 var ctrl
+var _history_rows:Array=[]
+var _history_cursors:Array[String]=[""]
+var _history_page:=0
+var _history_next:=""
+var _history_busy:=false
+var _history_loaded:=false
+var _history_error:=""
+var _history_serial:=0
+var _history_context:=""
 func _init(c):
 	ctrl = c
 
 const Net = preload("res://scripts/net/net.gd")
+const RequestPipeline = preload("res://scripts/net/request_pipeline.gd")
 const HudDrag = preload("res://scripts/ui/hud_draggable.gd")
 const ItemGrid = preload("res://scripts/ui/item_grid.gd")
 const L2Style = preload("res://scripts/ui/l2_style.gd")
@@ -40,7 +50,7 @@ func apply_quest_snapshot(quests: Array) -> void:
 	# Drop selection if quest no longer in journal.
 	if not ctrl._selected_quest_id.is_empty():
 		var still = false
-		for q in ctrl._server_quests:
+		for q in _journal_rows():
 			if typeof(q) == TYPE_DICTIONARY and str(q.get("id", "")) == ctrl._selected_quest_id:
 				still = true
 				break
@@ -376,10 +386,13 @@ func _on_quest_tab(tab_id: String) -> void:
 	if tab_id.is_empty():
 		return
 	ctrl._quest_tab = tab_id
+	if tab_id=="completed" and Net.is_real_server():
+		_ensure_history_context()
+		if not _history_loaded and not _history_busy:_load_history(0)
 	# Drop selection if it no longer matches the active tab filter.
 	if not ctrl._selected_quest_id.is_empty():
 		var keep = false
-		for q in ctrl._server_quests:
+		for q in _journal_rows():
 			if typeof(q) != TYPE_DICTIONARY:
 				continue
 			if str(q.get("id", "")) != ctrl._selected_quest_id:
@@ -428,8 +441,13 @@ func _fill_quest(body: VBoxContainer, _ch: Dictionary) -> void:
 			_rebuild_quest_tab_bar(panel)
 	body.custom_minimum_size = Vector2.ZERO
 	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	var quests: Array = ctrl._server_quests
-	if quests.is_empty():
+	var remote_history:bool=ctrl._quest_tab=="completed" and Net.is_real_server()
+	if remote_history:
+		_ensure_history_context()
+		if not _history_loaded and not _history_busy:_load_history.call_deferred(0)
+		_build_history_navigation(body)
+	var quests: Array = _journal_rows()
+	if quests.is_empty() and not remote_history:
 		var srv = Net.server()
 		if srv != null and srv.has_method("get_quest_list"):
 			quests = srv.get_quest_list()
@@ -452,6 +470,8 @@ func _fill_quest(body: VBoxContainer, _ch: Dictionary) -> void:
 			_close_quest_drawer(false)
 	if filtered.is_empty():
 		var empty_msg = "（暂无已完成任务）" if ctrl._quest_tab == "completed" else "（暂无进行中任务）"
+		if remote_history and _history_busy:empty_msg="正在读取完成历史…"
+		elif remote_history and not _history_error.is_empty():empty_msg=_history_error
 		ctrl._add_label(body, empty_msg, 12, L2Style.COL_MUTED)
 	else:
 		for q in filtered:
@@ -460,6 +480,74 @@ func _fill_quest(body: VBoxContainer, _ch: Dictionary) -> void:
 		ctrl.call_deferred("_lock_window_size", panel)
 	# Soft drawer sync: refresh content if open; do not cancel in-flight slide tweens.
 	_soft_sync_quest_drawer()
+
+
+func _history_identity()->String:
+	var srv=Net.server()
+	return str(srv.get_instance_id())+":"+JSON.stringify(srv.context()) if Net.is_real_server() else ""
+
+
+func _ensure_history_context()->void:
+	var identity:=_history_identity()
+	if identity==_history_context:return
+	_history_context=identity;_history_serial+=1;_history_busy=false;_history_loaded=false
+	_history_rows=[];_history_cursors=[""];_history_page=0;_history_next="";_history_error=""
+
+
+func _journal_rows()->Array:
+	if ctrl._quest_tab=="completed" and Net.is_real_server():return _history_rows
+	return ctrl._server_quests
+
+
+func _load_history(page:int)->void:
+	if not is_instance_valid(ctrl) or not Net.is_real_server():return
+	_ensure_history_context()
+	if _history_busy or page<0 or page>=_history_cursors.size():return
+	var srv=Net.server()
+	if not srv.has_method("try_quest_history"):_history_loaded=true;_history_error="此服务器尚未提供任务完成历史";return
+	_history_busy=true;_history_error="";_history_serial+=1
+	var serial:=_history_serial;var identity:=_history_context
+	RequestPipeline.dispatch(ctrl,"try_quest_history",[_history_cursors[page],0],func(result:Dictionary):_history_result(result,serial,identity,page))
+	_refresh_history_window()
+
+
+func _history_result(result:Dictionary,serial:int,identity:String,page:int)->void:
+	if not is_instance_valid(ctrl) or serial!=_history_serial or identity!=_history_identity():return
+	_history_busy=false;_history_loaded=true
+	if result.get("ok",false):
+		var data:Dictionary=result.get("data",{})
+		_history_rows=data.get("quests",[]).duplicate(true);_history_page=page
+		if page==0:_history_cursors=[""]
+		_history_next=str(data.get("next_cursor","")) if data.get("has_more",false) else ""
+		ctrl._selected_quest_id="";_close_quest_drawer(false)
+	else:_history_error=str(result.get("error","任务历史读取失败，请刷新重试"))
+	_refresh_history_window()
+
+
+func _refresh_history_window()->void:
+	if ctrl._quest_tab=="completed" and ctrl._windows.has("quest") and ctrl._windows.quest.visible:ctrl._fill_window("quest")
+
+
+func _history_forward()->void:
+	if _history_next.is_empty() or _history_busy:return
+	_history_cursors.resize(_history_page+1);_history_cursors.append(_history_next)
+	_load_history(_history_page+1)
+
+
+func _history_refresh()->void:
+	if _history_busy:return
+	_load_history(0)
+
+
+func _build_history_navigation(body:VBoxContainer)->void:
+	var row:=HBoxContainer.new();body.add_child(row)
+	var previous:=Button.new();previous.text="上一页";previous.disabled=_history_busy or _history_page==0
+	previous.pressed.connect(func():_load_history(_history_page-1));row.add_child(previous)
+	var number:=Label.new();number.text="第 %d 页"%(_history_page+1);number.size_flags_horizontal=Control.SIZE_EXPAND_FILL;row.add_child(number)
+	var next:=Button.new();next.text="下一页";next.disabled=_history_busy or _history_next.is_empty()
+	next.pressed.connect(_history_forward);row.add_child(next)
+	var refresh:=Button.new();refresh.text="刷新";refresh.disabled=_history_busy;refresh.pressed.connect(_history_refresh);row.add_child(refresh)
+	if not _history_rows.is_empty() and not _history_error.is_empty():ctrl._add_label(body,_history_error,12,L2Style.COL_MUTED)
 
 
 
@@ -615,7 +703,7 @@ func _ensure_quest_drawer() -> void:
 
 
 func _quest_by_id(quest_id: String) -> Dictionary:
-	for q in ctrl._server_quests:
+	for q in _journal_rows():
 		if typeof(q) != TYPE_DICTIONARY:
 			continue
 		if str(q.get("id", "")) == quest_id:
@@ -742,6 +830,8 @@ func _refresh_quest_drawer_content() -> void:
 		ctrl._quest_drawer_body.add_child(turn_btn)
 	elif qstatus == "completed":
 		ctrl._add_label(ctrl._quest_drawer_body, "（已完成）", 12, Color(0.55, 0.75, 0.55))
+		var completed_at:=str(selected.get("completed_at_utc",""))
+		if not completed_at.is_empty():ctrl._add_label(ctrl._quest_drawer_body,"完成时间："+completed_at,11,L2Style.COL_MUTED)
 	if qstatus == "in_progress" or qstatus == "ready":
 		var ab_btn = Button.new()
 		ab_btn.text = "确认放弃" if ctrl._abandon_confirm_id == ctrl._selected_quest_id else "放弃任务"
@@ -758,6 +848,7 @@ func _on_quest_turn_in(quest_id: String) -> void:
 		return
 	if ctrl._world_combat != null and ctrl._world_combat.has_method("request_turn_in_quest"):
 		ctrl._world_combat.request_turn_in_quest(quest_id)
+	else:_dispatch_quest_request("try_turn_in_quest",quest_id)
 
 
 
@@ -773,6 +864,19 @@ func _on_quest_abandon(quest_id: String) -> void:
 	ctrl._abandon_confirm_id = ""
 	if ctrl._world_combat != null and ctrl._world_combat.has_method("request_abandon_quest"):
 		ctrl._world_combat.request_abandon_quest(quest_id)
+	else:_dispatch_quest_request("try_abandon_quest",quest_id)
+
+
+func _dispatch_quest_request(method:String,quest_id:String)->void:
+	RequestPipeline.dispatch(null,method,[quest_id],func(result:Dictionary):
+		if not is_instance_valid(ctrl):return
+		var actions:Array=result.get("actions",[])
+		var world=ctrl._world_combat
+		if is_instance_valid(world) and world.has_method("apply_actions"):world.apply_actions(actions)
+		else:
+			for action:Dictionary in actions:
+				if action.get("type")=="system_message":ctrl.append_system(str(action.get("text","")))
+	)
 
 
 

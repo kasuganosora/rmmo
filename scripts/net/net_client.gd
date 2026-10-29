@@ -84,6 +84,12 @@ const SNAPSHOT_METHODS: Array[String] = [
 	"snapshot_skill_catalog", "snapshot_threat", "snapshot_titles", "snapshot_trade", "snapshot_warehouse",
 ]
 
+## Optional real-service extensions. Older/scaffold backends remain valid;
+## consumers check has_method and receive unsupported for older real servers.
+## try_quest_history(cursor,limit) -> deferred data {quests,entries,has_more,next_cursor}.
+## Guild refresh/transfer use the existing response_ready and guild_update flow.
+const OPTIONAL_REQUEST_METHODS:Array[String]=["try_quest_history","try_guild_refresh","try_guild_transfer"]
+
 
 ## Every method a conforming server must expose.
 static func required_methods() -> Array[String]:

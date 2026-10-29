@@ -119,6 +119,36 @@ func target(id:String)->Dictionary:
 	var row:Dictionary=entities[id]
 	return {"id":id,"map":row.get("map",""),"generation":int(row.get("state",{}).get("generation",0))}
 
+func acceptance(quest_id:String)->Dictionary:
+	for quest:Dictionary in transport.business_snapshots.get("progression",{}).get("quests",[]):
+		if quest.get("definition",{}).get("uuid","")!=quest_id:continue
+		var result:Dictionary={}
+		if quest.has("accepted_at_key"):result.accepted_at_key=str(quest.accepted_at_key)
+		else:result.accepted_at_game=quest.get("accepted_at_game")
+		if quest.has("acceptance_id"):result.acceptance_id=str(quest.acceptance_id)
+		return result
+	return {}
+
+func objective_text(objective:Dictionary)->String:
+	var kind:=str(objective.get("kind",""))
+	var target:=str(objective.get("target",""))
+	match kind:
+		"reach_level":return "达到等级 %d" % int(objective.get("count",1))
+		"complete_instance":return "通关副本："+target
+		"environment_state","environment_operate":
+			var object_name:=str(objective.get("object",""))
+			for row:Dictionary in transport.business_snapshots.get("interactions",{}).get("objects",[]):
+				if str(row.get("id",""))==object_name:object_name=str(row.get("name",row.get("fixture_id",object_name)));break
+			var state:=str(objective.get("state",""));var action:=str(objective.get("action",""))
+			var labels:={"open":"打开","close":"关闭","closed":"关闭","on":"开启","off":"关闭","activate":"激活","use":"使用"}
+			var condition:=str(labels.get(state if kind=="environment_state" else action,state if kind=="environment_state" else action))
+			if kind=="environment_operate" and not state.is_empty():condition+=" → "+str(labels.get(state,state))
+			return "%s：%s（%s · %s）" % ["环境状态" if kind=="environment_state" else "环境操作",object_name,condition,str(objective.get("map",""))]
+	var name:=target
+	for entity:Dictionary in entities.values():
+		if entity.get("definition")==target:name=str(entity.get("details",{}).get("name",target));break
+	return str({"talk":"交谈","kill":"击败","collect":"收集"}.get(kind,"目标"))+"："+name
+
 func apply()->void:
 	var progression:Dictionary=transport.business_snapshots.get("progression",{})
 	var inventory:Dictionary=transport.business_snapshots.get("inventory",{})
@@ -152,9 +182,7 @@ func apply()->void:
 		var ready:=true
 		for objective:Dictionary in definition.get("objectives",[]):
 			var task:=objective.duplicate(true);task.cur=int(raw.get("progress",{}).get(str(objective.id),0));task.max=int(objective.get("count",1))
-			task.text={"talk":"交谈","kill":"击败","collect":"收集"}.get(str(objective.get("kind","")),"目标")+"："+str(objective.get("target",""))
-			for entity:Dictionary in entities.values():
-				if entity.get("definition")==objective.get("target"):task.text=str(entity.get("details",{}).get("name",task.text));break
+			task.text=objective_text(objective)
 			row.objectives.append(task)
 			if task.cur<task.max:ready=false
 		if ready and not raw.get("completed",false):row.status="ready"
@@ -175,6 +203,7 @@ func actions()->Array:
 		{"type":"quest_update","quests":quests.duplicate(true)},
 		{"type":"remote_entities"},
 		{"type":"remote_combat_state","stats":transport.combat_stats.snapshot_player_stats()}]
+	result.append_array(transport.gameplay.social.actions())
 	var statuses:Array=[]
 	var now_game:=float(transport.business_snapshots.get("combat-state",{}).get("server_elapsed",0))
 	for status:Dictionary in transport.business_snapshots.get("statuses",{}).get("active",[]):

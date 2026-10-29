@@ -6,11 +6,26 @@ const HERB=NS+"00000000-0000-4000-8000-000000000001"
 const POTION=NS+"00000000-0000-4000-8000-000000000002"
 const SWORD=NS+"00000000-0000-4000-8000-00000000000c"
 const QUEST=NS+"00000000-0000-4000-8000-000000000f01"
+const LEVEL_QUEST=NS+"00000000-0000-4000-8000-000000000f21"
+const ENV_QUEST=NS+"00000000-0000-4000-8000-000000000f22"
 const DUMMY=NS+"00000000-0000-4000-8000-000000000f12"
 const HEAL=NS+"7de8d659-52d1-4d13-81fd-a72b5c5ad031"
 const STRIKE=NS+"935ae5bb-e846-44ca-9f8a-90f9aa2f5161"
 var server:Node
 var failures:=0
+var quest_social:=false
+class DelayedGuildPeer extends Real:
+	signal guild_read_held
+	signal release_guild_read
+	var hold_guild_read:=false
+	var held_guild:Dictionary={}
+	func request_api(path:String,method:int=HTTPClient.METHOD_GET,body:Dictionary={})->Dictionary:
+		var result:Dictionary=await super.request_api(path,method,body)
+		if hold_guild_read and path=="/v1/gameplay/guilds" and method==HTTPClient.METHOD_GET:
+			hold_guild_read=false;held_guild=result.get("body",{}).get("data",{}).duplicate(true)
+			guild_read_held.emit()
+			await release_guild_read
+		return result
 func _initialize()->void:run.call_deferred()
 func check(ok:bool,label:String)->void:
 	print("PASS " if ok else "FAIL ",label)
@@ -48,6 +63,7 @@ func run()->void:
 	create_timer(90).timeout.connect(func():print("FAIL gameplay watchdog timeout");quit(2))
 	var address:=""
 	for arg:String in OS.get_cmdline_user_args():
+		if arg=="--test-quest-social":quest_social=true
 		if arg.begins_with("--test-server="):address=arg.trim_prefix("--test-server=")
 		if arg.begins_with("--test-content-root="):ProjectSettings.set_setting("rmmo/content_root",arg.trim_prefix("--test-content-root="))
 	server=Real.new();root.add_child(server)
@@ -80,12 +96,17 @@ func run()->void:
 	check(server.snapshot_quest_journal()[0].title=="Integration dialogue quest","quest title uses existing HUD contract")
 	var accepted:Dictionary=server.business_snapshots.progression.quests[0]
 	check(accepted.get("accepted_at_key") is String,"quest snapshot carries exact acceptance key")
+	if quest_social:check(accepted.get("acceptance_id") is String,"quest snapshot carries exact acceptance identity")
 	accepted.accepted_at_game=float(accepted.accepted_at_game)+1e-10
 	await finish(server.try_abandon_quest(QUEST),"abandon exact accepted quest")
 	check(server.snapshot_quest_journal().is_empty(),"abandon projects journal")
 	await finish(server.try_accept_quest(QUEST),"reaccept quest")
 	await finish(server.try_interact(NPC,0,0),"talk objective")
+	if quest_social:
+		var stale_completion:Dictionary=await server.request_api("/v1/gameplay/interactions",HTTPClient.METHOD_POST,{"target":server.gameplay.projection.target(NPC),"action":"complete","quest":QUEST,"acceptance_id":str(accepted.acceptance_id)})
+		check(not stale_completion.ok and server.inventory.get_gold()==initial_gold,"old acceptance cannot complete reaccepted quest or grant local rewards")
 	await finish(server.try_turn_in_quest(QUEST),"complete quest and persist rewards")
+	if quest_social:check(server.snapshot_quest_journal().is_empty(),"completion no longer consumes active quest capacity")
 	check(server.inventory.get_gold()==initial_gold+100 and server.inventory.get_qty(HERB)==4,"quest gold and items come from server")
 	await finish(server.try_dialogue_choice("shop_open:"+NPC),"open configured vendor")
 	await finish(server.try_shop_buy(NPC,HERB,2),"purchase at trusted price")
@@ -123,6 +144,14 @@ func run()->void:
 	check(events.ok and events.body.data.get("events",[]).is_empty(),"combat event ACK prevents replay")
 	await finish(server.try_loot_take_all(),"claim durable kill drop")
 	check(server.inventory.get_qty(HERB)==7,"kill drop reaches authoritative bag once")
+	if quest_social:
+		await quest_history_objective_checks()
+		await guild_checks(address)
+	elif not server.business_snapshots.progression.get("quest_history_available",false):
+		var unsupported:Dictionary=await finish(server.try_quest_history(),"old server history reports unsupported",false)
+		check(unsupported.get("unsupported",false),"old server history fallback is explicit")
+		unsupported=await finish(server.try_guild_refresh(),"old server guild management reports unsupported",false)
+		check(unsupported.get("unsupported",false),"old server guild fallback is explicit")
 	var gold:int=server.inventory.get_gold()
 	server.disconnect_server()
 	var reconnect:Dictionary=await server.reconnect()
@@ -130,6 +159,9 @@ func run()->void:
 	if not reconnect.ok:print(reconnect);quit(1);return
 	check((await server.confirm_world_ready(server.world_session.map_ref)).ok,"fresh Ready after reconnect")
 	check(server.inventory.get_gold()==gold and server.inventory.get_qty(POTION)==1,"durable gameplay restored without duplicate grants")
+	if quest_social:
+		var history:Dictionary=await finish(server.try_quest_history("",1),"completion history restores after reconnect")
+		check(history.get("data",{}).get("quests",[]).size()==1,"reconnect history uses a bounded page")
 	# Move toward a remote aggressive fixture using only actual movement intents.
 	server.queue_movement(Vector3.LEFT,true)
 	var deadline:=Time.get_ticks_msec()+4000
@@ -192,3 +224,87 @@ func housing_checks(address:String)->void:
 	check(not window_choice.is_empty(),"environment menu exposes shared window close action")
 	if not window_choice.is_empty():await finish(visitor.try_dialogue_choice(window_choice),"environment menu choice changes real fixture",true,visitor)
 	panel.queue_free();visitor.disconnect_server();visitor.queue_free()
+
+func quest_history_objective_checks()->void:
+	await finish(server.try_interact(NPC,0,0),"refresh NPC before new objectives")
+	await finish(server.try_accept_quest(LEVEL_QUEST),"accept authoritative reach-level objective")
+	var journal:Array=server.snapshot_quest_journal()
+	check(journal.size()==1 and journal[0].status=="ready" and journal[0].objectives[0].cur==1,"reach-level readiness projected from server")
+	await finish(server.try_turn_in_quest(LEVEL_QUEST),"complete reach-level quest")
+	await finish(server.try_accept_quest(ENV_QUEST),"accept environment state and operation objectives")
+	journal=server.snapshot_quest_journal()
+	check(journal.size()==1 and journal[0].status=="in_progress","closed fixture keeps environment quest incomplete")
+	await finish(server.gameplay.dispatch("fixture",["integration-building","gate",1.]),"successful environment operation advances quest")
+	journal=server.snapshot_quest_journal()
+	check(journal.size()==1 and journal[0].status=="ready" and journal[0].objectives[1].cur==1,"state and actor operation progress reach existing quest HUD")
+	await finish(server.gameplay.dispatch("fixture",["integration-building","gate",0.]),"state objective tracks closing fixture")
+	journal=server.snapshot_quest_journal()
+	check(journal[0].status=="in_progress" and journal[0].objectives[0].cur==0 and journal[0].objectives[1].cur==1,"state progress reverses while committed operation count remains")
+	await finish(server.gameplay.dispatch("fixture",["integration-building","gate",1.]),"restore environment state for turn-in")
+	await finish(server.try_turn_in_quest(ENV_QUEST),"complete environment quest")
+	await finish(server.gameplay.dispatch("fixture",["integration-building","gate",0.]),"close fixture after environment test")
+	var configured:Dictionary=await finish(server.try_quest_history(),"default history page follows configured maximum of one")
+	check(configured.data.quests.size()==1 and configured.data.has_more,"default UI page request works with history page limit below twenty")
+	var first:Dictionary=await finish(server.try_quest_history("",1),"read first bounded history page")
+	check(first.data.quests.size()==1 and first.data.has_more and first.data.quests[0].definition_id==ENV_QUEST,"history contains frozen latest completion and next cursor")
+	var next:Dictionary=await finish(server.try_quest_history(str(first.data.next_cursor),1),"read next history page")
+	check(next.data.quests.size()==1 and next.data.quests[0].definition_id==LEVEL_QUEST and next.data.quests[0].id!=first.data.quests[0].id,"keyset history page has distinct prior completion")
+	check(server.snapshot_quest_journal().is_empty(),"history reads never repopulate active journal")
+
+func guild_checks(address:String)->void:
+	var peer:=DelayedGuildPeer.new();root.add_child(peer)
+	peer.register_account("guild_"+str(Time.get_ticks_usec()),"integration-password",address)
+	var auth:Array=await peer.login_finished
+	check(auth[0],"guild peer authenticates")
+	if not auth[0]:peer.queue_free();return
+	peer.create_character("公会成员","adventurer","1","male")
+	var created:Array=await peer.character_created
+	check(created[0],"guild peer character created")
+	if not created[0]:peer.queue_free();return
+	peer.enter_world3d(int(created[2].id));var admission:Array=await peer.enter_world_ready
+	check(admission[0],"guild peer hydrates current roster")
+	if not admission[0]:peer.queue_free();return
+	check((await peer.confirm_world_ready(peer.world_session.map_ref)).ok,"guild peer Ready")
+	var before:int=server.inventory.get_gold()
+	var view:Dictionary=await finish(server.try_guild_refresh(),"read real guild creation policy")
+	await finish(server.try_guild_create("联调公会"),"create real guild")
+	check(server.snapshot_guild().members.size()==1 and server.inventory.get_gold()==before-int(view.data.creation_fee),"guild roster and fee are authoritative")
+	await finish(server.try_guild_invite("公会成员"),"invite real character by name")
+	var deadline:=Time.get_ticks_msec()+2500
+	while peer.snapshot_guild().get("invites",[]).is_empty() and Time.get_ticks_msec()<deadline:await process_frame
+	var incoming:Array=peer.snapshot_guild().get("invites",[])
+	check(incoming.size()==1,"guild invitation arrives through existing runtime stream")
+	if incoming.is_empty():peer.disconnect_server();peer.queue_free();return
+	await finish(peer.try_guild_invite_respond(str(incoming[0].invite_id),false),"decline actual guild invitation",true,peer)
+	check(peer.snapshot_guild().invites.is_empty(),"decline clears pending invitation")
+	await finish(server.try_guild_refresh(),"refresh leader revision after declined invitation")
+	await finish(server.try_guild_invite("公会成员"),"invite after decline")
+	await finish(peer.try_guild_refresh(),"refresh invite on demand",true,peer)
+	incoming=peer.snapshot_guild().invites
+	if incoming.is_empty():check(false,"second guild invitation available");peer.disconnect_server();peer.queue_free();return
+	await finish(peer.try_guild_invite_respond(str(incoming[0].invite_id),true),"accept actual guild invitation",true,peer)
+	check(peer.snapshot_guild().members.size()==2,"accepted member receives trusted roster")
+	await finish(peer.try_guild_disband(),"member cannot disband guild",false,peer)
+	check(peer.snapshot_guild().members.size()==2,"denied guild operation never mutates local membership")
+	await finish(server.try_guild_refresh(),"leader refresh before kick")
+	peer.hold_guild_read=true
+	var delayed_read:Dictionary=peer.try_guild_refresh()
+	await peer.guild_read_held
+	check(not str(peer.held_guild.get("id","")).is_empty(),"delayed real HTTP read captured membership before kick")
+	await finish(server.try_guild_kick(str(created[2].id)),"leader kicks real member")
+	deadline=Time.get_ticks_msec()+2500
+	while not str(peer.snapshot_guild().get("id","")).is_empty() and Time.get_ticks_msec()<deadline:await process_frame
+	check(str(peer.snapshot_guild().get("id","")).is_empty(),"kick removes peer membership through runtime push")
+	(func():peer.release_guild_read.emit()).call_deferred()
+	await finish(delayed_read,"resolve guild HTTP after newer WebSocket publication",true,peer)
+	check(str(peer.snapshot_guild().get("id","")).is_empty(),"late real HTTP response cannot restore kicked membership")
+	await finish(server.try_guild_invite("公会成员"),"invite kicked member again")
+	await finish(peer.try_guild_refresh(),"refresh reinvitation",true,peer)
+	if peer.snapshot_guild().invites.is_empty():check(false,"reinvitation available");peer.disconnect_server();peer.queue_free();return
+	await finish(peer.try_guild_invite_respond(str(peer.snapshot_guild().invites[0].invite_id),true),"member rejoins real guild",true,peer)
+	await finish(peer.try_guild_leave(),"member leaves real guild",true,peer)
+	check(str(peer.snapshot_guild().get("id","")).is_empty(),"leave clears trusted membership")
+	await finish(server.try_guild_refresh(),"refresh after member departure")
+	await finish(server.try_guild_disband(),"leader disbands real guild")
+	check(str(server.snapshot_guild().get("id","")).is_empty(),"disband clears leader membership")
+	peer.disconnect_server();peer.queue_free()

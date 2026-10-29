@@ -1333,6 +1333,7 @@ func _add_game_hud() -> void:
 	_hud.apply_quest_snapshot(data.get("quests", []))
 	_hud.apply_skill_catalog(Net.server().snapshot_skill_catalog())
 	_hud.apply_skill_book(data.get("skill_book", {}))
+	_hud.apply_guild_update({"guild":Net.server().snapshot_guild()})
 	loading_profile.hud_bound=Time.get_ticks_msec()
 	_refresh_world_map()
 	_status.position.y = 106
@@ -1417,6 +1418,10 @@ func apply_actions(actions: Array) -> void:
 			"quest_update":
 				if _hud != null:
 					_hud.apply_quest_snapshot(Net.server().snapshot_quest_journal())
+			"guild_update":
+				if _hud != null:_hud.apply_guild_update(action)
+			"guild_invite":
+				if _hud != null:_hud.apply_guild_invite(action)
 			"world3d_transfer":
 				var loc = preload("res://scripts/world3d/world_location.gd").from_dictionary(action["location"])
 				var warp := StaticBody3D.new()

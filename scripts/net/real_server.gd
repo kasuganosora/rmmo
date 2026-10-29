@@ -665,7 +665,10 @@ func request_api(path:String,method:int=HTTPClient.METHOD_GET,body:Dictionary={}
 	var response:Array=completion.response
 	_http_requests.erase(request);request.queue_free()
 	if revision!=_connection_revision or scope!=context() and path!="/v1/world/session":return {"ok":false,"error":"stale_world_response"}
-	var parsed:Variant=JSON.parse_string((response[3] as PackedByteArray).get_string_from_utf8())
+	# Older servers return a plain-text 404 for optional endpoints. Parse without
+	# emitting an engine error so capability fallback remains a normal UI result.
+	var json:=JSON.new()
+	var parsed:Variant=json.data if json.parse((response[3] as PackedByteArray).get_string_from_utf8())==OK else null
 	if not parsed is Dictionary:return {"ok":false,"status":int(response[1]),"error":"invalid_json_response"}
 	var ok:bool=response[0]==HTTPRequest.RESULT_SUCCESS and response[1]>=200 and response[1]<300 and parsed.get("ok",true)
 	if response[1]==401:disconnect_server("登录已失效，请重新登录")
