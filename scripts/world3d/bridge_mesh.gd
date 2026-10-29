@@ -52,7 +52,7 @@ static func repair_zero_tangents(arrays:Array)->Dictionary:
 static func kit(path: String,native_only:bool=false) -> Dictionary:
 	if kits.has(path): return kits[path]
 	if not preload("res://scripts/world3d/map_paths.gd").asset_key_allowed(path):return {}
-	var root: Node3D=preload("res://scripts/world_editor/asset_library.gd").instantiate_preview(path,native_only)
+	var root: Node3D=preload("res://scripts/world_editor/asset_library.gd").instantiate_geometry(path)
 	if root==null: return {}
 	var pieces:={}
 	for node in Paint.meshes(root): pieces[str(node.name)]={"mesh":node.mesh,"transform":node.transform}

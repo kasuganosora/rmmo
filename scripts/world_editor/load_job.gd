@@ -17,6 +17,7 @@ const PrefabPixels=preload("res://scripts/world3d/prefab_texture_preparation.gd"
 const Drainer=preload("res://scripts/world3d/asset_worker_drainer.gd")
 const FrameBudget=preload("res://scripts/world3d/frame_work_budget.gd")
 const ModelOwnership=preload("res://scripts/world_editor/prepared_model_ownership.gd")
+const NativeTextures=preload("res://scripts/world_editor/native_model_texture_preparation.gd")
 static var parallel_preparation_enabled:=true # HTTP roundtrip + fixed-town 1/2-worker ABBA validated.
 static var preparation_worker_limit:=2 # One is a conservative comparison control.
 static var native_model_footprints_enabled:=true # Legacy diagnostic; cannot disable native-only consumption.
@@ -60,6 +61,10 @@ var _terrain_surfaces:Dictionary={}
 var _terrain_masks:Dictionary={}
 var _terrain_texture_checked:Dictionary={}
 var _texture_pool_sources:Dictionary={}
+var _native_textures:RefCounted
+# Operation-local CPU test injection; production uses the ordinary shared pool.
+var native_texture_pool:RefCounted
+var native_texture_preparer:Callable
 var loading_batch_budget_us:=16000
 var _batch_budget_token:=0
 var _budget_batches:Node
@@ -68,6 +73,7 @@ func state() -> Dictionary:
 	var timing:Dictionary=_timings.duplicate(true)
 	if is_instance_valid(_preparation):timing.preparation=_preparation.snapshot()
 	if is_instance_valid(_model_ownership):timing.published_models=_model_ownership.report()
+	if _native_textures!=null:timing.native_textures=_native_textures.snapshot()
 	return {"active":active,"job_id":_serial,"phase":phase,"completed":completed,"total":total,"path":path,"elapsed_seconds":(Time.get_ticks_usec()-_started)/1000000. if active else _elapsed,"timings":timing,"result":result.duplicate(true),
 		"capabilities":{"metadata_ready":_metadata_ready,"viewport_ready":_viewport_ready,"query_ready":_query_ready,"editable":not active and phase=="complete","policy":"full_document_gate","viewport_scope":"scene_and_batches_prepared_not_first_presented_frame"}}
 
@@ -420,7 +426,9 @@ func _begin_asset_lookahead(records:Array)->void:
 		_preparation.ledger=editor._shared_preparation_ledger
 		_preparation.shared_ledger_enabled=true
 		_preparation.ledger.worker_limit=_preparation.worker_limit
-		_preparation.ledger.byte_limit=_preparation.byte_limit
+		# The editor configured this shared allowance once. Detached work from a
+		# cancelled generation may still own deducted native metadata; resetting
+		# the limit here would erase that charge and over-credit its later release.
 	add_child(_preparation)
 	var seen:Dictionary={};var queued_textures:Dictionary={};var root_:String=Paths.external_root()
 	var native_bytes:=0;var legacy_bytes:=0;var legacy_skipped:=0
@@ -443,7 +451,12 @@ func _begin_asset_lookahead(records:Array)->void:
 					else:
 						var native_estimate:={"estimated_bytes":int(native.estimated_bytes),"exclusive":bool(native.exclusive),"stage":"compiled_read"}
 						native_bytes+=native_estimate.estimated_bytes
-						_preparation.enqueue("model:"+value,_parse_native_asset.bind(value,root_,native,""),native_estimate,"model")
+						var reader:Callable=_parse_native_asset.bind(value,root_,native,"")
+						if native.has("texture_table"):
+							if _native_textures==null:
+								_native_textures=NativeTextures.new();_native_textures.configure(_preparation,root_,native_texture_pool,native_texture_preparer)
+							_native_textures.enqueue("model:"+value,value,native,reader)
+						else:_preparation.enqueue("model:"+value,reader,native_estimate,"model")
 		# Surface paint and generated structures use the same material definitions
 		# as terrain/prefabs. Include them even when their model is already cached.
 		var requested:=TerrainTextures.requests(record,{})
@@ -492,6 +505,8 @@ func _clear_asset_lookahead()->void:
 	if is_instance_valid(_preparation):
 		_timings.preparation=_preparation.snapshot()
 		_preparation.cancel();_preparation.queue_free()
+	if _native_textures!=null:
+		_native_textures.close();_timings.native_textures=_native_textures.snapshot();_native_textures=null
 	_preparation=null;_asset_paths.clear();_model_candidates.clear();_cached_asset_candidates.clear();_verified_asset_versions.clear();_texture_tasks.clear();_texture_requests.clear();_texture_retry=0;_texture_pool_sources.clear()
 	if is_instance_valid(_model_ownership):_timings.published_models=_model_ownership.report()
 
@@ -544,10 +559,11 @@ func _prepare_asset(record:Dictionary)->Dictionary:
 	if not already_cached:
 		if parsed.get("error",FAILED)==OK:
 			if queue.resident_enabled:
-				scene=_publish_owned_native(asset_path,parsed,int(queue.rows[key].estimate.estimated_bytes))
+				scene=_publish_owned_native(asset_path,parsed,int(candidate.estimated_bytes) if candidate.has("texture_table") else int(queue.rows[key].estimate.estimated_bytes))
 			elif AssetLibrary.cache_packed(asset_path,parsed.packed,source_digest,candidate):scene=AssetLibrary._instantiate(parsed.packed)
 		if scene==null:_asset_failures[asset_path]=true
 		else:_verified_asset_versions[asset_path]={"source_digest":source_digest,"owner":weakref(AssetLibrary._scenes[asset_path])}
+	if (already_cached or scene!=null) and _native_textures!=null:_native_textures.published(parsed)
 	_build_timing("asset_prepare_main",mark,uuid)
 	FrameBudget.charge("publication",mark)
 	mark=Time.get_ticks_usec();queue.release(key)

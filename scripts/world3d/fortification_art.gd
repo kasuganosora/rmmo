@@ -17,7 +17,7 @@ var total:=0.0
 func kit(path: String,native_only:bool=false) -> Dictionary:
 	if kits.has(path): return kits[path]
 	if not Paths.asset_key_allowed(path):return {}
-	var root: Node3D=preload("res://scripts/world_editor/asset_library.gd").instantiate_preview(path,native_only)
+	var root: Node3D=preload("res://scripts/world_editor/asset_library.gd").instantiate_geometry(path)
 	if root==null: return {}
 	var result:={}
 	for node in Paint.meshes(root): result[str(node.name)]={"mesh":node.mesh,"transform":node.transform}

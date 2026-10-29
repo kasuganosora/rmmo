@@ -19,7 +19,7 @@ static func apply(editor:Node3D,ids:Array,changes:Dictionary)->Dictionary:
 		if updates.has(id):return {"ok":false,"error":"不能重复选择同一棵树"}
 		var record:Dictionary=editor._doc._find(str(id))
 		if record.is_empty() or not editor._record_editable(record) or record.get("prefab_locked",false) or record.has("building") or record.get("kind")!="asset":return {"ok":false,"error":"树木不存在、隐藏、锁定或属于固定建筑"}
-		var model:=Library.instantiate_preview(str(record.asset_path))
+		var model:=Library.instantiate_geometry(str(record.asset_path))
 		if model==null:return {"ok":false,"error":"树木资源无法读取"}
 		var config:=TreeModel.resolved(model,record)
 		if config.is_empty():Drainer.dispose_scene(model);return {"ok":false,"error":"请放置参数化松树预制件；普通模型没有枝簇配方"}

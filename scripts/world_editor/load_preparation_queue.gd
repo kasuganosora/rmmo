@@ -58,6 +58,34 @@ func enqueue(key:String,task:Callable,estimate:Dictionary,lane:String="")->bool:
 
 func has(key:String)->bool:return rows.has(key)
 
+## A main-thread factory waits for bounded metadata, then supplies one atomic
+## workspace/shared-output bundle. It must not allocate renderer resources.
+func enqueue_prepared(key:String,factory:Callable,lane:String="model")->bool:
+	if not factory.is_valid() or not enqueue(key,func()->Dictionary:return {},{"estimated_bytes":1,"exclusive":false},lane):return false
+	rows[key].prepare=factory
+	return true
+
+func _prepare_pending(key:String)->bool:
+	var row:Dictionary=rows[key]
+	if not row.has("prepare"):return true
+	var plan:Dictionary=row.prepare.call()
+	# Metadata can itself be blocked by a joined speculative model. Demand
+	# preemption must be reachable before metadata exists, without assigning
+	# metadata a ready-result slot or evicting owners for worker-only pressure.
+	if plan.get("pending",false) and key==demand_key and plan.get("dependency_estimate") is Dictionary:
+		row.estimate=plan.dependency_estimate
+		if not ledger.blocking_reason(_ledger_key(key),row.estimate).is_empty():
+			for other:String in _demand_retirements(key,true):_preempt_ready(other)
+			plan=row.prepare.call()
+	if plan.get("pending",false):return false
+	if plan.has("failure"):
+		row.packet=plan.failure;row.state="ready";return false
+	if not plan.get("task") is Callable or not plan.get("estimate") is Dictionary or not plan.get("retained") is Dictionary:return false
+	row.task=plan.task;row.contract=plan
+	row.estimate=plan.estimate.duplicate()
+	for bytes_:int in plan.retained.values():row.estimate.estimated_bytes+=bytes_
+	return true
+
 func demand(key:String)->void:
 	if not cancelled and rows.has(key) and rows[key].state in ["pending","running","ready","resident"]:demand_key=key
 
@@ -160,9 +188,20 @@ func _pump(deadline:int)->void:
 		row.packet=row.worker.wait_to_finish();_drainer.forget(row.worker)
 		row.erase("worker");row.erase("token");row.state="ready"
 		ledger.park(_ledger_key(key));ledger.set_stage(_ledger_key(key),"ready")
+		if row.get("contract",{}).has("joined") and not row.contract.joined.call(row.packet):row.state="waiting"
 		metrics.joined+=1;metrics.worker_elapsed_us+=int(row.packet.get("elapsed_us",0))
 		_event("join",key)
 		_promote_resident(key)
+		if Time.get_ticks_usec()>=deadline:return
+	# A waiting dependency keeps its byte lease, but neither a worker nor a
+	# producer slot. Resume that same lease before admitting new allocations.
+	for key:String in order:
+		var row:Dictionary=rows[key]
+		if row.state!="waiting":continue
+		var task:Callable=row.contract.resume.call(row.packet)
+		if not task.is_valid() or not ledger.resume_worker(_ledger_key(key)):continue
+		row.task=task
+		_start_reserved(key,true)
 		if Time.get_ticks_usec()>=deadline:return
 	if lanes_enabled or resident_enabled:
 		_pump_lanes(deadline);return
@@ -176,6 +215,7 @@ func _pump_fifo(deadline:int)->void:
 		if rows[key].state=="pending" and key!=demand_key:pending.append(key)
 	for key:String in pending:
 		var row:Dictionary=rows[key]
+		if not _prepare_pending(key):continue
 		var reason:String=ledger.blocking_reason(_ledger_key(key),row.estimate)
 		if reason.is_empty() and _owned_count()>=ready_limit:reason="ready_limit"
 		if not reason.is_empty() and key==demand_key:
@@ -201,6 +241,7 @@ func _pump_lanes(deadline:int)->void:
 		# A blocked demand fences new speculation while its live owners drain.
 		if not demand_key.is_empty() and rows[demand_key].state=="pending":
 			var key:=demand_key
+			if not _prepare_pending(key):return
 			var reason:=_global_reason(key)
 			if not reason.is_empty():
 				var retire:=_demand_retirements(key)
@@ -214,6 +255,8 @@ func _pump_lanes(deadline:int)->void:
 			if not _launch(key):return
 			continue
 		var heads:=_lane_heads()
+		for index:int in range(heads.size()-1,-1,-1):
+			if not _prepare_pending(heads[index]):heads.remove_at(index)
 		if heads.is_empty():return
 		var fence:=""
 		for key:String in heads:
@@ -267,7 +310,7 @@ func _owned_count(owner:RefCounted=null)->int:
 	var count_:=0
 	for entry_key:String in owner._entries:
 		var key:=_local_key(entry_key)
-		if not key.is_empty() and rows.has(key):count_+=1
+		if not key.is_empty() and rows.has(key) and rows[key].state!="waiting":count_+=1
 	return count_
 
 func _inflight_count(owner:RefCounted=null)->int:
@@ -295,13 +338,13 @@ func _resident_exit(key:String,reason:String)->void:
 	if not _is_resident(rows[key]):return
 	metrics.resident_exited+=1;_event("resident_exit",key,reason)
 
-func _global_reason(key:String,owner:RefCounted=null)->String:
+func _global_reason(key:String,owner:RefCounted=null,dependency:bool=false)->String:
 	if owner==null:owner=ledger
 	var reason:String=owner.blocking_reason(_ledger_key(key),rows[key].estimate)
-	return "ready_limit" if reason.is_empty() and _inflight_count(owner)>=ready_limit else reason
+	return "ready_limit" if not dependency and reason.is_empty() and _inflight_count(owner)>=ready_limit else reason
 
-func _demand_retirements(key:String)->Array[String]:
-	if resident_enabled:return _resident_demand_retirements(key)
+func _demand_retirements(key:String,dependency:bool=false)->Array[String]:
+	if resident_enabled:return _resident_demand_retirements(key,dependency)
 	# Simulate removals before touching real owners. Worker/held pressure that
 	# would survive ALL ready removals must not trigger pointless destruction.
 	var ready:Array[String]=[]
@@ -311,21 +354,21 @@ func _demand_retirements(key:String)->Array[String]:
 	var probe:=Admission.new();probe.worker_limit=ledger.worker_limit;probe.byte_limit=ledger.byte_limit
 	probe._entries=ledger._entries.duplicate(true);probe.reserved_bytes=ledger.reserved_bytes
 	for other:String in ready:probe.release(_ledger_key(other))
-	if not _global_reason(key,probe).is_empty():return []
+	if not _global_reason(key,probe,dependency).is_empty():return []
 	# Global count needs one victim; byte pressure needs the fewest largest
 	# victims. Equal sizes retain first-use order by preferring later results.
-	if _global_reason(key)=="byte_limit":
+	if _global_reason(key,null,dependency)=="byte_limit":
 		ready.sort_custom(func(a:String,b:String)->bool:
 			var left:int=rows[a].estimate.estimated_bytes;var right:int=rows[b].estimate.estimated_bytes
 			return order.find(a)>order.find(b) if left==right else left>right)
 	probe._entries=ledger._entries.duplicate(true);probe.reserved_bytes=ledger.reserved_bytes
 	var retire:Array[String]=[]
 	for other:String in ready:
-		if _global_reason(key,probe).is_empty():break
+		if _global_reason(key,probe,dependency).is_empty():break
 		probe.release(_ledger_key(other));retire.append(other)
 	return retire
 
-func _resident_demand_retirements(key:String)->Array[String]:
+func _resident_demand_retirements(key:String,dependency:bool=false)->Array[String]:
 	# At most ready_limit + resident_limit joined candidates. Simulate the full
 	# ledger first: held/running ownership must never be sacrificed speculatively.
 	var ready:Array[String]=[]
@@ -335,7 +378,7 @@ func _resident_demand_retirements(key:String)->Array[String]:
 	var probe:=Admission.new();probe.worker_limit=ledger.worker_limit;probe.byte_limit=ledger.byte_limit
 	probe._entries=ledger._entries.duplicate(true);probe.reserved_bytes=ledger.reserved_bytes
 	for other:String in ready:probe.release(_ledger_key(other))
-	if not _global_reason(key,probe).is_empty():return []
+	if not _global_reason(key,probe,dependency).is_empty():return []
 	ready.sort_custom(func(a:String,b:String)->bool:
 		var left:int=rows[a].estimate.estimated_bytes;var right:int=rows[b].estimate.estimated_bytes
 		return order.find(a)>order.find(b) if left==right else left>right)
@@ -344,7 +387,7 @@ func _resident_demand_retirements(key:String)->Array[String]:
 	# yields the smallest count without exponential subset enumeration or
 	# wasting a resident eviction that cannot free an in-flight slot.
 	var seeds:Array[String]=[""]
-	if _inflight_count()>=ready_limit:
+	if not dependency and _inflight_count()>=ready_limit:
 		seeds.clear()
 		for other:String in ready:
 			if not _is_resident(rows[other]):seeds.append(other)
@@ -354,32 +397,50 @@ func _resident_demand_retirements(key:String)->Array[String]:
 		var retire:Array[String]=[]
 		if not seed.is_empty():probe.release(_ledger_key(seed));retire.append(seed)
 		for other:String in ready:
-			if _global_reason(key,probe).is_empty():break
+			if _global_reason(key,probe,dependency).is_empty():break
 			if other==seed:continue
 			probe.release(_ledger_key(other));retire.append(other)
-		if _global_reason(key,probe).is_empty() and (best.is_empty() or retire.size()<best.size()):best=retire
+		if _global_reason(key,probe,dependency).is_empty() and (best.is_empty() or retire.size()<best.size()):best=retire
 	return best
 
 func _launch(key:String)->bool:
+	# A demanded job may just have retired a ready leader. Recompute the shared
+	# offer after that mutation; its old retained/binding set is no longer valid.
+	if not _prepare_pending(key):return false
 	var row:Dictionary=rows[key]
-	if not ledger.reserve(_ledger_key(key),row.estimate):return false
+	var contract:Dictionary=row.get("contract",{})
+	if contract.is_empty():
+		if not ledger.reserve(_ledger_key(key),row.estimate):return false
+	elif not ledger.reserve_bundle(_ledger_key(key),contract.estimate,contract.retained):return false
 	_close_blocked(key)
+	_start_reserved(key,false)
+	return true
+
+func _start_reserved(key:String,continuation:bool)->void:
+	var row:Dictionary=rows[key]
 	var token:=Drainer.CancelToken.new()
 	if row.estimate.get("cpu_only",false):token.set_meta("cpu_metadata_only",true)
 	# The detached drainer owns the lease, not this queue's freed Node.
 	token.set_meta("admission_owner",ledger)
 	token.set_meta("admission_release",ledger.release.bind(_ledger_key(key)))
+	if not row.get("contract",{}).is_empty():row.contract.commit.call(token,continuation)
+	if continuation:token.set_meta("prefab_continuation_result",row.packet)
 	var worker:=Thread.new();var task:=_invoke.bind(row.task,token)
 	var err:int=thread_starter.call(worker,task) if thread_starter.is_valid() else worker.start(task,Thread.PRIORITY_LOW)
 	if err!=OK:
 		# Never move expensive decode onto main after a launch failure.
-		ledger.park(_ledger_key(key));row.state="ready";row.packet={"error":err,"elapsed_us":0,"start_failed":true}
+		token.cancel()
+		ledger.park(_ledger_key(key));row.state="ready"
+		if not continuation:row.packet={"error":err,"elapsed_us":0,"start_failed":true}
+		else:row.packet.error=err;row.packet.start_failed=true
+		if token.has_meta("native_texture_scope"):row.packet.native_texture_scope=token.get_meta("native_texture_scope")
+		if token.has_meta("prefab_continuation_result"):token.remove_meta("prefab_continuation_result")
+		if row.get("contract",{}).has("joined"):row.contract.joined.call(row.packet)
 		metrics.start_failures+=1;_event("start_failed",key)
 	else:
 		row.worker=worker;row.token=token;row.state="running"
 		_drainer.watch(worker,token);metrics.started+=1;_event("start",key)
 	_update_peaks()
-	return true
 
 func _preempt_ready(key:String)->void:
 	var row:Dictionary=rows[key]
@@ -409,11 +470,11 @@ func cancel()->void:
 			if is_instance_valid(_drainer) and _drainer.is_inside_tree():_drainer.abandon(row.worker)
 			else:Drainer.drain_shutdown(row.worker,row.token)
 			row.erase("worker");row.erase("token")
-		elif row.state in ["ready","resident","held"]:
+		elif row.state in ["ready","resident","held","waiting"]:
 			_dispose(row);_resident_exit(key,"cancelled");ledger.release(_ledger_key(key))
 			_event("release",key,"cancelled")
 		_close_blocked(key);_event("cancel",key)
-		row.state="cancelled";row.task=Callable();row.erase("held_origin")
+		row.state="cancelled";row.task=Callable();row.erase("contract");row.erase("held_origin")
 
 func snapshot()->Dictionary:
 	var result:Dictionary=metrics.duplicate(true)
@@ -482,6 +543,10 @@ func diagnostic_events()->Array[Dictionary]:
 	return result
 
 static func _dispose(row:Dictionary)->void:
+	# Factories bind immutable offer rows. Clear those aliases before the packet
+	# scope returns its table pin, keeping only the scalar retry factory.
+	if row.has("prepare"):row.task=Callable()
+	row.erase("contract")
 	# Image-only packets cannot own rendering commands. Avoid forcing a renderer
 	# sync for each terrain/material handoff merely to discard private CPU pixels.
 	if row.estimate.get("cpu_only",false):row.packet.clear()

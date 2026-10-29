@@ -44,7 +44,7 @@ static func geometry(asset:Dictionary,cache:Dictionary)->Dictionary:
 	var key:=City.token([path,candidate.native_product_kind,digest,candidate.payload_sha,candidate.generator,asset.get("position"),asset.get("rotation"),asset.get("size")])
 	if cache.has(key):return cache[key]
 	var result:={"known":true,"faces":[],"solids":[],"source_sha256":digest}
-	var scene=library.instantiate_preview(path,true)
+	var scene=library.instantiate_geometry(path,candidate)
 	if scene==null:return {"known":false}
 	var size:=City.vec(asset.size)
 	if minf(absf(size.x),minf(absf(size.y),absf(size.z)))<.000001:scene.free();return {"known":false}

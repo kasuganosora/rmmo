@@ -58,7 +58,7 @@ func prepare(args: Dictionary) -> Dictionary:
 		# logical model path. Identical source with a rebuilt product is distinct.
 		var hash_:String=Data.token([native.native_product_kind,native.source_sha,native.payload_sha,native.generator]); hashes.append(hash_)
 		if not _bounds_cache.has(hash_):
-			var node=Library.instantiate_preview(id,true)
+			var node=Library.instantiate_geometry(id,native)
 			if node==null: return Data.fail("散布模型无法读取")
 			var bounds:=Library.bounds_of(node); node.free()
 			if not bounds.position.is_finite() or not bounds.size.is_finite() or bounds.size.x<.01 or bounds.size.y<.01 or bounds.size.z<.01: return Data.fail("散布模型缺少有效三维包围盒")

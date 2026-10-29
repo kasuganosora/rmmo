@@ -3,6 +3,7 @@ extends RefCounted
 ## materials/pixels. Native readers clear completion on each new file allocation.
 const TABLE_META:=&"rmmo_model_texture_table_v1"
 const READY_META:=&"_rmmo_model_textures_bound_v1"
+const GEOMETRY_ONLY_META:=&"_rmmo_geometry_query_only_v1"
 
 static func table(packed:PackedScene)->String:
 	if packed==null:return ""
@@ -20,6 +21,7 @@ static func packed_ready(packed:PackedScene)->bool:
 
 static func scene_ready(scene:Node)->bool:
 	if scene==null:return false
+	if scene.get_meta(GEOMETRY_ONLY_META,false):return false
 	var required:String=scene.get_meta(TABLE_META,"")
 	return required.is_empty() or scene.get_meta(READY_META,"")==required
 

@@ -52,9 +52,9 @@ static func geometry(bridge:Dictionary,cache:Dictionary)->Dictionary:
 	if collision.box_size!=Vector3.ZERO:return {}
 	var actual:=faces(collision.surfaces);var actual_keys:Dictionary={}
 	for face:Array in actual:actual_keys[face_key(face)]=true
-	# The private preview owns this published native version; saving/editing the
+	# The private geometry owns this published native version; saving/editing the
 	# original GLB has no effect until an explicit reimport publishes a new one.
-	var owner:Node3D=preload("res://scripts/world_editor/asset_library.gd").instantiate_preview(path)
+	var owner:Node3D=preload("res://scripts/world_editor/asset_library.gd").instantiate_geometry(path,candidate)
 	if owner==null:return {}
 	var pieces:Dictionary={}
 	for node:MeshInstance3D in Paint.meshes(owner):pieces[str(node.name)]={"mesh":node.mesh,"transform":node.transform}

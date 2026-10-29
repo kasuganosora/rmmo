@@ -153,6 +153,38 @@ GPU 夹具执行了真实 native 文件/纹理表读取、共享池、绑定，�
 
 默认 `D:/tools/godot` 已更新到上述 `tests=no` candidate06：主程序、console、两个版本别名、CLI 别名和匹配符号共 7 个文件逐项校验，三个主程序入口的 version probe 均通过。旧 04d 原字节及原安装清单保留在 `D:/tools/godot/_backup/before_06_20261029_144450`；安装记录在 B 的 `native_queue_lifetime_06/installation.json`。没有删除旧版本，没有转换或覆盖正式模型。
 
+## 编辑器冷打开、共享纹理与几何消费者
+
+编辑器 `LoadJob` 现使用 `NativeModelTexturePreparation` 和既有 preparation queue / editor ledger 准备拆分模型。metadata、几何和唯一纹理输出共同准入，等待共享 producer 的任务让出 worker 槽；同一模型的几何、像素和绑定仍在同一 worker 分阶段执行，并未声称它们在模型内部并行。成功发布才登记纹理复用，operation 结束才清退其共享池引用。连续打开不重设共享额度，避免抹去上一代尚未释放的 metadata 扣款。
+
+已复现并修复六类边界：大 READY 结果阻挡另一个表的 demand；新代重设 byte limit；最后 allowance 重复退还；等待期间重复构造 offer；空纹理表要求不存在的 handoff；已释放结果仍通过 offer.rows 持有 metadata。超低预算双模型样本因必要的 speculative retirement 发生 3 次几何准备，保留该额外工作，不描述为严格一次几何读取；唯一纹理 producer 仍为 1。
+
+`PreparedModelOwnership` 现在区分模型几何 envelope 与已经交给引擎的 native texture。共享纹理独立存活不再钉住已释放几何的额度；纹理 metadata 的私有 Resource 子项仍按实际所有者追踪。完整 queue packet 在交接前继续计账，成功后分别记 transient、published geometry 和 engine texture；published envelope 是保守基线，不是 RSS/VRAM 或整个进程的硬上限。没有在发布时再次哈希源文件。末尾重复扫描绑定/像素包已移除：普通 CPU 夹具 53 次递归访问变为 1 次材质归属查询，空表 38 变为 0；原几何图 159 次访问及槽位核对保持不变，sources/profile 各遍历一次，不递归扫描整个 scope。
+
+|验证|结果与边界|证据（相对于 B）|
+|---|---|---|
+|默认 LoadJob 真实 GPU|140/140，2 模型、1 表、2 次 STEX load；36 槽在 READY 前完成，下一 LoadJob 复用同一对象/RID、零再次创建/读取；源/候选 RGBA 零差，最终各账本归零|`editor_native_texture_join_01/delivery_gpu.json`|
+|可选 residency 发布与真实 GPU 生命周期|165/165，几何 envelope 128MiB → 192MiB → 64MiB → 0；仅保留纹理时几何已为 0、引擎仍为 152,915 bytes，最后纹理释放后引擎也为 0|`editor_native_texture_join_01/delivery_ownership_gpu.json`|
+|最终去重源码 CPU|70 + 125 + 106 + 126 + 79 = 506 项通过，零诊断；包括外来材质、隐藏 Resource、额外 owner 的拒绝与无提前退账|`editor_split_native_ownership_01/no_duplicate_tail_01/delivery.json`|
+
+上述两组完整 LoadJob GPU 使用去重前的 ownership SHA `a76c9e…`；最终 SHA `ebf60ae…` 已在后续真实冷 UI 样本中通过发布、共享和最终归零，显示失败见下节。不把两个源码版本的 GPU 证据混为同一快照。`gpu_resident_01` 的 QuadMesh fixture API 错误已保留，改为实际 ArrayMesh 后重跑；不是产品失败。
+
+仅需几何的桥梁/城防 kit、道路与桥接触边界、散布边界和树形参数，现在用显式 `AssetLibrary.instantiate_geometry`。它可直接读 native 几何而不准备纹理表或 STEX；暖缓存复用原 mesh/material owner。实例带 geometry-only 标记，不能作为完整渲染模板进入 cache 或继承 READY。普通渲染消费者（例如复制 kit 材质的 auto tile）不走该入口。它仍是几何查询入口，并非把文件读取全部改为后台。
+
+独立 CPU 以缺失纹理表、无 GLB/STEX 复现旧入口失败，最终 **47/47**，补测 native preview **18/18**、readiness **19/19**、native-only **24/24**，均零诊断。树 fixture 带真实序列化 recipe、UV2 和两个 LOD；非默认树形参数下，新几何路径与已绑定渲染路径的顶点、法线、拓扑、UV2、调整后 AABB/可见范围逐项相等，冷树形缓存不会替换渲染材质。证据 `native_geometry_consumers_01/green_tree_01`、`green_02`。早期零深度 AABB 断言错误已保留，最终按 Godot 序列化后的真实 AABB 比较。
+
+这些是编辑器管线与资源合同结果，没有新的 axel_town 加载、low 或物理 I/O 提升结论，未转换正式模型，默认 split 导入仍未开启。
+
+## 冷预览候选的显示缺口（尚未完成）
+
+另一个尚未提交的切片让普通模型、缩略图和普通组合 prefab 复用有限批次的 `EditorAssetPreparation`；私有模板不加入全局 `_scenes`，完成但仍等待慢兄弟的模板纳入 published geometry 追踪。CPU 158/158；split CPU 使用协议替身的部分已在报告中明确，不能替代 GPU 证明。交付 `editor_asset_preparation_01/delivery_cpu.json`。
+
+真实 GPU `gpu_ui_01` / `delivery_ui_gpu_red.json` 得到 **57 PASS、3 FAIL、零引擎诊断**。共享生产、真实 tracker、换选关闭、prefab、全局缓存不增长及最终归零通过。但首次预览 mip 3，随后纹理自然升至 mip 0，`UPDATE_ONCE` 画面仍停留 90 帧，相比同相机源图差 30,185 个 RGBA 字节；真实缩略图在 mip 2 保存，差 1,046 字节。之后仅允许普通连续重绘一帧，预览即为零差，未 flush 或强制 LOD。
+
+三条失败断言中，首帧与完整细节不相等属于渐进流式显示的观察，不单独规定首帧必须全清；持续冻结与永久保存低清 PNG 才是必须修复的缺口。引擎 `texture_reload` 更新 current mip 时只把替换排入渲染队列，没有发出 changed；current getter 也不代表新画面已经完成。现有 pending 在 I/O 入口就被清空，不能用它判断是否正在读取。后续将先按 mip 变化补画预览，再补指定绘制反馈/预算目标/执行中状态的可靠异步观察，等实际绘制完成后保存缩略图，不能靠固定等待、mip 0 或全局 flush 冒充完成。
+
+正式放置/rebuild、custom tile kit、UI 与当前 3D HTTP MCP 的事务验收仍在后续范围。`workspace.gd` 和 `docs/world_editor_mcp.md` 有其他会话修改，本切片未覆盖它们。
+
 ## 后续顺序
 
 1. 旧 operation → 新 Initial 的**已完成 owner 入站复用已完成**，结果见上节及 B 的 `initial_native_inbound_reuse_handoff.json`。并发 operation 中尚未完成的 producer 仍各有自己的池，尚无跨 operation 的全局在途 single-flight；不把本轮完成票据复用说成该问题也已解决。也不能因 `start` 时目录为空就整次跳桥，旧 operation 可能在 metadata 就绪前发布 owner。后续可考虑请求抵达主线程时，以两个目录当前均空作 O(1) 全 miss 回复，保留现有取消与 metadata 退役合同。

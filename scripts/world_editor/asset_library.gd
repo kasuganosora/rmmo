@@ -323,6 +323,29 @@ static func instantiate_preview(path: String,native_only:bool=false) -> Node3D:
 		preload("res://scripts/world3d/asset_worker_drainer.gd").dispose_result(compiled);return null
 	return _instantiate(compiled.packed)
 
+## Private geometry/recipe query, not a render template. Split products need no
+## texture table or pixel preparation here; an existing complete allocation may
+## be borrowed without rebinding materials or changing its completion marker.
+static func instantiate_geometry(path:String,candidate:Dictionary={}) -> Node3D:
+	if not preload("res://scripts/world3d/map_paths.gd").asset_key_allowed(path):return null
+	if candidate.is_empty():candidate=native_candidate(path)
+	if candidate.is_empty():return null
+	var packed:PackedScene
+	if _native_cached(path,candidate):packed=_scenes[path]
+	else:
+		var compiled:=_read_published_native(path,candidate)
+		if not compiled.get("hit",false):return null
+		packed=compiled.packed
+	# Raw instantiation deliberately skips rendering caches and grass rebinding.
+	# Node metadata, transforms, mesh surfaces and material role names are intact.
+	var scene:=packed.instantiate() as Node3D
+	if scene!=null:
+		var readiness=preload("res://scripts/world3d/model_texture_readiness.gd")
+		scene.set_meta(readiness.GEOMETRY_ONLY_META,true)
+		if scene.has_meta(readiness.READY_META):scene.remove_meta(readiness.READY_META)
+		scene.set_meta("_compiled_resource_owner",packed)
+	return scene
+
 static func _own(node: Node, root: Node) -> void:
 	for child in node.get_children():
 		child.owner = root
