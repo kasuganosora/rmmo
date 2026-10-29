@@ -129,12 +129,34 @@ GPU 夹具执行了真实 native 文件/纹理表读取、共享池、绑定，�
 
 `native_queue_lifetime_06/baseline2/run_02` 使用官方 doctest 入口、真实反馈/I/O 线程、public configure/flush/remove 与 dummy RenderingServer。受控 RefCounted 回调只使用外部控制块，析构期间保持分配存活：34 项断言中仅“回调未结束就开始析构”失败，证明生命周期协议缺口，无需制造悬空读。修复在反馈线程取得 owner 引用并随 I/O 任务传递，实际 state free 返回反馈线程，停机先关闭新任务、排空 I/O，再关闭反馈。`fixed/run_01` 的 33 项断言全部通过、零诊断；红测多一项失败路径的 I/O fence 断言，因此断言数不同。测试二进制 SHA 为 `16c0229135cd0f54676d4c44257297dd2a72e4a43f0e1ba4f322d14da66338dc`。
 
-这仍不是 candidate06 的完整交付：进行中关闭、反馈线程最终析构、更广的 GPU 生命周期和普通运行版本尚在验证，默认安装仍为 candidate04d，正式资源未改。`baseline2/run_01` 与 `gdb_01` 是运行目录错误导致官方测试初始化失败后 ThemeDB 空指针的宿主样本，保留但不算流式问题的复现，也不与此前游戏路径崩溃混为一谈。
+此时还不是 candidate06 的完整交付；随后补齐的证据与安装见下一节。`baseline2/run_01` 与 `gdb_01` 是运行目录错误导致官方测试初始化失败后 ThemeDB 空指针的宿主样本，保留但不算流式问题的复现，也不与此前游戏路径崩溃混为一谈。
+
+## Candidate06 原生生命周期、回归与默认安装
+
+最终原生 fixture 增加反馈线程上的最终 owner 析构、正在执行 reload 时发起关闭，以及多次启动/停止。关闭期间先阻止新生产，保持反馈线程服务 I/O 的最终 remove，待 I/O 完成后再停止反馈。反馈线程自身的同步调用直接执行，停止交接由独立调度锁串行化，避免最后一条同步请求留在已退出的队列中。它没有增加外部线程暂停操作，也没有通过读取已释放内存来证明失败。
+
+`native_queue_lifetime_06/fixed2/run_01` **4 个 case、60/60 断言、零诊断**；测试引擎 SHA `633256fb7684459937eaf6b1a3457e2071111a5d75c8dfc1a6305b2167d8c34b`。实际编译选项是 `tests=yes`，不是无效的 `tests_enabled`；Godot 的 `TESTS_ENABLED` 只在 main 的编译环境定义，测试 friend 仅是编译可见性，不增加运行时 API。较早 `baseline` 构建失败来自 friend 门禁和 fixture API 名称，保留但不是产品红测。
+
+普通运行版本另外以 `tests=no` 构建，仍保留匹配 GDB 调试符号。其 SHA 为 `d5fd6c2c82eae35a60c90b78318b71f7a8130987f1fd402ea22e1de0ba842f62`，主符号文件 SHA `6d365125e668e13bc7b7a4d151f222094cd35b00a5e895a13e2ee67df0e6890e`。以下 GPU 验证使用该普通二进制、`a5a543fb` 冻结工程和独立桌面，未混入正在开发的编辑器 LoadJob 改动或主工作区其他会话的未提交改动。
+
+|验证|结果|证据（相对于 B）|
+|---|---|---|
+|native 准备、Initial、Deferred、入站复用|65、18、19、15 项分别全通过，零诊断|`native_queue_lifetime_06/gpu_regression_02/native_results.json`|
+|mip 边界、混合预算移交、仅 2D cover|12、52、5 项分别全通过，零诊断|`native_queue_lifetime_06/gpu_regression_02/streaming_results.json`|
+|读取失败与恢复|13/13；3 条刻意缺私有文件的预期错误，未预期诊断为 0|同上|
+|普通游戏分阶段进场、失败恢复和连续取消|35/35；零错误/泄漏；74 条既有 male GLTF stride 警告与旧基线逐项相同；71 项依赖和冻结源码 SHA 未改|`native_queue_lifetime_06/normal_game_01/result.json`|
+|旧独立所有权 fixture 的兼容性|原始 4 项失败、合法 move 对照全部通过，与此前结果一致|`native_queue_lifetime_06/legacy_ownership_compat_01`|
+
+`gpu_regression_01` 少了冻结工程的 global class registry，出现 20 条 Customization/GPUClothCollider 解析诊断，虽有 PASS 也不作为验收。恢复既有 registry 后 `_02` 重跑；未修改生产代码、测试断言或过滤规则。正式女性完整 flow 的旧超时、所有可能的 reimport/退出交错及历史无栈崩溃，不在这些结果的已解决范围内。没有新的 axel_town 加载、帧耗时、low 或实际 RSS/VRAM 收益结论。
+
+`tools/engine_patches/godot-4.8-beta1-runtime-candidate06.patch/json` 是从官方 pristine 4.8 beta1 到 candidate06 的**完整累计补丁**，不能叠加在 candidate05 上应用。对官方归档的独立稀疏副本执行 `git -c core.autocrlf=false apply --check` 与 apply，**48/48 文件逐字节 SHA 相等**；补丁 SHA `4a08ec4dc40e2762a3c2d49ea5fee050958e512ab58ff98322fe561ea0a45e51`。独立队列 fixture 的 16 项通过和保留的较慢微测见 `simple_command_queue_stable_06/delivery.json`；不将每条命令一次分配的实现描述为无成本吞吐优化。
+
+默认 `D:/tools/godot` 已更新到上述 `tests=no` candidate06：主程序、console、两个版本别名、CLI 别名和匹配符号共 7 个文件逐项校验，三个主程序入口的 version probe 均通过。旧 04d 原字节及原安装清单保留在 `D:/tools/godot/_backup/before_06_20261029_144450`；安装记录在 B 的 `native_queue_lifetime_06/installation.json`。没有删除旧版本，没有转换或覆盖正式模型。
 
 ## 后续顺序
 
 1. 旧 operation → 新 Initial 的**已完成 owner 入站复用已完成**，结果见上节及 B 的 `initial_native_inbound_reuse_handoff.json`。并发 operation 中尚未完成的 producer 仍各有自己的池，尚无跨 operation 的全局在途 single-flight；不把本轮完成票据复用说成该问题也已解决。也不能因 `start` 时目录为空就整次跳桥，旧 operation 可能在 metadata 就绪前发布 owner。后续可考虑请求抵达主线程时，以两个目录当前均空作 O(1) 全 miss 回复，保留现有取消与 metadata 退役合同。
-2. 解决引擎排队 I/O 的真实 owner 生命周期及 shutdown，完成独立复现和回归后再安装候选引擎。
+2. 引擎排队 I/O 的 owner 与 shutdown 已按上节复现、修复、回归并安装 candidate06；后续编辑器验证使用该准确 SHA，不以相同 version 字符串混淆 04d/05/06。更广生命周期和整图表现继续在实际集成中检验。
 3. 编辑器 LoadJob、PreparedModelOwnership、预览/放置和 TargetScenePrefetch 接入同一独立纹理准备与释放协议；当前 UI/HTTP MCP 还没有据此完成导入、保存重开验证。下一生产集成顺序按 B 的 `editor_native_streaming_integration_readonly_01.json`：先用无 GLB、空场景/弱缓存复现冷打开、预览、缩略图和放置；再以编辑器既有共享账本接异步准备、世代取消和主线程所有权，区分只需几何的消费者；引擎生命周期就绪后做 GPU、UI 与真实 loopback HTTP MCP 的放置/撤销/保存冷重开。全部冷消费者通过后，才切换默认 split 导入并迁移既有内嵌 native。该报告是 `9eb7a9fa` 上的只读审查，未修改或验收编辑器，不应把游戏 Initial 的独立账本直接当作编辑器并发共用账本。
 4. 从入口大模型开始转换并按 `rmmo-model-review` 做受影响项验收，保持原像素默认策略。随后覆盖实际引用与角色原生产品。
 5. 正式接入后再测 axel_town 加载、卸载、返回加载及 low，继续使用地图加载开始到当前需求区域完整就绪的计时边界。
