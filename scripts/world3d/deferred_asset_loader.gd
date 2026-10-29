@@ -98,6 +98,8 @@ var _drainer:Node
 var _jobs:Dictionary={}
 var _admission=preload("res://scripts/world3d/resource_admission.gd").new()
 var _texture_plan_catalog:=TexturePlanCatalog.new()
+var _native_plan_claims:Dictionary={}
+var _native_plan_serial:=0
 var _texture_attempt_generation:=-1
 var loading_worker_limit:=0 # 0 selects production CPU-based capacity; probes may override 2/4/6.
 var _saved_interactive_worker_limit:=-1
@@ -301,7 +303,7 @@ func pump_entry_prefetch()->void:
 		_dispatch_jobs(_lifetime_tree,true)
 	var ready:=0
 	for job:Dictionary in _jobs.values():
-		if job.has("result") and not job.result.get("waiting_pixels",false):ready+=1
+		if job.has("result") and not job.has("worker") and not job.result.get("waiting_pixels",false) and not job.get("native_binding_pending",false):ready+=1
 	profile.entry_prefetch_ready_jobs=ready
 	profile.active_jobs=_jobs.size();profile.reserved_bytes=_admission.reserved_bytes
 	profile.entry_prefetch_pumps=int(profile.get("entry_prefetch_pumps",0))+1
@@ -409,7 +411,7 @@ func configure_references(index:Dictionary,path:String,content_root:String,owner
 	# A new mounted operation must not inherit the previous source identities.
 	# In-flight consumers keep their original pool until their jobs retire.
 	if _jobs.is_empty():_shared_images=SharedImages.new()
-	_texture_plan_catalog.reset();_texture_attempt_generation=-1
+	_retire_native_plan_claims({});_texture_plan_catalog.reset();_texture_attempt_generation=-1
 	if _reference_handoff!=null:_reference_handoff.retire();_reference_handoff=null
 	_invalidate_collision_queries()
 	_runtime_building_records.clear()
@@ -669,6 +671,7 @@ func _configure_admission_budget()->void:
 	_admission.byte_limit=maxi(1,_admission.byte_limit-int(profile.reference_handoff_reserved_bytes))
 	profile.texture_plan_reserved_bytes=TexturePlanCatalog.RESERVED_BYTES if texture_plan_reuse_enabled and not preload("res://scripts/world3d/runtime_probe_controls.gd").discard_map_textures else 0
 	_admission.byte_limit=maxi(1,_admission.byte_limit-int(profile.texture_plan_reserved_bytes))
+	_texture_plan_catalog.reapply_metadata_budget(_admission)
 
 func is_complete()->bool:return pending_count()==0 and _jobs.is_empty() and _texture_plan_catalog.pending_count()==0
 
@@ -715,6 +718,7 @@ func quiesce()->void:
 			else:shutdown();return
 	profile.active_jobs=0;profile.reserved_bytes=_admission.reserved_bytes
 	_raw_retries.clear()
+	_retire_native_plan_claims({})
 	# pending and prepared paths are unchanged, so rollback can retry cancelled
 	# work without duplicating already-published instances or cached models.
 	set_process(false)
@@ -722,6 +726,7 @@ func quiesce()->void:
 
 func shutdown()->void:
 	_texture_plan_catalog.shutdown()
+	_retire_native_plan_claims({})
 	if _reference_handoff!=null:_reference_handoff.retire();_reference_handoff=null
 	_invalidate_collision_queries()
 	_demand_membership.clear()
@@ -738,6 +743,7 @@ func shutdown()->void:
 		var job:Dictionary=_jobs[path]
 		if job.has("worker"):
 			if is_instance_valid(_drainer):_drainer.forget(job.worker)
+			_clear_native_plan_aliases(job)
 			Drainer.drain_shutdown(job.worker,job.token)
 			job.erase("worker")
 		else:Drainer.synchronize_transfer()
@@ -1963,6 +1969,36 @@ func _texture_headers_ready(item:Dictionary,requests:Array,tree:SceneTree)->bool
 	if not _texture_plan_catalog.error.is_empty():_fail(_texture_plan_catalog.error)
 	return ready
 
+func _native_model_plan(path:String,candidate:Dictionary,root:String,tree:SceneTree)->Dictionary:
+	if not candidate.get("texture_table") is Dictionary:
+		_fail("Invalid native model texture descriptor: "+path);return {}
+	var capability_error:String=preload("res://scripts/world3d/native_texture_capability.gd").error_for(candidate.texture_table,_shared_images.get_script()!=SharedImages)
+	if not capability_error.is_empty():_fail(capability_error);return {}
+	var scope:RefCounted=_native_plan_claims.get(path)
+	if scope!=null and (scope.root!=root or scope.candidate.texture_table!=candidate.texture_table):
+		scope.release_now();_native_plan_claims.erase(path);scope=null
+	if scope!=null and not scope.prepared.is_empty():return scope.prepared
+	if scope==null:
+		scope=preload("res://scripts/world3d/deferred_native_texture_scope.gd").new()
+		scope.catalog=_texture_plan_catalog;scope.candidate={"texture_table":candidate.texture_table.duplicate()};scope.root=root
+		_native_plan_serial+=1;scope.consumer="native_model:%d:%d"%[get_instance_id(),_native_plan_serial]
+		_native_plan_claims[path]=scope
+	if not _texture_plan_catalog.prepare_model_async(candidate,root,_admission,tree,scope.consumer):
+		if not _texture_plan_catalog.error.is_empty():_fail(_texture_plan_catalog.error)
+		return {}
+	scope.prepared=_texture_plan_catalog.model_plan(candidate,root)
+	return scope.prepared
+
+func _retire_native_plan_claims(required:Dictionary)->void:
+	for path:String in _native_plan_claims.keys():
+		if required.has(path) and not path_errors.has(path):continue
+		_native_plan_claims[path].release_now();_native_plan_claims.erase(path)
+
+static func _clear_native_plan_aliases(job:Dictionary)->void:
+	job.erase("native_model_plan")
+	job.erase("native_texture_sources")
+	job.get("estimate",{}).erase("prefab_texture_plan")
+
 func _prefab_texture_plan(item:Dictionary,requests:Array)->Dictionary:
 	if (not prefab_texture_preparation_enabled and not _targeted_bridge_textures(item)) or _reference_root.is_empty():return {}
 	var generation:int=preload("res://scripts/world3d/surface_materials.gd").source_generation
@@ -2056,7 +2092,7 @@ static func _prepare_job_inner(path:String,digest:String,token:RefCounted,manife
 		if not before.error.is_empty():return before
 	var prepared:Dictionary={"error":"","records":[],"dependencies":{},"read_profile":{}}
 	if not requests.is_empty():
-		prepared=preload("res://scripts/world3d/chunk_reference_preparation.gd").prepare(index,requests,map_path,root,token,ownership_proof,model_route.get("prefab_texture_plan",{}),model_route.get("shared_pixels",{}),int(model_route.get("collision_workspace_bytes",0)),preload("res://scripts/world3d/runtime_package_policy.gd").trusted(),model_route.get("hydrated_records",{}),model_route.get("parallel_pixels",false),int(model_route.get("road_paint_workspace_bytes",0)))
+		prepared=preload("res://scripts/world3d/chunk_reference_preparation.gd").prepare(index,requests,map_path,root,token,ownership_proof,model_route.get("prefab_texture_plan",{}),model_route.get("shared_pixels",{}),int(model_route.get("collision_workspace_bytes",0)),preload("res://scripts/world3d/runtime_package_policy.gd").trusted(),model_route.get("hydrated_records",{}),model_route.get("parallel_pixels",false) or model_route.has("native_model_plan"),int(model_route.get("road_paint_workspace_bytes",0)))
 		if not prepared.error.is_empty():prepared.reference_failure=true;return prepared
 	var geometry:Dictionary={"mode":CollisionGeometry.ALL,"definitions":{}}
 	if model_route.get("filter_collision_geometry",false) and not native:
@@ -2097,6 +2133,15 @@ static func _prepare_job_inner(path:String,digest:String,token:RefCounted,manife
 	result.records=prepared.records;result.dependencies=prepared.dependencies;result.read_profile=prepared.read_profile
 	for field:String in ["prefab_cpu","prefab_texture_packet","surface_arrays","surface_bounds","surface_paints","surface_uploads","waiting_pixels","terrain_contexts"]:
 		if prepared.has(field):result[field]=prepared[field]
+	if model_route.has("native_model_plan") and not model_route.get("parallel_pixels",false) and str(result.get("error","")).is_empty():
+		# This also runs for direct models without any reference records. The
+		# same callable runs as the separately admitted half when slots permit.
+		var pixels:Dictionary=model_route.native_pixels_task.call()
+		result.prefab_texture_packet=pixels;result.waiting_pixels=pixels.get("waiting_pixels",false)
+		result.error=pixels.get("error","")
+		result.read_profile.prefab_textures=pixels.get("profile",{})
+		for field:String in ["cancelled","retry_pixels","source_revisions"]:
+			if pixels.has(field):result[field]=pixels[field]
 	return result
 
 static func _preflight_reused_source(path:String,digest:String,content_root:String,token:RefCounted,native_only:bool=false)->Dictionary:
@@ -3301,7 +3346,7 @@ func _process(_delta:float)->void:
 	var accept_started:=Time.get_ticks_usec()
 	for path:String in _jobs.keys():
 		var job:Dictionary=_jobs[path]
-		if job.has("worker") or not job.has("result") or job.get("accepted",false) or job.result.get("waiting_pixels",false):continue
+		if job.has("worker") or not job.has("result") or job.get("accepted",false) or job.result.get("waiting_pixels",false) or job.get("native_binding_pending",false):continue
 		if (phase_budget_guard_enabled or acceptance.units>0) and Time.get_ticks_usec()-began>=budget:break
 		var unit_began:=Time.get_ticks_usec()
 		var result:Dictionary=job.result
@@ -3334,6 +3379,7 @@ func _process(_delta:float)->void:
 			if not cached:
 				job.result.erase("scene");_discard_job(path);_path_failed(path,"无法缓存后台素材："+path)
 				_account_work_unit(acceptance,unit_began);continue
+			_publish_native_texture_owners(path,job)
 			if result.has("packed"):
 				if result.has("resource_owners"):result.resource_owners.transfer_template(result.packed)
 				profile.worker_packed_models=int(profile.get("worker_packed_models",0))+1
@@ -3509,7 +3555,9 @@ func _road_batch_superseded(path:String,job:Dictionary)->bool:
 
 func _poll_jobs(required:Dictionary)->void:
 	_texture_plan_catalog.poll()
+	_retire_native_plan_claims(required)
 	profile.texture_plan_catalog=_texture_plan_catalog.snapshot()
+	profile.native_texture_metadata_reserved_bytes=_texture_plan_catalog.native_metadata_reserved_bytes
 	# Retire completed/cancelled jobs independently; never wait for a slow sibling.
 	profile.last_poll_join_us=0;profile.last_poll_sync_us=0
 	for path:String in _jobs.keys():
@@ -3528,12 +3576,24 @@ func _poll_jobs(required:Dictionary)->void:
 			if is_instance_valid(_drainer):_drainer.forget(job.worker)
 			job.erase("worker")
 			_record_pixel_packet(path,job,result)
-			if result.has("parallel_cpu"):
+			if result.has("parallel_cpu") and not job.get("native_binding_continuation",false):
 				if not profile.has("parallel_cpu"):profile.parallel_cpu={"jobs":0,"geometry_us":0,"pixels_us":0,"overlap_us":0}
 				profile.parallel_cpu.jobs+=1
 				for field:String in ["geometry_us","pixels_us","overlap_us"]:profile.parallel_cpu[field]+=int(result.parallel_cpu[field])
 			if CompletedTrace.enabled:CompletedTrace.joined(path,job.token.get_instance_id(),result)
-			if job.get("pixel_continuation",false):
+			if job.get("native_binding_continuation",false):
+				job.erase("native_binding_continuation");job.native_binding_pending=false;job.result=result
+				if job.token.has_meta("prefab_continuation_result"):job.token.remove_meta("prefab_continuation_result")
+				var binding:Dictionary=result.get("native_binding_profile",{})
+				if not profile.has("native_model_binding"):profile.native_model_binding={"jobs":0,"elapsed_us":0,"sets":0,"unchanged":0}
+				profile.native_model_binding.jobs+=1
+				for field:String in ["elapsed_us","sets","unchanged"]:profile.native_model_binding[field]+=int(binding.get(field,0))
+				if str(result.get("error","")).is_empty() and job.has("pixel_consumer") and not job.get("native_handoff_keys",[]).is_empty():
+					if not _shared_images.handoff_streamed(job.pixel_consumer,result.get("prefab_texture_packet",{}).get("uploaded_textures",{}),job.native_handoff_keys):
+						result.error="Native model textures were not accepted by streaming residency"
+				if str(result.get("error","")).is_empty() and job.has("pixel_consumer"):
+					_admission.park(path);_admission.shrink_joined(path,int(job.estimate.pixel_retained_bytes))
+			elif job.get("pixel_continuation",false):
 				job.erase("pixel_continuation")
 				job.result.get("prefab_texture_packet",{}).clear()
 				job.result.prefab_texture_packet=result
@@ -3558,7 +3618,7 @@ func _poll_jobs(required:Dictionary)->void:
 				profile.entry_prefetch_sync_us=int(profile.get("entry_prefetch_sync_us",0))+Time.get_ticks_usec()-sync_started
 				profile.entry_prefetch_last_ready_us=Time.get_ticks_usec()
 			_admission.set_stage(path,"ready")
-			if ready_worker_yield_enabled:_admission.park(path)
+			if ready_worker_yield_enabled or job.get("native_binding_pending",false):_admission.park(path)
 			if job.get("native",false) and job.has("pixel_consumer"):
 				var retained:int=int(job.estimate.pixel_retained_bytes)-int(job.estimate.get("collision_workspace_bytes",0))+(SharedImages.HASH_SCRATCH if job.result.get("waiting_pixels",false) else 0)
 				_admission.park(path);_admission.shrink_joined(path,retained)
@@ -3716,7 +3776,20 @@ func _dispatch_jobs(tree:SceneTree,prefetch_only:bool=false)->void:
 					estimate=_estimate_job(raw_item,requests,true)
 					estimate.raw_model_bytes=raw_bytes
 					estimate.native_model_bound_bytes=offered.estimated_bytes
-		var direct_material_plan:bool=direct_template_reuse and full_native_material_plan_enabled
+		# Split geometry has no embedded ImageTextures for the legacy direct
+		# plan to discover. Keep template reuse, but skip its scan and 12 MiB.
+		var direct_material_plan:bool=direct_template_reuse and full_native_material_plan_enabled and not candidate.has("texture_table")
+		var native_model_plan:Dictionary={}
+		if stage=="fixed_native" and candidate.has("texture_table"):
+			native_model_plan=_native_model_plan(path,candidate,content_root,tree)
+			if native_model_plan.is_empty():
+				if not error.is_empty():return
+				continue
+			var merged:Dictionary=_native_plan_claims[path].merge_plan(estimate.get("prefab_texture_plan",{}),native_model_plan.plan)
+			estimate.estimated_bytes=int(estimate.estimated_bytes)-int(estimate.get("prefab_texture_plan",{}).get("estimated_bytes",0))+int(merged.estimated_bytes)
+			estimate.prefab_texture_plan=merged
+		elif _native_plan_claims.has(path):
+			_native_plan_claims[path].release_now();_native_plan_claims.erase(path)
 		if direct_material_plan:
 			estimate.texture_plan_workspace_bytes=preload("res://scripts/world3d/model_texture_direct_plan.gd").EXTRA_RESERVATION_BYTES
 			estimate.estimated_bytes=int(estimate.estimated_bytes)+int(estimate.texture_plan_workspace_bytes)
@@ -3728,7 +3801,7 @@ func _dispatch_jobs(tree:SceneTree,prefetch_only:bool=false)->void:
 			estimate.geometry_workspace_bytes=65536+descriptors*CollisionGeometry.DESCRIPTOR_BYTES
 			estimate.estimated_bytes=int(estimate.estimated_bytes)+int(estimate.geometry_workspace_bytes)
 		var pixel_offer:Dictionary={};var pixel_tickets:Dictionary={};var reserve_estimate:Dictionary=estimate
-		if (shared_prefab_texture_preparation_enabled or estimate.get("targeted_bridge_textures",false)) and not estimate.get("prefab_texture_plan",{}).is_empty():
+		if (shared_prefab_texture_preparation_enabled or estimate.get("targeted_bridge_textures",false) or not native_model_plan.is_empty()) and not estimate.get("prefab_texture_plan",{}).get("rows",{}).is_empty():
 			var plan:Dictionary=estimate.prefab_texture_plan
 			var texture_started:=Time.get_ticks_usec() if preload("res://scripts/world3d/runtime_texture_cache.gd").profile_enabled else 0
 			if not _pixel_retries.has(path):pixel_tickets=Prefab.texture_tickets(plan.rows,_doc.load_material_pool)
@@ -3764,7 +3837,7 @@ func _dispatch_jobs(tree:SceneTree,prefetch_only:bool=false)->void:
 		var worker:RefCounted=Thread.new();var token:=Drainer.CancelToken.new()
 		# Only immutable native CPU transactions can split their final proof.
 		# All-resident/follower-only requests have no unique decode to overlap.
-		var parallel_pixels:bool=parallel_texture_preparation_enabled and native and not requests.is_empty() and not pixel_offer.get("leaders",{}).is_empty() and preload("res://scripts/world3d/runtime_package_policy.gd").trusted() and preload("res://scripts/world3d/chunk_reference_preparation.gd").trusted_directory_snapshot_enabled
+		var parallel_pixels:bool=parallel_texture_preparation_enabled and ((native and not requests.is_empty()) or not native_model_plan.is_empty()) and not pixel_offer.get("leaders",{}).is_empty() and preload("res://scripts/world3d/runtime_package_policy.gd").trusted() and preload("res://scripts/world3d/chunk_reference_preparation.gd").trusted_directory_snapshot_enabled
 		if parallel_pixels and _admission.add_worker_slot(path):
 			worker=ParallelChunkWorker.new();worker.admission=_admission;worker.path=path
 		else:parallel_pixels=false
@@ -3779,6 +3852,10 @@ func _dispatch_jobs(tree:SceneTree,prefetch_only:bool=false)->void:
 		_drainer=Drainer.for_tree(tree);_drainer.watch(worker,token)
 		var publication_ids:Array=_job_publication_ids(path,requests)
 		_jobs[path]={"worker":worker,"token":token,"estimate":estimate,"publication_ids":publication_ids,"native":native,"stage":stage,"candidate":candidate,"digest":digest,"dispatch_us":Time.get_ticks_usec(),"parallel_pixels":parallel_pixels,"worker_prepack":worker_prepack,"direct_template_reuse":direct_template_reuse,"direct_material_plan":direct_material_plan}
+		if not native_model_plan.is_empty():
+			_jobs[path].native_model_plan=native_model_plan;_jobs[path].native_binding_pending=true
+			_jobs[path].native_texture_sources=_native_plan_claims[path].sources(native_model_plan)
+			token.set_meta("native_texture_scope",_native_plan_claims[path]);_native_plan_claims.erase(path)
 		if CompletedTrace.enabled:CompletedTrace.record(path,token.get_instance_id(),"dispatch",{"publication_ids":publication_ids.duplicate(),"estimated_bytes":int(estimate.estimated_bytes),"exclusive":bool(estimate.get("exclusive",true)),"native":native})
 		if CollisionGeometry.enabled and not native:
 			_jobs[path].geometry_consumers=geometry_consumers;_jobs[path].geometry_mode=geometry_mode
@@ -3820,7 +3897,7 @@ func _dispatch_jobs(tree:SceneTree,prefetch_only:bool=false)->void:
 		preload("res://scripts/world3d/load_trace.gd").instant("deferred.dispatch",{"path":path,"stage":stage,"need_model":need_model,"native":native,"reserved_bytes":estimate.estimated_bytes,"references":requests.size()})
 		var prepare:=_make_prepare_task(path,digest,token,next,needs_faces,content_root,requests,native,need_model)
 		if parallel_pixels:
-			worker.pixels=_make_pixel_prepare_task(estimate.prefab_texture_plan,content_root,token,_jobs[path].shared_pixels)
+			worker.pixels=_make_native_pixel_prepare_task(estimate.prefab_texture_plan,_jobs[path].native_texture_sources,content_root,token,_jobs[path].shared_pixels) if not native_model_plan.is_empty() else _make_pixel_prepare_task(estimate.prefab_texture_plan,content_root,token,_jobs[path].shared_pixels)
 			profile.parallel_pixel_jobs=int(profile.get("parallel_pixel_jobs",0))+1
 		if _start_worker(worker,prepare)!=OK:
 			_drainer.forget(worker);_jobs[path].erase("worker");_discard_job(path);_fail("无法启动附近素材后台准备："+path);return
@@ -3853,7 +3930,13 @@ func _make_prepare_task(path:String,digest:String,token:RefCounted,item:Dictiona
 	if job.has("geometry_consumers"):
 		route.filter_collision_geometry=true;route.geometry_consumers=job.geometry_consumers.duplicate(true)
 		route.geometry_known=_collision_definition_modes.get(path,{}).duplicate();route.geometry_mode=int(job.geometry_mode)
-	route.prefab_texture_plan=job.get("estimate",{}).get("prefab_texture_plan",{}).duplicate(true)
+	if job.has("native_model_plan"):
+		# Immutable catalog values are already pinned by the operation scope.
+		# Do not deep-copy the shared table once for every model/continuation.
+		route.native_model_plan=job.native_model_plan
+		route.prefab_texture_plan=job.estimate.prefab_texture_plan
+		route.native_pixels_task=_make_native_pixel_prepare_task(route.prefab_texture_plan,job.native_texture_sources,content_root,token,job.get("shared_pixels",{}))
+	else:route.prefab_texture_plan=job.get("estimate",{}).get("prefab_texture_plan",{}).duplicate(true)
 	route.parallel_pixels=job.get("parallel_pixels",false)
 	route.collision_workspace_bytes=int(job.get("estimate",{}).get("collision_workspace_bytes",0))
 	route.road_paint_workspace_bytes=int(job.get("estimate",{}).get("road_paint_workspace_bytes",0))
@@ -3868,6 +3951,9 @@ func _make_prepare_task(path:String,digest:String,token:RefCounted,item:Dictiona
 func _make_pixel_prepare_task(plan:Dictionary,content_root:String,token:RefCounted,shared:Dictionary)->Callable:
 	var requested:Dictionary={}
 	for key:String in plan.rows:requested[key]=[plan.rows[key].path,plan.rows[key].flip,plan.rows[key].normal]
+	return PrefabTextures.prepare.bind(requested,plan,content_root,token,true,shared,true)
+
+func _make_native_pixel_prepare_task(plan:Dictionary,requested:Dictionary,content_root:String,token:RefCounted,shared:Dictionary)->Callable:
 	return PrefabTextures.prepare.bind(requested,plan,content_root,token,true,shared,true)
 
 func _discard_job(path:String)->void:
@@ -3904,6 +3990,7 @@ func _discard_job(path:String)->void:
 	job.erase("reuse_face_snapshots");job.erase("reuse_face_owners");job.erase("reuse_template_owner");job.erase("publication_template_owner")
 	job.erase("pixel_tickets");job.erase("shared_pixels");job.erase("material_textures");job.erase("material_scope")
 	job.erase("streamed_texture_owners");job.erase("streamed_texture_scope")
+	_clear_native_plan_aliases(job)
 	Drainer.release_shared(job.token)
 	if job.token.has_meta("admission_release"):job.token.remove_meta("admission_release")
 	if CompletedTrace.enabled:
@@ -3948,6 +4035,7 @@ func _retry_pixel_job(path:String,revisions:Dictionary,reason:String)->void:
 	profile.pixel_retries=int(profile.get("pixel_retries",0))+1
 
 func _record_pixel_packet(path:String,job:Dictionary,packet:Dictionary)->void:
+	if job.get("native_binding_continuation",false):return
 	if job.get("estimate",{}).get("prefab_texture_plan",{}).is_empty():return
 	var continuation:bool=job.get("pixel_continuation",false)
 	var values:Dictionary=packet.get("profile",{}) if continuation else packet.get("read_profile",{}).get("prefab_textures",{})
@@ -3980,34 +4068,76 @@ func _resume_pixel_jobs(tree:SceneTree)->void:
 		if not _shared_images.ready(job.pixel_consumer) or not _admission.resume_worker(path):continue
 		var shared:Dictionary=job.shared_pixels.duplicate();shared.leaders={}
 		var plan:Dictionary=job.estimate.prefab_texture_plan
-		var requested:Dictionary={}
-		for key:String in plan.rows:requested[key]=[plan.rows[key].path,plan.rows[key].flip,plan.rows[key].normal]
+		var requested:Dictionary=job.get("native_texture_sources",{})
+		if not job.has("native_model_plan"):
+			for key:String in plan.rows:requested[key]=[plan.rows[key].path,plan.rows[key].flip,plan.rows[key].normal]
 		var worker:=Thread.new();job.worker=worker;job.pixel_continuation=true
 		# The previous result can contain raw/compiled GPU owners. Keep it on main
 		# (or the drainer after exit), never pass it to the CPU continuation.
 		job.token.set_meta("prefab_continuation_result",job.result)
 		_drainer=Drainer.for_tree(tree);_drainer.watch(worker,job.token)
-		var task:=_resume_pixels.bind(requested,plan,_reference_root,job.token,shared,_reference_map_path,str(_reference_index.get("source_sha256","")),job.result.get("dependencies",{}).duplicate(),path if not job.get("native",false) else "",str(job.result.get("source_digest","")))
+		var content_root:String=_reference_root if not _reference_root.is_empty() else preload("res://scripts/world3d/map_paths.gd").external_root()
+		var native_pixels:Callable=_make_native_pixel_prepare_task(plan,requested,content_root,job.token,shared) if job.has("native_model_plan") else Callable()
+		var task:=_resume_pixels.bind(requested,plan,content_root,job.token,shared,_reference_map_path,str(_reference_index.get("source_sha256","")),job.result.get("dependencies",{}).duplicate(),path if not job.get("native",false) else "",str(job.result.get("source_digest","")),require_native_products,native_pixels)
 		if _start_worker(worker,task)!=OK:
 			_drainer.forget(worker);job.erase("worker");_discard_job(path);_path_failed(path,"Cannot resume shared image verification");continue
 		profile.pixel_continuations=int(profile.get("pixel_continuations",0))+1
+	_resume_native_bindings(tree)
 
-static func _resume_pixels(requested:Dictionary,plan:Dictionary,root:String,token:RefCounted,shared:Dictionary,map_path:String,map_sha:String,dependencies:Dictionary,model_path:String,model_sha:String)->Dictionary:
+func _resume_native_bindings(tree:SceneTree)->void:
+	for path:String in _jobs.keys():
+		var job:Dictionary=_jobs[path]
+		if job.has("worker") or not job.get("native_binding_pending",false) or job.token.is_cancelled():continue
+		if not job.has("result") or job.result.get("waiting_pixels",false) or not str(job.result.get("error","")).is_empty():continue
+		var packet:Dictionary=job.result.get("prefab_texture_packet",{})
+		var tickets:Dictionary=job.get("pixel_tickets",{})
+		if not Prefab.tickets_valid(tickets,packet.get("sources",{})):
+			_retry_pixel_job(path,{},"Resident native texture changed before binding");continue
+		if not _admission.resume_worker(path):continue
+		# Resident tickets own their exact Texture2D already. Bind those owners
+		# without a duplicate load and transfer only newly pooled native outputs.
+		var textures:Dictionary=packet.get("uploaded_textures",{});var handoff:Array=[]
+		for key:String in job.native_model_plan.plan.rows:
+			if tickets.has(key):textures[key]=tickets[key].texture
+			else:handoff.append(key)
+		packet.uploaded_textures=textures;job.result.prefab_texture_packet=packet;job.native_handoff_keys=handoff
+		_admission.set_stage(path,"native_texture_binding")
+		var worker:=Thread.new();job.worker=worker;job.native_binding_continuation=true
+		job.token.set_meta("prefab_continuation_result",job.result)
+		_drainer=Drainer.for_tree(tree);_drainer.watch(worker,job.token)
+		var task:=_make_native_binding_task(job.result,job.native_model_plan,job.token)
+		if _start_worker(worker,task)!=OK:
+			_drainer.forget(worker);job.erase("worker");_discard_job(path);_path_failed(path,"Cannot start native texture binding");continue
+		profile.native_texture_binding_jobs=int(profile.get("native_texture_binding_jobs",0))+1
+
+func _publish_native_texture_owners(path:String,job:Dictionary)->int:
+	# Only a successfully cached model advertises its completed owners. Binding
+	# workers never access the main-thread weak directory.
+	if not job.has("native_model_plan") or job.has("worker") or job.get("native_binding_pending",true) or job.token.is_cancelled():return 0
+	var result:Dictionary=job.get("result",{})
+	var packed:PackedScene=Assets._scenes.get(path)
+	if not str(result.get("error","")).is_empty() or packed==null or packed.get_meta("_rmmo_source_digest","")!=result.get("source_digest"):return 0
+	return preload("res://scripts/world3d/native_texture_sharing.gd").publish(result.get("prefab_texture_packet",{}).get("uploaded_textures",{}),job.native_model_plan.plan.rows,job.get("pixel_tickets",{}))
+
+func _make_native_binding_task(result:Dictionary,plan:Dictionary,token:RefCounted)->Callable:
+	return preload("res://scripts/world3d/deferred_native_texture_binding.gd").prepare.bind(result,plan,token)
+
+static func _resume_pixels(requested:Dictionary,plan:Dictionary,root:String,token:RefCounted,shared:Dictionary,map_path:String,map_sha:String,dependencies:Dictionary,model_path:String,model_sha:String,native_only:bool=false,native_pixels:Callable=Callable())->Dictionary:
 	var began:=Time.get_ticks_usec()
-	var result:=_resume_pixels_inner(requested,plan,root,token,shared,map_path,map_sha,dependencies,model_path,model_sha)
+	var result:=_resume_pixels_inner(requested,plan,root,token,shared,map_path,map_sha,dependencies,model_path,model_sha,native_only,native_pixels)
 	result.continuation_us=Time.get_ticks_usec()-began
 	preload("res://scripts/world3d/load_trace.gd").elapsed("deferred.pixel_continuation",began,{"consumer":shared.get("consumer",""),"error":result.get("error",""),"waiting":result.get("waiting_pixels",false),"sources":requested.size()})
 	return result
 
-static func _resume_pixels_inner(requested:Dictionary,plan:Dictionary,root:String,token:RefCounted,shared:Dictionary,map_path:String,map_sha:String,dependencies:Dictionary,model_path:String,model_sha:String)->Dictionary:
+static func _resume_pixels_inner(requested:Dictionary,plan:Dictionary,root:String,token:RefCounted,shared:Dictionary,map_path:String,map_sha:String,dependencies:Dictionary,model_path:String,model_sha:String,native_only:bool=false,native_pixels:Callable=Callable())->Dictionary:
 	var mounted_snapshot:bool=preload("res://scripts/world3d/runtime_package_policy.gd").trusted() and preload("res://scripts/world3d/chunk_reference_preparation.gd").trusted_directory_snapshot_enabled
-	var packet:=PrefabTextures.prepare(requested,plan,root,token,false,shared,mounted_snapshot)
+	var packet:Dictionary=native_pixels.call() if native_pixels.is_valid() else PrefabTextures.prepare(requested,plan,root,token,false,shared,mounted_snapshot)
 	if not packet.error.is_empty() or packet.get("waiting_pixels",false):return packet
 	var Paths=preload("res://scripts/world3d/map_paths.gd")
 	var Store=preload("res://scripts/world3d/map_resource_store.gd")
 	if token.is_cancelled():packet.error="Shared image continuation cancelled";packet.cancelled=true;return packet
-	if not Paths.allowed(map_path,root) or (not mounted_snapshot and FileAccess.get_sha256(map_path)!=map_sha) or not Paths.allowed(map_path,root) or (not preload("res://scripts/world3d/runtime_package_policy.gd").trusted() and not Store.verify_dependencies(dependencies,map_path,root,1)):packet.error="Reference identity changed while awaiting shared images";return packet
-	if not model_path.is_empty() and not _verify_reused_source(model_path,model_sha,root,token).error.is_empty():packet.error="Model changed while awaiting shared images";return packet
+	if not map_path.is_empty() and (not Paths.allowed(map_path,root) or (not mounted_snapshot and FileAccess.get_sha256(map_path)!=map_sha) or not Paths.allowed(map_path,root) or (not preload("res://scripts/world3d/runtime_package_policy.gd").trusted() and not Store.verify_dependencies(dependencies,map_path,root,1))):packet.error="Reference identity changed while awaiting shared images";return packet
+	if not model_path.is_empty() and not _verify_reused_source(model_path,model_sha,root,token,native_only).error.is_empty():packet.error="Model changed while awaiting shared images";return packet
 	if not PrefabTextures.verify(packet,root,token,shared,mounted_snapshot):packet.error="Shared image source changed before handoff";packet.cancelled=token.is_cancelled()
 	return packet
 
@@ -4049,6 +4179,7 @@ static func _collect_collision_asset(holder:Node3D,result:Array)->void:
 
 func _fail(reason:String)->void:
 	_texture_plan_catalog.abandon()
+	_retire_native_plan_claims({})
 	error=reason
 	for job:Dictionary in _jobs.values():job.token.cancel()
 	set_process(not _jobs.is_empty());failed.emit(reason)
@@ -4056,6 +4187,7 @@ func _fail(reason:String)->void:
 func _exit_tree()->void:
 	if _scene_handoff:return
 	_texture_plan_catalog.abandon()
+	_retire_native_plan_claims({})
 	_cancelled=true
 	_cancel_collision_prefetch("prefetch_owner_exited")
 	for id:String in _collision_request_ids.keys():_release_collision_request(id)
@@ -4064,6 +4196,7 @@ func _exit_tree()->void:
 		var job:Dictionary=_jobs[path]
 		job.token.cancel()
 		if job.has("worker"):
+			_clear_native_plan_aliases(job)
 			if is_instance_valid(_drainer) and _drainer.is_inside_tree():_drainer.abandon(job.worker)
 			else:Drainer.drain_shutdown(job.worker,job.token)
 		else:_discard_job(path)

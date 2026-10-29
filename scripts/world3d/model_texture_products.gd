@@ -67,8 +67,9 @@ static func _collect(scene:Node)->Dictionary:
 			if not (int(info.usage)&PROPERTY_USAGE_STORAGE):continue
 			var value:Variant=material.get(info.name)
 			if not value is Texture2D:continue
-			# StreamedTexture2D.get_image() may contain only resident mips. Never
-			# mistake that readback for a complete new source during reconversion.
+			# 4.8 beta1 StreamedTexture2D.get_image() reopens the complete file.
+			# Consume an existing split product through its table, not a second
+			# image read/hash/reconversion hidden in material traversal.
 			if not value is ImageTexture or value.get_script()!=null or value.resource_local_to_scene:return _failed("unsupported_texture:"+value.get_class())
 			for key:StringName in value.get_meta_list():
 				if key not in TEXTURE_METADATA:return _failed("unsupported_texture_metadata:"+str(key))

@@ -503,3 +503,9 @@ Windows 原子发布此前每个文件启动一次 PowerShell，独立 4 字节�
 5. 最后复测 axel_town 加载、卸载、返回及 low，保持既有计时口径，不将独立测试收益相加成整图收益。
 
 两份旧 worktree 的 HEAD 仍均已包含于 main、tracked clean；当前再次调用应用归档仍被 `Another active task still uses this worktree` 拒绝。未强行删除，也未把它记录为已释放。后续代码和美术产物继续分别留在主工作区及外部运行目录。
+
+## 2026-10-29：独立流式纹理的运行时协调、共享与预算
+
+后续完整记录见 [原生几何与独立流式纹理运行时接入](native_streamed_model_runtime_20261029.md)。初始和 Deferred 已接入乱序 metadata/几何/纹理准备、实际材质绑定、共享预算移交与 main-owned 清退；跨 Initial→Deferred 的 GPU 夹具重复 STEX 加载从 2 降为 0，最终 owner 和驻留账本归零。去掉弱目录 4096 活标识上限与逐次全扫，并让 MapLoader 的 32 个实例复用本轮接受模板，将重复 64 次 JSON 与 32 次 native 长度读取降为 0，避免跨 yield 混用新旧模板。
+
+最终共同源码的 candidate05 GPU 65+18+19 项全部通过且零像素差；默认 04d 的正常进场/失败恢复/取消 35 项通过，旧 74 条 male GLTF stride 警告未增加。新候选修复实际 mip 账本与失败 reload 的完成状态，累计补丁和符号清单可重放，但**尚未安装**。默认仍 04d、普通拆分默认仍关闭；引擎排队 I/O owner 生命周期、旧 operation→新 Initial 票据入口、编辑器异步/MCP 完整适配、正式模型迁移及整图性能复测仍未完成。不能以候选合同通过替代这些接入验收。

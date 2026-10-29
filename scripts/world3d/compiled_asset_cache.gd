@@ -97,6 +97,7 @@ static func read(path:String,verified_digest:String="",content_root:String="",ca
 	var packed:=loaded as PackedScene
 	Trace.elapsed("compiled.native_read",load_started,{"path":path,"bytes":data.bytes})
 	if packed==null or not _valid_packed(packed,not data.has("texture_table")):return _allocated_miss("invalid_product",started,loaded)
+	if packed.has_meta(&"_rmmo_model_textures_bound_v1"):packed.remove_meta(&"_rmmo_model_textures_bound_v1")
 	if not Paths.allowed(path,content_root):return _allocated_miss("source_changed_during_read",started,loaded)
 	if not caller_verifies_source and not trusted_package:
 		var source_started:=Time.get_ticks_usec()
@@ -287,6 +288,7 @@ static func _build_prepared(prepared:PreparedSource,started:int,split_textures:b
 
 static func instantiate(packed:PackedScene)->Node3D:
 	var scene:=packed.instantiate() as Node3D
+	if scene!=null:preload("res://scripts/world3d/model_texture_readiness.gd").inherit_instance(packed,scene)
 	if scene!=null and packed.get_meta("compiled_asset_validated",false):
 		# The verified product retains the pixel identity computed at build time.
 		# Restore cross-GLB sharing without GPU image readback on the warm path.

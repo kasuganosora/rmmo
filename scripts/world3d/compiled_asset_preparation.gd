@@ -54,6 +54,7 @@ static func read(path:String,candidate:Dictionary,content_root:String,prepare_pr
 	var result:Dictionary={"error":ERR_INVALID_DATA,"packed":packed,"compiled":true,"source_digest":candidate.source_sha,"compiled_payload_bytes":int(candidate.bytes)}
 	if loaded!=null and packed==null:result.retained_resources=[loaded]
 	if packed==null or (not trusted_package and not Compiled._valid_packed(packed)):return result
+	if packed.has_meta(&"_rmmo_model_textures_bound_v1"):packed.remove_meta(&"_rmmo_model_textures_bound_v1")
 	if not prepare_private.is_null():
 		# Private instantiation accepts the authored package, or the explicit audit.
 		# It still belongs to the caller's charged reservation and disposal path.

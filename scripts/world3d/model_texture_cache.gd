@@ -92,7 +92,11 @@ static func stamp(root: Node) -> void:
 static func apply(root: Node) -> void:
 	# Replacing a texture may retire its last renderer reference. Workers keep
 	# their private graph intact; main publication performs sharing and retirement.
-	if not enabled or OS.get_thread_caller_id() != OS.get_main_thread_id(): return
+	if root==null or not enabled or OS.get_thread_caller_id() != OS.get_main_thread_id(): return
+	# Split native geometry has no embedded ImageTexture. Its external products
+	# are already deduplicated by the shared preparation pool before publication;
+	# this legacy ImageTexture pass would only walk every node/material again.
+	if root.has_meta(&"rmmo_model_texture_table_v1"):return
 	var seen: Dictionary = {}
 	var retired: Array[Texture2D] = []
 	for material: StandardMaterial3D in _materials(root):

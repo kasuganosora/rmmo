@@ -31,6 +31,11 @@ static var initial_scene_preparation_enabled:=true # Probe may retain main-threa
 static var initial_native_cpu_preparation_enabled:=false # Explicit probe opt-in; ordinary 4.8 A/B regressed total loading.
 var candidate_provider:Callable
 var candidate_reader:Callable
+# Optional operation-local CPU probes; ordinary native texture jobs use the
+# production preparation and pool. Configure before run(), never concurrently.
+var native_texture_pool:RefCounted
+var native_texture_preparer:Callable
+var native_texture_table_reader:Callable # Scalar, operation-local metadata probe.
 # An early private compiled read may precede authoritative record validation.
 # Raw imports wait on this operation-local gate, including serial fallback.
 var fallback_gate:Callable
@@ -117,6 +122,18 @@ func run(paths: Array, parser: Callable = Callable(), worker_limit: int = 2, thr
 		# GLTFState may retain source buffers as well as decoded meshes/textures.
 		required_resident+=int(native_estimates.get(path,legacy_estimates[path]).estimated_bytes)
 	var eligibility_us := Time.get_ticks_usec() - eligibility_started
+	var split_native:=false
+	for candidate:Dictionary in candidates.values():
+		if candidate.has("texture_table"):split_native=true;break
+	if split_native:
+		# Split products cannot enter the legacy return path with empty material
+		# slots. The companion coordinator joins geometry/pixels before binding,
+		# under the same worker/byte limit and without introducing a GLB fallback.
+		if candidates.size()!=unique.size():return _preflight_failure("","mixed_native_texture_candidates",unique.size(),started)
+		var split:=preload("res://scripts/world3d/initial_native_texture_jobs.gd").new()
+		var prepared:Dictionary=split.run(self,unique,candidates,native_estimates,content_root,limit,preload("res://scripts/world3d/definition_cache_policy.gd").work_budget(inflight_byte_limit),thread_starter)
+		prepared.eligibility_us=eligibility_us
+		return _finish(prepared,started)
 	var admission=Admission.new();admission.worker_limit=limit;admission.byte_limit=preload("res://scripts/world3d/definition_cache_policy.gd").work_budget(inflight_byte_limit)
 	var completed:Dictionary={};var pending:Array=[];var fallbacks:Array=[]
 	# Retired native packets must survive even when cancellation or a sibling

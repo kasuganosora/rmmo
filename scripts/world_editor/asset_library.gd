@@ -267,6 +267,7 @@ static func native_validation_candidate(path:String,root:String="")->Dictionary:
 
 static func _native_cached(path:String,candidate:Dictionary)->bool:
 	var packed:Variant=_scenes.get(path)
+	if not packed is PackedScene or not preload("res://scripts/world3d/model_texture_readiness.gd").matches(packed,candidate):return false
 	return packed is PackedScene and packed.get_meta("compiled_asset_validated",false) and (preload("res://scripts/world3d/runtime_package_policy.gd").trusted() or packed.get_meta("_rmmo_native_audited",false)) and packed.get_meta("_rmmo_source_digest","")==candidate.get("source_sha") and packed.get_meta("_rmmo_native_payload_sha","")==candidate.get("payload_sha") and packed.get_meta("_rmmo_native_generator","")==candidate.get("generator")
 
 static func _read_published_native(path:String,candidate:Dictionary={})->Dictionary:
@@ -302,6 +303,7 @@ static func _instantiate(packed:PackedScene)->Node3D:
 	# Materials are shared by this template. Rebinding once avoids reading every
 	# grass surface again for hundreds of subsequent instances of the same GLB.
 	var scene:=packed.instantiate() as Node3D
+	if scene!=null:preload("res://scripts/world3d/model_texture_readiness.gd").inherit_instance(packed,scene)
 	if scene!=null and packed.get_meta("compiled_asset_validated",false):scene.set_meta("_compiled_resource_owner",packed)
 	return scene
 
@@ -311,8 +313,15 @@ static func instantiate_preview(path: String,native_only:bool=false) -> Node3D:
 	var candidate:=native_candidate(path)
 	if candidate.is_empty():return null
 	if _native_cached(path,candidate):return _instantiate(_scenes[path])
+	# Split products need the async texture coordinator before they are visible.
+	# A synchronous preview miss cannot bind them, so avoid reading and discarding
+	# their geometry too. Geometry-only consumers need an explicit separate API.
+	if candidate.has("texture_table"):return null
 	var compiled:=_read_published_native(path,candidate)
-	return _instantiate(compiled.packed) if compiled.get("hit",false) else null
+	if not compiled.get("hit",false):return null
+	if not preload("res://scripts/world3d/model_texture_readiness.gd").packed_ready(compiled.packed):
+		preload("res://scripts/world3d/asset_worker_drainer.gd").dispose_result(compiled);return null
+	return _instantiate(compiled.packed)
 
 static func _own(node: Node, root: Node) -> void:
 	for child in node.get_children():
@@ -332,6 +341,7 @@ static func bounds_of(node: Node3D, transform_: Transform3D = Transform3D.IDENTI
 
 static func cache_scene(path: String, scene: Node, verified_digest:String="") -> bool:
 	if scene == null: return false
+	if not preload("res://scripts/world3d/model_texture_readiness.gd").scene_ready(scene):return false
 	var started:=Time.get_ticks_usec()
 	var keepalive:Variant=scene.get_meta("_compiled_resource_owner") if scene.has_meta("_compiled_resource_owner") else null
 	if keepalive is PackedScene and keepalive.get_meta("compiled_asset_validated",false):
@@ -342,6 +352,7 @@ static func cache_scene(path: String, scene: Node, verified_digest:String="") ->
 	_own(scene, scene)
 	var packed := PackedScene.new()
 	var err := packed.pack(scene)
+	if err==OK and not preload("res://scripts/world3d/model_texture_readiness.gd").inherit_pack(scene,packed):err=ERR_INVALID_DATA
 	preload("res://scripts/world3d/load_trace.gd").elapsed("asset_library.cache_pack",started,{"path":path})
 	started=Time.get_ticks_usec()
 	preload("res://scripts/world3d/asset_worker_drainer.gd").dispose_scene(scene)
@@ -363,6 +374,7 @@ static func cache_scene(path: String, scene: Node, verified_digest:String="") ->
 ## alive. Intern on main before publishing, exactly as cache_scene does.
 static func cache_prepared_native_scene(path:String,scene:Node,packed:PackedScene,native_owner:PackedScene,verified_digest:String)->bool:
 	if scene==null or packed==null or native_owner==null or not native_owner.get_meta("compiled_asset_validated",false):return false
+	if not preload("res://scripts/world3d/model_texture_readiness.gd").inherit_pack(scene,packed):return false
 	var began:=Time.get_ticks_usec()
 	preload("res://scripts/world3d/model_texture_cache.gd").apply(scene)
 	preload("res://scripts/world3d/load_trace.gd").elapsed("asset_library.cache_materials",began,{"path":path})
@@ -379,6 +391,7 @@ static func cache_prepared_native_scene(path:String,scene:Node,packed:PackedScen
 static func cache_direct_native_scene(path:String,scene:Node,native_owner:PackedScene,verified_digest:String,material_plan:Dictionary={})->bool:
 	if OS.get_thread_caller_id()!=OS.get_main_thread_id():return false
 	if scene==null or native_owner==null or not native_owner.get_meta("compiled_asset_validated",false):return false
+	if not preload("res://scripts/world3d/model_texture_readiness.gd").inherit_pack(scene,native_owner):return false
 	var began:=Time.get_ticks_usec()
 	if not preload("res://scripts/world3d/model_texture_direct_plan.gd").apply_prepared(material_plan):
 		# The scene and native owner still retain all partial-plan resources.
@@ -392,6 +405,7 @@ static func cache_direct_native_scene(path:String,scene:Node,native_owner:Packed
 
 static func cache_packed(path:String,packed:PackedScene,verified_digest:String="",native_identity:Dictionary={})->bool:
 	if packed==null:return false
+	if not preload("res://scripts/world3d/model_texture_readiness.gd").packed_ready(packed):return false
 	if not native_identity.is_empty():
 		if native_identity.get("source_sha")!=verified_digest or not _valid_source_digest(str(native_identity.get("payload_sha",""))) or not native_identity.get("generator") is String:return false
 	if not verified_digest.is_empty():
@@ -416,6 +430,7 @@ static func _valid_source_digest(value:String)->bool:
 
 static func has_cached_scene(path:String,verified_digest:String="")->bool:
 	if not _scenes.has(path):return false
+	if not preload("res://scripts/world3d/model_texture_readiness.gd").packed_ready(_scenes[path]):return false
 	return verified_digest.is_empty() or (_valid_source_digest(verified_digest) and str(_scenes[path].get_meta("_rmmo_source_digest",""))==verified_digest)
 
 static func evict_cached_scene(path:String)->bool:

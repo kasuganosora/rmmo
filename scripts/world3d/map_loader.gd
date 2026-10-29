@@ -23,6 +23,7 @@ var _startup_first_serial:=0
 var _record_meta := {}
 var _asset_states := {}
 var _model_preparation := preload("res://scripts/world3d/model_parse_preparation.gd").new()
+var _native_texture_scope:RefCounted
 var _source_hash_preparation := preload("res://scripts/world3d/model_source_hashes.gd").new()
 var _building := false
 var _prepared: Node
@@ -781,6 +782,10 @@ func _prepare_record_assets_inner()->void:
 	if _cancelled:_model_preparation.cancel()
 	if not hint.accepted:_model_preparation.static_scene_paths=manifests.duplicate()
 	var prepared:Dictionary=hint.result if hint.accepted else _model_preparation.run(paths,Callable(),_initial_model_workers(),Callable(),_content_root)
+	# The coordinator has joined all jobs. Its shared native textures remain
+	# main-owned even if any validation below rejects the prepared batch.
+	_native_texture_scope=prepared.get("native_texture_scope")
+	_profile.native_texture_preparation=prepared.get("native_texture_profile",{})
 	_profile.asset_parse_wall_us=prepared.elapsed_us
 	_profile.asset_admission_details=prepared.get("admission_profile",{})
 	_profile.asset_admission={}
@@ -797,8 +802,10 @@ func _prepare_record_assets_inner()->void:
 		_asset_states[entry.path]=entry
 	_error=prepared.error
 	if _error!=OK:
-		for entry:Dictionary in prepared.entries:
-			if entry.has("error_message"):_failure_reason=entry.error_message;break
+		_failure_reason=prepared.get("error_message","")
+		if _failure_reason.is_empty():
+			for entry:Dictionary in prepared.entries:
+				if entry.has("error_message"):_failure_reason=entry.error_message;break
 		return # The coordinator has joined every worker before returning.
 	if _profile.get("cold_models_overlap_index",false) and not PackagePolicy.trusted():
 		# Early preparation may have finished while the cold directory was still
@@ -965,6 +972,7 @@ func _process(_delta: float) -> void:
 	if _error != OK:
 		_finish_error(_failure_reason if not _failure_reason.is_empty() else "地图读取失败：%s" % error_string(_error))
 		return
+	_publish_initial_native_textures()
 	if not _record_meta.is_empty():
 		_building = true
 		_start_entry_prefetch()
@@ -978,6 +986,12 @@ func _process(_delta: float) -> void:
 	finished.emit(scene, _path, "" if scene != null else "地图场景生成失败")
 	queue_free()
 
+
+func _publish_initial_native_textures()->void:
+	# Parsing/binding ran off-main. Commit only after its complete transaction
+	# joined and passed cancellation/error gates, before Deferred can request it.
+	if _cancelled or _error!=OK or _native_texture_scope==null:return
+	_profile.native_texture_owners_registered=_native_texture_scope.publish_ready()
 
 func _release_retired_models()->void:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.map_loader._release_retired_models") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
@@ -1044,6 +1058,8 @@ func _exit_tree() -> void:
 	preload("res://scripts/world3d/asset_worker_drainer.gd").synchronize_transfer()
 	for entry:Dictionary in _asset_states.values():preload("res://scripts/world3d/asset_worker_drainer.gd").dispose_result(entry)
 	_asset_states.clear()
+	_private_assets.clear()
+	if _native_texture_scope!=null:_native_texture_scope.release_now();_native_texture_scope=null
 	# Drop only this loader's unconsumed handoff images (e.g. height maps or
 	# materials already resident); never pin them for the rest of the session.
 	var images:Dictionary=preload("res://scripts/world3d/surface_materials.gd").prepared_images
@@ -1428,13 +1444,17 @@ func _build_records() -> void:
 					# repacking belong to the content editor, including preload misses.
 					if prepared_asset.get("packed") is PackedScene:
 						if background_preload:
-							_private_assets[asset_path]=prepared_asset.packed;cached=true
+							cached=preload("res://scripts/world3d/model_texture_readiness.gd").packed_ready(prepared_asset.packed)
 						else:cached=asset_library.cache_packed(asset_path,prepared_asset.packed,str(_model_signatures.get(asset_path,"")))
 					if not cached:
 						root.free()
 						_prepared = null
 						_finish_error("地图素材无法实例化：" + asset_path)
 						return
+					# Pin this operation's accepted owner across publication awaits.
+					# Every placement uses the same snapshot, even if another map or
+					# import replaces the global cache while this load yields.
+					_private_assets[asset_path]=prepared_asset.packed
 					initial_scene=_initial_native_scene(prepared_asset,records[cursor])
 					if initial_scene!=null:initial_owner=prepared_asset
 					# A covered-frame yield below can be cancelled before the asset
@@ -1452,7 +1472,7 @@ func _build_records() -> void:
 					await get_tree().process_frame
 					if _cancelled:root.free();_prepared=null;await _retire();return
 					start=Time.get_ticks_usec()
-				var prepared_source:Dictionary={"scene":initial_scene} if initial_scene!=null else ({"template":_private_assets[asset_path]} if background_preload else {})
+				var prepared_source:Dictionary={"scene":initial_scene} if initial_scene!=null else {"template":_private_assets.get(asset_path)}
 				var instance:Node=await _prepare_asset_instance(doc,records[cursor],prepared_source)
 				if not initial_owner.is_empty():
 					_finish_initial_native_scene(initial_owner)

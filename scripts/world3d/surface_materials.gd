@@ -54,10 +54,18 @@ static func _touch_cache(kind:String,key:String)->void:
 	_cache_serial+=1;_cache_use[kind+key]=_cache_serial
 static func _remember_weak(catalog:Dictionary,key:String,value:RefCounted)->void:
 	catalog[key]=weakref(value)
-	if catalog.size()>1024:
-		for id:String in catalog.keys():
-			if catalog[id].get_ref()==null:catalog.erase(id)
-	while catalog.size()>4096:catalog.erase(catalog.keys()[0])
+	# Live identities belong to external owners and have no count ceiling.
+	# Rotate a bounded prefix after iteration, so dead entries behind live ones
+	# are eventually reached without copying all keys or retaining resources.
+	var prefix:Array[String]=[]
+	for id:String in catalog:
+		prefix.append(id)
+		if prefix.size()==8:break
+	for id:String in prefix:
+		var reference:WeakRef=catalog[id]
+		catalog.erase(id)
+		if reference.get_ref()!=null:catalog[id]=reference
+	if texture_profile_enabled:TextureCache._profile_count("paint.cache.weak_checks",prefix.size())
 static func _texture_cost(texture:Texture2D)->int:
 	if texture_profile_enabled:TextureCache._profile_count("paint.cache.cost_reads")
 	if texture.has_meta("runtime_upload_bytes"):return int(texture.get_meta("runtime_upload_bytes"))

@@ -39,3 +39,4 @@
 /tools/engine_patches/*.patch text eol=lf whitespace=-blank-at-eol,-blank-at-eof
 # This manifest is referenced by its exact SHA in the installed build receipt.
 /tools/engine_patches/godot-4.8-beta1-runtime-candidate04d.json text eol=lf
+/tools/engine_patches/godot-4.8-beta1-runtime-candidate05.json text eol=lf

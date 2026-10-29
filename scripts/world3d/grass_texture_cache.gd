@@ -36,8 +36,13 @@ static func apply(root:Node,compiled:bool=false)->void:
 				var tex=mat.get(field) as Texture2D
 				if tex==null:continue
 				if not seen.has(tex.get_instance_id()):seen[tex.get_instance_id()]=shared(tex,compiled)
-				mat.set(field,seen[tex.get_instance_id()])
+				var shared_texture:Texture2D=seen[tex.get_instance_id()]
+				if shared_texture!=tex:mat.set(field,shared_texture)
 static func shared(texture:Texture2D,compiled:bool=false)->Texture2D:
+	# Native products already have a shared, budgeted owner. get_image() would
+	# reopen their entire mip chain, and legacy interning could replace that
+	# owner with an ImageTexture. Neither operation belongs to grass binding.
+	if texture is StreamedTexture2D:return texture
 	if compiled and texture.has_meta("compiled_grass_pixel_key"):
 		return _remember(str(texture.get_meta("compiled_grass_pixel_key")),texture)
 	var image:=texture.get_image()

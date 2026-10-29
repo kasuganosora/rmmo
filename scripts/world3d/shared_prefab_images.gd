@@ -17,7 +17,7 @@ var _entries:Dictionary={}
 var _consumers:Dictionary={}
 var _cancelled:Dictionary={}
 var _source_identities:Dictionary={} # Mounted operation only; String SHA values, no pixel/resource owners.
-var profile:Dictionary={"produced":0,"shared_hits":0,"waits":0,"peak_outputs":0,"retained_bytes":0,"peak_retained_bytes":0,"retiring_bytes":0,"retiring_outputs":0,"uploads":0,"upload_bytes":0,"upload_us":0,"upload_max_us":0,"discarded_uploads":0}
+var profile:Dictionary={"produced":0,"shared_hits":0,"waits":0,"peak_outputs":0,"retained_bytes":0,"peak_retained_bytes":0,"retiring_bytes":0,"retiring_outputs":0,"uploads":0,"upload_bytes":0,"upload_us":0,"upload_max_us":0,"discarded_uploads":0,"handoff_full_chain_bytes":0,"handoff_outputs":0}
 
 func consumer_active(consumer:String)->bool:
 	_mutex.lock();var active:bool=_consumers.has(consumer) and not _cancelled.has(consumer);_mutex.unlock();return active
@@ -172,6 +172,76 @@ func textures(consumer:String)->Dictionary:
 			if row.get("state")=="ready" and row.get("texture")!=null:result[key]=row.texture
 	_mutex.unlock();return result
 
+func _streamed_handoff_enabled()->bool:
+	return Preparation.Streamed.enabled() and bool(ProjectSettings.get_setting("rendering/textures/streaming/memory_budget_enabled",false))
+
+func _streamed_handoff_texture_valid(texture:Texture2D)->bool:
+	# The patched engine reports actual registration. Current project settings
+	# cannot prove that a texture constructed while streaming was disabled joined
+	# that system. Older builds without this contract retain the original lease.
+	return texture!=null and texture.get_script()==null and texture.is_class("StreamedTexture2D") and texture.get_rid().is_valid() and not str(texture.call("get_load_path")).is_empty() and texture.has_method("is_streaming_active") and bool(texture.call("is_streaming_active"))
+
+func handoff_streamed(consumer:String,owners:Dictionary,native_keys:Variant=null)->bool:
+	# Scheduler only, after binding and joining: completed results retain these
+	# exact owners. This moves the temporary full-chain envelope to the engine's
+	# streaming residency budget; it does NOT release textures or pool entries.
+	# The pool remains available for singleflight reuse and is finally drained on
+	# main. No CPU Image may escape its ordinary retained/retiring reservation.
+	# A mixed model/procedural consumer may transfer its bound native subset;
+	# null keeps the all-output contract, while [] explicitly transfers nothing.
+	if admission==null or not _streamed_handoff_enabled():return false
+	var selected:Dictionary={}
+	if native_keys!=null:
+		if not (native_keys is Array or native_keys is PackedStringArray):return false
+		for key:Variant in native_keys:
+			if not key is String:return false
+			selected[key]=true
+	var checks:Array=[]
+	_mutex.lock()
+	var valid:bool=_consumers.has(consumer) and not _cancelled.has(consumer)
+	if valid:
+		if native_keys==null:selected=_consumers[consumer]
+		for key:String in selected:
+			if not _consumers[consumer].has(key):valid=false;break
+			var binding:String=_consumers[consumer][key]
+			var row:Dictionary=_entries.get(binding,{})
+			if row.get("state")!="ready" or row.get("image")!=null or not row.get("texture") is Texture2D or owners.get(key)!=row.texture:
+				valid=false;break
+			checks.append({"key":key,"binding":binding,"row":row,"texture":row.texture})
+	_mutex.unlock()
+	if not valid:return false
+	# Native RID/type checks stay outside the shared mutex, as do any renderer
+	# calls. Recheck cancellation/identities before the all-or-nothing mutation.
+	for check:Dictionary in checks:
+		if not _streamed_handoff_texture_valid(check.texture):return false
+	if not _streamed_handoff_enabled():return false
+	var transfers:Dictionary={}
+	_mutex.lock()
+	valid=_consumers.has(consumer) and not _cancelled.has(consumer)
+	if valid:
+		for check:Dictionary in checks:
+			var row:Dictionary=_entries.get(check.binding,{})
+			if _consumers[consumer].get(check.key)!=check.binding or not is_same(row,check.row) or row.get("state")!="ready" or row.get("image")!=null or row.get("texture")!=check.texture:
+				valid=false;break
+			if row.get("streamed_handoff",false):continue
+			var reservation:Dictionary=admission._entries.get(check.binding,{})
+			if reservation.get("stage")!="shared_pixels" or reservation.get("occupies_worker",true) or int(reservation.get("bytes",-1))!=int(row.bytes):
+				valid=false;break
+			transfers[check.binding]=row
+	if valid:
+		for binding:String in transfers:
+			var row:Dictionary=transfers[binding];var bytes:int=int(row.bytes)
+			row.streamed_handoff=true;row.bytes=0
+			profile.retained_bytes-=bytes
+			profile.handoff_full_chain_bytes=int(profile.get("handoff_full_chain_bytes",0))+bytes
+			profile.handoff_outputs=int(profile.get("handoff_outputs",0))+1
+	_mutex.unlock()
+	if not valid:return false
+	# One non-yielding scheduler transaction. A snapshot can briefly overcount
+	# the old queue charge, never destroy an owner or observe unbudgeted pixels.
+	for binding:String in transfers:admission.release(binding)
+	return true
+
 func fetch(consumer:String,key:String,digest:String,token:RefCounted,count_shared_hit:bool=true)->Dictionary:
 	if token!=null and token.is_cancelled():return {"error":"Shared image consumer cancelled","cancelled":true}
 	_mutex.lock()
@@ -231,7 +301,9 @@ func release(consumer:String)->void:
 		var lease:String=row.get("retiring_lease","")
 		if not lease.is_empty():values.append(image.get_data());completions.append({"owner":self,"lease":lease,"bytes":int(row.bytes)})
 		row.image=null;row.texture=null;image=null
-		if lease.is_empty():admission.release(binding)
+		# A handed-off binding no longer owns this ledger key. Another admitted
+		# task may have reused it; retiring the old texture must not release that.
+		if lease.is_empty() and not row.get("streamed_handoff",false):admission.release(binding)
 	if not values.is_empty() and not preload("res://scripts/world3d/resource_retirement.gd").defer_shared_pixel_buffers(values,completions,admission):
 		# No live tree service: drop the COW aliases synchronously and honour
 		# every original charge. Never report a queued release without a ticket.

@@ -72,9 +72,11 @@ static func _dispose_result(worker: RefCounted, token: RefCounted = null) -> voi
 		if not deferred_release:deferred_release=preload("res://scripts/world3d/resource_retirement.gd").defer_import_packet(result,token.get_meta("admission_release"),token.get_meta("admission_owner"))
 	# A parser can hand off a private PackedScene/GLTFState without a Node.
 	# Finish its renderer commands before releasing the unconsumed resources.
-	if result is Dictionary:dispose_result(result)
+	var texture_scopes:Dictionary={}
+	if result is Dictionary:_dispose_result_collect(result,texture_scopes)
 	elif not cpu_metadata_only:synchronize_transfer()
-	release_shared(token)
+	_release_shared_collect(token,texture_scopes)
+	_release_texture_scopes(texture_scopes)
 	# A detached map can no longer own the ledger. Its token retains only this
 	# RefCounted ledger and its callback, never the map/queue being destroyed.
 	if token!=null and token.has_meta("admission_release"):
@@ -85,51 +87,73 @@ static func _dispose_result(worker: RefCounted, token: RefCounted = null) -> voi
 
 static func release_shared(token:RefCounted)->void:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.asset_worker_drainer.release_shared") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
+	var texture_scopes:Dictionary={}
+	_release_shared_collect(token,texture_scopes)
+	_release_texture_scopes(texture_scopes)
+
+static func _release_shared_collect(token:RefCounted,texture_scopes:Dictionary)->void:
 	# Both normal consumption and detached-map disposal call this only after the
 	# worker joined and every owned result alias was cleared on main.
 	if token==null:return
 	if token.has_meta("prefab_continuation_result"):
-		var retained:Dictionary=token.get_meta("prefab_continuation_result");dispose_result(retained);token.remove_meta("prefab_continuation_result")
+		var retained:Dictionary=token.get_meta("prefab_continuation_result");_dispose_result_collect(retained,texture_scopes);token.remove_meta("prefab_continuation_result")
 	if token.has_meta("prefab_shared_release"):
 		var callback:Callable=token.get_meta("prefab_shared_release");token.remove_meta("prefab_shared_release")
 		if callback.is_valid():callback.call()
 	for key:String in ["prefab_shared_owner","prefab_texture_tickets","reuse_face_owners","reuse_template_owner"]:
 		if token.has_meta(key):token.remove_meta(key)
 	if token is CancelToken:token.cancel_callback=Callable()
+	if token.has_meta("native_texture_scope"):
+		var scope:Variant=token.get_meta("native_texture_scope");token.remove_meta("native_texture_scope")
+		if scope is RefCounted and scope.has_method("release_now"):texture_scopes[scope.get_instance_id()]=scope
 
 static func dispose_result(result:Dictionary)->void:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.asset_worker_drainer.dispose_result") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
+	var texture_scopes:Dictionary={}
+	_dispose_result_collect(result,texture_scopes)
+	_release_texture_scopes(texture_scopes)
+
+static func _dispose_result_collect(result:Dictionary,texture_scopes:Dictionary)->void:
 	# Clear the packet itself, not just a caller's reference. Polling code and a
 	# job can alias it; neither may retain native resources after budget release.
 	# Only ownership fields recurse: records/index/author dictionaries are borrowed
 	# data and must never be recursively cleared by the resource drainer.
 	synchronize_transfer()
-	_dispose_owned_packet(result,[])
+	_dispose_owned_packet(result,[],texture_scopes)
 
-static func _dispose_owned_packet(packet:Dictionary,seen:Array)->void:
+static func _release_texture_scopes(texture_scopes:Dictionary)->void:
+	# Explicit native scopes may be shared by several ownership packets. Every
+	# scene/packed/temporary alias above must retire before the pool's last lease.
+	# Do not discover callbacks through borrowed author dictionaries or metadata.
+	for scope:RefCounted in texture_scopes.values():scope.release_now()
+	texture_scopes.clear()
+
+static func _dispose_owned_packet(packet:Dictionary,seen:Array,texture_scopes:Dictionary)->void:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.asset_worker_drainer._dispose_owned_packet") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	for previous:Variant in seen:
 		if previous is Dictionary and is_same(previous,packet):return
 	seen.append(packet)
+	var texture_scope:Variant=packet.get("native_texture_scope")
+	if texture_scope is RefCounted and texture_scope.has_method("release_now"):texture_scopes[texture_scope.get_instance_id()]=texture_scope
 	var scene:Variant=packet.get("scene")
 	if is_instance_valid(scene) and scene is Node and not scene.is_inside_tree() and scene.get_parent()==null:dispose_scene(scene)
 	for key:String in ["native_packet","private_preparation","prefab_texture_packet","native_texture_plan"]:
-		_dispose_owned_value(packet.get(key),seen)
+		_dispose_owned_value(packet.get(key),seen,texture_scopes)
 	var owners:Variant=packet.get("resource_owners")
 	if owners is ModelOwners:owners.release_now()
-	_dispose_owned_value(packet.get("retained_resources"),seen)
+	_dispose_owned_value(packet.get("retained_resources"),seen,texture_scopes)
 	packet.clear()
 
-static func _dispose_owned_value(value:Variant,seen:Array)->void:
+static func _dispose_owned_value(value:Variant,seen:Array,texture_scopes:Dictionary)->void:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.asset_worker_drainer._dispose_owned_value") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
-	if value is Dictionary:_dispose_owned_packet(value,seen)
+	if value is Dictionary:_dispose_owned_packet(value,seen,texture_scopes)
 	elif value is Array:
 		for previous:Variant in seen:
 			if previous is Array and is_same(previous,value):return
 		seen.append(value)
 		while not value.is_empty():
 			var item:Variant=value.pop_back()
-			_dispose_owned_value(item,seen)
+			_dispose_owned_value(item,seen,texture_scopes)
 			if preload("res://scripts/world3d/load_trace.gd").enabled and item is Resource:
 				var kind:String=item.get_class();var began:=Time.get_ticks_usec()
 				item=null

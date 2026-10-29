@@ -7,6 +7,7 @@ const Paths=preload("res://scripts/world3d/map_paths.gd")
 const Paint=preload("res://scripts/world3d/surface_materials.gd")
 const Prep=preload("res://scripts/world3d/prefab_texture_preparation.gd")
 const Products=preload("res://scripts/world3d/model_texture_products.gd")
+const Readiness=preload("res://scripts/world3d/model_texture_readiness.gd")
 const BINDINGS_META:=&"rmmo_model_texture_bindings_v1"
 const TABLE_META:=&"rmmo_model_texture_table_v1"
 const FAILED:=-1
@@ -82,6 +83,28 @@ static func begin(packed:PackedScene,keys:Dictionary,expected_table:String="")->
 				for surface:int in value.get_surface_count():pending.append(value.surface_get_material(surface))
 			elif value is Material:pending.append(value)
 	if not expected_table.is_empty() and table!=expected_table:return _fail("Model texture table does not match scene")
+	return _materials(pending,keys,table,packed,meshes.size())
+
+static func begin_scene(scene:Node,keys:Dictionary,expected_table:String="")->Dictionary:
+	# Geometry/collision preparation may instantiate before parallel pixels are
+	# ready. Bind those actual private materials, including local-to-scene copies.
+	if scene==null:return _fail("Missing private model scene for texture binding")
+	var table:String=scene.get_meta(TABLE_META,"")
+	if not expected_table.is_empty() and table!=expected_table:return _fail("Model texture table does not match scene")
+	var nodes:Array[Node]=[scene];var pending:Array[Material]=[];var meshes:Dictionary={}
+	while not nodes.is_empty():
+		var node:Node=nodes.pop_back();nodes.append_array(node.get_children())
+		if not node is MeshInstance3D:continue
+		pending.append(node.material_override);pending.append(node.material_overlay)
+		if node.mesh==null:continue
+		var id:int=node.mesh.get_instance_id()
+		if not meshes.has(id):
+			meshes[id]=true
+			for surface:int in node.mesh.get_surface_count():pending.append(node.mesh.surface_get_material(surface))
+		for surface:int in node.get_surface_override_material_count():pending.append(node.get_surface_override_material(surface))
+	return _materials(pending,keys,table,scene,meshes.size())
+
+static func _materials(pending:Array[Material],keys:Dictionary,table:String,owner:Object,mesh_count:int)->Dictionary:
 	var visited:Dictionary={};var bindings:Array=[];var needed:Dictionary={}
 	var texture_slots:Dictionary={}
 	while not pending.is_empty():
@@ -106,7 +129,8 @@ static func begin(packed:PackedScene,keys:Dictionary,expected_table:String="")->
 			slots.append(StringName(slot));targets.append(key);needed[key]=true
 		bindings.append({"material":material,"slots":slots,"targets":targets})
 	return {"ok":true,"error":"","bindings":bindings,"keys":needed,"position":0,
-		"sets":0,"unchanged":0,"visited_materials":visited.size(),"visited_meshes":meshes.size(),"owners":{},"adopted":false}
+		"sets":0,"unchanged":0,"visited_materials":visited.size(),"visited_meshes":mesh_count,"owners":{},"adopted":false,
+		"owner":owner,"table_sha":table,"completed":false}
 
 static func adopt(state:Dictionary,textures:Dictionary)->bool:
 	# Resolve the whole immutable dependency set before the first setter. A
@@ -121,7 +145,7 @@ static func adopt(state:Dictionary,textures:Dictionary)->bool:
 
 static func step(state:Dictionary)->int:
 	if not state.get("ok",false) or not state.get("adopted",false):return FAILED
-	if int(state.position)>=state.bindings.size():return READY
+	if int(state.position)>=state.bindings.size():return _complete(state)
 	var binding:Dictionary=state.bindings[int(state.position)]
 	var material:StandardMaterial3D=binding.material
 	for slot:int in binding.slots.size():
@@ -129,7 +153,13 @@ static func step(state:Dictionary)->int:
 		if material.get(binding.slots[slot])==texture:state.unchanged+=1;continue
 		material.set(binding.slots[slot],texture);state.sets+=1
 	state.position+=1
-	return READY if int(state.position)>=state.bindings.size() else PROGRESS
+	return _complete(state) if int(state.position)>=state.bindings.size() else PROGRESS
+
+static func _complete(state:Dictionary)->int:
+	if not state.completed:
+		if not str(state.table_sha).is_empty():state.owner.set_meta(Readiness.READY_META,state.table_sha)
+		state.completed=true
+	return READY
 
 static func release(state:Dictionary)->void:
 	# Main owner after publication/discard; this plan never secretly retains a

@@ -95,6 +95,14 @@ static func texture_tickets(sources:Dictionary,material_pool:Variant=null)->Dict
 		# Live scenes may be the only strong owners after hot-cache eviction.
 		# Capture the weak catalogue too, before admitting decode/upload work.
 		var texture:Texture2D=Cook.Paint.retained_texture(key)
+		if texture==null and not Cook.Paint.residency_budget_enabled and sources[key] is Dictionary and sources[key].get("model_product",false):
+			# Native publication stays weak even when the legacy hot-cache budget
+			# is disabled. Do not turn that diagnostic setting into duplicate STEX
+			# allocations, or bypass a newer prepared representation.
+			var weak:WeakRef=Cook.Paint._texture_refs.get(key)
+			if weak!=null:
+				var candidate:Texture2D=weak.get_ref();var prepared:Resource=Cook.Paint._prepared_resource(key)
+				if candidate!=null and (prepared==null or Cook.Paint._same_prepared_texture(candidate,prepared)):texture=candidate
 		var ticket:=_texture_ticket(texture,sources[key])
 		if not ticket.is_empty():result[key]=ticket
 	if result.size()==sources.size():return result

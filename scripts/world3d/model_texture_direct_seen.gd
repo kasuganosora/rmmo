@@ -4,6 +4,7 @@ extends RefCounted
 const Cache=preload("res://scripts/world3d/model_texture_cache.gd")
 static func apply(root:Node)->void:
 	if not Cache.enabled or OS.get_thread_caller_id()!=OS.get_main_thread_id():return
+	if root==null or root.has_meta(&"rmmo_model_texture_table_v1"):return
 	var seen:Dictionary={};var changed:=false
 	for material:StandardMaterial3D in Cache._materials(root):
 		for info:Dictionary in material.get_property_list():
