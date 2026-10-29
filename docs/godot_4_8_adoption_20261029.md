@@ -393,3 +393,9 @@ GLB 仅用于上述显式导入测试，未恢复游戏 GLB 回退。构建 02 �
 候选原主 capture 降到 38.98ms、实例化最大切片 8.105ms，却新增私有准备 **5.547s**，其中 worker 等 readback **4.390s**，主线程 readback **2.112s**；这些 span 包含/并行，不能相加。其对象数仍为 2,007 meshes，碰撞面 16,228,944 bytes，准入估计仍为 5,450,944,511 bytes。跨线程搬运并没有消除 GPU 往返。GDB 已证实的往返将由独立 candidate04 原型处理，当前默认引擎仍是已验过的 candidate03。
 
 另一个已量化但尚未解决的边界是模型包内嵌纹理。该入口模型的已发布 footprint 显示：281,810,329 bytes 的 SCN，60 textures/images、149 materials；`image_mip_bytes=563431377`，`mesh_storage_bytes=11641784`，`native_uncompressed_bytes=576645460`。这是离线资源统计，不是实际 RSS/VRAM。`CompiledAssetCache._build_prepared` 仍用 BUNDLE_RESOURCES 打包原始图像，`ModelTextureCache.apply` 在加载后才共享。因此“入口源图解码/项目层 ImageTexture 上传计数为零”不代表 SCN 内嵌图像无需读取或上传。该路径尚未接入流式，不能把 4.8 开关启用等同于全部模型纹理已完成改造；先完成当前几何回读实验，再独立处理内嵌图像产品和编辑器合同。
+
+实验代码保留但 `initial_native_cpu_preparation_enabled=false`，普通入口不安装新增 readback service，pump 也不服务该实验分支。真实桥 record 复现其忽略 prepared.scene 后的泄漏：17 检查 / 1 失败；补上未消费 detached scene 的释放后 17/17、零错误。真实 prefetch 的 mismatch/cancel/abandon/cancel_ack 则为 71/71，259 个观察对象（含 193 个 RID owner）正确释放；原有 retained_resources 已覆盖 entries，所以没有为了静态猜测修改 drainer。实验仍会给某些程序化桥提前做不用的准备，计入 unused_scenes，不能称重复工作已清除。
+
+额外尾段并非已证明由合批重扫导致：候选的早期 prefetch 从控制组 4.217s 推迟到 12.549s；30.3–33.3s 时仍有 4→3 个 native worker，合批 pending_groups=0，visits 固定。最终晚到结果之后 sync 2→5、visits 6396→17741，最终 sources/surfaces/groups 相同。新增重扫主要是晚到的后果；plain 聚合尚不能拆开迟到 worker 内部的 SCN 读取、解压和 GPU 等待。详见 `initial_native_cpu_review.md` 和 `initial_native_tail_analysis.json`。
+
+默认迁移补验：`road_caps_48_01` 使用安装后的 4.8 完成 29+46+55 项道路 CPU、真实编辑器 UI/HTTP MCP、撤销、保存重开、游戏碰撞和实际合批检查，全部通过、零错误/警告、SHA 稳定。`primary_headless_import_01` 对主工作区当前磁盘源（含未提交文件）的隔离副本完成 editor import，退出 0、零错误/警告；6,488 文件 / 32,208,111 bytes 的来源与排除范围已保存。它证明 4.8 语法/导入兼容，不证明主工作区当时的旧导入链已具备本分支的新能力。

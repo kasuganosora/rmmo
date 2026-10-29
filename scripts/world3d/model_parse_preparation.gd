@@ -28,6 +28,7 @@ var require_native_products:=false # Game entry sets this; editor import keeps i
 var static_scene_paths:Dictionary={} # This load's package directory, set before run().
 static var native_footprints_enabled:=true # Probe-only old-budget control.
 static var initial_scene_preparation_enabled:=true # Probe may retain main-thread generation.
+static var initial_native_cpu_preparation_enabled:=false # Explicit probe opt-in; ordinary 4.8 A/B regressed total loading.
 var candidate_provider:Callable
 var candidate_reader:Callable
 # An early private compiled read may precede authoritative record validation.
@@ -357,7 +358,13 @@ static func is_legacy_source_retry(packet:Dictionary)->bool:
 
 func _candidate_stage(path:String,candidate:Dictionary,content_root:String)->Dictionary:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.model_parse_preparation._candidate_stage") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
-	var raw:Variant=candidate_reader.call(path,candidate) if candidate_reader.is_valid() else preload("res://scripts/world3d/compiled_asset_preparation.gd").read(path,candidate,content_root,Callable(),preload("res://scripts/world3d/runtime_package_policy.gd").trusted(),not require_native_products,"",require_native_products)
+	var prepare_private:Callable
+	# Only the freshly read private product is writable here. The offline proof
+	# excludes scripts, local-to-scene resources and grass replacement, so the
+	# first scene and later PackedScene instances share the captured mesh owners.
+	if initial_native_cpu_preparation_enabled and require_native_products and prepare_static_scenes and initial_scene_preparation_enabled and candidate.get("direct_template_reuse_safe",false):
+		prepare_private=_prepare_initial_native.bind(path)
+	var raw:Variant=candidate_reader.call(path,candidate) if candidate_reader.is_valid() else preload("res://scripts/world3d/compiled_asset_preparation.gd").read(path,candidate,content_root,prepare_private,preload("res://scripts/world3d/runtime_package_policy.gd").trusted(),not require_native_products,"",require_native_products)
 	var result:Dictionary=raw if raw is Dictionary else {"error":ERR_INVALID_DATA}
 	if require_native_products and (result.get("fallback_required",false) or result.get("native_source_retry",false)):
 		# Keep any allocated native owners attached to the fatal result; the
@@ -373,6 +380,26 @@ func _candidate_stage(path:String,candidate:Dictionary,content_root:String)->Dic
 	# object here. The coordinator alone re-admits the explicit retry above.
 	if (result.get("packed")!=null or not result.get("retained_resources",[]).is_empty()) and result.get("fallback_required",false):
 		result.erase("fallback_required");result.error=ERR_INVALID_DATA
+	return result
+
+func _prepare_initial_native(packed:PackedScene,path:String)->Dictionary:
+	var began:=Time.get_ticks_usec()
+	var result:Dictionary={"error":ERR_SKIP,"initial_native_cpu":true,"thread_id":OS.get_thread_caller_id()}
+	if is_cancelled():return result
+	var _pump_scope:RefCounted=preload("res://scripts/world3d/scene_preparation_pump.gd").new()
+	# Native footprint admission already charges one detached graph, CPU arrays
+	# and collision faces. Do not repack or create another retained scene here.
+	var scene:Node=packed.instantiate()
+	result.instantiate_us=Time.get_ticks_usec()-began
+	if scene==null:result.error=ERR_CANT_CREATE;return result
+	scene.set_meta("_compiled_resource_owner",packed)
+	result.scene=scene
+	result.capture=preload("res://scripts/world3d/static_mesh_cpu_preparation.gd").capture(scene,true,self)
+	result.error=ERR_SKIP if is_cancelled() else (OK if result.capture.error.is_empty() else ERR_INVALID_DATA)
+	result.elapsed_us=Time.get_ticks_usec()-began
+	preload("res://scripts/world3d/load_trace.gd").elapsed("model.initial_native_cpu",began,{"path":path,"capture":result.capture,"instantiate_us":result.instantiate_us})
+	# Even cancellation/failure transfers all allocated owners to the main
+	# drainer; dropping a private renderer graph on this worker is not safe.
 	return result
 
 static func _parse_verified_fallback(path:String,content_root:String,verified_sources:Dictionary,prepare_scene:bool=false,static_paths:Dictionary={})->Dictionary:

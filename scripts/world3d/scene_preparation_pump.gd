@@ -13,10 +13,18 @@ func _notification(what:int)->void:
 		_mutex.lock();_active-=1;_mutex.unlock()
 static func active()->bool:
 	_mutex.lock();var result:bool=_active>0;_mutex.unlock();return result
-static func pump(budget_usec:int)->void:
+static func pump(budget_usec:int,serve_readback:bool=false)->void:
 	if DisplayServer.get_name()=="headless" or OS.get_thread_caller_id()!=OS.get_main_thread_id() or not active():return
 	var began:=Time.get_ticks_usec();var calls:=0
 	while Time.get_ticks_usec()-began<budget_usec and active():
+		# Private native captures can wait on the main-thread small-mesh batch.
+		# Share this deadline with renderer handoffs; two full budgets would
+		# silently double covered-frame work. Short batches also avoid starving
+		# another worker waiting for a large renderer query.
+		var remaining:=budget_usec-(Time.get_ticks_usec()-began)
+		if remaining<=0:break
+		if serve_readback:preload("res://scripts/world3d/mesh_readback_batch.gd").pump(mini(1000,remaining))
+		if Time.get_ticks_usec()-began>=budget_usec:break
 		RenderingServer.force_sync();calls+=1
 		# Let the producer issue its next query instead of spinning on the same
 		# empty queue. The deadline covers this handoff as well as renderer work.

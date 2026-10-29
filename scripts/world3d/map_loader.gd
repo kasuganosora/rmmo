@@ -120,6 +120,9 @@ func start(path: String,origin:Variant=null) -> void:
 	elif session!=null:_entry_origin=session.world3d_spawn
 	# Snapshot the configured root on the main thread; parsing must not read autoload nodes.
 	_content_root = preload("res://scripts/world3d/map_paths.gd").external_root()
+	# Install on main before private native workers can enqueue small readbacks.
+	if preload("res://scripts/world3d/model_parse_preparation.gd").initial_native_cpu_preparation_enabled:
+		preload("res://scripts/world3d/mesh_readback_batch.gd").for_tree(get_tree())
 	_prepare_startup_render_context()
 	_thread = Thread.new()
 	_error = _thread.start(_parse)
@@ -943,7 +946,7 @@ func _decode_textures(requested:Dictionary)->Dictionary:
 
 func _process(_delta: float) -> void:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.map_loader._process") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
-	preload("res://scripts/world3d/scene_preparation_pump.gd").pump(1000 if background_preload else preload("res://scripts/world3d/scene_preparation_pump.gd").loading_budget_usec)
+	preload("res://scripts/world3d/scene_preparation_pump.gd").pump(1000 if background_preload else preload("res://scripts/world3d/scene_preparation_pump.gd").loading_budget_usec,preload("res://scripts/world3d/model_parse_preparation.gd").initial_native_cpu_preparation_enabled)
 	_early_models.drain_discarded()
 	if not _cancelled and is_instance_valid(_early_deferred):_early_deferred.pump_entry_prefetch()
 	if _building or (_thread==null and _mesh_read_thread==null) or (_thread!=null and _thread.is_alive()):
@@ -1298,6 +1301,43 @@ func _prepare_asset_instance(doc:RefCounted,record:Dictionary,prepared:Dictionar
 	_profile.asset_instance_max_slice_us=maxi(int(_profile.get("asset_instance_max_slice_us",0)),int(_asset_cursor.profile.max_slice_us))
 	var result:Node3D=_asset_cursor.take_holder();_asset_cursor=null;return result
 
+func _finish_initial_native_scene(entry:Dictionary)->void:
+	var private:Dictionary=entry.get("private_preparation",{})
+	var scene:Node=private.get("scene")
+	# Some legal record kinds generate their own model and ignore prepared.scene.
+	# Only an attached scene was consumed; retire any still-detached speculative
+	# graph before dropping its packet, including cursor failure/cancellation.
+	if is_instance_valid(scene) and scene.get_parent()==null:
+		var began:=Time.get_ticks_usec()
+		preload("res://scripts/world3d/asset_worker_drainer.gd").dispose_scene(scene)
+		_profile.initial_native_unused_scenes=int(_profile.get("initial_native_unused_scenes",0))+1
+		_profile.initial_native_unused_scene_dispose_us=int(_profile.get("initial_native_unused_scene_dispose_us",0))+Time.get_ticks_usec()-began
+	private.erase("scene")
+
+func _initial_native_scene(entry:Dictionary,record:Dictionary={})->Node:
+	var private:Dictionary=entry.get("private_preparation",{})
+	if not private.get("initial_native_cpu",false):return null
+	var scene:Node=private.get("scene")
+	if not is_instance_valid(scene):return null
+	_profile.initial_native_models=int(_profile.get("initial_native_models",0))+1
+	_profile.initial_native_prepare_us=int(_profile.get("initial_native_prepare_us",0))+int(private.get("elapsed_us",0))
+	_profile.initial_native_instantiate_us=int(_profile.get("initial_native_instantiate_us",0))+int(private.get("instantiate_us",0))
+	for field:String in ["elapsed_us","capture_us","face_us","captured_meshes","importer_surfaces","renderer_surfaces","face_bytes","readback_wait_us","readback_main_us","readback_meshes"]:
+		_profile["initial_native_capture_"+field]=int(_profile.get("initial_native_capture_"+field,0))+int(private.get("capture",{}).get(field,0))
+	if record.has("bridge_mesh"):
+		# Procedural bridges instantiate their kit via BridgeMesh. Do not perform
+		# an unused material handoff or pass this unrelated model to that branch.
+		_finish_initial_native_scene(entry);return null
+	var began:=Time.get_ticks_usec()
+	preload("res://scripts/world3d/asset_worker_drainer.gd").synchronize_transfer()
+	# The private worker never touches the shared texture pool. This is the
+	# existing first-instance material handoff, applied to that exact scene.
+	preload("res://scripts/world3d/model_texture_cache.gd").apply(scene)
+	entry.packed.set_meta("compiled_grass_rebound",true)
+	_profile.initial_native_main_handoff_us=int(_profile.get("initial_native_main_handoff_us",0))+Time.get_ticks_usec()-began
+	Trace.elapsed("game.initial_native_handoff",began)
+	return scene
+
 func _build_records() -> void:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.map_loader._build_records") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	var build_started:=Time.get_ticks_usec()
@@ -1377,6 +1417,8 @@ func _build_records() -> void:
 					_finish_error("地图素材缺失：" + str(records[cursor].get("asset_path", "")))
 					return
 				var asset_path: String = records[cursor].asset_path
+				var initial_scene:Node
+				var initial_owner:Dictionary={}
 				if _asset_states.has(asset_path):
 					var asset_started:=Time.get_ticks_usec()
 					var prepared_asset:Dictionary=_asset_states[asset_path]
@@ -1393,7 +1435,12 @@ func _build_records() -> void:
 						_prepared = null
 						_finish_error("地图素材无法实例化：" + asset_path)
 						return
-					_asset_states.erase(asset_path)
+					initial_scene=_initial_native_scene(prepared_asset,records[cursor])
+					if initial_scene!=null:initial_owner=prepared_asset
+					# A covered-frame yield below can be cancelled before the asset
+					# cursor takes ownership. Keep the detached scene in the drainer's
+					# registered packet until that cursor has consumed or freed it.
+					else:_asset_states.erase(asset_path)
 					if not background_preload:preload("res://scripts/world3d/runtime_asset_cache_scope.gd").claim(root,asset_path)
 					_prepared_asset_paths[asset_path]=true
 					_profile.asset_generate_us+=Time.get_ticks_usec()-asset_started
@@ -1405,7 +1452,11 @@ func _build_records() -> void:
 					await get_tree().process_frame
 					if _cancelled:root.free();_prepared=null;await _retire();return
 					start=Time.get_ticks_usec()
-				var instance:Node=await _prepare_asset_instance(doc,records[cursor],{"template":_private_assets[asset_path]} if background_preload else {})
+				var prepared_source:Dictionary={"scene":initial_scene} if initial_scene!=null else ({"template":_private_assets[asset_path]} if background_preload else {})
+				var instance:Node=await _prepare_asset_instance(doc,records[cursor],prepared_source)
+				if not initial_owner.is_empty():
+					_finish_initial_native_scene(initial_owner)
+					_asset_states.erase(asset_path)
 				if _cancelled:root.free();_prepared=null;await _retire();return
 				if instance==null or instance.has_meta("missing_asset") or instance.has_meta("paint_error") or instance.has_meta("tile_error"):
 					var reason:String=str(instance.get_meta("paint_error","地图素材无法实例化："+asset_path)) if instance!=null else "地图素材无法实例化："+asset_path
@@ -1414,9 +1465,9 @@ func _build_records() -> void:
 				_profile.asset_instantiate_us+=Time.get_ticks_usec()-instance_started
 				Trace.elapsed("game.asset_instantiate",instance_started,{"uuid":records[cursor].uuid,"path":asset_path})
 				if not background_preload:preload("res://scripts/world3d/runtime_asset_cache_scope.gd").claim(root,asset_path)
-				# The prepared root owns the instance across yields/cancellation. GPU
-				# buffer getters stay on main, where they avoid synchronous worker
-				# round trips; bounded slices keep them out of first stream adoption.
+				# The prepared root owns the instance across yields/cancellation.
+				# Retain the main capture as a measured safety fallback for meshes
+				# changed by per-instance paint or excluded from private preparation.
 				root.add_child(instance)
 				if initial_cpu_capture_enabled:
 					var capture_started:=Time.get_ticks_usec()
