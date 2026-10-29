@@ -202,11 +202,30 @@ static func _snapshot_matches(row:Dictionary,bytes:PackedByteArray)->bool:
 		at+=length
 	return false
 
+static func _plan_from_rows(rows:Dictionary)->Dictionary:
+	var output:=0;var scratch:=0
+	for row:Dictionary in rows.values():
+		output+=int(row.output_bytes);scratch=maxi(scratch,workspace_bytes(row))
+	return {"rows":rows,"output_bytes":output,"estimated_bytes":output*2+scratch}
+
 static func prepare(requested:Dictionary,plan:Dictionary,root:String,token:RefCounted=null,verify_at_end:bool=true,shared:Dictionary={},mounted_snapshot:bool=false,mutable_source:bool=false)->Dictionary:
 	var began:=Time.get_ticks_usec()
 	var profile:Dictionary={"cache_hits":0,"decoded":0,"cache_writes":0,"cache_write_skips":0,"source_sha_reads":0,"source_sha_bytes":0,"source_identity_hits":0,"final_sha_reads":0,"final_source_identity_hits":0,"persist_sha_reads":0}
 	if _cancelled(token):return _fail("Prefab texture preparation cancelled",true)
 	if not valid_sources(requested) or not plan.get("rows") is Dictionary:return _fail("Invalid prefab texture preparation plan")
+	var model_rows:Dictionary={};var model_paths:Array=[]
+	for key:Variant in plan.rows:
+		var row:Variant=plan.rows[key]
+		if not row is Dictionary:return _fail("Invalid prefab texture preparation row")
+		if not row.get("model_product",false):continue
+		if mutable_source or not Pixels.Policy.trusted():return _fail("Native model products require immutable trusted preparation")
+		if not key is String or not Streamed.valid_model_product(row,root) or requested.get(key)!=[row.path,false,false]:return _fail("Invalid native model texture admission")
+		model_rows[key]=row;model_paths.append(row.path)
+	if not model_rows.is_empty():
+		if not Streamed.enabled():return _fail("Native model texture streaming is unavailable")
+		if not Paths.allowed_many(model_paths,root):return _fail("Native model texture path is unavailable")
+		if _plan_from_rows(plan.rows)!=plan:return _fail("Invalid native model texture budget")
+		profile.model_product_plan_reuses=model_rows.size()
 	# Mutable editor jobs have their own snapshot and cache namespace. They
 	# cannot join a mounted immutable pool or accept its compressed-only lease.
 	if mutable_source and (not shared.is_empty() or mounted_snapshot):return _fail("Mutable textures cannot share mounted identities")
@@ -220,7 +239,14 @@ static func prepare(requested:Dictionary,plan:Dictionary,root:String,token:RefCo
 	var reuse_header:bool=reuse_sources and Pixels.Policy.trusted()
 	if reuse_header:profile.header_plan_reuses=1
 	else:
-		var actual:=estimate(requested,root,mutable_source)
+		# Native rows came from the operation's immutable table. Re-estimating
+		# their .stex paths as PNG/JPEG silently drops them. Preserve this explicit
+		# contract while ordinary standalone sources still observe fresh headers.
+		var ordinary:Dictionary=requested if model_rows.is_empty() else requested.duplicate()
+		for key:String in model_rows:ordinary.erase(key)
+		var actual:=estimate(ordinary,root,mutable_source)
+		if not model_rows.is_empty():
+			actual.rows.merge(model_rows);actual=_plan_from_rows(actual.rows)
 		if actual!=plan:return _retry("Prefab texture dimensions changed after admission") if not shared.is_empty() else _fail("Prefab texture dimensions changed after admission")
 	_stage(profile,"header",mark,{"sources":requested.size(),"images":plan.rows.size(),"reused":reuse_header})
 	var images:Dictionary={};var textures:Dictionary={};var identities:Dictionary={};var cache_hits:=0;var decoded:=0;var output:=0;var waiting:=false
@@ -265,7 +291,7 @@ static func prepare(requested:Dictionary,plan:Dictionary,root:String,token:RefCo
 		var digest:String=shared.pool.source_identity(shared.consumer,row.path) if reuse_sources else ""
 		var bytes:=PackedByteArray();var image:Image
 		if row.extension=="stex":
-			# Only immutable mounted packages choose this plan. Their path identity
+			# Only immutable published packages choose this plan. Their path identity
 			# is already authoritative; never open/decode the original PNG or GLB.
 			if digest.is_empty():digest=row.path.sha256_text()
 			if reuse_sources and not shared.pool.remember_source_identity(shared.consumer,row.path,digest):return _fail("Streamed texture consumer cancelled",true)

@@ -6,6 +6,31 @@ const Product=preload("res://scripts/world3d/streamed_texture_product.gd")
 const Atomic=preload("res://scripts/world3d/atomic_file.gd")
 const FORMATS=[Image.FORMAT_RGBA8,Image.FORMAT_DXT1,Image.FORMAT_DXT5,Image.FORMAT_RGTC_RG]
 
+static func valid_model_product(row:Dictionary,root:String)->bool:
+	# This is a separately published native model product, not a PNG sidecar.
+	# Its table was read once by the operation owner. Check the scalar admission
+	# contract without reopening/hashing pixels or imposing the sidecar's format
+	# and complete-mip requirements on an authored native Image.
+	root=root.replace("\\","/").simplify_path()
+	if root.is_empty() or row.get("model_product")!=true or row.get("extension")!="stex" or row.get("root")!=root:return false
+	var path:Variant=row.get("path")
+	if not path is String or row.get("product")!=path or row.get("flip")!=false or row.get("normal")!=false:return false
+	var id:String=path.get_file().get_basename()
+	if id.length()!=64 or id!=id.to_lower() or not id.is_valid_hex_number(false):return false
+	var expected:=root.path_join("cache/world3d/model_textures_v1").path_join(id+".stex").replace("\\","/").simplify_path()
+	if path!=expected or row.get("representation")!="stex:"+id or not Paths.asset_key_allowed(path,root):return false
+	if not row.get("alpha") is bool:return false
+	for field:String in ["width","height","format","source_bytes","output_bytes"]:
+		if not row.get(field) is int:return false
+	if row.width<1 or row.height<1 or row.width>16384 or row.height>16384 or row.format<0 or row.format>=Image.FORMAT_MAX:return false
+	var sizes:Variant=row.get("mip_sizes")
+	if not sizes is Array or sizes.is_empty() or sizes.size()>17:return false
+	var total:=0
+	for amount:Variant in sizes:
+		if not amount is int or amount<1 or amount>0xffffffff:return false
+		total+=amount
+	return total<=0xffffffff and row.output_bytes==total and row.source_bytes==44+8*sizes.size()+total
+
 static func enabled()->bool:
 	return ClassDB.class_exists("StreamedTexture2D") and Engine.has_singleton("TextureStreaming") and bool(ProjectSettings.get_setting("rendering/textures/streaming/enabled",false)) and RenderingServer.get_current_rendering_method()!="gl_compatibility"
 

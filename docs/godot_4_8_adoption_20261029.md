@@ -438,3 +438,68 @@ GLB 仅用于上述显式导入测试，未恢复游戏 GLB 回退。构建 02 �
 - candidate04b 的 CPU 移交实验仍未接生产。179 条断言通过不等于零泄漏；既有 ResourceLoader token/资源图寿命问题另有最小红测，恢复入口为 `native_cpu_capture_04/lifetime_resume.md`。
 
 恢复资料位于 `primary_merge_20261029_01/`，包含 stash ID、原 tracked 字节和 patch、untracked SHA、两处冲突的精确恢复 diff。主分支合入范围没有新增 GLB、Blend、SCN、DDS、STEX 等模型/纹理产品，资源和测试产物继续留在外部运行目录。
+
+## 主工作区续作：04d 引擎修复及独立模型纹理产品
+
+本轮继续在 `D:/code/rmmo` 的 `main` 工作，保留上节列出的用户未提交修改。普通模型导入的 `split_textures` 仍为 false；正式地图及现有模型尚未批量转换。以下是可复用构件和引擎修复的验收，不是全部模型迁移或新一轮整图性能验收。
+
+### 4.8 引擎已更新为 candidate04d
+
+默认、`godot.exe`、版本别名及 console 已更新，完整独立调试符号一并核对。主 exe SHA 为 `b15441fd50cfcec8072150d8025770952339d86faa91e95b09d0a7d6a193621e`，符号 SHA 为 `e5bc18436cc7187f861fb9d958d7cd71cf4cb3a4c517254d9a7707e52e7939ef`。三个主入口的 `--version` 均通过。安装凭证为证据根下 `default_04d_installation.json`，旧文件字节保留在 `D:/tools/godot/_backup/before_04d_20261029_103412`。
+
+已复现并修复：
+
+- TAA 使用 rgba16f shader 复制 rg16f 速度历史，且使用 target_size 而非 internal_size。1.25 倍内部分辨率原有 32,080–32,400 个错误像素，专用 rg16f 分支和正确范围后为零；四组 scale/MSAA 及真实盒子 TAA 开关对照通过。没有为 OpenXR 外部纹理添加 COPY_FROM 权限要求。
+- WTP 原生加载的 raw unreference 归零后没有销毁 token，造成资源图滞留。统一 runner 尾部所有权、仅对 loader 自建任务 detach，避免消费调用者借用的 TaskID，并删除两个全表 TaskID 扫描。
+- 同 worker 同步接管完成后，原排队任务再次加载：独立用例 8 次请求原执行 16 次格式加载，修复后 8 次。不能推导为整图速度翻倍。
+- 未使用预请求依赖留下父任务裸指针，后续连接传播丢失或指向已退役任务。改为实际等待者上下文，并随连接保留来源强引用。
+- 最后一个外部 token 的资源析构曾越过退出屏障。真实 Gradient 析构停 500ms 的红测证明 clear 提前返回，04d 将资源退役本身纳入屏障后转绿。
+
+`loader_lifetime_04c_01/RESULT.md` 保留全部红测及失败夹具。最终 13 类生命周期测试、56 次重复并发/退出测试、原 API 的 headless/GPU 各 179 项、96 任务 scope 压测、原 plain-pair 及 TAA 像素回归均通过。普通项目冻结夹具也通过 35/35：71 项真实依赖不变，无 ERROR/泄漏，既有 74 条 male GLTF stride 警告与基线完全一致。女性完整 flow 的既有超时没有在本轮复测，仍未解决。罕见 dying-token 路径的外层 loader 锁也未被宣称全部移除。
+
+可复现累计补丁与清单已入项目 `tools/engine_patches/godot-4.8-beta1-runtime-candidate04d.patch/.json`。官方归档→四阶段链→独立累计 apply，43/43 文件与编译源码逐字节一致；没有依赖引擎目录中失效的 Git HEAD。清单是安装前历史快照，实际安装以单独凭证为准。CPU capture 实验开关仍关闭；安装新引擎不表示启用了此前导致整图退化的项目实验。
+
+安装后使用 GDB 18.1 对默认路径做 debuglink smoke，能解析 `ResourceLoader::_run_load_task` 与 `RendererRD::TAA::process` 的源码文件/行号；没有启动被调试游戏进程。凭证为 `default_04d_gdb_symbols.json`。新增清单固定 LF，避免 Windows checkout 改变安装凭证引用的 SHA；历史清单不变。
+
+### 模型纹理拆分构件
+
+`model_texture_products.gd` 将原 ImageTexture 的完整像素、原格式和已有 mip 发布为内容寻址 STEX；不会强制转 RGBA、生成额外 mip，或回读 StreamedTexture2D 的驻留低 mip 当作原图。SCN 保留几何、材质参数、next_pass 和绑定元数据，清除纹理引用，没有内嵌 Image 或外部原生依赖。产品和表完成后才提交索引，失败恢复借用的原场景。纯 native 输入不需要 GLB。
+
+产品位于 `cache/world3d/model_textures_v1/<pixel_sha>.stex`；独立表位于 `cache/world3d/compiled_assets_v1/texture_tables_v1/<table_sha>.json`。索引只增加小的 `texture_table` 描述符。Footprint 保留同一已准入索引的表身份；Binding 的操作内 catalog 每张表只读一次，不再打开原 GLB 取长度，也不重复读取每份纹理校验像素。
+
+`model_texture_bindings.gd` 直接读取 SceneState，按网格/材质身份去重，纹理齐备后按材质分步绑定。2,048 个部件用例只遍历 1 个共享网格、3 个独立材质；颜色与法线槽复用同一 native 产品。未齐备时没有部分材质修改，重复绑定不再执行 setter。
+
+`PrefabTexturePreparation` 接受显式 trusted immutable native 产品计划，沿用共享生产、等待/恢复、取消和统一预算。严格诊断或 mutable 源明确拒绝此路径，不降级到 GLB/PNG。几何和纹理的正式调度桥接尚未完成，不能仅凭本层通过就打开导入默认开关。
+
+验收证据：
+
+| 范围 | 结果 | 目录 |
+| --- | --- | --- |
+| 导出、18 个材质槽、原像素/mip、取消、native-only、保存重开 | 原 87 项通过 | `model_texture_products_01` |
+| 绑定、共享预算/释放、无 GLB 元数据、表读取去重 | 49 项通过 | `model_texture_binding_cpu_06` |
+| 真实 GPU 准备和渲染 | 65 项通过，21,623 个非背景像素，源/拆分 RGBA 零字节差 | `model_texture_preparation_01/green4_run` |
+| 现有共享 streamed texture 回归 | 38 项通过 | `model_texture_preparation_01` |
+
+合并源码先在 04d 冻结工程完成 216 项 CPU 联测。独立静态复核随后发现 root 缓存键已规范化、行内 root 尚未规范化：反斜杠首次读取后，换成斜杠同根会命中缓存却拒绝准备。新增红测明确复现此项；统一入口表示后，最终绑定 53、Footprint 30、入口元数据 22、导出 87、批量事务 28，共 **220 项通过，零诊断**，源码运行前后 SHA 不变，见 `model_texture_combined_cpu_04`；反斜杠/斜杠/.. 同根命中及异根隔离均覆盖，红测留在 `model_texture_alias_red_01`。01/02 的断言同样通过，但缺少隔离资源目录中的二维 MockServer 启动包而产生三条诊断；保留这两次失败，最终显式使用现有 `--without-mock-server` 纯组件测试入口。普通服务器/进场语义由上面的完整 35 项 GPU 夹具单独覆盖，没有用组件通过替代游戏回归。
+
+GPU 测试只生产两份唯一 STEX，两个消费者及 18 个槽共享正确的 Texture2D；没有 CPU Image 输出、二次解码、全量 source/final hash 或 ImageTexture 二次上传。最后消费者退出和取消接管后，项目预算与引擎 streaming 账本归零，无退出泄漏。源场景仍保留独立 ImageTexture。无损 PNG、解码像素比较和实际 quality=90 WebP 均留在 `green4_content/native_gpu_17464`；查看用 WebP 经 SHA 和实际 RIFF/WEBP 字节检查。它们是专项夹具，不是 218 个正式模型的逐件验收。
+
+上述 green4 GPU 夹具使用 04b+TAA，引擎 SHA `217d71f22dcab9f64de16ac5776e2766e1273d4ad7b1688ac492c5237b25ea27`。最终又把批量发布、catalog、路径修复合并后的 7 个组件冻结到新工程，直接调用已安装 04d 做同一 65 项 GPU 联测，**65/65、零诊断/泄漏、零像素差、21,623 非背景像素**；见 `model_texture_preparation_01/combined04d_run`、`combined04d_source_sha.json` 及独立 `combined04d_content`。运行使用后台独立桌面，未覆盖旧样本。
+
+### 去掉逐纹理进程启动
+
+Windows 原子发布此前每个文件启动一次 PowerShell，独立 4 字节样本约 269–296ms。新增 `Atomic.publish_new_batch`，一个进程发布已写好的路径批次；已有目标不覆盖，部分失败停止后续，所有产品完成后才发布表/索引。只保留路径与小元数据，不多复制像素；保留单文件控制路径，没有新增纹理数量限制。
+
+同一 60 张唯一纹理的干净样本，首次准备/发布从 **19.852321s → 0.933048s**；产品进程 **60 → 1**，表各 1 次。两侧均 60 次回读、60 次像素哈希、81,840 像素字节和 86,880 STEX 字节，全部产品及表 SHA 一致。已有产品 46.337/40.395ms 均零进程，单对样本不宣称稳定 warm 提升。这是离线导出收益，不是地图加载或 FPS 数据。
+
+`model_texture_publish_batch_01` 保留 28 项批量/事务测试和原 87 项回归；并发竞抢、取消、锁住第二个文件的部分失败、根限制、别名冲突、超过 32KiB 的路径表、前代真实索引和其他所有者临时文件均覆盖。第三方永久拒绝删除临时文件仍是 OS 边界，没有把它写成已修复。
+
+### 后续接入边界
+
+1. 将 native 几何和上述纹理计划接入初始模型协调器及区块队列，共用准入账本；已完成几何等待纹理时释放 worker 槽，最终发布前完成绑定。
+2. 明确共享纹理从临时队列到实际材质/驻留预算的所有权移交，覆盖取消、卸载、返回及已有模板复用。
+3. 完成内容编辑器新导入、预览、保存重开和当前 3D MCP 的同一路径，才打开普通拆分默认。
+4. 从入口约 563MB 模型开始逐件迁移和自动模型验收，再覆盖全部当前引用及角色；角色直接 GLB 和已有 female flow 超时仍需处理。
+5. 最后复测 axel_town 加载、卸载、返回及 low，保持既有计时口径，不将独立测试收益相加成整图收益。
+
+两份旧 worktree 的 HEAD 仍均已包含于 main、tracked clean；当前再次调用应用归档仍被 `Another active task still uses this worktree` 拒绝。未强行删除，也未把它记录为已释放。后续代码和美术产物继续分别留在主工作区及外部运行目录。

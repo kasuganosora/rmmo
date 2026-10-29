@@ -102,7 +102,16 @@ static func _identity(path: String, content_root: String, trusted_package:bool=f
 	if file == null: return {}
 	var size := file.get_length(); file.close()
 	if size != int(manifest.bytes): return {}
-	return {"source_path":path, "source_sha":manifest.source_sha, "payload_sha":manifest.payload_sha, "generator":manifest.generator, "bytes":size, "source_bytes":source_bytes, "product":product}
+	var identity:Dictionary={"source_path":path, "source_sha":manifest.source_sha, "payload_sha":manifest.payload_sha, "generator":manifest.generator, "bytes":size, "source_bytes":source_bytes, "product":product}
+	if manifest.has("texture_table"):
+		# Keep the descriptor from the SAME admitted manifest. The separate table
+		# is read once by the texture planner, never through native dependencies.
+		var table:Variant=manifest.texture_table
+		if not table is Dictionary or table.get("version")!=1 or not Compiled._sha(table.get("sha256")):return {}
+		for field:String in ["bytes","textures","image_bytes"]:
+			if not _integer(table.get(field),9007199254740991,1 if field=="bytes" else 0):return {}
+		identity.texture_table={"version":1,"sha256":table.sha256,"bytes":int(table.bytes),"textures":int(table.textures),"image_bytes":int(table.image_bytes)}
+	return identity
 
 static func build(path: String, content_root: String = "", preserve_published:bool = false) -> Dictionary:
 	if OS.get_thread_caller_id() != OS.get_main_thread_id() or DisplayServer.get_name() == "headless": return {"ok":false, "reason":"main_graphics_thread_required"}
