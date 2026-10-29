@@ -27,7 +27,12 @@ func run() -> void:
 	while probe.listen(port,"127.0.0.1") != OK: port += 1
 	probe.stop(); check(editor.start_mcp(port).ok,"start real HTTP MCP")
 	var discovery := await rpc("tools/list")
-	check(discovery.result.tools.size() == 118,"discover all 118 current 3D tools")
+	var discovered:Dictionary={}
+	for tool:Dictionary in discovery.result.tools:discovered[tool.name]=tool
+	check(discovered.size()==discovery.result.tools.size() and ["start_playtest","stop_playtest","playtest_state","set_playtest_spawn","set_floor_view"].all(func(name_:String):return discovered.has(name_)),"discover unique current playtest and authoring tools")
+	var start_schema:Dictionary=discovered.start_playtest.inputSchema
+	var position_schema:Dictionary=start_schema.properties.position
+	check(position_schema.type=="array" and position_schema.minItems==3 and position_schema.maxItems==3 and not start_schema.get("required",[]).has("position") and discovered.stop_playtest.inputSchema.properties.is_empty(),"HTTP playtest schema preserves optional 3D position and parameterless stop")
 	await call_tool("get_editor_view")
 	await call_tool("set_floor_view",{"isolation":true,"base_height":0,"floor_height":3,"outside":"hide"})
 	await physics()

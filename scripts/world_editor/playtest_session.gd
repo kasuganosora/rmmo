@@ -31,8 +31,27 @@ var _mcp_mode: int
 var _layers: Array = []
 var _generation := 0
 var _caption: Label
+var _asset_service: Node
+var _asset_request := 0
+var _asset_handles: Dictionary = {}
+var _asset_templates: Dictionary = {}
+var _asset_paths: Dictionary = {}
+var _source_document: WeakRef
+var _source_revision := 0
+var _preparation_clone: RefCounted
+var _preparation_character: Dictionary = {}
+var _physics_callback: Callable
+var _process_callback: Callable
+var _loading_generation := 0
+var _loading_deadline := 0
 
-func _ready() -> void: process_mode = Node.PROCESS_MODE_ALWAYS
+func _ready() -> void:
+	process_mode = Node.PROCESS_MODE_ALWAYS
+	set_process(false)
+
+func _process(_delta: float) -> void:
+	if phase == "preparing" and not _context_current(): _fail("试玩准备期间编辑文档已变化")
+	elif phase == "loading": _poll_loading()
 func active() -> bool: return phase in ["preparing","loading","running","stopping"]
 func state() -> Dictionary:
 	return {"ok":true,"phase":phase,"active":active(),"error":last_error,"source_path":source_path,"temporary_path":map_path,"spawn":[spawn.x,spawn.y,spawn.z],"preparation":world.preparation_state() if is_instance_valid(world) else {}}
@@ -60,6 +79,7 @@ func start(position: Variant = null) -> Dictionary:
 		return {"ok":false,"error":"创建试玩副本失败："+error_string(result)}
 	if editor._walk_mode!=null:editor._walk_mode.stop()
 	directory = path; map_path = path.path_join("map.gltf"); source_path = editor._path
+	_source_document = weakref(editor._doc); _source_revision = editor._doc.authoring_revision
 	spawn = Vector3(raw[0],raw[1],raw[2]); phase = "preparing"; last_error = ""; _generation += 1
 	_overlay = CanvasLayer.new(); _overlay.layer = 100; add_child(_overlay)
 	var blocker := ColorRect.new(); blocker.color = Color(.08,.1,.14,.9); blocker.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT); _overlay.add_child(blocker)
@@ -74,12 +94,44 @@ func resolve_map(path: String) -> String:
 
 func _prepare(clone, character: Dictionary, generation: int) -> void:
 	if generation != _generation or not active(): return
+	if not _context_current(): _fail("试玩准备期间编辑文档已变化"); return
+	_preparation_clone = clone; _preparation_character = character
+	set_process(true)
+	var paths: Dictionary = {}
+	for record: Dictionary in clone.records:
+		if record.get("kind") != "asset" or record.has("house_prefab") or record.has("bridge_mesh"): continue
+		var original := str(record.get("asset_path", ""))
+		var path := original.replace("\\", "/").simplify_path()
+		paths[path] = true; _asset_paths[original] = path
+	if not paths.is_empty():
+		_asset_service = preload("res://scripts/world_editor/editor_asset_preparation.gd").for_consumer(self)
+		if _asset_service == null: _fail("试玩模型准备服务不可用"); return
+		_asset_request = _asset_service.request_many(paths.keys(), self, _assets_prepared.bind(generation))
+		if _asset_request == 0: _fail("试玩模型准备任务无法启动"); return
+		return
+	_begin_probe(generation)
+
+func _begin_probe(generation: int) -> void:
+	if generation != _generation or not active(): return
+	if not _preparation_current(): _fail("试玩模型或编辑文档在准备期间已变化"); return
 	_stage = SubViewport.new(); _stage.own_world_3d = true; _stage.disable_3d = true; add_child(_stage)
 	var host := Node3D.new(); _stage.add_child(host)
-	var scene: Node3D = clone.build(); host.add_child(scene)
+	var scene: Node3D = _preparation_clone.build(true, _asset_templates); host.add_child(scene)
 	Stream.sync(scene,host,spawn+Vector3(0,.9,0))
-	await get_tree().physics_frame; await get_tree().process_frame
+	# One real physics step followed by process, with disconnectable callbacks.
+	# An await owned by a freed session would resume a destroyed GDScript.
+	_physics_callback = _probe_physics_ready.bind(generation)
+	get_tree().physics_frame.connect(_physics_callback, CONNECT_ONE_SHOT)
+
+func _probe_physics_ready(generation: int) -> void:
 	if generation != _generation or not active(): return
+	_process_callback = _finish_probe.bind(generation)
+	get_tree().process_frame.connect(_process_callback, CONNECT_ONE_SHOT)
+
+func _finish_probe(generation: int) -> void:
+	if generation != _generation or not active(): return
+	if not _preparation_current(): _fail("试玩模型或编辑文档在出生验证期间已变化"); return
+	var host: Node3D = _stage.get_child(0)
 	var space := host.get_world_3d().direct_space_state
 	var ground := space.intersect_ray(PhysicsRayQueryParameters3D.create(spawn+Vector3(0,.15,0),spawn-Vector3(0,.2,0)))
 	var query := PhysicsShapeQueryParameters3D.new(); var capsule := CapsuleShape3D.new(); capsule.radius = .3; capsule.height = preload("res://scripts/world3d/player_clearance.gd").NAV_HEIGHT
@@ -87,9 +139,53 @@ func _prepare(clone, character: Dictionary, generation: int) -> void:
 	if ground.is_empty() or ground.normal.y < .7 or absf(ground.position.y-spawn.y) > .12 or not space.intersect_shape(query,1).is_empty():
 		_fail("出生点没有支撑或角色空间被占用，请重新选择地面位置"); return
 	_stage.free(); _stage = null
-	_enter(character,generation,clone)
+	set_process(false)
+	_enter(_preparation_character,generation,_preparation_clone)
+
+func _context_current() -> bool:
+	return is_instance_valid(editor) and editor.is_inside_tree() and _source_document != null and _source_document.get_ref() == editor._doc and editor._doc.authoring_revision == _source_revision and editor._path == source_path and (editor._safety == null or not editor._safety.state().close_pending)
+
+func _preparation_current() -> bool:
+	if not _context_current(): return false
+	for handle: Variant in _asset_handles.values():
+		if not handle.current(): return false
+	return true
+
+func _assets_prepared(id: int, result: Dictionary, generation: int) -> void:
+	if id != _asset_request or generation != _generation or not active() or not is_inside_tree(): return
+	_asset_request = 0
+	if not result.get("ok", false): _fail(str(result.get("error", "试玩模型准备失败"))); return
+	_asset_handles = result.handles
+	if not _preparation_current(): _fail("试玩模型或编辑文档在准备期间已变化"); return
+	for original: String in _asset_paths:
+		var handle: Variant = _asset_handles.get(_asset_paths[original])
+		if handle == null: _fail("试玩模型准备结果不完整"); return
+		_asset_templates[original] = handle.packed
+	_begin_probe(generation)
+
+func _release_assets() -> void:
+	set_process(false)
+	if is_inside_tree():
+		if _physics_callback.is_valid() and get_tree().physics_frame.is_connected(_physics_callback): get_tree().physics_frame.disconnect(_physics_callback)
+		if _process_callback.is_valid() and get_tree().process_frame.is_connected(_process_callback): get_tree().process_frame.disconnect(_process_callback)
+	_physics_callback = Callable(); _process_callback = Callable()
+	if _asset_request != 0 and is_instance_valid(_asset_service): _asset_service.cancel(_asset_request)
+	_asset_request = 0; _asset_service = null
+	_asset_templates.clear(); _asset_paths.clear(); _asset_handles.clear()
+	_preparation_clone = null; _preparation_character = {}
+
+func _build_play_scene(clone: RefCounted, generation: int) -> Node3D:
+	if generation != _generation or not active(): return null
+	if not _preparation_current(): _fail("试玩模型或编辑文档在进入前已变化"); return null
+	# The probe root has stream indexes and sibling physics bodies in another
+	# world. Build fresh runtime owners from the same READY allocations instead.
+	var scene: Node3D = clone.build(true, _asset_templates)
+	_release_assets()
+	return scene
 
 func _enter(character: Dictionary, generation: int, clone:RefCounted) -> void:
+	var prepared := _build_play_scene(clone, generation)
+	if prepared == null: return
 	var session := Net.session()
 	_source_server = Net.server(); _source_mode = _source_server.process_mode; _override_before = Net._server_override
 	for property in session.get_property_list():
@@ -101,7 +197,7 @@ func _enter(character: Dictionary, generation: int, clone:RefCounted) -> void:
 	# Reference glTF stores placement proxies, not authored events/materials.
 	# Build the same validated native snapshot for play, with fresh stream owners
 	# after the isolated collision probe has been freed.
-	session.prepared_world3d = clone.build(); session.world3d_switches = {}; session.world3d_loading = false
+	session.prepared_world3d = prepared; session.world3d_switches = {}; session.world3d_loading = false
 	# This native snapshot was just saved from this exact isolated clone. Give
 	# the shared entry authority its real revision, as MapLoader does in game.
 	session.prepared_world3d.set_meta("source_map_sha256",FileAccess.get_sha256(map_path))
@@ -132,12 +228,18 @@ func _enter(character: Dictionary, generation: int, clone:RefCounted) -> void:
 	var banner := HBoxContainer.new(); banner.position = Vector2(340,8); _overlay.add_child(banner)
 	_caption = Label.new(); _caption.text = "临时试玩 · 正式地图与角色进度不受影响"; banner.add_child(_caption)
 	var exit_button := Button.new(); exit_button.text = "结束试玩，返回编辑器"; exit_button.pressed.connect(stop); banner.add_child(exit_button)
-	var deadline := Time.get_ticks_msec()+60000
-	while is_instance_valid(world) and not world.is_world_ready() and Time.get_ticks_msec()<deadline:
-		await get_tree().process_frame
-		if generation != _generation or not active(): return
+	_begin_loading_wait(generation)
+
+func _begin_loading_wait(generation: int) -> void:
+	_loading_generation = generation; _loading_deadline = Time.get_ticks_msec()+60000
+	set_process(true)
+	_poll_loading()
+
+func _poll_loading() -> void:
+	if _loading_generation != _generation or phase != "loading": return
+	if is_instance_valid(world) and not world.is_world_ready() and Time.get_ticks_msec() < _loading_deadline: return
 	if not is_instance_valid(world) or not world.is_world_ready() or world._player == null: _fail("试玩场景加载失败或超时，编辑状态已保留"); return
-	phase = "running"; editor._status.text = "临时试玩中"
+	phase = "running"; set_process(false); editor._status.text = "临时试玩中"
 
 func stop() -> Dictionary:
 	if not active(): return state()
@@ -149,9 +251,10 @@ func _fail(message: String) -> void:
 	last_error = message; _generation += 1
 	_finish()
 	phase = "failed"
-	editor._status.text = message
+	if is_instance_valid(editor) and is_instance_valid(editor._status): editor._status.text = message
 
 func _finish() -> void:
+	_release_assets(); _source_document = null
 	if is_instance_valid(world):
 		if world._camera != null: world._camera.release_capture()
 		world.free()
@@ -160,19 +263,37 @@ func _finish() -> void:
 	_overlay = null; viewport = null
 	if is_instance_valid(_stage): _stage.free()
 	_stage = null
-	if server != null:
+	_restore_session()
+	if is_instance_valid(server): server.free()
+	server = null
+	_clear_directory()
+	phase = "idle"
+	if is_instance_valid(editor) and is_instance_valid(editor._status): editor._status.text = "已结束试玩，编辑状态已恢复"
+
+func _restore_session() -> void:
+	if not _session_before.is_empty():
 		Net._server_override = _override_before
-		_source_server.process_mode = _source_mode
-		server.free(); server = null
-		var session := Net.session(); session.clear_prepared_world3d()
-		for key in _session_before: session.set(key,_session_before[key])
-		session.editor_playtest = null; _session_before.clear()
-		editor.process_mode = _editor_mode
-		if editor._mcp != null: editor._mcp.process_mode = _mcp_mode
+		if is_instance_valid(_source_server): _source_server.process_mode = _source_mode
+		var session: Node = Net._root().get_node_or_null("GameSession") if Net._root()!=null else null
+		if session != null:
+			session.clear_prepared_world3d()
+			for key in _session_before: session.set(key,_session_before[key])
+			session.editor_playtest = null
+		_session_before.clear()
+		if is_instance_valid(editor):
+			editor.process_mode = _editor_mode
+			if is_instance_valid(editor._mcp): editor._mcp.process_mode = _mcp_mode
 		for pair in _layers:
 			if is_instance_valid(pair[0]): pair[0].visible = pair[1]
 		_layers.clear()
+
+func _clear_directory() -> void:
 	if not directory.is_empty() and Paths.allowed(directory) and directory.get_base_dir() == Paths.cache_directory("playtests"):
 		Io._remove_tree(directory)
-	directory = ""; map_path = ""; phase = "idle"
-	if is_instance_valid(editor._status): editor._status.text = "已结束试玩，编辑状态已恢复"
+	directory = ""; map_path = ""
+
+func _exit_tree() -> void:
+	_generation += 1
+	_release_assets(); _source_document = null
+	# Children are already leaving the tree; do not free them recursively here.
+	_restore_session(); _clear_directory()

@@ -284,10 +284,30 @@ inactive 样本直接把已加载全驻留 STEX 交给控件，仅证明其呈�
 
 证据：B 的 `editor_native_rebuild_boundary_01/delivery_red.json`、`red_01`，**15 PASS / 3 FAIL、零引擎诊断**。以 git archive 为基线，只新增专用测试；6568 个归档文件复核一致。native 几何和表读取使用真实代码，纹理上传及 split ownership 沿用明确的 CPU 协议替身；不是 GPU/整图性能结果。红测源码保存在 `B/editor_native_rebuild_boundary_01/red_01/project/tools/test_editor_native_rebuild_boundary.gd`，SHA `1ede3d4d47424e20563b673ee257f868b0371c2ea1b8086384baf7f0d0390ebe`；工作区同名测试留待后续修复，未计入本次提交。默认 split 导入继续关闭，正式模型未转换。
 
+## 试玩复用同一份完整模型准备结果
+
+试玩的出生点碰撞验证与实际场景分别需要新的节点和物理对象，原先两次裸 `clone.build` 在私有 native 模板存活时仍会重复读取，真正冷 split 模型则缺少完整材质。现在先通过共享 `EditorAssetPreparation` 按规范化逻辑路径去重，两次 build 消费同一批 READY PackedScene；场景取得实际资源所有权后释放请求和 Handle，不把模板存入全局强缓存。碰撞探针会改变 stream 索引，并在 host 上创建兄弟 body，因此仍保留两份新节点树，不能直接搬移探针根节点。
+
+准备阶段保留文档身份、revision、路径与关闭状态检查；物理帧/处理帧边界和最终进入前检查资源身份。原 session 自身的 await 在 owner 销毁后可能恢复已释放脚本，独立取消红测复现后改为可单独断开的真实 physics/process frame 回调。加载阶段沿已有 `_process` 轮询直到 ready/失败/取消，空闲和运行阶段停止处理。停止或关闭编辑器时只取消本请求，恢复此前 session/server 状态并删除本次临时试玩地图；退出树时不递归释放正在退出的子节点。
+
+|验证|结果与边界|B 下证据|
+|---|---|---|
+|准备、取消与旧 HTTP CPU 回归|75 + 210 + 46，通过；split 上传/归属使用明确的 CPU 协议替身|`playtest_native_preparation_01/green_02`、`cancel_03`、`existing_playtest_02`|
+|真实 native UI/HTTP 与退出生命周期|66/66；实际 F5、结束按钮鼠标输入、无 GLB 冷 HTTP start/stop、实际 loading 中停止和销毁编辑器|`playtest_native_preparation_01/gpu_loading_03`|
+|既有图形试玩回归|81/81；非法/无支撑/阻塞出生点、私有进度、跨图再回临时地图、编辑保护|`playtest_native_preparation_01/gpu_legacy_01`|
+
+最终 **478 项通过，零诊断**。已有私有模板的 UI 路径增加 0 次 producer/native read；原模板及纹理 owner 真正死亡后，冷 HTTP 路径增加 1 次 producer/native read，并供两次 build 共用。实际 PackedScene/Mesh/StreamedTexture2D/RID 身份一致，全局 `_scenes` 为空；结束并清退后 transient、published geometry 和该夹具引擎 texture 计数均归零。64MiB published 几何数值是夹具的保守 envelope，不是 RSS/VRAM。原文档、正式地图 SHA、历史/选择/相机及原游戏进度保持。
+
+以 `git archive b9d7d6d9` 加本切片文件独立验证，未混入其它并行修改或用户 WIP；默认 candidate07 EXE SHA 与前节相同。旧 `tools==118` 总数断言改为必需工具唯一性和具体参数 schema，不把新增工具当作失败。较早缺 Trace、WeakRef 注解和隔离 MockServer 默认碰撞包的失败样本保留；runner 补足明确外部 fixture，未关闭生产检查。最终 66 项替代较早 55/60 项，不重复累计。
+
+完整交付 `playtest_native_preparation_01/delivery_final.json`，SHA `46a8fceebaca71c0dbd3f53d7e79f167da8d20af25c007ea0bfd3198cf39c63e`；生产 `playtest_session.gd` SHA `eab4240140d8ea6a9e0e763bedd16fcc52ab163b10edd280a65cdbda479bdfe0`。root 复核交付列出的 26 个文件 SHA，并查看两张实际有损 quality=90 WebP：冷/复用路径的彩色模型和阴影均在真实试玩视图显示，截图时仅隐藏角色渲染并随后恢复。没有正式模型画质等价或整图性能结论。
+
+本节仅覆盖普通 asset；custom kit 的依赖收集仍需接到共享 record/build context。初始编辑器 fixture 为构造基线曾短暂使用旧 cache，试玩测量前已驱逐；此结果不冒称普通 `_rebuild` 已完成。默认 split 导入仍关闭，正式模型尚未转换。
+
 ## 后续顺序
 
 1. 旧 operation → 新 Initial 的**已完成 owner 入站复用已完成**，结果见上节及 B 的 `initial_native_inbound_reuse_handoff.json`。并发 operation 中尚未完成的 producer 仍各有自己的池，尚无跨 operation 的全局在途 single-flight；不把本轮完成票据复用说成该问题也已解决。也不能因 `start` 时目录为空就整次跳桥，旧 operation 可能在 metadata 就绪前发布 owner。后续可考虑请求抵达主线程时，以两个目录当前均空作 O(1) 全 miss 回复，保留现有取消与 metadata 退役合同。
 2. 引擎排队 I/O 的 owner、shutdown 及预览就绪 API 已按上节复现、修复、回归并安装 candidate07；后续验证使用准确 SHA，不以相同 version 字符串混淆 04d/05/06/07。更广生命周期和整图表现继续在实际集成中检验。
-3. 编辑器 LoadJob、PreparedModelOwnership、预览/放置和 TargetScenePrefetch 接入同一独立纹理准备与释放协议；当前 UI/HTTP MCP 还没有据此完成导入、保存重开验证。下一生产集成顺序按 B 的 `editor_native_streaming_integration_readonly_01.json`：先用无 GLB、空场景/弱缓存复现冷打开、预览、缩略图和放置；再以编辑器既有共享账本接异步准备、世代取消和主线程所有权，区分只需几何的消费者；引擎生命周期就绪后做 GPU、UI 与真实 loopback HTTP MCP 的放置/撤销/保存冷重开。全部冷消费者通过后，才切换默认 split 导入并迁移既有内嵌 native。该报告是 `9eb7a9fa` 上的只读审查，未修改或验收编辑器，不应把游戏 Initial 的独立账本直接当作编辑器并发共用账本。
+3. 普通模型的 LoadJob、预览/缩略图、冷放置/历史操作、试玩已按上节完成各自协议与 GPU/HTTP 验证；剩余普通整视图重建和 custom kit 需要共同依赖/build context，覆盖编辑器操作、LoadJob、MapLoader 与试玩。prefab 独立包/搬迁合同仍须单独核查；TargetScenePrefetch 的严格 split 预算及同目标预算拒绝后的重复尝试正在独立修复。全部冷消费者通过后，再切换默认 split 导入并迁移既有内嵌 native。历史只读报告 `editor_native_streaming_integration_readonly_01.json` 不是这些后续切片的验收证据，游戏 Initial 的独立账本也不能代替编辑器共用账本。
 4. 从入口大模型开始转换并按 `rmmo-model-review` 做受影响项验收，保持原像素默认策略。随后覆盖实际引用与角色原生产品。
 5. 正式接入后再测 axel_town 加载、卸载、返回加载及 low，继续使用地图加载开始到当前需求区域完整就绪的计时边界。
