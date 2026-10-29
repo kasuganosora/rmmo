@@ -36,6 +36,8 @@ var candidate_reader:Callable
 var native_texture_pool:RefCounted
 var native_texture_preparer:Callable
 var native_texture_table_reader:Callable # Scalar, operation-local metadata probe.
+var native_resident_bridge:RefCounted # Installed on main before run; shared across hint retries.
+var _native_resident_run:RefCounted
 # An early private compiled read may precede authoritative record validation.
 # Raw imports wait on this operation-local gate, including serial fallback.
 var fallback_gate:Callable
@@ -47,7 +49,15 @@ func cancel() -> void:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.model_parse_preparation.cancel") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	_mutex.lock()
 	_cancelled = true
+	var resident_run:RefCounted=_native_resident_run
 	_mutex.unlock()
+	if resident_run!=null:resident_run.close()
+
+func open_native_resident_run()->RefCounted:
+	_mutex.lock()
+	_native_resident_run=native_resident_bridge.open_run() if native_resident_bridge!=null else null
+	if _cancelled and _native_resident_run!=null:_native_resident_run.close()
+	var result:RefCounted=_native_resident_run;_mutex.unlock();return result
 
 func is_cancelled() -> bool:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.model_parse_preparation.is_cancelled") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null

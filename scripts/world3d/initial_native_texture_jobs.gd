@@ -18,6 +18,8 @@ var pending:Array[Dictionary]=[]
 var queued_preparation:Array[Dictionary]=[]
 var tables:Dictionary={}
 var metadata_bytes:=0
+var waiting_residents:Array[Dictionary]=[]
+var retiring_residents:Array[Dictionary]=[]
 var working_byte_limit:=0
 var _products:Dictionary={}
 var queued_pixels:Array[Dictionary]=[]
@@ -35,11 +37,14 @@ func is_cancelled()->bool:
 
 func _stop()->void:
 	_mutex.lock();_failed=true;_mutex.unlock()
+	if scope!=null and scope.resident_run!=null:scope.resident_run.close()
 
 func run(owner:RefCounted,paths:Array,candidates:Dictionary,estimates:Dictionary,root:String,limit:int,byte_limit:int,starter:Callable)->Dictionary:
 	controller=owner;content_root=root
 	ledger=Admission.new();ledger.worker_limit=limit;ledger.byte_limit=byte_limit
 	scope=Scope.new();scope.pool=owner.native_texture_pool if owner.native_texture_pool!=null else Pool.new();scope.pool.admission=ledger
+	scope.resident_bridge=owner.native_resident_bridge;scope.resident_run=owner.open_native_resident_run()
+	scope.resident_budget_limit=byte_limit
 	working_byte_limit=byte_limit
 	var started:=Time.get_ticks_usec();var catalog:=Catalog.new()
 	for path:String in paths:
@@ -71,6 +76,7 @@ func run(owner:RefCounted,paths:Array,candidates:Dictionary,estimates:Dictionary
 	unfinished=models.size();profile.tables=tables.size()
 	while true:
 		_join_finished()
+		_poll_residents()
 		if is_cancelled():
 			if pending.is_empty():break
 			OS.delay_usec(500);continue
@@ -78,7 +84,7 @@ func run(owner:RefCounted,paths:Array,candidates:Dictionary,estimates:Dictionary
 		dispatched=_dispatch_pixels(starter) or dispatched
 		dispatched=_dispatch_preparation(starter) or dispatched
 		if unfinished==0 and pending.is_empty():break
-		if not dispatched and pending.is_empty():
+		if not dispatched and pending.is_empty() and waiting_residents.is_empty() and retiring_residents.is_empty():
 			# Do not spin forever if a malformed fixture/admission contract cannot
 			# complete. Normal producers have either a running task or a resumable
 			# binding that transfers their retained outputs to streaming residency.
@@ -94,7 +100,7 @@ func _dispatch_preparation(starter:Callable)->bool:
 		var work:Dictionary=queued_preparation[index];var item:Dictionary=work.owner
 		# Retained scalar metadata is a separate allowance, not a persistent
 		# admission entry that would block its own exclusive model.
-		if work.stage=="table" and metadata_bytes>=working_byte_limit:index+=1;continue
+		if work.stage=="table" and metadata_bytes+scope.resident_metadata_bytes>=working_byte_limit:index+=1;continue
 		if not ledger.reserve(work.key,work.estimate):index+=1;continue
 		queued_preparation.remove_at(index)
 		if work.stage=="geometry":
@@ -118,13 +124,39 @@ func _join_table(table:Dictionary,reply:Dictionary,key:String)->void:
 	if not reply.get("ok",false):
 		var first:Dictionary=table.models[0];first.failure=ERR_INVALID_DATA;first.failure_message=str(reply.get("error","Native metadata preparation failed"));_stop();return
 	table.plan=reply;table.resident=true;metadata_bytes+=int(table.metadata_bytes)
-	ledger.byte_limit=maxi(1,working_byte_limit-metadata_bytes)
+	if scope.resident_run!=null and not reply.plan.rows.is_empty():
+		table.ticket_bytes=scope.resident_run.request(table.key,reply.plan.rows)
+		scope.resident_metadata_bytes+=int(table.ticket_bytes)
+		waiting_residents.append(table)
+	_reapply_budget()
 	profile.metadata_peak_bytes=maxi(int(profile.metadata_peak_bytes),metadata_bytes)
-	peak_live_estimate_bytes=maxi(peak_live_estimate_bytes,int(profile.geometry_retained_bytes)+metadata_bytes+ledger.reserved_bytes)
+	peak_live_estimate_bytes=maxi(peak_live_estimate_bytes,int(profile.geometry_retained_bytes)+metadata_bytes+scope.resident_metadata_bytes+ledger.reserved_bytes)
 	for texture:String in reply.plan.rows:_products[texture]=true
 	profile.unique_products=_products.size()
+	if scope.resident_run==null or reply.plan.rows.is_empty():_accept_table_residents(table,{})
+
+func _reapply_budget()->void:
+	ledger.byte_limit=maxi(1,working_byte_limit-metadata_bytes-scope.resident_metadata_bytes)
+
+func _poll_residents()->void:
+	if scope.resident_run==null or is_cancelled():return
+	var at:=0
+	while at<retiring_residents.size():
+		var table:Dictionary=retiring_residents[at];var reply:Dictionary=scope.resident_run.poll(table.key)
+		if reply.get("cancelled",false):controller.cancel();return
+		if not reply.get("retired",false):at+=1;continue
+		scope.resident_metadata_bytes-=int(table.ticket_bytes);retiring_residents.remove_at(at);_reapply_budget()
+	at=0
+	while at<waiting_residents.size():
+		var table:Dictionary=waiting_residents[at];var reply:Dictionary=scope.resident_run.poll(table.key)
+		if reply.get("cancelled",false):controller.cancel();return
+		if reply.get("pending",false):at+=1;continue
+		waiting_residents.remove_at(at);_accept_table_residents(table,reply.tickets)
+
+func _accept_table_residents(table:Dictionary,tickets:Dictionary)->void:
 	for model:Dictionary in table.models:
-		model.plan=reply;model.pixels="queued" if not reply.plan.rows.is_empty() else "done"
+		model.plan=table.plan;model.resident_tickets=tickets
+		model.pixels="queued" if not table.plan.plan.rows.is_empty() else "done"
 		if model.pixels=="queued" and model.geometry!="queued":queued_pixels.append(model)
 		elif model.pixels=="done":_queue_binding(model)
 
@@ -132,10 +164,12 @@ func _release_table_consumer(model:Dictionary)->void:
 	var key:String=model.get("table_key","")
 	if key.is_empty() or model.get("metadata_released",false):return
 	model.metadata_released=true;model.plan={}
+	model.resident_tickets={}
 	var table:Dictionary=tables[key];table.remaining-=1
 	if table.remaining==0 and table.resident:
+		if int(table.get("ticket_bytes",0))>0:scope.resident_run.retire(key);retiring_residents.append(table)
 		table.plan={};table.models=[];table.resident=false
-		metadata_bytes-=int(table.metadata_bytes);ledger.byte_limit=maxi(1,working_byte_limit-metadata_bytes)
+		metadata_bytes-=int(table.metadata_bytes);_reapply_budget()
 
 func _dispatch_ready(starter:Callable)->bool:
 	var dispatched:=false;var index:=0
@@ -159,7 +193,9 @@ func _dispatch_ready(starter:Callable)->bool:
 func _dispatch_pixels(starter:Callable)->bool:
 	var dispatched:=false;var index:=0
 	while index<queued_pixels.size() and ledger.active_workers()<ledger.worker_limit:
-		var model:Dictionary=queued_pixels[index];var offer:Dictionary=scope.pool.offer(model.plan.plan)
+		var model:Dictionary=queued_pixels[index];var cached:Dictionary={}
+		for key:String in model.get("resident_tickets",{}):cached[key]=model.resident_tickets[key].source_sha
+		var offer:Dictionary=scope.pool.offer(model.plan.plan,cached)
 		if not ledger.reserve_bundle(model.consumer,{"estimated_bytes":offer.scratch_bytes,"exclusive":false,"stage":"initial_pixels"},offer.retained):index+=1;continue
 		scope.pool.commit(model.consumer,offer);scope.consumers.append(model.consumer)
 		model.shared={"pool":scope.pool,"consumer":model.consumer,"leaders":offer.leaders,"cached":offer.cached}
@@ -181,7 +217,7 @@ func _launch(model:Dictionary,stage:String,call:Callable,key:String,starter:Call
 	else:item.reply=task.call();profile.synchronous_fallbacks+=1
 	pending.append(item);profile[("pixel" if stage=="pixels" else stage)+"_jobs"]+=1
 	profile.worker_slots_peak=maxi(int(profile.worker_slots_peak),ledger.active_workers())
-	peak_live_estimate_bytes=maxi(peak_live_estimate_bytes,int(profile.geometry_retained_bytes)+metadata_bytes+ledger.reserved_bytes)
+	peak_live_estimate_bytes=maxi(peak_live_estimate_bytes,int(profile.geometry_retained_bytes)+metadata_bytes+scope.resident_metadata_bytes+ledger.reserved_bytes)
 
 static func _invoke(call:Callable)->Dictionary:
 	var began:=Time.get_ticks_usec();var reply:Variant=call.call()
@@ -195,6 +231,16 @@ func _pixels(plan:Dictionary,shared:Dictionary)->Dictionary:
 func _bind(model:Dictionary)->Dictionary:
 	var packet:Dictionary={"error":ERR_SKIP}
 	if is_cancelled():return packet
+	# Borrowed reply dictionaries stay immutable and main-owned. Only the model's
+	# private packet acquires these exact owners; pooled outputs are never replaced.
+	var textures:Dictionary=model.pixels_result.get("uploaded_textures",{})
+	for key:String in model.get("resident_tickets",{}):
+		var ticket:Dictionary=model.resident_tickets[key];var row:Dictionary=model.plan.plan.rows[key]
+		var texture:Texture2D=ticket.texture
+		if textures.has(key) or texture.get_meta("runtime_source_sha256","")!=ticket.source_sha or model.pixels_result.get("sources",{}).get(row.path)!=ticket.source_sha or texture.get_meta("runtime_texture_representation","")!=row.representation:
+			packet.error=ERR_INVALID_DATA;packet.error_message="Resident native texture changed before initial binding";return packet
+		textures[key]=texture
+	model.pixels_result.uploaded_textures=textures
 	var state:=Binding.begin(model.result.get("packed"),model.plan["keys"],model.plan.table_sha)
 	if not state.ok or not Binding.adopt(state,model.pixels_result.get("uploaded_textures",{})):
 		packet.error=ERR_INVALID_DATA;packet.error_message=state.get("error","Native model texture binding failed");Binding.release(state);return packet
@@ -229,7 +275,7 @@ func _join_finished()->void:
 			ledger.release(job.key);model.result=reply;model.result.path=model.path
 			model.result.elapsed_us=int(reply.get("worker_elapsed_us",0));model.geometry="done"
 			profile.geometry_retained_bytes+=int(model.estimate.estimated_bytes)
-			peak_live_estimate_bytes=maxi(peak_live_estimate_bytes,int(profile.geometry_retained_bytes)+metadata_bytes+ledger.reserved_bytes)
+			peak_live_estimate_bytes=maxi(peak_live_estimate_bytes,int(profile.geometry_retained_bytes)+metadata_bytes+scope.resident_metadata_bytes+ledger.reserved_bytes)
 			if reply.get("error",ERR_INVALID_DATA)!=OK:model.failure=int(reply.get("error",ERR_INVALID_DATA));_stop()
 			else:_queue_binding(model)
 		elif stage=="pixels":
@@ -243,10 +289,16 @@ func _join_finished()->void:
 			scope.retained_packets.append(reply)
 			if reply.get("error",ERR_INVALID_DATA)!=OK:
 				model.failure=int(reply.get("error",ERR_INVALID_DATA));model.failure_message=str(reply.get("error_message","Native texture binding cancelled"));_stop()
-			elif not model.shared.is_empty() and not scope.pool.handoff_streamed(model.consumer,model.pixels_result.get("uploaded_textures",{})):
+			elif not model.shared.is_empty() and not _handoff_model(model):
 				model.failure=ERR_INVALID_DATA;model.failure_message="Native textures were not accepted by streaming residency";_stop()
 			if not model.has("failure"):scope.completed_owners.merge(model.pixels_result.get("uploaded_textures",{}),true)
 			ledger.release(job.key);model.binding="done";unfinished-=1;_release_table_consumer(model)
+
+func _handoff_model(model:Dictionary)->bool:
+	var keys:Array[String]=[]
+	for key:String in model.plan.plan.rows:
+		if not model.get("resident_tickets",{}).has(key):keys.append(key)
+	return keys.is_empty() or scope.pool.handoff_streamed(model.consumer,model.pixels_result.get("uploaded_textures",{}),keys)
 
 func _preflight_error(path:String,message:String,count_:int,started:int)->Dictionary:
 	models=[{"path":path,"result":{"path":path,"error":ERR_INVALID_DATA,"elapsed_us":0,"error_message":message}}]
@@ -272,11 +324,13 @@ func _result(count_:int,started:int)->Dictionary:
 		if entry.error==error and entry.has("error_message"):message=entry.error_message;break
 	# All metadata workers are joined. Drop scalar plans before returning the
 	# working allowance; renderer owners stay in main-owned entries/scope.
-	for model:Dictionary in models:model.plan={}
+	for model:Dictionary in models:model.plan={};model.resident_tickets={}
 	for table:Dictionary in tables.values():table.plan={};table.models=[]
-	metadata_bytes=0;ledger.byte_limit=working_byte_limit
+	if scope.resident_run!=null:scope.resident_run.close();profile.resident_bridge=scope.resident_run.snapshot()
+	waiting_residents.clear();retiring_residents.clear();metadata_bytes=0;_reapply_budget()
 	profile.elapsed_us=Time.get_ticks_usec()-started;profile.pool=scope.pool.snapshot();profile.ledger=ledger.snapshot()
 	profile.metadata_reserved_at_return=metadata_bytes
+	profile.resident_metadata_reserved_at_return=scope.resident_metadata_bytes
 	return {"error":error,"error_message":message,"cancelled":cancelled,"entries":entries,"retained_resources":entries.duplicate(),"native_texture_scope":scope,
 		"unique_count":count_,"worker_limit":ledger.worker_limit,"native_cache_hits":hits,"native_cache_misses":0,
 		"threads_started":profile.threads_started,"threads_joined":profile.threads_joined,"fallback_count":profile.synchronous_fallbacks,

@@ -24,6 +24,7 @@ var _record_meta := {}
 var _asset_states := {}
 var _model_preparation := preload("res://scripts/world3d/model_parse_preparation.gd").new()
 var _native_texture_scope:RefCounted
+var _native_resident_bridge:=preload("res://scripts/world3d/initial_native_resident_bridge.gd").new()
 var _source_hash_preparation := preload("res://scripts/world3d/model_source_hashes.gd").new()
 var _building := false
 var _prepared: Node
@@ -109,6 +110,7 @@ func start(path: String,origin:Variant=null) -> void:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.map_loader.start") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	_model_preparation.prepare_static_scenes=true
 	_model_preparation.require_native_products=true
+	_model_preparation.native_resident_bridge=_native_resident_bridge
 	if background_preload:_prefab_worker_count=1
 	preload("res://scripts/world3d/definition_cache_policy.gd").configure()
 	_path = path
@@ -166,6 +168,7 @@ func cancel() -> void:
 	_early_models.cancel()
 	_source_hash_preparation.cancel()
 	_model_preparation.cancel()
+	_native_resident_bridge.close()
 
 
 func _parse() -> void:
@@ -779,6 +782,7 @@ func _prepare_record_assets_inner()->void:
 		_model_preparation.eligibility_checker=previous.eligibility_checker
 		_model_preparation.prepare_static_scenes=previous.prepare_static_scenes
 		_model_preparation.require_native_products=previous.require_native_products
+		_model_preparation.native_resident_bridge=_native_resident_bridge
 	if _cancelled:_model_preparation.cancel()
 	if not hint.accepted:_model_preparation.static_scene_paths=manifests.duplicate()
 	var prepared:Dictionary=hint.result if hint.accepted else _model_preparation.run(paths,Callable(),_initial_model_workers(),Callable(),_content_root)
@@ -954,6 +958,7 @@ func _decode_textures(requested:Dictionary)->Dictionary:
 func _process(_delta: float) -> void:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.map_loader._process") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	preload("res://scripts/world3d/scene_preparation_pump.gd").pump(1000 if background_preload else preload("res://scripts/world3d/scene_preparation_pump.gd").loading_budget_usec,preload("res://scripts/world3d/model_parse_preparation.gd").initial_native_cpu_preparation_enabled)
+	_native_resident_bridge.pump(500 if background_preload else 1000)
 	_early_models.drain_discarded()
 	if not _cancelled and is_instance_valid(_early_deferred):_early_deferred.pump_entry_prefetch()
 	if _building or (_thread==null and _mesh_read_thread==null) or (_thread!=null and _thread.is_alive()):
@@ -1038,6 +1043,7 @@ func _exit_tree() -> void:
 	_texture_cancel_token.cancel()
 	_early_models.cancel()
 	_model_preparation.cancel()
+	_native_resident_bridge.close()
 	if is_instance_valid(_early_deferred):
 		_early_deferred.shutdown();_early_deferred.free();_early_deferred=null
 	if is_instance_valid(_draining_deferred):
@@ -1060,6 +1066,7 @@ func _exit_tree() -> void:
 	_asset_states.clear()
 	_private_assets.clear()
 	if _native_texture_scope!=null:_native_texture_scope.release_now();_native_texture_scope=null
+	_native_resident_bridge.release_now()
 	# Drop only this loader's unconsumed handoff images (e.g. height maps or
 	# materials already resident); never pin them for the rest of the session.
 	var images:Dictionary=preload("res://scripts/world3d/surface_materials.gd").prepared_images

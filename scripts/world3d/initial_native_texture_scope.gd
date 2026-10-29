@@ -9,6 +9,10 @@ var completed_owners:Dictionary={}
 var completed_success:=false
 var published:=false
 var released:=false
+var resident_bridge:RefCounted
+var resident_run:RefCounted
+var resident_metadata_bytes:=0
+var resident_budget_limit:=0
 
 func publish_ready()->int:
 	assert(Thread.is_main_thread())
@@ -32,5 +36,8 @@ func release_now()->void:
 			pool.release(consumer)
 			pool.admission.release(consumer) # A cancelled parked continuation still owns scratch.
 		for reservation:String in retained_reservations:pool.admission.release(reservation)
+		if resident_metadata_bytes>0:pool.admission.byte_limit=resident_budget_limit
 	retained_reservations.clear()
 	consumers.clear();pool=null
+	if resident_bridge!=null and resident_run!=null:resident_bridge.release_run(resident_run)
+	resident_run=null;resident_bridge=null;resident_metadata_bytes=0

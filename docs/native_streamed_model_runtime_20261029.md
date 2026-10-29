@@ -76,6 +76,47 @@ I/O 回调改为返回实际完成层。只有成功替换纹理才更新当前�
 
 另用默认已安装 **04d**，在最终源码和独立 71 项依赖副本上运行正常自动分阶段进场、失败恢复与连续取消：**35/35**，无 ERROR/泄漏、源码与依赖 SHA 不变。74 条已有 male GLTF stride 警告与旧基线逐项计数一致，没有新增警告。证据 `native_default_game_regression_01/result.json`。没有复测此前女性完整 flow 的超时，也没有把这组功能回归当成 axel_town 性能采样。
 
+## 旧 operation → 新 Initial 入站复用
+
+本切片以 `9eb7a9fa` 为旧源复现，补齐此前只覆盖 Initial → Deferred 的另一方向。旧 Initial 已完成绑定并发布缓存，随后释放其 scope；新 Initial 准备另一模型时，现在可以复用仍由旧缓存场景持有的同一原生纹理。完整交付清单为 B 的 `initial_native_inbound_reuse_handoff.json`；它包含逐文件 SHA、冻结工程、红绿结果及失败样本，不覆盖上一轮证据。
+
+`MapLoader` 在启动 parser 前安装主线程票据桥，并在 `_process` 的线程存活提前返回之前按预算推进。后台唯一纹理表准备完成后只提交本表所需 keys；主线程直接查已有 hot/weak 条目，确认原生格式、源身份、有效 RID/load path 与实际 streaming 登记，再交付同一 owner。没有遍历全材质目录、读回像素、额外读取或哈希文件，也没有新增全局池或线程。early hint 换 controller 时保留桥，但每次 run 的请求、回复和 scope 独立。
+
+已命中 keys 使用既有 `SharedPool.offer` 缓存路径，不创建新输出或重复预留完整纹理链；worker 把回复中的 owner 合并进该模型自己的绑定结果。只有本消费者实际新建的 native 输出进行预算移交，全命中仍完成真实材质绑定和 READY 登记。等待主线程回复不占 worker 槽，scheduler 将待回复/待退役视为可继续推进的外部工作。
+
+票据与索引 metadata 单独按保守额度扣除 working budget。压测发现，若一直保留到整批完成，前一张大表的回复会阻止后一张表准入；现在最后一个模型消费该表后，主线程分片退役回复，协调器收到退役确认再退还额度。1024-byte 工作额度下两张超大表可以依次完成，退出后精确恢复原额度。取消只关闭标量请求；回复 owner 留到线程与结果别名退休后由主线程释放。即使回复到达与 close 竞态，也不重新交给 worker、不提前销毁最后一个 GPU owner。
+
+|验证|旧源/失败样本|最终结果|
+|---|---|---|
+|入站 CPU 基础|`initial_inbound_cpu_red_02`：7 项中 2 FAIL，重复 producer 与 owner 身份不同，零诊断|`initial_inbound_cpu_final_05`：29/29，零诊断|
+|实际 GPU 全命中|`initial_inbound_gpu_red_01`：15 项中 4 FAIL，新池创建/加载各 2 次|`initial_inbound_gpu_green_02`：15/15，创建/加载均 0；对象与 RID 完全复用|
+|混合命中/缺失 CPU|同一模型一项命中、一项缺失|只产生 1 个输出、1 次 STEX load、1 次 handoff；受控夹具额度 128 bytes，两材质槽正确，最终 admission/pool 归零|
+|取消、换代与低预算 CPU|包括暂停主线程回复、关闭时迟到回复、两张超大表|等待期间 0 个 worker 槽；真实 `exit_tree` 无需另一次 main pump 即可完成 join；旧 scope 不影响新 generation；最终 owner、metadata 与账本释放|
+
+GPU 夹具执行了真实 native 文件/纹理表读取、共享池、绑定，以及 `MapLoader.start/_process/_exit_tree`；仅 parser 输入和最后文档构建由外部夹具替换。新 Initial 只查所需 2 个 keys、命中 2 项，保守完整链重复额度从 699,046 bytes 降为 0，不再次 handoff。回复 metadata 在结果返回时仍计 4,724 bytes，直至主线程 scope 清退。删除第一份缓存后，新场景仍有 **21,623 个非背景像素、RGBA 零字节差**；全部释放后引擎实际账本 **152,915 → 0**，观察 owner 全部死亡。
+
+本轮混合 case 的上述结论来自显式假 native 验证通道的 CPU 测试，没有将它冒充新的 GPU 混合实测；上一轮共享池混合 GPU 合同仍是独立证据。测试同时存在引擎 CPU 编译竞争，计时不作对照结论。本切片只证明调用量、身份、画面和生命周期，不据此宣称 axel_town 加载耗时、low、物理硬盘读取量或实际 RSS/VRAM 改善。最终同 SHA 的无桥路径回归另在 `initial_inbound_final_regressions_02` 完成：Initial 78/78、metadata 21/21、Initial → Deferred 16/16、prefetch 41/41，全部 exit 0、零诊断。初次 `_01` 漏带既有 `-- --without-mock-server` 隔离参数，每组产生 3 条缺默认地图包诊断；恢复原参数后重跑，没有修改生产、测试断言或诊断检测，也没有复制地图包。原始 12 条诊断保留，完整源码与配置 SHA 见该目录的 `results.json`、`source_sha.json`。
+
+以下生产文件 SHA 与最终 CPU/GPU 冻结副本全部一致；两个测试文件分别对应最终 CPU/GPU 样本。完整路径与比对布尔值在交付 JSON 中。
+
+|文件|SHA-256|
+|---|---|
+|`scripts/world3d/map_loader.gd`|`4f0f2329ead642d770bf2d9abdf9b74effb17a2b40d92cb4f95ee9e3430f1108`|
+|`scripts/world3d/model_parse_preparation.gd`|`a4f8acd1066cd42135d869bf9cd6886ad78ab6b22de51b5243a625afe4ebe31b`|
+|`scripts/world3d/initial_native_texture_jobs.gd`|`42c15899d532b17acea4cf7f71a52f0e3cad437ac3dfef87324e53075a90d45e`|
+|`scripts/world3d/initial_native_texture_scope.gd`|`9e2eea07498169f77aa2741b005ee1ca9e9f66ee84cb046eb8c691395baadac5`|
+|`scripts/world3d/native_texture_sharing.gd`|`ecadb4b8ed0706974538ec294c476de13bc9474d36389e0d6716570ee4943ef0`|
+|`scripts/world3d/initial_native_resident_bridge.gd`|`38f96251ee6bf9451ada529e80cca209bd8b6410445352682cdcf59fa3fc302a`|
+|`tools/test_initial_native_resident_bridge.gd`|`542920f95dd68646cae966e3ffecd27a981a7c0cbe437e4f4c4395ac826f7a7c`|
+|`tools/test_initial_native_resident_bridge_gpu.gd`|`3f2b8b554c40afc315727c493d03b625c8730d025dcb7764208904e0c3b2c486`|
+
+失败样本均保留在 B，并区分生产问题与夹具问题：
+
+- `initial_inbound_tight_red_01` 复现了生产票据 metadata 堵住第二张超大表；该样本还含下面已确认的测试 Node 释放错误，两者分别记录。
+- `initial_inbound_cpu_green_02` 的新增取消夹具直接 free 正在执行 `_parse` 的锁定 Node；修正为先 `remove_child` 触发真实 `exit_tree` join，再 free。没有把修改测试说成修复生产释放。
+- `initial_inbound_cpu_red_01`、`initial_inbound_cpu_final_02` 是夹具类型注解/推断导致的解析失败。`initial_inbound_gpu_green_01` 是桥排版时误将注释拆成代码，修正后重跑；这次失败没有可用 GPU 功能结论。
+- `initial_inbound_cpu_final_03` 深复制未加载的 CPU native stub 导致空路径读取，另含错误材质槽；`initial_inbound_cpu_final_04` 的混合 normal 槽未启用/字典 key 设置不完整。修正夹具后 `_05` 通过，生产源码没有为这些夹具错误作改动。
+
 ## 队列所有权证据与未解决边界
 
 `tools/test_simple_command_queue_ownership.py` 从真实引擎源码提取 SimpleCommandQueue，在单线程中用始终存活的控制块统计 copy/move/destruct。它不访问已释放 payload，不需要外部暂停线程。旧实现四类所有权检查均失败，合法 move_to 对照均通过：浅 memcpy 后按值 move 会重复 decrement；const-ref 的最终释放发生在队列锁内。
@@ -84,10 +125,16 @@ I/O 回调改为返回实际完成层。只有成功替换纹理才更新当前�
 
 源码审查另发现流式 I/O 使用裸回调 owner、纹理析构与排队 I/O 完成不同步的风险；尚无真实崩溃栈或完整生命周期复现，因此不写成已修。若未来在 I/O 命令中保持强 owner，必须先解决上述队列搬移和锁内析构，同时调整 shutdown 的反馈/I/O 排空顺序，避免用一个生命周期修复引入互锁。
 
+上述为 candidate05 交付时的边界。随后 `simple_command_queue_stable_06` 已实现稳定命令存储、锁外调用与销毁；独立夹具旧实现 5 项失败、新实现 16 项通过，覆盖增长、对齐、重入、并发生产与停止排空。微测包含新实现更慢的样本，每条命令增加一次分配/释放，不宣称吞吐提升。实际 Godot 原生测试也验证了 PackedByteArray 的 COW、Callable/Ref 所有权及析构重入。
+
+`native_queue_lifetime_06/baseline2/run_02` 使用官方 doctest 入口、真实反馈/I/O 线程、public configure/flush/remove 与 dummy RenderingServer。受控 RefCounted 回调只使用外部控制块，析构期间保持分配存活：34 项断言中仅“回调未结束就开始析构”失败，证明生命周期协议缺口，无需制造悬空读。修复在反馈线程取得 owner 引用并随 I/O 任务传递，实际 state free 返回反馈线程，停机先关闭新任务、排空 I/O，再关闭反馈。`fixed/run_01` 的 33 项断言全部通过、零诊断；红测多一项失败路径的 I/O fence 断言，因此断言数不同。测试二进制 SHA 为 `16c0229135cd0f54676d4c44257297dd2a72e4a43f0e1ba4f322d14da66338dc`。
+
+这仍不是 candidate06 的完整交付：进行中关闭、反馈线程最终析构、更广的 GPU 生命周期和普通运行版本尚在验证，默认安装仍为 candidate04d，正式资源未改。`baseline2/run_01` 与 `gdb_01` 是运行目录错误导致官方测试初始化失败后 ThemeDB 空指针的宿主样本，保留但不算流式问题的复现，也不与此前游戏路径崩溃混为一谈。
+
 ## 后续顺序
 
-1. 旧 operation → 新 Initial 的入站纹理复用仍需主线程按已知依赖 keys 提供票据，不能让 worker 直接查询 Paint 全局，也不能为了快照强持有全部无关纹理；等待票据不占生产 worker。最小设计及取消/early hint 边界见 B 的 `initial_native_inbound_reuse_next_slice.json`。原 `Prefab.texture_tickets` miss 会扫全部材质缓存，不能原样当作主线程桥的查询入口。
+1. 旧 operation → 新 Initial 的**已完成 owner 入站复用已完成**，结果见上节及 B 的 `initial_native_inbound_reuse_handoff.json`。并发 operation 中尚未完成的 producer 仍各有自己的池，尚无跨 operation 的全局在途 single-flight；不把本轮完成票据复用说成该问题也已解决。也不能因 `start` 时目录为空就整次跳桥，旧 operation 可能在 metadata 就绪前发布 owner。后续可考虑请求抵达主线程时，以两个目录当前均空作 O(1) 全 miss 回复，保留现有取消与 metadata 退役合同。
 2. 解决引擎排队 I/O 的真实 owner 生命周期及 shutdown，完成独立复现和回归后再安装候选引擎。
-3. 编辑器 LoadJob、PreparedModelOwnership、预览/放置和 TargetScenePrefetch 接入同一独立纹理准备与释放协议；当前 UI/HTTP MCP 还没有据此完成导入、保存重开验证。
+3. 编辑器 LoadJob、PreparedModelOwnership、预览/放置和 TargetScenePrefetch 接入同一独立纹理准备与释放协议；当前 UI/HTTP MCP 还没有据此完成导入、保存重开验证。下一生产集成顺序按 B 的 `editor_native_streaming_integration_readonly_01.json`：先用无 GLB、空场景/弱缓存复现冷打开、预览、缩略图和放置；再以编辑器既有共享账本接异步准备、世代取消和主线程所有权，区分只需几何的消费者；引擎生命周期就绪后做 GPU、UI 与真实 loopback HTTP MCP 的放置/撤销/保存冷重开。全部冷消费者通过后，才切换默认 split 导入并迁移既有内嵌 native。该报告是 `9eb7a9fa` 上的只读审查，未修改或验收编辑器，不应把游戏 Initial 的独立账本直接当作编辑器并发共用账本。
 4. 从入口大模型开始转换并按 `rmmo-model-review` 做受影响项验收，保持原像素默认策略。随后覆盖实际引用与角色原生产品。
 5. 正式接入后再测 axel_town 加载、卸载、返回加载及 low，继续使用地图加载开始到当前需求区域完整就绪的计时边界。
