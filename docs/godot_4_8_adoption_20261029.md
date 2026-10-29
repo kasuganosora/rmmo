@@ -399,3 +399,42 @@ GLB 仅用于上述显式导入测试，未恢复游戏 GLB 回退。构建 02 �
 额外尾段并非已证明由合批重扫导致：候选的早期 prefetch 从控制组 4.217s 推迟到 12.549s；30.3–33.3s 时仍有 4→3 个 native worker，合批 pending_groups=0，visits 固定。最终晚到结果之后 sync 2→5、visits 6396→17741，最终 sources/surfaces/groups 相同。新增重扫主要是晚到的后果；plain 聚合尚不能拆开迟到 worker 内部的 SCN 读取、解压和 GPU 等待。详见 `initial_native_cpu_review.md` 和 `initial_native_tail_analysis.json`。
 
 默认迁移补验：`road_caps_48_01` 使用安装后的 4.8 完成 29+46+55 项道路 CPU、真实编辑器 UI/HTTP MCP、撤销、保存重开、游戏碰撞和实际合批检查，全部通过、零错误/警告、SHA 稳定。`primary_headless_import_01` 对主工作区当前磁盘源（含未提交文件）的隔离副本完成 editor import，退出 0、零错误/警告；6,488 文件 / 32,208,111 bytes 的来源与排除范围已保存。它证明 4.8 语法/导入兼容，不证明主工作区当时的旧导入链已具备本分支的新能力。
+
+
+## 2026-10-29：合入主工作区及兼容性收束
+
+本轮按用户要求将 `codex/latest-map-runtime-review` 合入 `D:/code/rmmo` 的 `main`。代码集成提交为 `bec11ac4`，同时包含远端 `c333a646` / `b9f5a1e0` 的分阶段进场、地形 LOD、风场与受保护植被合批更新。后续开发使用主工作区；默认仍为已安装的 4.8 candidate03，未安装实验 candidate04b。
+
+四处代码冲突保留两侧有效行为：
+
+- World3D 的自动分阶段协议使用共享完成/解锁链，保留帧呈现证明、失败回收和预测逻辑。
+- 地形先生成 LOD 再打包 CPU 上传数据，避免上传快照丢失 LOD；保留准备数据、材质 schema 与现有合批粒度。
+- 风场排除在描述复用前生效，保留受保护的 cutout 策略。
+- 河岸 shader 同时保留流式纹理、BC5/XY 法线解码及远距离细节衰减。
+
+主目录原有 36 项 tracked 修改先保存独立字节快照及 Git stash。34 项自动三方恢复结果逐字（仅归一换行）核对一致；2 项手工冲突保留 MCP 两侧文档，以及新 `part_data` 架构内的用户接光分区和彩窗排除合批语义。已被本分支涵盖的改动无需重复形成工作区 diff；其余用户改动继续保持未提交、未暂存。3,383 个不重叠的 untracked 文件逐个 SHA 不变；唯一重叠文件是此前复制的本交接文档，原件保存在外部恢复目录。
+
+证据根目录为 `D:/code/rmmo_runtime/review_artifacts/godot_4_8_adoption_20261029_01/`：
+
+| 验证 | 结果 | 证据目录 |
+| --- | --- | --- |
+| 入口生命周期 / cover / 元数据策略 | 11 / 13 / 22 项通过，无错误警告 | `merge_runtime_cpu_02` |
+| 地形、边界、LOD、协议合同 | 85 项通过，无错误警告 | `merge_runtime_cpu_04` |
+| 实际 HTTP cutout 与风场保护 | 36 项通过，无错误警告 | `merge_runtime_gpu_03` |
+| GPU 地形与 LOD | 26 项通过，无错误警告 | `merge_runtime_gpu_03` |
+| 自动分阶段进场、失败恢复与连续取消 | 两次各 35 项通过；首轮有 1 个 ObjectDB 警告，verbose 复测未出现，不能称已修复 | `merge_automatic_deps_gpu_01` / `merge_automatic_deps_gpu_verbose_01` |
+| 主工作区（含用户 WIP）隔离导入 | exit 0，零错误；1 条独立 profiler 测试工程被忽略的结构警告 | `primary_headless_import_merge_wip_01` |
+| 主工作区 2,007 节点包路径合同 | 29 项通过，无错误警告 | 同上 |
+| 接光分区、彩窗、增量处理等价 | 32 项通过，1us 预算跨 389 次推进，与一次性处理等价 | 同上 |
+| 完整女性角色游戏进场 | **未通过**：30s 内未从 Loading 交接，最终 runner 330s 终止；2 PASS / 1 FAIL，无资源缺失错误 | `merge_flow_deps_gpu_02` |
+
+这些是功能兼容验证，期间存在独立编译/逻辑工作，不作加载性能、p95 或 1% low 结论。缺少基线脚本、角色/门/gradients 的早期私有夹具失败全部保留；headless 的 `rendered_frame_unavailable` 也不被改写为渲染通过。旧地形测试仍断言 cutout 默认关闭，与远端已验收的 guarded rollout 冲突，本轮改为验证实际默认与显式关闭两条行为。
+
+未解决项不因合并而消失：
+
+- 完整角色进场 GPU 样本超时，需要继续定位；不能仅凭材质 cache miss 或 GLTF 警告归因。完整日志另有不带 `ERROR:` 前缀的 image-format 诊断：uniform 期望 `R16G16B16A16_Sfloat`，实际为 `R16G16_Sfloat`。该诊断在 automatic 成功样本中也存在，因此仍需独立复现，不能直接认作 flow 超时原因，也不能将功能断言通过写成渲染零诊断。
+- `character_imported_rig.gd` 的既有角色路径仍直接读取 GLB；后续“导入后只用原生资源”改造必须覆盖角色，不能只统计地图模型。
+- 入口 native SCN 内约 563MB 图像 mip 数据的几何/纹理拆分尚未实施；独立模型纹理表需要接入现有共享去重与统一预算。
+- candidate04b 的 CPU 移交实验仍未接生产。179 条断言通过不等于零泄漏；既有 ResourceLoader token/资源图寿命问题另有最小红测，恢复入口为 `native_cpu_capture_04/lifetime_resume.md`。
+
+恢复资料位于 `primary_merge_20261029_01/`，包含 stash ID、原 tracked 字节和 patch、untracked SHA、两处冲突的精确恢复 diff。主分支合入范围没有新增 GLB、Blend、SCN、DDS、STEX 等模型/纹理产品，资源和测试产物继续留在外部运行目录。
