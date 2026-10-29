@@ -1,0 +1,193 @@
+{
+  "asset": {
+    "import": {
+      "asset_path": "D:/code/rmmo_runtime/review_artifacts/staged_far_20261017/cutout_13513275/assets/6a21bc309fad0b92150cc93a3a6624e60d59dfc99dd9227beb55365f78cdacf0.glb",
+      "bounds_position": [
+        -0.608574450016022,
+        0.0,
+        -0.633422315120697
+      ],
+      "bounds_size": [
+        1.29449844360352,
+        1.17499995231628,
+        1.287353515625
+      ],
+      "category": "导入模型",
+      "label": "cutout",
+      "thumbnail_path": "D:/code/rmmo_runtime/review_artifacts/staged_far_20261017/cutout_13513275/assets/thumbnails/6a21bc309fad0b92150cc93a3a6624e60d59dfc99dd9227beb55365f78cdacf0.png"
+    },
+    "map_sha256": "758e4e0a12eb329c1966c6c871c5dade12e0a2dddc5e2040f76664ab0900aec8",
+    "source": "D:/code/rmmo_runtime/review_artifacts/staged_far_20261017/cutout_13513275/cutout.glb",
+    "source_sha256": "6a21bc309fad0b92150cc93a3a6624e60d59dfc99dd9227beb55365f78cdacf0"
+  },
+  "checks": [
+    {
+      "label": "cutout/random-scatter candidate stays off until end-to-end benefit is proven",
+      "ok": true
+    },
+    {
+      "label": "export self-contained alpha-cutout contract fixture outside project",
+      "ok": true
+    },
+    {
+      "label": "actual library import creates checked immutable native product",
+      "ok": true
+    },
+    {
+      "label": "actual imported final bytes compile into a closed native product",
+      "ok": true
+    },
+    {
+      "label": "save isolated native scatter map",
+      "ok": true
+    },
+    {
+      "label": "isolated loopback current 3D MCP starts",
+      "ok": true
+    },
+    {
+      "label": "discover current scatter tools with retired 2D adapter absent",
+      "ok": true
+    },
+    {
+      "label": "HTTP preview_vegetation_scatter succeeds",
+      "ok": true
+    },
+    {
+      "label": "HTTP generate_vegetation_scatter rejects invalid operation",
+      "ok": true
+    },
+    {
+      "label": "invalid generation keeps records and undo history unchanged",
+      "ok": true
+    },
+    {
+      "label": "HTTP generate_vegetation_scatter succeeds",
+      "ok": true
+    },
+    {
+      "label": "ordinary random scatter opts eligible static sources into shared render path",
+      "ok": true
+    },
+    {
+      "label": "HTTP undo succeeds",
+      "ok": true
+    },
+    {
+      "label": "scatter undo restores exact previous document",
+      "ok": true
+    },
+    {
+      "label": "HTTP redo succeeds",
+      "ok": true
+    },
+    {
+      "label": "redo restores every independent UUID and transform",
+      "ok": true
+    },
+    {
+      "label": "UI regeneration shares the same single transaction and automatic optimization",
+      "ok": true
+    },
+    {
+      "label": "HTTP save_world succeeds",
+      "ok": true
+    },
+    {
+      "label": "HTTP open_world succeeds",
+      "ok": true
+    },
+    {
+      "label": "save/reopen retains source identities and derived rendering eligibility",
+      "ok": true
+    },
+    {
+      "label": "candidate uses one bounded MultiMesh without increasing actual draws: near",
+      "ok": true
+    },
+    {
+      "label": "leaf alpha edges and shadows preserve image within output quantization: near",
+      "ok": true
+    },
+    {
+      "label": "candidate uses one bounded MultiMesh without increasing actual draws: detail",
+      "ok": true
+    },
+    {
+      "label": "leaf alpha edges and shadows preserve image within output quantization: detail",
+      "ok": true
+    },
+    {
+      "label": "candidate uses one bounded MultiMesh without increasing actual draws: mid",
+      "ok": true
+    },
+    {
+      "label": "leaf alpha edges and shadows preserve image within output quantization: mid",
+      "ok": true
+    },
+    {
+      "label": "candidate uses one bounded MultiMesh without increasing actual draws: far",
+      "ok": true
+    },
+    {
+      "label": "leaf alpha edges and shadows preserve image within output quantization: far",
+      "ok": true
+    },
+    {
+      "label": "batch source geometry and persisted author data stay byte exact",
+      "ok": true
+    },
+    {
+      "label": "authored wind metadata remains independently rendered even without a record override",
+      "ok": true
+    },
+    {
+      "label": "flattening cannot strip authored wind receiver hierarchy",
+      "ok": true
+    }
+  ],
+  "failures": 0,
+  "media": "D:/code/rmmo_runtime/review_artifacts/staged_far_20261017/cutout_13513275",
+  "rollout": {
+    "default_enabled": false,
+    "reason": "Godot already instances these sources; coarse MultiMesh culling submits more triangles near the camera, so no universal speedup is established"
+  },
+  "views": [
+    {
+      "baseline_calls": 2,
+      "baseline_primitives": 1548,
+      "candidate_calls": 2,
+      "candidate_primitives": 1548,
+      "changed_channels": 0,
+      "max_difference": 0,
+      "name": "near"
+    },
+    {
+      "baseline_calls": 2,
+      "baseline_primitives": 684,
+      "candidate_calls": 2,
+      "candidate_primitives": 1548,
+      "changed_channels": 0,
+      "max_difference": 0,
+      "name": "detail"
+    },
+    {
+      "baseline_calls": 3,
+      "baseline_primitives": 1548,
+      "candidate_calls": 2,
+      "candidate_primitives": 1548,
+      "changed_channels": 0,
+      "max_difference": 0,
+      "name": "mid"
+    },
+    {
+      "baseline_calls": 2,
+      "baseline_primitives": 1548,
+      "candidate_calls": 2,
+      "candidate_primitives": 1548,
+      "changed_channels": 0,
+      "max_difference": 0,
+      "name": "far"
+    }
+  ]
+}

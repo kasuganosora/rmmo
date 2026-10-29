@@ -1,0 +1,144 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+Vulkan 1.4.329 - Forward+ - Using Device #0: AMD - AMD Radeon RX 7900 XTX
+
+[godot_ai game_helper] registered mcp capture (debugger active=false, logger=true)
+CPU_RIVER_NULL_TYPES {"array_equal":false,"leaf_diff":[{"actual":"<null>","actual_type":"Nil","expected":"<Object#null>","expected_type":"Object","path":"native_null/0"}],"material_variable":"Nil","native_instance_from_id":"Object","native_material_getter":"Object","plain":"Nil","scalar_equal":true,"typed_array_resize":"Nil"}
+PASS measured native OBJECT-null differs from GDScript typed variable/array NIL
+PASS native null explains scalar equality versus strict container inequality
+PASS leaf comparator rejects changed array type even with equal values
+PASS leaf comparator rejects changed dictionary key/value types
+PASS leaf comparator traverses independent deep containers exactly
+PASS leaf comparator rejects tiny numeric changes without approximation
+PASS leaf comparator rejects key and container shape changes
+PASS author terrain bounds enclose every actual vertex
+PASS fixture has valid plain cooked CPU geometry
+PASS saturation: probe false preserves temporary GPU path
+PASS saturation: legacy eligible CPU-to-GPU restoration counted
+PASS saturation: cooked directory mesh never uploaded
+PASS saturation: CPU-only path counted without another temporary restoration
+PASS saturation: deferred per-slot materials recorded
+PASS saturation: author paint/collision source retained
+PASS saturation: spec conversion keeps original CPU mesh without upload
+PASS saturation: exact geometry, collision, transform, metadata, shadow and all shader parameters
+PASS saturation: exact collision triangles
+PASS saturation: CPU-only spec survives disposable node release
+PASS spawned render AABB encloses all actual vertices
+PASS CPU directory and spawned GPU mesh have identical tight culling bounds
+PASS runtime XZ chunk coverage matches actual spawned bounds
+PASS CPU directory metadata is absent from real spawned visual
+PASS spawn installs exact slot override 0
+PASS spawn installs exact slot override 1
+PASS spawned render AABB encloses all actual vertices
+PASS CPU directory and spawned GPU mesh have identical tight culling bounds
+PASS runtime XZ chunk coverage matches actual spawned bounds
+PASS CPU directory metadata is absent from real spawned visual
+PASS spawn installs exact slot override 0
+PASS spawn installs exact slot override 1
+PASS saturation: rendered GPU image parity { "mean": 0.0, "max": 0.0 }
+PASS saturation: editable preview keeps real GPU overrides
+PASS saturation: editor material result is identical
+PASS saturation: authored record unchanged
+PASS author terrain bounds enclose every actual vertex
+PASS fixture has valid plain cooked CPU geometry
+PASS depth: probe false preserves temporary GPU path
+PASS depth: legacy eligible CPU-to-GPU restoration counted
+PASS depth: cooked directory mesh never uploaded
+PASS depth: CPU-only path counted without another temporary restoration
+PASS depth: deferred per-slot materials recorded
+PASS depth: author paint/collision source retained
+PASS depth: spec conversion keeps original CPU mesh without upload
+PASS depth: exact geometry, collision, transform, metadata, shadow and all shader parameters
+PASS depth: exact collision triangles
+PASS depth: CPU-only spec survives disposable node release
+PASS spawned render AABB encloses all actual vertices
+PASS CPU directory and spawned GPU mesh have identical tight culling bounds
+PASS runtime XZ chunk coverage matches actual spawned bounds
+PASS CPU directory metadata is absent from real spawned visual
+PASS spawn installs exact slot override 0
+PASS spawn installs exact slot override 1
+PASS spawned render AABB encloses all actual vertices
+PASS CPU directory and spawned GPU mesh have identical tight culling bounds
+PASS runtime XZ chunk coverage matches actual spawned bounds
+PASS CPU directory metadata is absent from real spawned visual
+PASS spawn installs exact slot override 0
+PASS spawn installs exact slot override 1
+PASS depth: rendered GPU image parity { "mean": 0.0, "max": 0.0 }
+PASS depth: editable preview keeps real GPU overrides
+PASS depth: editor material result is identical
+PASS depth: authored record unchanged
+PASS author terrain bounds enclose every actual vertex
+PASS hole/furrow source padding is conservative rather than added render geometry
+PASS fixture has valid plain cooked CPU geometry
+PASS slope_regions: probe false preserves temporary GPU path
+PASS slope_regions: legacy eligible CPU-to-GPU restoration counted
+PASS slope_regions: cooked directory mesh never uploaded
+PASS slope_regions: CPU-only path counted without another temporary restoration
+PASS slope_regions: deferred per-slot materials recorded
+PASS slope_regions: author paint/collision source retained
+PASS slope_regions: spec conversion keeps original CPU mesh without upload
+PASS slope_regions: exact geometry, collision, transform, metadata, shadow and all shader parameters
+PASS slope_regions: exact collision triangles
+PASS slope_regions: CPU-only spec survives disposable node release
+PASS spawned render AABB encloses all actual vertices
+PASS CPU directory and spawned GPU mesh have identical tight culling bounds
+PASS runtime XZ chunk coverage matches actual spawned bounds
+PASS CPU directory metadata is absent from real spawned visual
+PASS spawn installs exact slot override 0
+PASS spawn installs exact slot override 1
+PASS spawn installs exact slot override 2
+PASS spawned render AABB encloses all actual vertices
+PASS CPU directory and spawned GPU mesh have identical tight culling bounds
+PASS runtime XZ chunk coverage matches actual spawned bounds
+PASS CPU directory metadata is absent from real spawned visual
+PASS spawn installs exact slot override 0
+PASS spawn installs exact slot override 1
+PASS spawn installs exact slot override 2
+PASS slope_regions: rendered GPU image parity { "mean": 0.0, "max": 0.0 }
+PASS slope_regions: editable preview keeps real GPU overrides
+PASS slope_regions: editor material result is identical
+PASS slope_regions: authored record unchanged
+PASS water source passes actual document validation
+PASS immutable water defers GPU upload until actual spawn
+PASS water never joins opaque ground batching
+PASS water CPU normals switch selects measured path
+PASS water still casts no slab shadow
+PASS water upper face remains visible and slab edges remain hidden
+PASS spawned render AABB encloses all actual vertices
+PASS CPU directory and spawned GPU mesh have identical tight culling bounds
+PASS runtime XZ chunk coverage matches actual spawned bounds
+PASS CPU directory metadata is absent from real spawned visual
+PASS spawn installs exact slot override 0
+PASS spawn installs exact slot override 1
+PASS spawn installs exact slot override 2
+PASS immutable water defers GPU upload until actual spawn
+PASS water never joins opaque ground batching
+PASS water CPU normals switch selects measured path
+PASS water still casts no slab shadow
+PASS water upper face remains visible and slab edges remain hidden
+PASS off-screen water spec owns no temporary GPU mesh
+PASS water CPU normals preserve exact mesh, collision, transforms and materials
+PASS spawned render AABB encloses all actual vertices
+PASS CPU directory and spawned GPU mesh have identical tight culling bounds
+PASS runtime XZ chunk coverage matches actual spawned bounds
+PASS CPU directory metadata is absent from real spawned visual
+PASS spawn installs exact slot override 0
+PASS spawn installs exact slot override 1
+PASS spawn installs exact slot override 2
+PASS water GPU image parity { "mean": 0.0, "max": 0.0 }
+PASS water editor preview retains native material slots
+PASS editable water matches runtime geometry and materials
+PASS edited mesh invalidates cached water normals
+PASS uncached edited surface uses current GPU normals and stays hidden
+PASS author terrain bounds enclose every actual vertex
+PASS fixture has valid plain cooked CPU geometry
+PASS terrain without river effects keeps ordinary CPU path
+PASS author terrain bounds enclose every actual vertex
+PASS fixture has valid plain cooked CPU geometry
+PASS native empty slots never copy a nonempty global material override
+PASS author terrain bounds enclose every actual vertex
+PASS fixture has valid plain cooked CPU geometry
+PASS editable invalid river parameters still fail validation
+PASS wet canal bank excluded from CPU-only override path
+PASS wet bank retains existing GPU material path
+PASS water retained on existing non-batch path
+CPU_RIVER_MATERIALS_GPU passed=138 failures=0

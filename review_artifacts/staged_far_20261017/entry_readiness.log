@@ -1,0 +1,130 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+
+[godot_ai game_helper] registered mcp capture (debugger active=false, logger=true)
+PASS start outdoor transaction
+PASS contract uses current EntryPlan at reported problem point
+PASS plan read cannot mutate transaction
+PASS cannot synchronize unknown geometry
+PASS optional capability cannot pretend to be a critical stage
+PASS verified local stage metadata
+PASS verified local stage geometry
+PASS verified local stage physics
+PASS verified local stage render
+PASS verified local stage base_gameplay
+PASS prepared geometry and gameplay do not imply first-frame readiness
+PASS authority cannot bypass missing first frame
+PASS first frame prepares but does not authorize gameplay
+PASS navigation failure is capability-local
+PASS wind failure is capability-local
+PASS outdoor activation does not wait for navigation or wind
+PASS entry deadline does not relock an already active world
+PASS late wind completion keeps active state
+PASS duplicate valid activation is idempotent
+PASS diagnostic report is detached from state
+PASS start indoor transaction
+PASS verified local stage metadata
+PASS verified local stage geometry
+PASS verified local stage physics
+PASS verified local stage render
+PASS verified local stage base_gameplay
+PASS terrain and local collision cannot release indoor player
+PASS building requires structure_ready
+PASS building requires render_ready
+PASS building requires physics_synchronized
+PASS building requires interactions_bound
+PASS reject stale building instance_id
+PASS reject stale building structure_revision
+PASS reject stale building pose_revision
+PASS old door snapshot cannot satisfy authority watermark
+PASS complete exact building can become ready
+PASS indoor first frame follows complete building
+PASS state gap requires resynchronization, not silent sequence skipping
+PASS unapplied door collision cannot advance state watermark
+PASS door increment applies without rebuilding structure
+PASS door increment retains complete-building evidence
+PASS new door state must be drawn before entry activation
+PASS new first frame observes applied door increment
+PASS authority cut cannot exceed applied dynamic state
+PASS exact indoor revision, state and epoch permit entry
+PASS door change after entry does not reopen whole-building loading
+PASS duplicate door event is idempotent
+PASS late door event cannot overwrite newer state
+PASS building movement is not a door-state update
+PASS owner can revoke stale structural or pose evidence
+PASS start unresolved transaction
+PASS verified local stage metadata
+PASS verified local stage geometry
+PASS verified local stage physics
+PASS verified local stage render
+PASS verified local stage base_gameplay
+PASS unresolved ownership never defaults to outdoor
+PASS authority can resolve unknown membership to indoor
+PASS membership owns immutable snapshot copy
+PASS confirmed indoor membership cannot silently become outdoor
+PASS reject completion from another session_id
+PASS reject completion from another world_id
+PASS reject completion from another map_ref
+PASS reject completion from another map_revision
+PASS reject completion from another epoch
+PASS reject completion from another attempt_id
+PASS stale receipts cannot unlock or damage pending current building
+PASS start indoor transaction
+PASS retry at same epoch still rejects prior attempt receipt
+PASS start unresolved transaction
+PASS explicit outdoor ownership is valid
+PASS repeated ownership snapshot does not restart deadline
+PASS start outdoor transaction
+PASS enter fail terminal state
+PASS late success cannot resurrect fail
+PASS terminal object cannot be reused under old token
+PASS start outdoor transaction
+PASS enter cancel terminal state
+PASS late success cannot resurrect cancel
+PASS terminal object cannot be reused under old token
+PASS start outdoor transaction
+PASS enter obsolete terminal state
+PASS late success cannot resurrect obsolete
+PASS terminal object cannot be reused under old token
+PASS start indoor transaction
+PASS building can finish within bounded deadline
+PASS dynamic updates do not extend entry deadline
+PASS pending entry reaches explicit timeout failure
+PASS completion after timeout cannot revive entry
+PASS clock rollback cannot postpone monotonic deadline
+PASS invalid snapshot fails without state change: session_id
+PASS invalid snapshot fails without state change: world_id
+PASS invalid snapshot fails without state change: map_ref
+PASS invalid snapshot fails without state change: map_revision
+PASS invalid snapshot fails without state change: epoch
+PASS invalid snapshot fails without state change: position_m
+PASS invalid snapshot fails without state change: membership
+PASS indoor snapshot requires placement revision
+PASS nonfinite position cannot enter readiness contract
+PASS protocol epoch must be integer
+PASS entry timeout must be bounded positive value
+PASS invalid metadata never yields playable
+PASS start outdoor transaction
+PASS missing metadata cannot activate
+PASS start outdoor transaction
+PASS missing geometry cannot activate
+PASS start outdoor transaction
+PASS missing physics cannot activate
+PASS start outdoor transaction
+PASS missing render cannot activate
+PASS start outdoor transaction
+PASS missing base_gameplay cannot activate
+PASS start outdoor transaction
+PASS missing first_frame cannot activate
+PASS legacy observer cannot invent authoritative building membership
+PASS same publishing frame is not physics synchronization evidence
+PASS actual later physics tick is recorded once
+PASS headless process tick does not claim a rendered world frame
+PASS real rendered frame remains distinct from missing authority evidence
+PASS shadow explains why new entry contract is still incomplete
+PASS shader warmup is not misreported as wind receiver activation
+PASS old full-gate handoff does not authorize proposed early-entry policy
+PASS entry observation freezes at old handoff without later timeout or exit contamination
+PASS frozen profile cannot be mutated through report
+PASS real entry failure has an explicit shadow terminal result
+PASS entry teardown before handoff records cancellation
+ENTRY_READINESS 126 checks / 0 failures

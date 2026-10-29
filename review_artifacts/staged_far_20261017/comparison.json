@@ -1,0 +1,264 @@
+{
+  "entry": [
+    {
+      "label": "a0",
+      "control": true,
+      "entry_ms": 6546.681,
+      "world_ready_ms": 1385.8149999999987,
+      "map_sha256": "c108deff8fcb6b661ce200dab65c2c4a06375f379ca7edc3e99be3fca0991640",
+      "report": {
+        "path": "review_artifacts/staged_far_20261017/entry_a0.json",
+        "sha256": "81a04198c3f7183efb55e7a90b17e314c54b61983bb04a0842b2a5d65070e93e"
+      },
+      "log": {
+        "log": {
+          "path": "review_artifacts/staged_far_20261017/entry_a0.log",
+          "sha256": "10d5a2550ac62c80ecdb53b2db209925e956d3a4cc8162a8f8058828385e1635"
+        },
+        "printed_pass_checks": 3,
+        "failures": 0,
+        "warnings": {
+          "WARNING: 1 ObjectDB instance was leaked at exit (run with `--verbose` for details).": 1
+        }
+      }
+    },
+    {
+      "label": "a1",
+      "control": true,
+      "entry_ms": 6298.165,
+      "world_ready_ms": 1264.9910000000018,
+      "map_sha256": "c108deff8fcb6b661ce200dab65c2c4a06375f379ca7edc3e99be3fca0991640",
+      "report": {
+        "path": "review_artifacts/staged_far_20261017/entry_a1.json",
+        "sha256": "ae6fd6c923c1f1e82248c7ed6c2eb0c32f759c7bb9e15ee8c9a78dec314240fd"
+      },
+      "log": {
+        "log": {
+          "path": "review_artifacts/staged_far_20261017/entry_a1.log",
+          "sha256": "5a2dc71e68e0b5a23ef0746e4de6d41dad53585b1eca1da84d144ba58e06e5b7"
+        },
+        "printed_pass_checks": 3,
+        "failures": 0,
+        "warnings": {
+          "WARNING: 1 ObjectDB instance was leaked at exit (run with `--verbose` for details).": 1
+        }
+      }
+    },
+    {
+      "label": "b0",
+      "control": false,
+      "entry_ms": 5057.223,
+      "world_ready_ms": 1202.1440000000002,
+      "map_sha256": "c108deff8fcb6b661ce200dab65c2c4a06375f379ca7edc3e99be3fca0991640",
+      "report": {
+        "path": "review_artifacts/staged_far_20261017/entry_b0.json",
+        "sha256": "20e043ce02fd4292d42fa0cce8955d7eec9e65862dc10a3ee19ad1c0ad7aa694"
+      },
+      "log": {
+        "log": {
+          "path": "review_artifacts/staged_far_20261017/entry_b0.log",
+          "sha256": "7db8b5018cc0f01c1be8f656f7594d83aaec633e733c89871e1dd485c332c4cf"
+        },
+        "printed_pass_checks": 3,
+        "failures": 0,
+        "warnings": {
+          "WARNING: 1 ObjectDB instance was leaked at exit (run with `--verbose` for details).": 1
+        }
+      }
+    },
+    {
+      "label": "a2",
+      "control": true,
+      "entry_ms": 4921.784,
+      "world_ready_ms": 1131.3070000000007,
+      "map_sha256": "c108deff8fcb6b661ce200dab65c2c4a06375f379ca7edc3e99be3fca0991640",
+      "report": {
+        "path": "review_artifacts/staged_far_20261017/entry_a2.json",
+        "sha256": "eb52b911741517a1be7882e880c0dd7b207ab2164b13aa04905f78c7162a781d"
+      },
+      "log": {
+        "log": {
+          "path": "review_artifacts/staged_far_20261017/entry_a2.log",
+          "sha256": "e2e70aa55ba09d0b7491492eed6a20b22ac070b46f849a45539e804b1ba308c6"
+        },
+        "printed_pass_checks": 3,
+        "failures": 0,
+        "warnings": {
+          "WARNING: 1 ObjectDB instance was leaked at exit (run with `--verbose` for details).": 1
+        }
+      }
+    },
+    {
+      "label": "b1",
+      "control": false,
+      "entry_ms": 4968.933,
+      "world_ready_ms": 1199.3549999999996,
+      "map_sha256": "c108deff8fcb6b661ce200dab65c2c4a06375f379ca7edc3e99be3fca0991640",
+      "report": {
+        "path": "review_artifacts/staged_far_20261017/entry_b1.json",
+        "sha256": "a5df3a2ca5e420c5e37fa10d4e34a79030a7d5812058155b9ae3d5833c0fb2a3"
+      },
+      "log": {
+        "log": {
+          "path": "review_artifacts/staged_far_20261017/entry_b1.log",
+          "sha256": "94857ed010c0522bfa51917095767342d92be65975a0d267464e06f2fb317e11"
+        },
+        "printed_pass_checks": 3,
+        "failures": 0,
+        "warnings": {
+          "WARNING: 1 ObjectDB instance was leaked at exit (run with `--verbose` for details).": 1
+        }
+      }
+    },
+    {
+      "label": "b2",
+      "control": false,
+      "entry_ms": 5089.945,
+      "world_ready_ms": 1169.1870000000017,
+      "map_sha256": "c108deff8fcb6b661ce200dab65c2c4a06375f379ca7edc3e99be3fca0991640",
+      "report": {
+        "path": "review_artifacts/staged_far_20261017/entry_b2.json",
+        "sha256": "7990a5c6ddf67f4929d0df2eafc6d0100111c8a099a01463bd9e5556461011f1"
+      },
+      "log": {
+        "log": {
+          "path": "review_artifacts/staged_far_20261017/entry_b2.log",
+          "sha256": "1aad7cfb478b19681899a13c9ccf38835fabc50ac1b0911e27aa45f654238c99"
+        },
+        "printed_pass_checks": 3,
+        "failures": 0,
+        "warnings": {
+          "WARNING: 1 ObjectDB instance was leaked at exit (run with `--verbose` for details).": 1
+        }
+      }
+    },
+    {
+      "label": "a3",
+      "control": true,
+      "entry_ms": 5194.251,
+      "world_ready_ms": 1178.1080000000002,
+      "map_sha256": "c108deff8fcb6b661ce200dab65c2c4a06375f379ca7edc3e99be3fca0991640",
+      "report": {
+        "path": "review_artifacts/staged_far_20261017/entry_a3.json",
+        "sha256": "bba30221ba8e5eac9c92545bb00472af32504589abe6539326e51f6df4240942"
+      },
+      "log": {
+        "log": {
+          "path": "review_artifacts/staged_far_20261017/entry_a3.log",
+          "sha256": "1280ef5a6639796ab14002a82ac1f9015c7cf94ac49fbe76dfdd68767b160adb"
+        },
+        "printed_pass_checks": 3,
+        "failures": 0,
+        "warnings": {
+          "WARNING: 1 ObjectDB instance was leaked at exit (run with `--verbose` for details).": 1
+        }
+      }
+    },
+    {
+      "label": "b3",
+      "control": false,
+      "entry_ms": 4980.831,
+      "world_ready_ms": 1146.2150000000001,
+      "map_sha256": "c108deff8fcb6b661ce200dab65c2c4a06375f379ca7edc3e99be3fca0991640",
+      "report": {
+        "path": "review_artifacts/staged_far_20261017/entry_b3.json",
+        "sha256": "b99f9ead2948419f60ee48591c6f7706632d1a9c2c34420130d89c6e72eb2a93"
+      },
+      "log": {
+        "log": {
+          "path": "review_artifacts/staged_far_20261017/entry_b3.log",
+          "sha256": "00ddb09d817cedc91249c82b2895edb00725db703b03bb924cf37564e76a34f2"
+        },
+        "printed_pass_checks": 3,
+        "failures": 0,
+        "warnings": {
+          "WARNING: 1 ObjectDB instance was leaked at exit (run with `--verbose` for details).": 1
+        }
+      }
+    }
+  ],
+  "entry_control_median_ms": 5746.2080000000005,
+  "entry_staged_median_ms": 5019.027,
+  "entry_control_range_ms": 1624.897,
+  "entry_staged_range_ms": 121.01199999999972,
+  "entry_conclusion": "Functional staged readiness proven; small-fixture entry difference is inside A/A variability. No overall loading speedup claim.",
+  "terrain_views": [
+    {
+      "baseline_draw_calls": 2,
+      "baseline_primitives": 22024,
+      "candidate_draw_calls": 2,
+      "candidate_primitives": 22024,
+      "image_delta": {
+        "max": 0.00392156862745098,
+        "mean": 3.8296568627451e-09
+      },
+      "name": "near",
+      "repeat_primitives": 22024
+    },
+    {
+      "baseline_draw_calls": 2,
+      "baseline_primitives": 22024,
+      "candidate_draw_calls": 2,
+      "candidate_primitives": 22024,
+      "image_delta": {
+        "max": 0.0,
+        "mean": 0.0
+      },
+      "name": "detail",
+      "repeat_primitives": 22024
+    },
+    {
+      "baseline_draw_calls": 2,
+      "baseline_primitives": 22024,
+      "candidate_draw_calls": 2,
+      "candidate_primitives": 6152,
+      "image_delta": {
+        "max": 0.00784313725490196,
+        "mean": 5.21075878267974e-05
+      },
+      "name": "mid",
+      "repeat_primitives": 22024
+    },
+    {
+      "baseline_draw_calls": 2,
+      "baseline_primitives": 22024,
+      "candidate_draw_calls": 2,
+      "candidate_primitives": 6152,
+      "image_delta": {
+        "max": 0.00784313725490196,
+        "mean": 2.78007557189542e-05
+      },
+      "name": "far",
+      "repeat_primitives": 22024
+    },
+    {
+      "baseline_primitives": 4356,
+      "candidate_primitives": 4356,
+      "image_delta": {
+        "max": 0.0,
+        "mean": 0.0
+      },
+      "name": "hole_bank_near"
+    },
+    {
+      "baseline_primitives": 4356,
+      "candidate_primitives": 4356,
+      "image_delta": {
+        "max": 0.0117647058823529,
+        "mean": 0.00021753089256536
+      },
+      "name": "hole_bank_far"
+    }
+  ],
+  "terrain_gpu_ms_medians": {
+    "baseline_a": 0.138999998569489,
+    "baseline_a_repeat": 0.138999998569489,
+    "candidate_b": 0.122000001370907,
+    "baseline_a_return": 0.137999996542931,
+    "candidate_b_repeat": 0.122000001370907
+  },
+  "cutout_rollout": {
+    "default_enabled": false,
+    "reason": "Godot already instances these sources; coarse MultiMesh culling submits more triangles near the camera, so no universal speedup is established"
+  }
+}

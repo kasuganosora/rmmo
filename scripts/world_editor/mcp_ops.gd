@@ -45,6 +45,7 @@ func state() -> Dictionary:
 		"autosave": editor._safety.state(),
 		"save": editor._save_job.state() if editor._save_job != null else {"active":false},
 		"load": editor._load_job.state() if editor._load_job != null else {"active":false},
+		"vegetation_batching":editor.vegetation_render_status(),
 		"ground_batching": editor._ground_batches.stats("ground") if is_instance_valid(editor._ground_batches) else {},
 		"fortification_batching": editor._ground_batches.stats("fortification") if is_instance_valid(editor._ground_batches) else {},
 		"fortification_collision_batching": editor._fortification_collisions.stats() if is_instance_valid(editor._fortification_collisions) else {},

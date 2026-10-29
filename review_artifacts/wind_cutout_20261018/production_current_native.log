@@ -1,0 +1,35 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+Vulkan 1.4.329 - Forward+ - Using Device #0: AMD - AMD Radeon RX 7900 XTX
+
+[godot_ai game_helper] registered mcp capture (debugger active=false, logger=true)
+PASS isolated source copy preserves final bytes
+PASS fresh production scene satisfies native graph validator
+PASS save compressed closed native product outside shared caches
+PASS current production Compiled.read accepts freshly built isolated product: boxwood
+PASS production asset final bytes and native reopening preserve retained identity: boxwood
+PASS existing wind/LOD hierarchy remains intact: boxwood
+PASS production alpha/shadows/wind and original LOD match: boxwood_detail_1.0
+PASS production alpha/shadows/wind and original LOD match: boxwood_detail_1.75
+PASS production alpha/shadows/wind and original LOD match: boxwood_near_1.0
+PASS production alpha/shadows/wind and original LOD match: boxwood_near_1.75
+PASS production alpha/shadows/wind and original LOD match: boxwood_mid_1.0
+PASS production alpha/shadows/wind and original LOD match: boxwood_mid_1.75
+PASS production alpha/shadows/wind and original LOD match: boxwood_far_1.0
+PASS production alpha/shadows/wind and original LOD match: boxwood_far_1.75
+PASS original mesh and local transforms remain identical across render policies
+PASS isolated source copy preserves final bytes
+PASS fresh production scene satisfies native graph validator
+PASS save compressed closed native product outside shared caches
+PASS current production Compiled.read accepts freshly built isolated product: short_grass_a
+PASS production asset final bytes and native reopening preserve retained identity: short_grass_a
+PASS existing wind/LOD hierarchy remains intact: short_grass_a
+PASS production alpha/shadows/wind and original LOD match: short_grass_a_detail_1.0
+PASS production alpha/shadows/wind and original LOD match: short_grass_a_detail_1.75
+PASS production alpha/shadows/wind and original LOD match: short_grass_a_near_1.0
+PASS production alpha/shadows/wind and original LOD match: short_grass_a_near_1.75
+PASS production alpha/shadows/wind and original LOD match: short_grass_a_mid_1.0
+PASS production alpha/shadows/wind and original LOD match: short_grass_a_mid_1.75
+PASS production alpha/shadows/wind and original LOD match: short_grass_a_far_1.0
+PASS production alpha/shadows/wind and original LOD match: short_grass_a_far_1.75
+PASS original mesh and local transforms remain identical across render policies
+PRODUCTION_VEGETATION_RETENTION failures=0

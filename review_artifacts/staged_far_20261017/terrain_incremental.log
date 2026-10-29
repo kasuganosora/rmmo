@@ -1,0 +1,4 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+
+TERRAIN_INCREMENTAL {"comparisons":1132,"failures":0,"index_builds":10,"neighbor_last_work":{"boundary_vertices":64,"contexts":4,"records":15},"timings":{"brush_new_us":[4398.0,4216.33333333333,5592.33333333333,5655.33333333333,7316.66666666667,6078.33333333333],"brush_old_us":[168112.333333333,181748.0,190779.666666667,155013.0,183435.666666667,190119.333333333],"connected_new_us":[155.8,123.2,69.6,66.2,166.6,159.8],"connected_old_us":[790.2,891.0,766.4,761.6,1657.6,1804.6],"neighbors_new_us":[15913,16070,25430,16941,16595,30282],"neighbors_old_us":[29294,28068,27887,40624,30610,37550]}}
+[godot_ai game_helper] registered mcp capture (debugger active=false, logger=true)

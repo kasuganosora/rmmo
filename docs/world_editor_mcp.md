@@ -383,6 +383,8 @@ XYZ 为米，Y 向上，欧拉旋转为度。`set_object_transform.size` 对基�
 - `editor_state.autosave` 返回自动草稿状态。草稿默认每 60 秒保存，与正式地图分开；恢复到内存后保持未保存状态，并继续检查磁盘版本冲突。`restore_editor_draft` 的 `discard_changes=true` 会先备份当前修改。`close_editor` 会关闭当前进程，仅在用户明确要求关闭时调用。
 - `list_surface_materials` 同时列出默认资源包分类 PBR、个人导入与内置材质；`category` 精确筛选，`query` 搜索名称、分类和 ID，返回全部 `categories`。默认包布局与来源见 [default_material_pack.md](default_material_pack.md)。`paint_surface` 使用 `list_object_surfaces` 或 `pick_surface` 返回的目标和列表返回的材质 ID；一次调用刷一个连通平面，保留未刷的原材质。颜色、法线、粗糙度、金属度、AO 共用材质快照、依赖校验和撤销；`mapping="meters"` 使用材质 `tile_size` 按局部米单位重复，`planar` 整面铺一张，`uv` 使用原 UV。`clear_surface_material` 可恢复单面或整物件。UI 刷面期间其余写操作返回忙碌，`editor_state.surface_brush_active` 可查询。
 - `editor_state.editor_view` 返回楼层和出生点配置，`spawn_picking` 表示 UI 正在拾取出生点。试玩使用未保存文档的临时副本，`start_playtest` 返回准备状态后查询 `playtest_state`，直到 `phase=running` 或 `failed`。试玩期间可查询和 `preview_map`（返回游戏视图），写操作只允许 `stop_playtest`；结束后回到原编辑状态。
+
+2026-10-17 分阶段准备：`playtest_state.preparation` 与游戏 HUD 共用实际状态。`policy.mode` 为 `staged` 时，完整建筑成员、最新活动件状态、物理发布和目标首帧仍须通过；寻路和风动接入可以继续后台准备。`playable` 仅表示当前已放行操作，点击寻路另看 `navigation.ready/state/error`，风动另看 `wind.ready/scanning/pending_receivers/pending_variants`。导航未完成时 HUD 提示可用键盘移动，真实物理与建筑边界保护继续生效。没有完整目录、未知归属或缺少建筑成员的地图使用 `full`，原因在 `policy.reason`；不能将回退路径或未知体积称为已验证的户外。试玩副本使用实际已保存副本的 SHA 作为版本。此次没有新增工具或参数，也未恢复二维工具；范围、性能与回退见 [建筑分阶段入场与地形远景](staged_far_20261017.md)。
 - 参数化建筑按 `building_id` 整体管理，不受普通多选 256 成员上限影响。一次最多生成 16 栋，房间/门窗/楼梯来自同一蓝图；整批校验并共享一次撤销。存在手改、保护或材质几何冲突时拒绝重生成，使用 `list_buildings` 查看详情。
 - 整栋建筑的 `transform_selection` 仅支持 XYZ 平移、Y 轴旋转；同步原点/朝向/楼层/基线并检查碰撞，失败不改地图。`duplicate_selection` 寻找附近空地并保留独立配方，`delete_selection` 同时删除配方。改宽深/层数使用 `update_building`；单个组件变换需先 `configure_transform {"component_edit":true}`，完成后关闭。`editor_state` 返回 `building_component_edit` 和 `whole_building_selection`。不支持整栋缩放/XZ 倾斜、贴面/落地/排列及混合普通物件搬动；两种入口均明确拒绝。
 - 城中村布局为 `parameters.layout="urban_village"`，`list_building_templates.urban_presets` 返回家庭自建房与底商住宅预设，支持 1～6 层、1～3 卧室、折返楼梯、阳台、屋顶露台、雨棚和水箱；不提供分租规则。`preview_buildings` 同时返回 `terraces/service_zones`，沿街工具支持相同参数。普通/中世纪仍最多三层，单栋上限 4096 构件；版本 1～6 地图仍可读取，更新写入当前版本 7（旧屋顶算法默认保留）。
@@ -994,3 +996,6 @@ UI 与当前 3D MCP 的地形修改自动使用内部格点 CPU 网格／切线�
 上述上一批的未交付范围，本批继续补齐：UI 与 3D MCP 创建的建筑自动共享运行时远景代理／LOD；楼层、屋顶隐藏或构件移动立即退回原渲染，门窗及透明／风动组件独立。已验证空间边界和完整归属的静态建筑、地形、道路／冻结结构可以在所有使用者解除后整组退役，原生作者文档保持完整，回访走相同验证与发布路径。
 
 `create_event_template`／`set_event_template` 的发现说明与 UI 同步注明“预读并预加载目标画面资源”。沿用原参数与脚点定义，不新增绕过就绪检查的选项。接近入口时，预算内原生目标可在私有视口准备实际网格、材质与纹理；确认传送后复用资源，仍检查物理、导航、落点、目标实际首帧与权威。源／依赖变化、取消、预算或格式不适用时沿用确认加载。真实 HTTP 验证包括发现、非法请求无副作用、UI、撤销重做、保存重开与 GPU 命中的实际跨图传送，见[范围与验收](runtime_completion_20261017.md)。
+
+
+2026-10-18 风动与透明植被：`playtest_state.preparation.wind` 补充 `covered_preparation/last_recovery`。缓存内接收体后台绑定；运行期出现未知变体时自动绘制准备遮罩，准备完成并绘制相机首帧后恢复原位置操作，MCP 不得将 pending 记作 ready。`editor_state.vegetation_batching` 与散布面板共用 `vegetation_render_status()`，提供 `cutout_admission`（原路径采样、准入、CPU 余量不足或 GPU 保护回退）、`cutout_groups/active_cutout_groups/cutout_active_member_limit` 及提示文本。密集静态 alpha-scissor 仅在实测 CPU 有余量、远距全视野、无原生 LOD／遮挡／XR 的条件下自动实例化；风动和不兼容来源保留原路径。UI／HTTP 的预览、应用、撤销、保存重开及中途停止验收见[交付报告](wind_cutout_rollout_20261018.md)。没有新增工具或参数，也不恢复二维适配器。

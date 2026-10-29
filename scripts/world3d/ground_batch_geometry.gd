@@ -7,6 +7,9 @@ const MAX_VERTICES := 65536
 const MAX_FORTIFICATION_MEMBERS := 256
 static var prepared_surfaces_enabled:=true
 const PREPARE_SURFACE_METHOD:=&"mesh_prepare_surface_from_arrays"
+# Dense cutouts require measured CPU margin, an entirely visible distant AABB,
+# no native LOD and no occlusion. Other instances retain the engine draw path.
+static var static_scatter_instances_enabled:=true
 static var _terrain_schemas:Dictionary={}
 static var _terrain_schema_mutex:=Mutex.new()
 
@@ -63,7 +66,7 @@ static func candidate(record: Dictionary) -> bool:
 	if record.has("terrain_mesh") or record.has("terrain_volume") or record.has("road_mesh") or record.has("rock_bank"): return true
 	return record.get("surface_id", "") == "ground" and record.get("size", [1,1,1])[1] <= 2
 
-static func material_key(material: Material) -> String:
+static func material_key(material: Material,cutout_instances:bool=false) -> String:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.ground_batch_geometry.material_key") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	if material == null: return "default"
 	if material.next_pass != null: return ""
@@ -79,7 +82,8 @@ static func material_key(material: Material) -> String:
 			if value==null:value=entry[1]
 			values.append([name, value.get_instance_id() if value is Resource else value])
 	elif material is StandardMaterial3D:
-		if material.transparency != BaseMaterial3D.TRANSPARENCY_DISABLED or material.billboard_mode != BaseMaterial3D.BILLBOARD_DISABLED: return ""
+		if material.transparency != BaseMaterial3D.TRANSPARENCY_DISABLED and not (static_scatter_instances_enabled and cutout_instances and material.transparency==BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR):return ""
+		if material.billboard_mode != BaseMaterial3D.BILLBOARD_DISABLED: return ""
 		# Object-local procedural coordinates, growing and fading need separate draws.
 		if material.uv1_triplanar or material.uv2_triplanar or material.grow or material.distance_fade_mode != BaseMaterial3D.DISTANCE_FADE_DISABLED: return ""
 		if not preload("res://scripts/world3d/standard_material_schema.gd").enabled:
@@ -119,6 +123,7 @@ static func build(members: Array, origin: Vector3, defer_upload: bool = false) -
 	var before := 0
 	var before_vertices := 0
 	var render_vertices := 0
+	var derive_lods:bool=preload("res://scripts/world3d/terrain_render_lod.gd").enabled and members.any(func(source):return source.record.has("terrain_mesh") and not source.record.terrain_mesh.holes.has(true) and not source.record.has("surface_paint"))
 	var origins := PackedVector4Array()
 	var spans := PackedVector4Array()
 	var images: Array[Image] = []
@@ -150,9 +155,32 @@ static func build(members: Array, origin: Vector3, defer_upload: bool = false) -
 			before += 1; before_vertices += arrays[Mesh.ARRAY_VERTEX].size()
 			if slot == 1 and record.has("terrain_mesh") and not record.terrain_mesh.holes.has(true) and not record.has("surface_paint"):
 				arrays = compact_terrain_sides(arrays)
+			if derive_lods:
+				var candidate:Dictionary=preload("res://scripts/world3d/terrain_render_lod.gd").derive(record,arrays) if slot==0 else {}
+				var base:PackedInt32Array=arrays[Mesh.ARRAY_INDEX] if arrays[Mesh.ARRAY_INDEX]!=null else PackedInt32Array()
+				if base.is_empty():
+					base.resize(arrays[Mesh.ARRAY_VERTEX].size())
+					for i in base.size():base[i]=i
+				if not row.has("lod_parts"):row.lod_parts=[]
+				row.lod_parts.append({"offset":0 if row.arrays.is_empty() else row.arrays[Mesh.ARRAY_VERTEX].size(),"base":base,"candidate":candidate})
 			append_arrays(row, arrays, local, layer)
-	for row: Dictionary in slots.values(): render_vertices+=row.arrays[Mesh.ARRAY_VERTEX].size()
-	var data:={"slots":slots.values(),"images":images,"masks":masks,"origins":origins,"spans":spans,"source_surfaces":before,"source_vertices":before_vertices,"render_vertices":render_vertices,"compressed":members[0].record.has("fortification")}
+	for row: Dictionary in slots.values():
+		render_vertices+=row.arrays[Mesh.ARRAY_VERTEX].size()
+		if not derive_lods:continue
+		var previous:=0.
+		for level in 3:
+			var indices:=PackedInt32Array();var error:=0.;var reduced:=false
+			for part:Dictionary in row.lod_parts:
+				var data:Dictionary=part.candidate
+				var source_indices:PackedInt32Array=data.indices[level] if not data.is_empty() else part.base
+				if not data.is_empty():error=maxf(error,data.errors[level]);reduced=true
+				for index:int in source_indices:indices.append(index+int(part.offset))
+			if reduced and indices.size()<row.arrays[Mesh.ARRAY_INDEX].size():
+				if not row.has("lods"):row.lods={}
+				var distance:float=float(PackedFloat32Array([maxf(.02,maxf(error*8.,previous*1.5))])[0])
+				row.lods[distance]=indices;previous=distance
+		row.erase("lod_parts")
+	var data:={"slots":slots.values(),"images":images,"masks":masks,"origins":origins,"spans":spans,"source_surfaces":before,"source_vertices":before_vertices,"render_vertices":render_vertices,"compressed":members[0].record.has("fortification"),"terrain_lod":derive_lods}
 	prepare_upload(data)
 	return data if defer_upload else upload(data)
 
@@ -240,6 +268,7 @@ static func upload(data: Dictionary) -> Dictionary:
 		cpu_arrays.append(row.arrays);cpu_lods.append(levels)
 	if prepared:result.set("_surfaces",packed_surfaces)
 	Cpu.remember(result,cpu_arrays,cpu_lods)
+	if data.get("terrain_lod",false) and cpu_lods.any(func(levels):return not levels.is_empty()):result.set_meta("terrain_render_lod",true)
 	return {"mesh":result,"source_surfaces":data.source_surfaces,"source_vertices":data.source_vertices,"render_vertices":data.render_vertices}
 
 static func append_arrays(row: Dictionary, source: Array, transform: Transform3D, layer: int) -> void:

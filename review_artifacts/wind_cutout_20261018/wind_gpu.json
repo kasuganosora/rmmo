@@ -1,0 +1,113 @@
+{
+  "comparisons": [
+    {
+      "changed_channel_fraction": 0.0,
+      "label": "detail_1.0",
+      "max_channel_delta": 0,
+      "mean_channel_delta": 0.0
+    },
+    {
+      "changed_channel_fraction": 0.0,
+      "label": "detail_1.75",
+      "max_channel_delta": 0,
+      "mean_channel_delta": 0.0
+    },
+    {
+      "changed_channel_fraction": 0.0,
+      "label": "near_1.0",
+      "max_channel_delta": 0,
+      "mean_channel_delta": 0.0
+    },
+    {
+      "changed_channel_fraction": 0.0,
+      "label": "near_1.75",
+      "max_channel_delta": 0,
+      "mean_channel_delta": 0.0
+    },
+    {
+      "changed_channel_fraction": 0.0,
+      "label": "mid_1.0",
+      "max_channel_delta": 0,
+      "mean_channel_delta": 0.0
+    },
+    {
+      "changed_channel_fraction": 0.0,
+      "label": "mid_1.75",
+      "max_channel_delta": 0,
+      "mean_channel_delta": 0.0
+    },
+    {
+      "changed_channel_fraction": 0.0,
+      "label": "far_1.0",
+      "max_channel_delta": 0,
+      "mean_channel_delta": 0.0
+    },
+    {
+      "changed_channel_fraction": 0.0,
+      "label": "far_1.75",
+      "max_channel_delta": 0,
+      "mean_channel_delta": 0.0
+    }
+  ],
+  "convergence_with_fades_ms": 602.149,
+  "covered": {
+    "covered_preparation": false,
+    "last_recovery": {
+      "blocking": true,
+      "cancelled": false,
+      "cold_variants": 2,
+      "cpu_ms": 95.378,
+      "elapsed_ms": 101.559,
+      "make_ms": 94.713,
+      "materials": 2,
+      "max_make_ms": 49.521,
+      "mode": "covered_variants",
+      "pending": false,
+      "preparation_span_ms": 101.559,
+      "receivers": 4,
+      "reused": 0,
+      "scan_ms": 0.516,
+      "skipped": 0,
+      "steps": 3,
+      "variants": [
+        {
+          "cache_miss": false,
+          "cold": true,
+          "first_uniform_ms": 0.013,
+          "key": "2/0/1/true/3/false",
+          "material_new_ms": 0.005,
+          "material_shader_ms": 44.285,
+          "shader_code_ms": 0.391,
+          "shader_new_ms": 0.009,
+          "shader_source_ms": 0.2,
+          "textures_ms": 0.027,
+          "total_ms": 45.192,
+          "uniforms_ms": 0.223
+        },
+        {
+          "cache_miss": false,
+          "cold": true,
+          "first_uniform_ms": 0.008,
+          "key": "2/2/1/true/3/true",
+          "material_new_ms": 0.006,
+          "material_shader_ms": 48.69,
+          "shader_code_ms": 0.476,
+          "shader_new_ms": 0.009,
+          "shader_source_ms": 0.171,
+          "textures_ms": 0.014,
+          "total_ms": 49.521,
+          "uniforms_ms": 0.113
+        }
+      ]
+    },
+    "mode": "cached_variants",
+    "pending_receivers": 0,
+    "pending_variants": [],
+    "ready": true,
+    "ready_receivers": 4,
+    "reason": "",
+    "scanning": false
+  },
+  "failures": 0,
+  "media": "D:/code/rmmo_runtime/review_artifacts/wind_cutout_20261018/wind_2601736"
+}

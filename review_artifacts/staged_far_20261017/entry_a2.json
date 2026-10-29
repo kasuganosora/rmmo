@@ -1,0 +1,188 @@
+{
+  "control": true,
+  "entry_ms": 4921.784,
+  "failures": 0,
+  "fixture": "D:/code/rmmo_runtime/cache/world3d/staged_entry_benchmark/map.gltf",
+  "label": "a2",
+  "map_sha256": "c108deff8fcb6b661ce200dab65c2c4a06375f379ca7edc3e99be3fca0991640",
+  "profile": {
+    "batches": 16099,
+    "entry_core_cell": [
+      0,
+      0
+    ],
+    "entry_core_resources_ready_us": 14972465,
+    "entry_playable_ready_us": 16106307,
+    "entry_policy": {
+      "mode": "full",
+      "reason": "automatic_disabled"
+    },
+    "entry_prefetch_started_us": 16115292,
+    "entry_readiness_shadow": {
+      "applied_state_sequence": -1,
+      "authority_evidence": "building_membership_unavailable",
+      "building": {},
+      "building_complete": false,
+      "building_members": [],
+      "capabilities": {
+        "navigation": {
+          "reason": "",
+          "state": "ready"
+        },
+        "wind": {
+          "reason": "",
+          "state": "pending"
+        }
+      },
+      "deadline_us": 194978395,
+      "early_entry_enabled": false,
+      "first_frame_contract_result": {
+        "ok": false,
+        "reason": "required_content_pending",
+        "state": "preparing"
+      },
+      "fixture_states": {},
+      "gates": {
+        "base_gameplay": true,
+        "first_frame": false,
+        "geometry": true,
+        "metadata": true,
+        "physics": true,
+        "render": true
+      },
+      "geometry_physics_frame": 59,
+      "membership": "unresolved",
+      "milestones": {
+        "base_gameplay_ready_us": 16089993,
+        "geometry_ready_us": 15367012,
+        "metadata_ready_us": 14978416,
+        "navigation_ready_us": 16055805,
+        "physics_ready_us": 15369683,
+        "render_ready_us": 16106288
+      },
+      "mode": "shadow_only",
+      "note": "Legacy full gate is unchanged. Observations are not authority/building proof; the proposed early-entry contract remains unresolved. Wind preparation is not receiver activation.",
+      "observation_scope": "initial_world_entry_only",
+      "observed": {
+        "base_gameplay_mounted_us": 16090003,
+        "first_frame_rendered_us": 16114597,
+        "geometry_published_us": 15367022,
+        "legacy_full_gate_released_us": 16328103,
+        "legacy_render_prepared_us": 16106297,
+        "metadata_observed_us": 14978424,
+        "navigation_ready_observed_us": 16055815,
+        "physics_frame": 60,
+        "physics_frame_observed_us": 15369696,
+        "wind_preparation_completed_us": 16103212
+      },
+      "pending": [
+        "first_frame",
+        "membership"
+      ],
+      "reason": "",
+      "start_result": {
+        "ok": true,
+        "plan": {
+          "cell": "(0, 0)",
+          "core_clip": "[P: (0.0, -100000.0, 0.0), S: (32.0, 200000.0, 32.0)]",
+          "core_resources_ready_us": 0,
+          "navigation_clip": "[P: (0.0, -100000.0, -14.0), S: (42.8, 200000.0, 46.0)]",
+          "neighbours_started_us": 0,
+          "origin": "(28.8, 0.9, 0.0)",
+          "safety_clip": "[P: (0.0, -100000.0, -14.0), S: (42.8, 200000.0, 46.0)]",
+          "version": 1
+        },
+        "token": {
+          "attempt_id": -9223371670188718037,
+          "epoch": 366213072932,
+          "map_ref": "prototype/map_0988d7b56c97ebde",
+          "map_revision": "c108deff8fcb6b661ce200dab65c2c4a06375f379ca7edc3e99be3fca0991640fc21b6f60886f4d408156d7b540fd91acafcd37283bebeaf6a5f46d087b749cc{  }",
+          "position_m": [
+            28.7999992370605,
+            0.899999976158142,
+            0.0
+          ],
+          "session_id": "local_session_242263000924",
+          "world_id": "local_world_366213072932"
+        }
+      },
+      "started_us": 14978395,
+      "state": "preparing",
+      "token": {
+        "attempt_id": -9223371670188718037,
+        "epoch": 366213072932,
+        "map_ref": "prototype/map_0988d7b56c97ebde",
+        "map_revision": "c108deff8fcb6b661ce200dab65c2c4a06375f379ca7edc3e99be3fca0991640fc21b6f60886f4d408156d7b540fd91acafcd37283bebeaf6a5f46d087b749cc{  }",
+        "position_m": [
+          28.7999992370605,
+          0.899999976158142,
+          0.0
+        ],
+        "session_id": "local_session_242263000924",
+        "world_id": "local_world_366213072932"
+      }
+    },
+    "entry_safety_ready_us": 15366953,
+    "environment": 15631,
+    "events": 16072,
+    "hud": 16090,
+    "hud_added": 15992,
+    "hud_bound": 16087,
+    "hud_instantiated": 15743,
+    "lamp_materials": {
+      "elapsed_ms": 0.424,
+      "materials": 0,
+      "max_make_ms": 0.0
+    },
+    "navigation": 16055,
+    "navigation_background": false,
+    "player": 15481,
+    "radar": 16106,
+    "ready_started": 14975,
+    "setup": 14978,
+    "stream": 15367,
+    "wind_materials": {
+      "blocking": true,
+      "cancelled": false,
+      "cold_variants": 0,
+      "cpu_ms": 0.766,
+      "elapsed_ms": 0.8,
+      "make_ms": 0.0,
+      "materials": 0,
+      "max_make_ms": 0.0,
+      "mode": "covered_variants",
+      "pending": false,
+      "preparation_span_ms": 0.8,
+      "receivers": 0,
+      "reused": 0,
+      "scan_ms": 0.455,
+      "skipped": 0,
+      "steps": 1,
+      "variants": []
+    }
+  },
+  "state": {
+    "building": {
+      "state": "full_wait"
+    },
+    "navigation": {
+      "error": "",
+      "ready": true,
+      "state": "ready"
+    },
+    "playable": true,
+    "policy": {
+      "mode": "full",
+      "reason": "automatic_disabled"
+    },
+    "wind": {
+      "mode": "legacy",
+      "pending_receivers": 0,
+      "pending_variants": [],
+      "ready": true,
+      "ready_receivers": 0,
+      "reason": "",
+      "scanning": false
+    }
+  }
+}

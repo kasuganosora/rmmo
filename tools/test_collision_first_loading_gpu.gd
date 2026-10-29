@@ -146,7 +146,11 @@ func collision_first_case(cached_path:String,missing_path:String)->void:
 	deferred.set_demand_scope([])
 	deferred.allow_demand_in_scope("fixture_manual")
 	check(world._map_traversal_receipt(map,clip,"fixture_manual").ok,"normal World traversal receipt accepts exact collision coverage while visuals remain pending")
-	check(GameWorld._navigation_async(map),"collision-first map uses effective asynchronous navigation without claiming navigation ready")
+	var policy_world:=GameWorld.new()
+	var original_background:bool=GameWorld.navigation_background_enabled;GameWorld.navigation_background_enabled=false
+	check(policy_world._navigation_async(map),"collision-first map uses effective asynchronous navigation without claiming navigation ready")
+	GameWorld.navigation_background_enabled=original_background
+	policy_world.free()
 	var navigation:=Navigation.new();world.add_child(navigation);world._navigation=navigation
 	navigation.initial_geometry_clip=plan.navigation_clip
 	world._bind_deferred_geometry(map,navigation);world._bind_navigation_lifetime(navigation,map)

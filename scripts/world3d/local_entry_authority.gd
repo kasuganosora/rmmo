@@ -65,7 +65,14 @@ func register_root(map_ref:String,map_revision:String,root:Node)->Dictionary:
 					var owner:String=member_owners[member]
 					bounds[owner]=bounds[owner].merge(bounds[spec.uuid]) if bounds.has(owner) else bounds[spec.uuid]
 				elif (r.get("kind")=="asset" or r.has("asset_path")) and not annotated.has(member):imported.append(bounds[spec.uuid])
-	return register_map(map_ref,map_revision,complete,bounds,imported)
+	var registered:Dictionary=register_map(map_ref,map_revision,complete,bounds,imported)
+	if registered.ok:_maps[map_ref].root_owner=weakref(root)
+	return registered
+
+func registered_root_current(map_ref:String,map_revision:String,root:Node)->bool:
+	var registered:Dictionary=_maps.get(map_ref,{})
+	var owner:WeakRef=registered.get("root_owner")
+	return registered.get("revision")==map_revision and owner!=null and owner.get_ref()==root
 
 func register_map(map_ref:String,map_revision:String,complete_author_meta:Dictionary,bounds:Dictionary={},imported_bounds:Array=[])->Dictionary:
 	if map_ref.is_empty() or map_revision.is_empty():return _fail("invalid_map_identity")

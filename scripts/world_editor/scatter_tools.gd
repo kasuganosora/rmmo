@@ -121,7 +121,7 @@ func prepare(args: Dictionary) -> Dictionary:
 			position.y=h-float(asset.bounds_position[1])*scale_
 		var record:={"uuid":"vegetation_"+settings.id.sha256_text().left(16)+"_"+str(candidate.slot),"kind":"asset","surface_id":"model","asset_path":asset.asset_path,"label":asset.label,"category":asset.get("category",""),"bounds_position":asset.bounds_position,"bounds_size":asset.bounds_size,"position":Data.xyz(position),"rotation":[0,candidate.yaw,0],"size":[scale_,scale_,scale_],"collision":"block" if settings.collision else "none"}
 		var shape:=Foot.record_shape(record)
-		if settings.get("pattern","random")=="rows":record.vegetation_batch=true
+		if settings.get("pattern","random")=="rows" or preload("res://scripts/world3d/ground_batch_geometry.gd").static_scatter_instances_enabled:record.vegetation_batch=true
 		if not Scatter.inside(shape.polygon,allowed): skipped.boundary+=1; continue
 		if settings.get("follow_terrain",false):
 			var supported:=true

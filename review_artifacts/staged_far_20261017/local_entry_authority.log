@@ -1,0 +1,60 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+
+[godot_ai game_helper] registered mcp capture (debugger active=false, logger=true)
+PASS catalogue uses real generated building recipe
+PASS complete recipe has floor and entrance semantics
+PASS second floor belongs to exact building
+PASS open roof is not an interior
+PASS yard is not an interior
+PASS space below floor is not an interior
+PASS moving a whole building changes pose but preserves structural identity
+PASS missing member never grants indoor or outdoor
+PASS hand-edited geometry cannot inherit recipe interior proof
+PASS unannotated imported building cannot default outside
+PASS register complete map in local server state
+PASS capability explicitly separates local state from disk persistence
+PASS authority issues exact index building group
+PASS group closure crosses logical chunk boundary
+PASS complete building requested independent of current chunk
+PASS gate accepts signed local snapshot
+PASS cross-chunk member omission cannot finish building
+PASS all exact building members accepted
+PASS ready frame follows full geometry and dynamic state
+PASS client readiness cannot replace authority occupancy check
+PASS exact current transaction permits activation
+PASS activation replay is idempotent
+PASS same epoch report at a different position is rejected
+PASS reconnection creates new epoch
+PASS old completion rejected after reconnect
+PASS cancel invalidates late worker reports
+PASS door update has independent sequence
+PASS door update does not change structure or pose identity
+PASS out-of-order door event rejected
+PASS gate accepts signed local snapshot
+PASS cross-chunk member omission cannot finish building
+PASS all exact building members accepted
+PASS ready frame follows full geometry and dynamic state
+PASS client readiness cannot replace authority occupancy check
+PASS activation uses fixed cut without chasing newer door events
+PASS new dynamic state remains available after fixed cut activation
+PASS scene re-registration preserves authoritative door state
+PASS ordinary position checkpoint preserves epoch and current fixture sequence
+PASS invalidated support cannot restore or activate position
+PASS loading cancellation affects only one session
+PASS map revision invalidates prepared building
+PASS failed transfer cannot restore changed original map
+PASS changed original building pose prevents stale activation and recovery
+PASS moving the same structure preserves dynamic fixture state
+PASS pending authority transaction has bounded deadline
+PASS new server session rejects every prior ticket
+PASS parsed CPU spec is not render or physics readiness
+PASS same frame cannot prove physics synchronization
+PASS actual render body and later physics tick complete evidence
+PASS disabled collision layer cannot pass body evidence
+PASS disabled shapes cannot pass body evidence
+PASS caller frame cannot fabricate a missing body publication receipt
+PASS old door state cannot pass newer authority watermark
+PASS new door scalar without transformed render object is not applied
+PASS matching applied door pose and state produce interaction evidence
+PASS resident first chunk cannot hide missing distant member
+RESULT 56 checks 0 failures

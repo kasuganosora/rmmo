@@ -1,0 +1,478 @@
+{
+  "checks": [
+    {
+      "label": "isolated source copy preserves final bytes",
+      "ok": true
+    },
+    {
+      "label": "fresh production scene satisfies native graph validator",
+      "ok": true
+    },
+    {
+      "label": "save compressed closed native product outside shared caches",
+      "ok": true
+    },
+    {
+      "label": "current production Compiled.read accepts freshly built isolated product: boxwood",
+      "ok": true
+    },
+    {
+      "label": "production asset final bytes and native reopening preserve retained identity: boxwood",
+      "ok": true
+    },
+    {
+      "label": "existing wind/LOD hierarchy remains intact: boxwood",
+      "ok": true
+    },
+    {
+      "label": "production alpha/shadows/wind and original LOD match: boxwood_detail_1.0",
+      "ok": true
+    },
+    {
+      "label": "production alpha/shadows/wind and original LOD match: boxwood_detail_1.75",
+      "ok": true
+    },
+    {
+      "label": "production alpha/shadows/wind and original LOD match: boxwood_near_1.0",
+      "ok": true
+    },
+    {
+      "label": "production alpha/shadows/wind and original LOD match: boxwood_near_1.75",
+      "ok": true
+    },
+    {
+      "label": "production alpha/shadows/wind and original LOD match: boxwood_mid_1.0",
+      "ok": true
+    },
+    {
+      "label": "production alpha/shadows/wind and original LOD match: boxwood_mid_1.75",
+      "ok": true
+    },
+    {
+      "label": "production alpha/shadows/wind and original LOD match: boxwood_far_1.0",
+      "ok": true
+    },
+    {
+      "label": "production alpha/shadows/wind and original LOD match: boxwood_far_1.75",
+      "ok": true
+    },
+    {
+      "label": "original mesh and local transforms remain identical across render policies",
+      "ok": true
+    },
+    {
+      "label": "isolated source copy preserves final bytes",
+      "ok": true
+    },
+    {
+      "label": "fresh production scene satisfies native graph validator",
+      "ok": true
+    },
+    {
+      "label": "save compressed closed native product outside shared caches",
+      "ok": true
+    },
+    {
+      "label": "current production Compiled.read accepts freshly built isolated product: short_grass_a",
+      "ok": true
+    },
+    {
+      "label": "production asset final bytes and native reopening preserve retained identity: short_grass_a",
+      "ok": true
+    },
+    {
+      "label": "existing wind/LOD hierarchy remains intact: short_grass_a",
+      "ok": true
+    },
+    {
+      "label": "production alpha/shadows/wind and original LOD match: short_grass_a_detail_1.0",
+      "ok": true
+    },
+    {
+      "label": "production alpha/shadows/wind and original LOD match: short_grass_a_detail_1.75",
+      "ok": true
+    },
+    {
+      "label": "production alpha/shadows/wind and original LOD match: short_grass_a_near_1.0",
+      "ok": true
+    },
+    {
+      "label": "production alpha/shadows/wind and original LOD match: short_grass_a_near_1.75",
+      "ok": true
+    },
+    {
+      "label": "production alpha/shadows/wind and original LOD match: short_grass_a_mid_1.0",
+      "ok": true
+    },
+    {
+      "label": "production alpha/shadows/wind and original LOD match: short_grass_a_mid_1.75",
+      "ok": true
+    },
+    {
+      "label": "production alpha/shadows/wind and original LOD match: short_grass_a_far_1.0",
+      "ok": true
+    },
+    {
+      "label": "production alpha/shadows/wind and original LOD match: short_grass_a_far_1.75",
+      "ok": true
+    },
+    {
+      "label": "original mesh and local transforms remain identical across render policies",
+      "ok": true
+    }
+  ],
+  "failures": 0,
+  "media": "D:/code/rmmo_runtime/review_artifacts/wind_cutout_20261018/production_8582014",
+  "models": [
+    {
+      "compiled_generator": "c6d8d9c635240464cd86a65d7765bf49a9b4640f78f5abf8e4857644fc847e17",
+      "costs": {
+        "collision_face_bytes": 132264,
+        "container_bytes": 4732,
+        "gpu_rgba_bytes": 134217724,
+        "image_mip_bytes": 134217724,
+        "images": 3,
+        "materials": 1,
+        "mesh_capture_bytes": 259944,
+        "mesh_storage_bytes": 93996,
+        "meshes": 1,
+        "native_uncompressed_bytes": 134317615,
+        "nodes": 2,
+        "other_packed_bytes": 0,
+        "resources": 8,
+        "surfaces": 1,
+        "textures": 3
+      },
+      "label": "boxwood",
+      "native_bytes": 32359017,
+      "native_path": "D:/code/rmmo_runtime/review_artifacts/wind_cutout_20261018/production_8582014/boxwood/isolated_content/cache/world3d/compiled_assets_v1/4f5e0e31d1b3c2359f5cbe03c1c718ad83e303cb84d8d1307f46a0b1bf48a9ad.scn",
+      "native_reopened": true,
+      "native_sha256": "4f5e0e31d1b3c2359f5cbe03c1c718ad83e303cb84d8d1307f46a0b1bf48a9ad",
+      "source_bytes": 10535512,
+      "source_path": "D:/code/rmmo_runtime/packs/default/assets/b64832b28da3cead83af81dfa553bf755adad5b4c9292249abb49400b1433eb2.glb",
+      "source_sha256": "b64832b28da3cead83af81dfa553bf755adad5b4c9292249abb49400b1433eb2",
+      "views": [
+        {
+          "exact_pixels": true,
+          "guarded_triangles": 3686,
+          "source_triangles": 3686,
+          "time": 1.0,
+          "view": "detail",
+          "wind": {
+            "covered_preparation": false,
+            "last_recovery": {},
+            "mode": "cached_variants",
+            "pending_receivers": 0,
+            "pending_variants": [],
+            "ready": true,
+            "ready_receivers": 1,
+            "reason": "",
+            "scanning": false
+          }
+        },
+        {
+          "exact_pixels": true,
+          "guarded_triangles": 3686,
+          "source_triangles": 3686,
+          "time": 1.75,
+          "view": "detail",
+          "wind": {
+            "covered_preparation": false,
+            "last_recovery": {},
+            "mode": "cached_variants",
+            "pending_receivers": 0,
+            "pending_variants": [],
+            "ready": true,
+            "ready_receivers": 1,
+            "reason": "",
+            "scanning": false
+          }
+        },
+        {
+          "exact_pixels": true,
+          "guarded_triangles": 3686,
+          "source_triangles": 3686,
+          "time": 1.0,
+          "view": "near",
+          "wind": {
+            "covered_preparation": false,
+            "last_recovery": {},
+            "mode": "cached_variants",
+            "pending_receivers": 0,
+            "pending_variants": [],
+            "ready": true,
+            "ready_receivers": 1,
+            "reason": "",
+            "scanning": false
+          }
+        },
+        {
+          "exact_pixels": true,
+          "guarded_triangles": 3686,
+          "source_triangles": 3686,
+          "time": 1.75,
+          "view": "near",
+          "wind": {
+            "covered_preparation": false,
+            "last_recovery": {},
+            "mode": "cached_variants",
+            "pending_receivers": 0,
+            "pending_variants": [],
+            "ready": true,
+            "ready_receivers": 1,
+            "reason": "",
+            "scanning": false
+          }
+        },
+        {
+          "exact_pixels": true,
+          "guarded_triangles": 3686,
+          "source_triangles": 3686,
+          "time": 1.0,
+          "view": "mid",
+          "wind": {
+            "covered_preparation": false,
+            "last_recovery": {},
+            "mode": "cached_variants",
+            "pending_receivers": 0,
+            "pending_variants": [],
+            "ready": true,
+            "ready_receivers": 1,
+            "reason": "",
+            "scanning": false
+          }
+        },
+        {
+          "exact_pixels": true,
+          "guarded_triangles": 3686,
+          "source_triangles": 3686,
+          "time": 1.75,
+          "view": "mid",
+          "wind": {
+            "covered_preparation": false,
+            "last_recovery": {},
+            "mode": "cached_variants",
+            "pending_receivers": 0,
+            "pending_variants": [],
+            "ready": true,
+            "ready_receivers": 1,
+            "reason": "",
+            "scanning": false
+          }
+        },
+        {
+          "exact_pixels": true,
+          "guarded_triangles": 3686,
+          "source_triangles": 3686,
+          "time": 1.0,
+          "view": "far",
+          "wind": {
+            "covered_preparation": false,
+            "last_recovery": {},
+            "mode": "cached_variants",
+            "pending_receivers": 0,
+            "pending_variants": [],
+            "ready": true,
+            "ready_receivers": 1,
+            "reason": "",
+            "scanning": false
+          }
+        },
+        {
+          "exact_pixels": true,
+          "guarded_triangles": 3686,
+          "source_triangles": 3686,
+          "time": 1.75,
+          "view": "far",
+          "wind": {
+            "covered_preparation": false,
+            "last_recovery": {},
+            "mode": "cached_variants",
+            "pending_receivers": 0,
+            "pending_variants": [],
+            "ready": true,
+            "ready_receivers": 1,
+            "reason": "",
+            "scanning": false
+          }
+        }
+      ],
+      "wind_nodes": 1
+    },
+    {
+      "compiled_generator": "c6d8d9c635240464cd86a65d7765bf49a9b4640f78f5abf8e4857644fc847e17",
+      "costs": {
+        "collision_face_bytes": 780552,
+        "container_bytes": 14496,
+        "gpu_rgba_bytes": 67108860,
+        "image_mip_bytes": 67108860,
+        "images": 3,
+        "materials": 4,
+        "mesh_capture_bytes": 1843160,
+        "mesh_storage_bytes": 624772,
+        "meshes": 3,
+        "native_uncompressed_bytes": 67743001,
+        "nodes": 4,
+        "other_packed_bytes": 0,
+        "resources": 13,
+        "surfaces": 3,
+        "textures": 3
+      },
+      "label": "short_grass_a",
+      "native_bytes": 12830299,
+      "native_path": "D:/code/rmmo_runtime/review_artifacts/wind_cutout_20261018/production_8582014/short_grass_a/isolated_content/cache/world3d/compiled_assets_v1/9691559e0e85986acb31469e82cc63e1830c1932c876951c5ac0f7912e5fc9d3.scn",
+      "native_reopened": true,
+      "native_sha256": "9691559e0e85986acb31469e82cc63e1830c1932c876951c5ac0f7912e5fc9d3",
+      "source_bytes": 5509676,
+      "source_path": "D:/code/rmmo_runtime/art_sources/axel_vegetation_optimization_20261017/grass_exact01/short_grass_a_lossless.glb",
+      "source_sha256": "49b1853ad425e84c812ea95da98c897fe1492b844b70ee0d5d6cd6f3002fa508",
+      "views": [
+        {
+          "exact_pixels": true,
+          "guarded_triangles": 13154,
+          "source_triangles": 13154,
+          "time": 1.0,
+          "view": "detail",
+          "wind": {
+            "covered_preparation": false,
+            "last_recovery": {},
+            "mode": "cached_variants",
+            "pending_receivers": 0,
+            "pending_variants": [],
+            "ready": true,
+            "ready_receivers": 2,
+            "reason": "",
+            "scanning": false
+          }
+        },
+        {
+          "exact_pixels": true,
+          "guarded_triangles": 13154,
+          "source_triangles": 13154,
+          "time": 1.75,
+          "view": "detail",
+          "wind": {
+            "covered_preparation": false,
+            "last_recovery": {},
+            "mode": "cached_variants",
+            "pending_receivers": 0,
+            "pending_variants": [],
+            "ready": true,
+            "ready_receivers": 2,
+            "reason": "",
+            "scanning": false
+          }
+        },
+        {
+          "exact_pixels": true,
+          "guarded_triangles": 13154,
+          "source_triangles": 13154,
+          "time": 1.0,
+          "view": "near",
+          "wind": {
+            "covered_preparation": false,
+            "last_recovery": {},
+            "mode": "cached_variants",
+            "pending_receivers": 0,
+            "pending_variants": [],
+            "ready": true,
+            "ready_receivers": 2,
+            "reason": "",
+            "scanning": false
+          }
+        },
+        {
+          "exact_pixels": true,
+          "guarded_triangles": 13154,
+          "source_triangles": 13154,
+          "time": 1.75,
+          "view": "near",
+          "wind": {
+            "covered_preparation": false,
+            "last_recovery": {},
+            "mode": "cached_variants",
+            "pending_receivers": 0,
+            "pending_variants": [],
+            "ready": true,
+            "ready_receivers": 2,
+            "reason": "",
+            "scanning": false
+          }
+        },
+        {
+          "exact_pixels": true,
+          "guarded_triangles": 5925,
+          "source_triangles": 5925,
+          "time": 1.0,
+          "view": "mid",
+          "wind": {
+            "covered_preparation": false,
+            "last_recovery": {},
+            "mode": "cached_variants",
+            "pending_receivers": 0,
+            "pending_variants": [],
+            "ready": true,
+            "ready_receivers": 2,
+            "reason": "",
+            "scanning": false
+          }
+        },
+        {
+          "exact_pixels": true,
+          "guarded_triangles": 5925,
+          "source_triangles": 5925,
+          "time": 1.75,
+          "view": "mid",
+          "wind": {
+            "covered_preparation": false,
+            "last_recovery": {},
+            "mode": "cached_variants",
+            "pending_receivers": 0,
+            "pending_variants": [],
+            "ready": true,
+            "ready_receivers": 2,
+            "reason": "",
+            "scanning": false
+          }
+        },
+        {
+          "exact_pixels": true,
+          "guarded_triangles": 2639,
+          "source_triangles": 2639,
+          "time": 1.0,
+          "view": "far",
+          "wind": {
+            "covered_preparation": false,
+            "last_recovery": {},
+            "mode": "cached_variants",
+            "pending_receivers": 0,
+            "pending_variants": [],
+            "ready": true,
+            "ready_receivers": 2,
+            "reason": "",
+            "scanning": false
+          }
+        },
+        {
+          "exact_pixels": true,
+          "guarded_triangles": 2639,
+          "source_triangles": 2639,
+          "time": 1.75,
+          "view": "far",
+          "wind": {
+            "covered_preparation": false,
+            "last_recovery": {},
+            "mode": "cached_variants",
+            "pending_receivers": 0,
+            "pending_variants": [],
+            "ready": true,
+            "ready_receivers": 2,
+            "reason": "",
+            "scanning": false
+          }
+        }
+      ],
+      "wind_nodes": 2
+    }
+  ]
+}

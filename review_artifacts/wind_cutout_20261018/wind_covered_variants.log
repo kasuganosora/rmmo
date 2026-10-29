@@ -1,0 +1,29 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+
+[godot_ai game_helper] registered mcp capture (debugger active=false, logger=true)
+PASS variant identity excludes per-instance uniforms and includes render state
+PASS uncovered step cannot submit a cold Shader or consume queued work
+PASS zero available time or variant allowance cannot start an indivisible call
+PASS one covered step submits at most one indivisible cold variant
+PASS different materials sharing a shader key warm once
+PASS covered queue drains and records each cold variant
+PASS work CPU and cold make time remain distinct from the full covered preparation span
+PASS shader code, material assignment, uniforms and textures have independent timings
+PASS shader code, material assignment, uniforms and textures have independent timings
+PASS re-enqueueing published specs cannot repeat the cold shader preparation
+PASS cancel discards source snapshots and prevents later submission
+PASS cancel fixture holds an active authored record after its first surface
+PASS mid-record cancellation releases the queue reference without clearing authored data
+PASS cache-only material factory cannot create a missing shader
+PASS legacy/default runtime policy remains unchanged
+PASS a multisurface cache miss leaves all authored materials installed
+PASS cold miss exposes a bounded retryable capability instead of silent loss
+PASS gameplay refresh does not create cold shaders or count static misses as bound
+PASS later cover receives only already-resident pending receiver resources
+PASS later covered transaction completes previously missing variant
+PASS pending receiver automatically binds after the covered variant becomes ready
+PASS runtime reports material, install and shared-state phases separately
+PASS disabling after deferred activation restores the exact authored row
+PASS new post-entry variant remains explicitly pending
+PASS retired pending receiver is not retained by the capability queue
+test_wind_covered_variants: 25 PASS / 0 FAIL

@@ -1,0 +1,27 @@
+Godot Engine v4.7.2.stable.official.ed1daf0bf - https://godotengine.org
+
+[godot_ai game_helper] registered mcp capture (debugger active=false, logger=true)
+PASS periodic refresh removes receiver outside guarded end
+PASS reverse camera motion updates visible end LOD before drawing
+PASS periodic refresh removes receiver outside guarded begin
+PASS reverse camera motion updates visible begin LOD before drawing
+PASS mixed periodic samples inside anchor guard cannot hide an actually visible LOD
+PASS crossing guard threshold scans immediately and reports range detail
+PASS non-scan frames never repeat old range detail
+PASS aggregate profiling remains enabled without stale detailed measurements
+PASS small budget leaves pending work rather than a full scan
+PASS existing visible receiver keeps animating while scan is pending
+PASS binding and cleanup finish over multiple bounded slices
+PASS new visible bindings immediately receive current time and existing rows never freeze
+PASS camera movement during scan removes former-radius receivers
+PASS explicit refresh cancels pending cycle and synchronously completes
+PASS opt-in cleanup timeline provides ordered absolute intervals
+PASS normal profiling does not publish stale cleanup timeline
+PASS freed nodes and removed group membership are safely cleaned during a cycle
+PASS moving a receiver to another World3D restores its source
+PASS disabling cancels work and restores all sources
+PASS slice shelter query suppresses force beneath roof
+PASS later periodic query restores wind after shelter moves
+PASS catch-up ticks consume only one slice and cadence decreases while scanning
+PASS controller exit cancels work and restores surviving nodes
+WIND_REFRESH_SLICES failures=0

@@ -15,15 +15,18 @@ var enabled := true
 # One private world-state texel keeps every rendered LOD current without a
 # synchronous camera-range sweep. The uniform path remains an A/B reference.
 var shared_state_enabled:=true
-# Opt-in background mode must never create a cold shader during gameplay.
-# Misses keep authored materials and retry after a later covered preparation.
+# Cache-only bindings retain authored materials until an automatic drawn cover
+# prepares unseen variants. Cold reflection can stall the renderer even on a worker.
 var cached_variants_only:=false
 var _variant_pending:Dictionary={}
+var covered_preparation:=false
+var last_recovery:Dictionary={}
 var _last_bind_timing:Dictionary={}
 var _shared_state:RefCounted
 const REFRESH_BUDGET_USEC := 2000
 var _active_indices:Dictionary={}
 var _scan_pending:=false
+var _initial_refresh_completed:=false
 var _scan_nodes:Array=[]
 var _scan_cleanup:Array=[]
 var _scan_cursor:=0
@@ -61,6 +64,7 @@ func set_enabled(value: bool) -> void:
 	enabled=value; set_physics_process(value); scan_left=0
 	range_camera_position=Vector3(INF,INF,INF)
 	if not enabled:
+		_initial_refresh_completed=false
 		_cancel_refresh()
 		for row in receivers.values(): _restore(row)
 		_clear_active(); receivers.clear()
@@ -71,7 +75,7 @@ func capability_status()->Dictionary:
 	var keys:Dictionary={}
 	for row:Dictionary in _variant_pending.values():
 		for key:String in row["keys"]:keys[key]=true
-	return {"mode":"cached_variants" if cached_variants_only else "legacy","ready_receivers":receivers.size(),"pending_receivers":_variant_pending.size(),"pending_variants":keys.keys(),"reason":"covered_variant_preparation_pending" if not keys.is_empty() else ""}
+	return {"mode":"cached_variants" if cached_variants_only else "legacy","ready":not enabled or (_initial_refresh_completed and keys.is_empty()),"scanning":_scan_pending,"ready_receivers":receivers.size(),"pending_receivers":_variant_pending.size(),"pending_variants":keys.keys(),"reason":"covered_variant_preparation_pending" if not keys.is_empty() else "","covered_preparation":covered_preparation,"last_recovery":last_recovery.duplicate(true)}
 
 func _prune_variant_pending()->void:
 	for id:int in _variant_pending.keys():
@@ -182,6 +186,7 @@ func _advance_refresh(budget_usec:int)->void:
 		mark=Time.get_ticks_usec();_remove_active(id);receivers.erase(id);erase_usec+=Time.get_ticks_usec()-mark;removed+=1
 	var complete:=_scan_cleaning and _cleanup_cursor>=_scan_cleanup.size()
 	if complete:
+		_initial_refresh_completed=true
 		_cancel_refresh()
 		cancel_nodes_usec=_cancel_nodes_usec;cancel_keys_usec=_cancel_keys_usec
 		# The synchronous interface historically updates every active uniform.
@@ -372,3 +377,21 @@ func _exit_tree() -> void:
 	for row in receivers.values(): _restore(row)
 	_clear_active();receivers.clear()
 	_variant_pending.clear()
+
+func prepare_pending_covered(cover:CanvasLayer)->Dictionary:
+	if covered_preparation or not is_inside_tree() or not is_instance_valid(cover) or not cover.is_opaque_drawn():return {"ok":false,"reason":"opaque_cover_required"}
+	var tree:=get_tree();var queue:=preload("res://scripts/world3d/wind_material_preparer.gd").new()
+	covered_preparation=true
+	while enabled and not pending_specs().is_empty():
+		queue.enqueue(pending_specs())
+		while queue.has_pending():
+			if not is_instance_valid(self) or not is_inside_tree() or not is_instance_valid(cover) or not cover.is_opaque_drawn():
+				queue.cancel()
+				if is_instance_valid(self):covered_preparation=false
+				return {"ok":false,"reason":"cancelled"}
+			queue.step_covered(cover.is_opaque_drawn(),2000,1)
+			await tree.process_frame
+		if not is_instance_valid(self) or not is_inside_tree():queue.cancel();return {"ok":false,"reason":"cancelled"}
+		refresh()
+	covered_preparation=false;last_recovery=queue.snapshot()
+	return {"ok":true,"preparation":last_recovery}
