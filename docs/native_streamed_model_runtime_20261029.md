@@ -304,10 +304,30 @@ inactive 样本直接把已加载全驻留 STEX 交给控件，仅证明其呈�
 
 本节仅覆盖普通 asset；custom kit 的依赖收集仍需接到共享 record/build context。初始编辑器 fixture 为构造基线曾短暂使用旧 cache，试玩测量前已驱逐；此结果不冒称普通 `_rebuild` 已完成。默认 split 导入仍关闭，正式模型尚未转换。
 
+## 原生预制件资源包独立性复现
+
+为区分旧 prefab 测试里的 GLB 假设和实际原生依赖合同，新增只读生产复现：使用真实序列化的 synthetic native 模型，没有 GLB；调用实际 `PrefabLibrary.capture/read`，然后只暂时移走该测试模型原来的 native index。捕获成功且作者记录不变，但捕获结果仍指原逻辑路径；原登记不可用后，预制件读取失败，恢复原登记立即恢复。这说明当前捕获没有建立目标包独立的模型登记，不能将旧“模型复制到目标包”失败简单删除。这里只隔离了登记依赖，不宣称证明了完整跨机器搬迁合同。
+
+`native_prefab_pack_closure_01/red_01` 为 **12 PASS / 2 FAIL、零诊断**，基线 `0b255db8` 的 6575 个归档文件全部未改，仅新增测试。未启动纹理 worker 或 GPU、未改正式资产，测试原登记已恢复。完整记录 `native_prefab_pack_closure_01/delivery_red.json`，SHA `5c3866ee110e83c09d3ce0304e462019be2ec05bedd38e72f307c8f3615ffad1`。冻结测试在该目录 `red_01/project/tools/test_native_prefab_pack_closure.gd`，SHA `9de96b31d6f4fadac6a09f28402cea38da34e1c2e4a56c401d5d16586447c283`；主工作区同名测试留待修复，不计入已通过切片。
+
+## 跨图可选预取预算与预算拒绝后的重复准备收尾
+
+本切片在用户将优先级明确转为编辑器可用性后只完成既有测试与归档，不启动后续性能工作。原外层 1GiB 预取 lease 没有约束 split 内层的 oversized-exclusive 放行，也漏扣已完成但仍保留的几何。实际共享 pool 对合法 16K 单 mip 元数据给出的保守工作预约可达 4,295,032,832B；这是协议估算，测试没有分配巨量像素。
+
+现在保留既有源 packet/地形等外层 allowance，native scheduler 在剩余额度内同时计算 definition-cache 预约容量、已保留几何、表/票据元数据和实际共享池工作。严格模式下额度可以为 0，不能借 oversized-exclusive 越界；普通按需加载仍保留原 exclusive 行为。表工作区在 resident ticket 建立期间继续计账，再交给保留元数据，避免交接空窗。非 split 分支仍沿旧的双倍几何 plan 上界，不冒称使用新严格账本。这些均为保守工作量预算，不是进程 RSS/显存硬上限。
+
+随后复现了预算拒绝导致的反复调度：实际 `World3D` 每 250ms 检查接近目标，同一 manifest 和额度下，12 次检查触发 5 轮真实 CrossMap、native 几何与纹理表准备。现在仅在本次接近期间记住明确的终止预算拒绝，在 CrossMap 启动前抑制重复任务；原任务、token 和 lease 仍正常清退。离开/取消、切换目标或根目录、definition-cache 配置容量变化、观察到源文件 stamp/长度变化或新 packet 的真实 manifest/native cap 变化后可以重试。普通取消不留下预算拒绝记录，真正传送的 take/verify 和按需加载不受该 memo 阻挡。
+
+失效探针每次最多轮转检查 4 个已有 manifest 路径的 mtime/长度，不解析/重哈希内容。最终样本的前 12 次检查只产生 **1 次 CPU packet、1 次几何读取、1 次表读取、0 次像素读取**；36 次路径探针累计 10.898ms、单路径最高 1.217ms，后续 8 次检查仍无新准备。它有同步元数据 I/O，既不是零 I/O，也不是耗时上界；同秒同长度的外部替换可能直到离开再接近才恢复可选预取，实际传送仍执行原权威校验。
+
+最终以 `1b3f5293` 归档加指定 6 个生产文件独立验收：预算 121、retry 35、旧回归 198，共 **354 CPU 检查**，另既有真实预取 GPU 生命周期 **36 项**，全部通过、零诊断。GPU 验证实际 STEX、两次绘制、park、接管及退出后归零；受控 1000ms worker 下 world 退出调用 42.458ms，仅作为该样本保留，不能推广为整图长帧结果。原 121 项预算测试有 20 项红失败，重复准备红测为 5 次几何/表读取，均保留。GPU 初次运行在启动前因 LF/CRLF 的精确 SHA 守卫拒绝；最终显式使用原已验 CRLF 夹具字节，文本相同，生产未改。
+
+完整交付 `target_scene_prefetch_budget_01/delivery_budget_final.json`，SHA `a2edac1f90c029de15691ea2ba15aee2525811f046e1a832f50b01959efce7ef`。默认 candidate07 未修改。GPU 原夹具 `normal_loaded` 字典别名被清空、只对其中一个 surface texture 保留逐对象弱引用等限制沿原记录保留；不补造 profile，也不将旧样本重复计数。没有 axel_town 总加载或 1% low 收益结论。
+
 ## 后续顺序
 
 1. 旧 operation → 新 Initial 的**已完成 owner 入站复用已完成**，结果见上节及 B 的 `initial_native_inbound_reuse_handoff.json`。并发 operation 中尚未完成的 producer 仍各有自己的池，尚无跨 operation 的全局在途 single-flight；不把本轮完成票据复用说成该问题也已解决。也不能因 `start` 时目录为空就整次跳桥，旧 operation 可能在 metadata 就绪前发布 owner。后续可考虑请求抵达主线程时，以两个目录当前均空作 O(1) 全 miss 回复，保留现有取消与 metadata 退役合同。
 2. 引擎排队 I/O 的 owner、shutdown 及预览就绪 API 已按上节复现、修复、回归并安装 candidate07；后续验证使用准确 SHA，不以相同 version 字符串混淆 04d/05/06/07。更广生命周期和整图表现继续在实际集成中检验。
-3. 普通模型的 LoadJob、预览/缩略图、冷放置/历史操作、试玩已按上节完成各自协议与 GPU/HTTP 验证；剩余普通整视图重建和 custom kit 需要共同依赖/build context，覆盖编辑器操作、LoadJob、MapLoader 与试玩。prefab 独立包/搬迁合同仍须单独核查；TargetScenePrefetch 的严格 split 预算及同目标预算拒绝后的重复尝试正在独立修复。全部冷消费者通过后，再切换默认 split 导入并迁移既有内嵌 native。历史只读报告 `editor_native_streaming_integration_readonly_01.json` 不是这些后续切片的验收证据，游戏 Initial 的独立账本也不能代替编辑器共用账本。
+3. **当前优先交付编辑器可用性，性能后置。** 普通模型的 LoadJob、预览/缩略图、冷放置/历史操作、试玩已按上节完成各自协议与 GPU/HTTP 验证；剩余普通整视图重建和 custom kit 需要共同依赖/build context，覆盖编辑器操作、LoadJob、MapLoader 与试玩。prefab 独立包/搬迁合同已有上述原生红测，继续修复；TargetScenePrefetch 严格预算与重复拒绝已按本节收尾。优先贯通导入、放置/套件、编辑、撤销、试玩、保存冷重开，随后切换默认 split 导入并迁移既有内嵌 native。历史只读报告 `editor_native_streaming_integration_readonly_01.json` 不是这些后续切片的验收证据，游戏 Initial 的独立账本也不能代替编辑器共用账本。
 4. 从入口大模型开始转换并按 `rmmo-model-review` 做受影响项验收，保持原像素默认策略。随后覆盖实际引用与角色原生产品。
 5. 正式接入后再测 axel_town 加载、卸载、返回加载及 low，继续使用地图加载开始到当前需求区域完整就绪的计时边界。

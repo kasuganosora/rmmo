@@ -2159,6 +2159,7 @@ func _update_approach_preparation()->void:
 		if d>=distance or target.is_empty():continue
 		chosen=target;destination=Vector3(params.spawn[0],params.spawn[1]+.9,params.spawn[2]);distance=d
 	if chosen.is_empty():_cross_map_prefetch.cancel();_target_scene_prefetch.cancel();return
+	if not _target_scene_prefetch.can_prefetch(chosen,destination):return
 	var ledger:RefCounted=deferred._admission if deferred!=null else _prefetch_fallback_ledger
 	if deferred==null:ledger.byte_limit=preload("res://scripts/world3d/target_scene_prefetch.gd").LEASE_BYTES+CrossMapPrefetch.LEASE_BYTES
 	if not _target_scene_prefetch.matches(chosen,destination):_cross_map_prefetch.request(chosen,destination,ledger)

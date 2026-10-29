@@ -26,6 +26,9 @@ var _verify_ticket:Dictionary={}
 var _root:=""
 var _consumer:WeakRef
 var _abandoned:=false
+var _source_stamps:Dictionary={}
+var _definition_cache_bytes:=0
+var _budget_rejection:Dictionary={} # Scalar hint for this approach only; never a source-validity proof.
 static func for_world(world:Node)->Node:
 	# Create under the existing tree lifetime owner before dispatch. The loader's
 	# Callables and warm coroutine still use this node after its consumer exits.
@@ -40,6 +43,7 @@ static func for_world(world:Node)->Node:
 	return service
 static func plan(records:Array,root:String,source_path:String,source_sha:String,dependencies:Dictionary)->Dictionary:
 	var files:Dictionary={source_path:source_sha};var models:Dictionary={};var pixels:Dictionary={};var bytes:=512*1024*1024
+	var geometry_bytes:=0;var split_native:=false
 	for record:Dictionary in records:
 		bytes+=int(record.get("house_prefab",{}).get("length",0))*16
 		if record.has("terrain_mesh"):bytes+=int(record.terrain_mesh.columns)*int(record.terrain_mesh.rows)*1024
@@ -57,6 +61,8 @@ static func plan(records:Array,root:String,source_path:String,source_sha:String,
 		var memory:=preload("res://scripts/world3d/model_parse_preparation.gd").native_memory(metadata)
 		if memory.is_empty():return {}
 		bytes+=int(memory.estimated_bytes)*2
+		geometry_bytes+=int(memory.estimated_bytes)
+		split_native=split_native or metadata.native_candidate.has("texture_table")
 		# The authoring path is a logical key. Only the actual published index,
 		# descriptor and native payload participate in prefetch invalidation.
 		for metadata_path:String in [metadata.native_index_path,metadata.native_descriptor_path]:
@@ -73,12 +79,47 @@ static func plan(records:Array,root:String,source_path:String,source_sha:String,
 		if path.is_empty():return {}
 		files[path]=dependencies[uri]
 	if bytes>LEASE_BYTES:return {}
+	var stamps:Dictionary={}
 	for path:String in files:
 		if not Paths.allowed(path,root):return {}
 		if files[path] is Dictionary:
 			if not _native_file_identity(path,files[path],root):return {}
 		elif not preload("res://scripts/world3d/compiled_asset_cache.gd")._sha(files[path]):return {}
-	return {"files":files,"estimated_bytes":bytes}
+		stamps[path]=_source_stamp(path)
+	# The source packet and non-model work remain covered outside the native
+	# scheduler. That scheduler must fit retained geometry, table/ticket metadata
+	# and its actual shared-pool offer inside the remainder; do not reread tables
+	# or add the same full texture chain once per model here.
+	var native_budget:=LEASE_BYTES-(bytes-geometry_bytes*2)
+	return {"files":files,"estimated_bytes":LEASE_BYTES if split_native else bytes,"native_budget_bytes":native_budget,"source_stamps":stamps}
+
+static func _source_stamp(path:String)->Array:
+	var file:=FileAccess.open(path,FileAccess.READ)
+	var length:int=file.get_length() if file!=null else -1
+	if file!=null:file.close()
+	return [FileAccess.get_modified_time(path),length]
+
+func can_prefetch(path:String,destination:Vector3)->bool:
+	if _abandoned:return false
+	if _budget_rejection.is_empty():return true
+	if path!=_budget_rejection.path or destination!=_budget_rejection.destination or Paths.external_root()!=_budget_rejection.root or preload("res://scripts/world3d/definition_cache_policy.gd").reserved_bytes()!=_budget_rejection.definition_cache_bytes:
+		_budget_rejection.clear();return true
+	# Bound foreground stat work, without parsing or hashing model metadata. A
+	# same-size replacement inside the filesystem's timestamp resolution may
+	# remain suppressed until leaving this approach. Transfer still verifies.
+	var keys:Array=_budget_rejection["keys"]
+	for _index:int in mini(4,keys.size()):
+		var key:String=keys[int(_budget_rejection.cursor)]
+		_budget_rejection.cursor=(int(_budget_rejection.cursor)+1)%keys.size()
+		var began:=Time.get_ticks_usec();var changed:bool=_source_stamp(key)!=_budget_rejection.stamps[key]
+		var elapsed:=Time.get_ticks_usec()-began
+		profile.budget_probe_files=int(profile.get("budget_probe_files",0))+1
+		profile.budget_probe_us=int(profile.get("budget_probe_us",0))+elapsed
+		profile.budget_probe_max_us=maxi(int(profile.get("budget_probe_max_us",0)),elapsed)
+		if changed:
+			_budget_rejection.clear();return true
+	profile.budget_suppressed=int(profile.get("budget_suppressed",0))+1
+	return false
 
 static func _native_file_identity(path:String,identity:Dictionary,root:String)->bool:
 	if identity.size()!=3 or identity.get("native_product")!=true or not preload("res://scripts/world3d/compiled_asset_cache.gd")._sha(identity.get("sha256")) or not identity.get("length") is int or not preload("res://scripts/world3d/compiled_asset_cache.gd").valid_payload_size(identity.length):return false
@@ -102,6 +143,11 @@ static func verify(files:Dictionary,root:String)->bool:
 	return true
 func request(path:String,destination:Vector3,ledger:RefCounted,cpu:Node)->bool:
 	if _abandoned or not enabled:return false
+	if not _budget_rejection.is_empty():
+		var plan_:Dictionary=cpu._packet.scene_plan if is_instance_valid(cpu) and cpu._packet!=null else {}
+		if not plan_.is_empty() and (plan_.files!=_budget_rejection.files or int(plan_.native_budget_bytes)!=int(_budget_rejection.native_budget_bytes)):
+			_budget_rejection.clear()
+		elif not can_prefetch(path,destination):return false
 	if path==_path and destination==_destination:_touched=Time.get_ticks_msec();return true
 	if not _path.is_empty():cancel();return false
 	if not is_instance_valid(cpu) or cpu._packet==null or cpu._packet.scene_plan.is_empty():return false
@@ -112,14 +158,20 @@ func request(path:String,destination:Vector3,ledger:RefCounted,cpu:Node)->bool:
 	_root=Paths.external_root();_ledger=ledger;var packet:RefCounted=cpu.take(path,destination)
 	if packet==null:_release();return false
 	_path=path;_destination=destination;_manifest=packet.scene_plan.files.duplicate();_touched=Time.get_ticks_msec()
+	_source_stamps=packet.scene_plan.source_stamps.duplicate(true)
 	_loader=load("res://scripts/world3d/map_loader.gd").new();_loader.background_preload=true;_loader.near_first=true;_loader.source_prefetch=packet
-	_loader._model_preparation.inflight_byte_limit=LEASE_BYTES/2
+	_loader._model_preparation.inflight_byte_limit=int(packet.scene_plan.native_budget_bytes)
+	_loader._model_preparation.strict_native_budget=true
 	_loader.finished.connect(_loaded);add_child(_loader);_loader.start(path,destination)
+	_definition_cache_bytes=preload("res://scripts/world3d/definition_cache_policy.gd").reserved_bytes()
 	profile.started+=1;return true
 func matches(path:String,destination:Vector3)->bool:
 	return _path==path and _destination==destination and _token!=null and not _token.is_cancelled()
 func _loaded(scene:Node,_target:String,error:String)->void:
 	if _token==null or _token.is_cancelled() or not error.is_empty() or scene==null:
+		if _token!=null and not _token.is_cancelled() and is_instance_valid(_loader) and bool(_loader._profile.get("native_texture_preparation",{}).get("budget_rejected",false)):
+			_budget_rejection={"path":_path,"destination":_destination,"root":_root,"files":_manifest.duplicate(true),"stamps":_source_stamps.duplicate(true),"keys":_source_stamps.keys(),"cursor":0,
+				"native_budget_bytes":int(_loader._model_preparation.inflight_byte_limit),"definition_cache_bytes":_definition_cache_bytes}
 		if is_instance_valid(scene):Drainer.dispose_scene(scene)
 		profile.misses+=1
 		if _token!=null:_token.cancel()
@@ -179,7 +231,7 @@ func _process(_delta:float)->void:
 		var valid:bool=_verify.wait_to_finish();_verify=null;preload("res://scripts/world3d/cpu_worker_retirement.gd").complete(_verify_ticket)
 		if valid and _token!=null and not _token.is_cancelled():_gpu_ready=true;_ledger.park(_lease);profile.ready+=1
 		else:cancel()
-	if _token!=null and (_token.is_cancelled() or Time.get_ticks_msec()-_touched>10000):cancel()
+	if _token!=null and (_token.is_cancelled() or Time.get_ticks_msec()-_touched>10000):cancel(false)
 	if _loader!=null and not is_instance_valid(_loader):_loader=null
 	if _token!=null and _token.is_cancelled() and _loader==null and _verify==null and not _warming:_dispose()
 	if _abandoned and _token==null and _loader==null and _verify==null and not _warming:queue_free()
@@ -188,7 +240,8 @@ func take(path:String,destination:Vector3)->Node3D:
 	var result:Node3D=_scene;_scene=null
 	result.set_meta("prefetched_gpu_owners",_warm.duplicate());result.set_meta("gpu_preload_hit",true)
 	_warm.clear();profile.hits+=1;_dispose();return result
-func cancel()->void:
+func cancel(forget_budget_rejection:bool=true)->void:
+	if forget_budget_rejection:_budget_rejection.clear()
 	if _token==null:return
 	_token.cancel();_gpu_ready=false
 	if is_instance_valid(_loader):_loader.cancel()
@@ -205,7 +258,7 @@ func _dispose()->void:
 	if is_instance_valid(_viewport):_viewport.free()
 	_viewport=null
 	if is_instance_valid(_scene):Drainer.dispose_scene(_scene)
-	_scene=null;_warm.clear();_manifest.clear();_release();_path="";_gpu_ready=false
+	_scene=null;_warm.clear();_manifest.clear();_source_stamps.clear();_release();_path="";_gpu_ready=false
 func _release()->void:
 	if _ledger!=null:_ledger.release(_lease)
 	_ledger=null;_token=null;_lease=""

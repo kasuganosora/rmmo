@@ -42,6 +42,7 @@ func _stop()->void:
 func run(owner:RefCounted,paths:Array,candidates:Dictionary,estimates:Dictionary,root:String,limit:int,byte_limit:int,starter:Callable)->Dictionary:
 	controller=owner;content_root=root
 	ledger=Admission.new();ledger.worker_limit=limit;ledger.byte_limit=byte_limit
+	ledger.strict_byte_limit=owner.strict_native_budget
 	scope=Scope.new();scope.pool=owner.native_texture_pool if owner.native_texture_pool!=null else Pool.new();scope.pool.admission=ledger
 	scope.resident_bridge=owner.native_resident_bridge;scope.resident_run=owner.open_native_resident_run()
 	scope.resident_budget_limit=byte_limit
@@ -80,6 +81,7 @@ func run(owner:RefCounted,paths:Array,candidates:Dictionary,estimates:Dictionary
 		if is_cancelled():
 			if pending.is_empty():break
 			OS.delay_usec(500);continue
+		var byte_denials:int=ledger.strict_byte_denials
 		var dispatched:=_dispatch_ready(starter)
 		dispatched=_dispatch_pixels(starter) or dispatched
 		dispatched=_dispatch_preparation(starter) or dispatched
@@ -88,6 +90,7 @@ func run(owner:RefCounted,paths:Array,candidates:Dictionary,estimates:Dictionary
 			# Do not spin forever if a malformed fixture/admission contract cannot
 			# complete. Normal producers have either a running task or a resumable
 			# binding that transfers their retained outputs to streaming residency.
+			if ledger.strict_byte_denials>byte_denials:profile.budget_rejected=true
 			for model:Dictionary in models:
 				if model.binding!="done":model.result.error=ERR_OUT_OF_MEMORY;model.result.error_message="Initial native admission cannot make progress: "+model.path;break
 			_stop();continue
@@ -100,7 +103,7 @@ func _dispatch_preparation(starter:Callable)->bool:
 		var work:Dictionary=queued_preparation[index];var item:Dictionary=work.owner
 		# Retained scalar metadata is a separate allowance, not a persistent
 		# admission entry that would block its own exclusive model.
-		if work.stage=="table" and metadata_bytes+scope.resident_metadata_bytes>=working_byte_limit:index+=1;continue
+		if not ledger.strict_byte_limit and work.stage=="table" and metadata_bytes+scope.resident_metadata_bytes>=working_byte_limit:index+=1;continue
 		if not ledger.reserve(work.key,work.estimate):index+=1;continue
 		queued_preparation.remove_at(index)
 		if work.stage=="geometry":
@@ -120,14 +123,20 @@ func _read_table(candidate:Dictionary)->Dictionary:
 
 func _join_table(table:Dictionary,reply:Dictionary,key:String)->void:
 	if reply.get("opaque_metadata",false):scope.retained_packets.append(reply);scope.retained_reservations.append(key);ledger.park(key)
-	else:ledger.release(key)
 	if not reply.get("ok",false):
+		if not reply.get("opaque_metadata",false):ledger.release(key)
 		var first:Dictionary=table.models[0];first.failure=ERR_INVALID_DATA;first.failure_message=str(reply.get("error","Native metadata preparation failed"));_stop();return
-	table.plan=reply;table.resident=true;metadata_bytes+=int(table.metadata_bytes)
+	# Keep the table workspace charged while the resident request allocates its
+	# keys/tickets. Catalog reserves 2*metadata plus JSON/workspace; its per-row
+	# 8192 + root*24 allowance also bounds the bridge's 1024 + key*4 + repr*2
+	# for validated native paths. Thus metadata + ticket replaces this reservation,
+	# rather than allocating the ticket after returning its covering allowance.
 	if scope.resident_run!=null and not reply.plan.rows.is_empty():
 		table.ticket_bytes=scope.resident_run.request(table.key,reply.plan.rows)
-		scope.resident_metadata_bytes+=int(table.ticket_bytes)
 		waiting_residents.append(table)
+	if not reply.get("opaque_metadata",false):ledger.release(key)
+	table.plan=reply;table.resident=true;metadata_bytes+=int(table.metadata_bytes)
+	scope.resident_metadata_bytes+=int(table.get("ticket_bytes",0))
 	_reapply_budget()
 	profile.metadata_peak_bytes=maxi(int(profile.metadata_peak_bytes),metadata_bytes)
 	peak_live_estimate_bytes=maxi(peak_live_estimate_bytes,int(profile.geometry_retained_bytes)+metadata_bytes+scope.resident_metadata_bytes+ledger.reserved_bytes)
@@ -136,7 +145,10 @@ func _join_table(table:Dictionary,reply:Dictionary,key:String)->void:
 	if scope.resident_run==null or reply.plan.rows.is_empty():_accept_table_residents(table,{})
 
 func _reapply_budget()->void:
-	ledger.byte_limit=maxi(1,working_byte_limit-metadata_bytes-scope.resident_metadata_bytes)
+	var remaining:int=working_byte_limit-metadata_bytes-scope.resident_metadata_bytes
+	if ledger.strict_byte_limit:
+		ledger.byte_limit=maxi(0,remaining-int(profile.geometry_retained_bytes))
+	else:ledger.byte_limit=maxi(1,remaining)
 
 func _poll_residents()->void:
 	if scope.resident_run==null or is_cancelled():return
@@ -275,6 +287,7 @@ func _join_finished()->void:
 			ledger.release(job.key);model.result=reply;model.result.path=model.path
 			model.result.elapsed_us=int(reply.get("worker_elapsed_us",0));model.geometry="done"
 			profile.geometry_retained_bytes+=int(model.estimate.estimated_bytes)
+			if ledger.strict_byte_limit:_reapply_budget()
 			peak_live_estimate_bytes=maxi(peak_live_estimate_bytes,int(profile.geometry_retained_bytes)+metadata_bytes+scope.resident_metadata_bytes+ledger.reserved_bytes)
 			if reply.get("error",ERR_INVALID_DATA)!=OK:model.failure=int(reply.get("error",ERR_INVALID_DATA));_stop()
 			else:_queue_binding(model)

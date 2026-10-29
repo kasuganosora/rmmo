@@ -4,6 +4,8 @@ extends RefCounted
 ## Workers never mutate it. Stage labels are diagnostic and never release bytes.
 var worker_limit:=2
 var byte_limit:=4*1024*1024*1024
+var strict_byte_limit:=false # Speculative owners cannot borrow an oversized exclusive window.
+var strict_byte_denials:=0
 var reserved_bytes:=0
 var peak_bytes:=0
 var peak_jobs:=0
@@ -33,6 +35,9 @@ func blocking_reason(key:String,estimate:Dictionary)->String:
 	if _entries.has(key):return "already_reserved"
 	if worker_limit<=0:return "disabled"
 	var size:=maxi(1,int(estimate.get("estimated_bytes",byte_limit)))
+	if strict_byte_limit and reserved_bytes+size>byte_limit:
+		strict_byte_denials+=1
+		_preempt_background();return "byte_limit"
 	var exclusive:=requires_exclusive(estimate)
 	# Report the drain requirement before generic capacity; it explains why an
 	# empty sibling slot cannot safely be filled by a lower-priority request.

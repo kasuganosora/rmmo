@@ -19,6 +19,7 @@ static func try_enter_raw_import(_static_private:bool)->bool:
 	return _raw_import_gate.try_acquire(false)
 static func leave_raw_import()->void:_raw_import_gate.release()
 var inflight_byte_limit:=4*1024*1024*1024
+var strict_native_budget:=false # Target prefetch includes retained geometry in this hard envelope.
 # Optional operation-local CPU probes. Configure before run(), never mid-load.
 var memory_estimator:Callable
 var cache_reader:Callable
@@ -141,7 +142,9 @@ func run(paths: Array, parser: Callable = Callable(), worker_limit: int = 2, thr
 		# under the same worker/byte limit and without introducing a GLB fallback.
 		if candidates.size()!=unique.size():return _preflight_failure("","mixed_native_texture_candidates",unique.size(),started)
 		var split:=preload("res://scripts/world3d/initial_native_texture_jobs.gd").new()
-		var prepared:Dictionary=split.run(self,unique,candidates,native_estimates,content_root,limit,preload("res://scripts/world3d/definition_cache_policy.gd").work_budget(inflight_byte_limit),thread_starter)
+		var budget:int=preload("res://scripts/world3d/definition_cache_policy.gd").work_budget(inflight_byte_limit)
+		if strict_native_budget:budget=maxi(0,inflight_byte_limit-preload("res://scripts/world3d/definition_cache_policy.gd").reserved_bytes())
+		var prepared:Dictionary=split.run(self,unique,candidates,native_estimates,content_root,limit,budget,thread_starter)
 		prepared.eligibility_us=eligibility_us
 		return _finish(prepared,started)
 	var admission=Admission.new();admission.worker_limit=limit;admission.byte_limit=preload("res://scripts/world3d/definition_cache_policy.gd").work_budget(inflight_byte_limit)

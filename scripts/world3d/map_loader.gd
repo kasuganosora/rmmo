@@ -777,6 +777,7 @@ func _prepare_record_assets_inner()->void:
 		var previous:RefCounted=_model_preparation
 		_model_preparation=preload("res://scripts/world3d/model_parse_preparation.gd").new()
 		_model_preparation.inflight_byte_limit=previous.inflight_byte_limit
+		_model_preparation.strict_native_budget=previous.strict_native_budget
 		_model_preparation.memory_estimator=previous.memory_estimator
 		_model_preparation.cache_reader=previous.cache_reader
 		_model_preparation.eligibility_checker=previous.eligibility_checker
