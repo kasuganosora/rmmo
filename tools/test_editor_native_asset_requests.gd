@@ -56,6 +56,7 @@ class ThumbnailProbe extends "res://scripts/world_editor/asset_thumbnails.gd":
 		results.clear()
 
 func received(id:int,result:Dictionary)->void:replies[id]=result
+func template_alive(reference:WeakRef)->bool:return reference.get_ref()!=null
 func wait_reply(id:int)->Dictionary:
 	var deadline:=Time.get_ticks_msec()+5000
 	while not replies.has(id) and Time.get_ticks_msec()<deadline:await process_frame
@@ -235,7 +236,12 @@ func run()->void:
 	while preview.scene==null and Time.get_ticks_msec()<deadline:await process_frame
 	check(preview.scene!=null and Ready.scene_ready(preview.scene),"cold UI preview resolves split native without a warmed global cache")
 	check(not Assets._scenes.has(model.path),"one-shot preview does not populate AssetLibrary._scenes")
+	var previous_template:WeakRef=weakref(preview.scene.get_meta("_compiled_resource_owner"))
 	preview.show_asset("");await settle(host._shared_preparation_ledger,pool)
+	# The following case exercises cold coalescing. Clearing a preview schedules
+	# retirement; a still-live template can legitimately serve a new warm request.
+	deadline=Time.get_ticks_msec()+5000
+	while template_alive(previous_template) and Time.get_ticks_msec()<deadline:await process_frame
 	var consumer:=Node.new();host.add_child(consumer)
 	var before:int=service.profile.producers
 	var first:int=service.request(model.path,consumer,received)

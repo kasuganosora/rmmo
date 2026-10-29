@@ -216,6 +216,27 @@ inactive 样本直接把已加载全驻留 STEX 交给控件，仅证明其呈�
 
 真实 GPU `editor_native_assets_regression_01/gpu_native_04` 的 **20/20** 验证 Library 导入、去重、真实编辑器预览、变换/碰撞、撤销、保存及删除 GLB、清理模板缓存后的重新加载；只有删除 native 产品才报缺失。隔离 content root 缺云噪声的 1 条 fallback warning 单独保留，无脚本错误。这里不是 file-dialog/HTTP MCP 的全流程验收、OS 冷缓存测量，也没有开启默认 split 导入或修改正式素材。
 
+## 连续编辑消费者复用同一份已完成模板
+
+`2ebe6dfd` 上的独立红测确认：预览的 Handle 已销毁、但实际场景仍通过 `_compiled_resource_owner` 持有原模板时，随后两个消费者仍会再读两次 native 文件。三个消费者形成三份不同的 PackedScene/网格；夹具的保守几何基线从 64 增至 192 MiB。这是三份分配的正确记账，问题在重复准备，不是重复扣账；该值不是实际 RSS。
+
+`EditorAssetPreparation` 现在只对已经完成 READY、adopt 和 publication 的模板建立弱索引。按 content root 和逻辑模型路径定位，比较完整当前 candidate 和原生身份；命中后走既有异步 Handle 交付，不再读取、绑定、入队或重复 adopt。没有新增强缓存、线程池、资源 metadata 或第二套预算，也不把结果写入全局 `_scenes`。同路径仅保留当前版本；失效、未完成、仅供几何查询的模板仍会被拒绝。
+
+死索引按固定小步清理，存活条目不因任意数量上限被淘汰；闲置服务停止处理。探活使用实例 ID，避免仅为了清索引就通过 `WeakRef.get_ref()` 临时取得大资源的强引用。candidate 不同先丢弃索引；真正借用后若发现状态无效，交给既有 `ResourceRetirement.defer_scene` 清退。额外的受控协议红测覆盖了这三个分支，不冒称已经抓到历史长帧中的同一原生线程竞态。
+
+最终验证均以 `git archive 2ebe6dfd` 为基线，仅覆盖本切片指定文件，未混入用户 12 个 WIP 或同时开发的放置、prefetch 修改。引擎仍是默认 candidate07，EXE SHA `dabba1322488f959bddbd1d20ebdf40ee788c918c1a8b193a533d0472efb7375`。
+
+|验证|结果与边界|B 下证据|
+|---|---|---|
+|独立 CPU 复用及回收|1095/1095；145 个存活模板不被数量上限淘汰，候选变更、READY、取消、死条目清理及最终归零|`editor_sequential_native_requests_01/isolated_cpu_01`|
+|原请求服务回归|158/158；冷并发用例先等原模板 WeakRef 真正失效，再保留新 producer 的原断言|`editor_sequential_native_requests_01/isolated_compatibility_01`|
+|真实 GPU 顺序消费者|51/51；实际预览 → 实际缩略图 → 普通实例请求，native read、纹理表读取、STEX 加载、材质绑定和几何 adopt 各一次，PackedScene/Mesh/Texture/RID 相同|`editor_sequential_native_requests_01/gpu_sequential_02`|
+|既有呈现回归|72/72；沿用同版本 UI/有限观察协议和像素比较|`editor_sequential_native_requests_01/gpu_ui72_01`|
+
+合计 **1376 项通过、零诊断**。三个消费者释放并完成清退后，临时账本、已发布几何基线和该夹具的引擎纹理计数归零；随后重新请求产生新的 producer 和分配。无全局强缓存增长，也没有用永不释放的模板换取命中率。生产 service SHA `ed9298337598af9d07f403faaf8018703542b98bd86ae3a8c18d2e9145176f55`，完整最终记录见 `editor_sequential_native_requests_01/delivery_reuse_final.json`。
+
+旧工作区依赖的探索 CPU/GPU 样本保留，但不作为最终隔离验收。此切片证明工作量减少和共享/回收正确性，不等于正式放置/HTTP MCP 已接通，不提供整图加载时间或 1% low 收益。默认 split 导入仍关闭，正式资源未修改。
+
 ## 后续顺序
 
 1. 旧 operation → 新 Initial 的**已完成 owner 入站复用已完成**，结果见上节及 B 的 `initial_native_inbound_reuse_handoff.json`。并发 operation 中尚未完成的 producer 仍各有自己的池，尚无跨 operation 的全局在途 single-flight；不把本轮完成票据复用说成该问题也已解决。也不能因 `start` 时目录为空就整次跳桥，旧 operation 可能在 metadata 就绪前发布 owner。后续可考虑请求抵达主线程时，以两个目录当前均空作 O(1) 全 miss 回复，保留现有取消与 metadata 退役合同。

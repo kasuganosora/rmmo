@@ -11,6 +11,7 @@ const Ownership=preload("res://scripts/world_editor/prepared_model_ownership.gd"
 const Paths=preload("res://scripts/world3d/map_paths.gd")
 const NODE_NAME:="EditorAssetPreparation"
 const MAX_BATCH_MODELS:=8
+const PRIVATE_PRUNE_STEP:=8
 
 class Handle extends RefCounted:
 	var packed:PackedScene
@@ -33,7 +34,7 @@ var native_texture_pool:RefCounted # Optional fixture injection.
 var native_texture_preparer:Callable # Optional fixture injection.
 var thread_starter:Callable # Optional fixture injection.
 var ownership_tracker:Node # Optional protocol-only CPU fixture injection.
-var profile:={"requests":0,"producers":0,"joined":0,"completed":0,"failed":0,"cancelled":0,"batches_closed":0,"table_reads":0}
+var profile:={"requests":0,"producers":0,"joined":0,"completed":0,"failed":0,"cancelled":0,"batches_closed":0,"table_reads":0,"private_reused":0,"private_scanned":0}
 var _requests:Dictionary={}
 var _bundles:Dictionary={}
 var _groups:Dictionary={}
@@ -41,6 +42,11 @@ var _batches:Dictionary={}
 var _next_request:=0
 var _next_batch:=0
 var _closed:=false
+# Discover already adopted templates while their real callers still own them.
+# One current candidate per logical path; these rows own no model resources.
+var _private_models:Dictionary={}
+var _private_order:Array[String]=[]
+var _private_cursor:=0
 
 static func for_consumer(consumer:Node)->Node:
 	if not is_instance_valid(consumer) or not consumer.is_inside_tree():return null
@@ -63,11 +69,15 @@ func request(path:String,consumer:Node,callback:Callable)->int:
 	var request_:={"consumer":weakref(consumer),"callback":callback}
 	_requests[id]=request_;set_process(true)
 	path=path.replace("\\","/").simplify_path()
+	_prune_private()
 	var candidate:=Library.native_candidate(path,content_root)
 	if candidate.is_empty():
 		request_.result={"ok":false,"error":"模型缺少可用原生产物："+path};return id
 	if Library._native_cached(path,candidate):
 		request_.result={"ok":true,"handle":_handle(path,candidate,Library._scenes[path])};return id
+	var borrowed:=_borrow_private(path,candidate)
+	if borrowed!=null:
+		request_.result={"ok":true,"handle":_handle(path,candidate,borrowed)};profile.private_reused+=1;return id
 	var key:=_identity(path,candidate,content_root)
 	request_.group=key
 	if _groups.has(key):
@@ -127,6 +137,65 @@ func _handle(path:String,candidate:Dictionary,packed:PackedScene)->Handle:
 	var handle:=Handle.new();handle.path=path;handle.candidate=candidate;handle.content_root=content_root;handle.packed=packed
 	return handle
 
+static func _render_ready(packed:PackedScene,candidate:Dictionary)->bool:
+	if not Ready.matches(packed,candidate) or packed.get_meta(Ready.GEOMETRY_ONLY_META,false):return false
+	var state:=packed.get_state()
+	if state.get_node_count()==0:return false
+	# A geometry-query instance can be repacked. Its root marker must not become
+	# a render-ready template even when there is no separate texture table.
+	for index:int in state.get_node_property_count(0):
+		if state.get_node_property_name(0,index)==StringName("metadata/"+str(Ready.GEOMETRY_ONLY_META)) and state.get_node_property_value(0,index):return false
+	return true
+
+func _private_key(path:String)->String:
+	return JSON.stringify([content_root,path])
+
+func _borrow_private(path:String,candidate:Dictionary)->PackedScene:
+	var key:=_private_key(path)
+	if not _private_models.has(key):return null
+	var row:Dictionary=_private_models[key]
+	# Compare the complete descriptor, including accounting fields absent from
+	# the in-flight coalescing key. The snapshot is private, never a Handle alias.
+	if row.candidate!=candidate:
+		_forget_private(key);return null
+	var packed:PackedScene=row.packed.get_ref() as PackedScene
+	var valid:bool=_render_ready(packed,candidate)
+	valid=valid and packed.get_meta("compiled_asset_validated",false) and (preload("res://scripts/world3d/runtime_package_policy.gd").trusted() or packed.get_meta("_rmmo_native_audited",false)) and packed.get_meta("_rmmo_source_digest","")==candidate.get("source_sha") and packed.get_meta("_rmmo_native_payload_sha","")==candidate.get("payload_sha") and packed.get_meta("_rmmo_native_generator","")==candidate.get("generator")
+	if valid:return packed
+	_forget_private(key)
+	# Another owner can release after get_ref. If this rejected borrow is now
+	# the last reference, keep its release on the existing bounded scene queue.
+	if packed!=null:preload("res://scripts/world3d/resource_retirement.gd").defer_scene(packed)
+	return null
+
+func _remember_private(path:String,candidate:Dictionary,packed:PackedScene)->void:
+	# Called only after successful adoption/publication, while the original
+	# charged packet still owns this complete allocation. No second adoption.
+	_prune_private()
+	var key:=_private_key(path)
+	var slot:int
+	if _private_models.has(key):slot=_private_models[key].slot
+	else:slot=_private_order.size();_private_order.append(key)
+	_private_models[key]={"packed":weakref(packed),"instance_id":packed.get_instance_id(),"candidate":candidate.duplicate(true),"slot":slot}
+
+func _forget_private(key:String)->void:
+	if not _private_models.has(key):return
+	var slot:int=_private_models[key].slot
+	var last:String=_private_order.back()
+	_private_order[slot]=last;_private_order.pop_back()
+	if last!=key:_private_models[last].slot=slot
+	_private_models.erase(key)
+	if _private_cursor>=_private_order.size():_private_cursor=0
+
+func _prune_private()->void:
+	for _index:int in mini(PRIVATE_PRUNE_STEP,_private_order.size()):
+		if _private_order.is_empty():break
+		var key:=_private_order[_private_cursor];profile.private_scanned+=1
+		# Probe identity only: get_ref would acquire (and possibly finally release)
+		# a large native allocation merely to clean its weak index row.
+		if not is_instance_id_valid(_private_models[key].instance_id):_forget_private(key)
+		else:_private_cursor=(_private_cursor+1)%_private_order.size()
+
 func cancel(id:int)->bool:
 	if _bundles.has(id):
 		var bundle:Dictionary=_bundles[id];_bundles.erase(id)
@@ -174,7 +243,7 @@ func _process(_delta:float)->void:
 func _accept(key:String,group:Dictionary,batch:Dictionary)->void:
 	var packet:Dictionary=batch.queue.acquire(key)
 	var accepted:bool=not group.requests.is_empty() and packet.get("error",FAILED)==OK and not packet.get("cancelled",false) and packet.get("compiled",false)==true and packet.get("source_digest")==group.candidate.source_sha and packet.get("packed") is PackedScene
-	accepted=accepted and Ready.matches(packet.get("packed"),group.candidate) and Library.native_candidate(group.path,content_root)==group.candidate
+	accepted=accepted and _render_ready(packet.get("packed"),group.candidate) and Library.native_candidate(group.path,content_root)==group.candidate
 	var reason:=str(packet.get("error_message","模型准备失败或原生产物已变化"))
 	if accepted:
 		var tracker:Node=ownership_tracker if is_instance_valid(ownership_tracker) else Ownership.for_tree(get_tree())
@@ -190,6 +259,7 @@ func _accept(key:String,group:Dictionary,batch:Dictionary)->void:
 	var result:Dictionary
 	if accepted:
 		batch.native.published(packet)
+		_remember_private(group.path,group.candidate,packet.packed)
 		result={"ok":true,"handle":_handle(group.path,group.candidate,packet.packed)};profile.completed+=1
 	else:
 		result={"ok":false,"error":reason};profile.failed+=1
@@ -208,11 +278,12 @@ func _close_batch(id:int)->void:
 	batch.queue.queue_free()
 
 func snapshot()->Dictionary:
-	return {"profile":profile.duplicate(),"requests":_requests.size(),"bundles":_bundles.size(),"groups":_groups.size(),"batches":_batches.size(),"ledger":ledger.snapshot() if ledger!=null else {}}
+	return {"profile":profile.duplicate(),"requests":_requests.size(),"bundles":_bundles.size(),"groups":_groups.size(),"batches":_batches.size(),"private_templates":_private_models.size(),"ledger":ledger.snapshot() if ledger!=null else {}}
 
 func close()->void:
 	if _closed:return
 	_closed=true;set_process(false);_requests.clear();_bundles.clear()
+	_private_models.clear();_private_order.clear();_private_cursor=0
 	for id:int in _batches.keys():_close_batch(id)
 
 func _exit_tree()->void:close()
