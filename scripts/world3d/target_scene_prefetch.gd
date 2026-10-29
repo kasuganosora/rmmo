@@ -24,6 +24,20 @@ var _warming:=false
 var _verify:Thread
 var _verify_ticket:Dictionary={}
 var _root:=""
+var _consumer:WeakRef
+var _abandoned:=false
+static func for_world(world:Node)->Node:
+	# Create under the existing tree lifetime owner before dispatch. The loader's
+	# Callables and warm coroutine still use this node after its consumer exits.
+	if not is_instance_valid(world) or not world.is_inside_tree():return null
+	var owner:Node=Drainer.for_tree(world.get_tree())
+	var service_name:="TargetScenePrefetch_%d"%world.get_instance_id()
+	var existing:Node=owner.get_node_or_null(service_name)
+	if existing!=null:return existing
+	var service:=new();service.name=service_name;service._consumer=weakref(world)
+	owner.add_child(service)
+	world.tree_exiting.connect(service.abandon,CONNECT_ONE_SHOT)
+	return service
 static func plan(records:Array,root:String,source_path:String,source_sha:String,dependencies:Dictionary)->Dictionary:
 	var files:Dictionary={source_path:source_sha};var models:Dictionary={};var pixels:Dictionary={};var bytes:=512*1024*1024
 	for record:Dictionary in records:
@@ -87,7 +101,7 @@ static func verify(files:Dictionary,root:String)->bool:
 		if not Paths.allowed(path,root) or FileAccess.get_sha256(path)!=files[path] or not Paths.allowed(path,root):return false
 	return true
 func request(path:String,destination:Vector3,ledger:RefCounted,cpu:Node)->bool:
-	if not enabled:return false
+	if _abandoned or not enabled:return false
 	if path==_path and destination==_destination:_touched=Time.get_ticks_msec();return true
 	if not _path.is_empty():cancel();return false
 	if not is_instance_valid(cpu) or cpu._packet==null or cpu._packet.scene_plan.is_empty():return false
@@ -136,7 +150,15 @@ func _loaded(scene:Node,_target:String,error:String)->void:
 		for child:Node in node.get_children():
 			if not child.has_meta("stream_instance"):stack.append({"node":child,"pose":pose})
 		if Time.get_ticks_usec()-slice>=2000:await get_tree().process_frame;slice=Time.get_ticks_usec()
-	await preload("res://scripts/util/frame_presentation.gd").drawn();await preload("res://scripts/util/frame_presentation.gd").drawn()
+	# A consumer may disappear while the renderer stops submitting frames. Keep
+	# the two actual presentation serials, but let cancellation unwind this stack
+	# before its private scene and admission are released.
+	var frames:RefCounted=preload("res://scripts/util/frame_presentation.gd").clock()
+	for _draw in 2:
+		var target:int=frames.submitted+1
+		while frames.completed<target:
+			if _token==null or _token.is_cancelled():_warming=false;return
+			await get_tree().process_frame
 	# The warmed buffers stay owned by _warm/_scene until take or retirement.
 	# A parked result must not keep rendering beside the playable source world.
 	_viewport.render_target_update_mode=SubViewport.UPDATE_DISABLED
@@ -152,6 +174,7 @@ func _ghost(stage:Node3D,mesh:Mesh,pose:Transform3D,shadow:int,override:Material
 	stage.add_child(visual);_warm.append(gpu)
 	profile.warmed_meshes+=1
 func _process(_delta:float)->void:
+	if not _abandoned and _consumer!=null and _consumer.get_ref()==null:abandon()
 	if _verify!=null and not _verify.is_alive():
 		var valid:bool=_verify.wait_to_finish();_verify=null;preload("res://scripts/world3d/cpu_worker_retirement.gd").complete(_verify_ticket)
 		if valid and _token!=null and not _token.is_cancelled():_gpu_ready=true;_ledger.park(_lease);profile.ready+=1
@@ -159,8 +182,9 @@ func _process(_delta:float)->void:
 	if _token!=null and (_token.is_cancelled() or Time.get_ticks_msec()-_touched>10000):cancel()
 	if _loader!=null and not is_instance_valid(_loader):_loader=null
 	if _token!=null and _token.is_cancelled() and _loader==null and _verify==null and not _warming:_dispose()
+	if _abandoned and _token==null and _loader==null and _verify==null and not _warming:queue_free()
 func take(path:String,destination:Vector3)->Node3D:
-	if not _gpu_ready or path!=_path or destination!=_destination or not verify(_manifest,_root):return null
+	if _abandoned or not _gpu_ready or path!=_path or destination!=_destination or not verify(_manifest,_root):return null
 	var result:Node3D=_scene;_scene=null
 	result.set_meta("prefetched_gpu_owners",_warm.duplicate());result.set_meta("gpu_preload_hit",true)
 	_warm.clear();profile.hits+=1;_dispose();return result
@@ -170,6 +194,10 @@ func cancel()->void:
 	if is_instance_valid(_loader):_loader.cancel()
 	profile.cancelled+=1
 	if not is_instance_valid(_loader) and _verify==null and not _warming:_dispose()
+func abandon()->void:
+	if _abandoned:return
+	_abandoned=true
+	cancel()
 func drain()->void:
 	cancel()
 	while _token!=null:await get_tree().process_frame
@@ -182,6 +210,8 @@ func _release()->void:
 	if _ledger!=null:_ledger.release(_lease)
 	_ledger=null;_token=null;_lease=""
 func _exit_tree()->void:
+	# Ordinary consumer exit leaves this root-owned job processing until empty.
+	# A real SceneTree shutdown still needs the synchronous safety boundary.
 	if is_instance_valid(_loader):_loader.cancel();_loader.free();_loader=null
 	if _verify!=null:
 		# CPU verification owns only manifest scalars; the GPU scene stays on main.

@@ -2143,7 +2143,7 @@ func _update_approach_preparation()->void:
 	if not is_instance_valid(_cross_map_prefetch):
 		_cross_map_prefetch=CrossMapPrefetch.new();_cross_map_prefetch.name="CrossMapPrefetch";add_child(_cross_map_prefetch)
 	if not is_instance_valid(_target_scene_prefetch):
-		_target_scene_prefetch=preload("res://scripts/world3d/target_scene_prefetch.gd").new();_target_scene_prefetch.name="TargetScenePrefetch";add_child(_target_scene_prefetch)
+		_target_scene_prefetch=preload("res://scripts/world3d/target_scene_prefetch.gd").for_world(self)
 	var chosen:="";var destination:=Vector3.ZERO;var distance:=24.
 	for body:Node in _warp_candidates:
 		if not is_instance_valid(body):continue

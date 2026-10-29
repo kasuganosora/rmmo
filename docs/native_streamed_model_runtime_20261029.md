@@ -237,6 +237,25 @@ inactive 样本直接把已加载全驻留 STEX 交给控件，仅证明其呈�
 
 旧工作区依赖的探索 CPU/GPU 样本保留，但不作为最终隔离验收。此切片证明工作量减少和共享/回收正确性，不等于正式放置/HTTP MCP 已接通，不提供整图加载时间或 1% low 收益。默认 split 导入仍关闭，正式资源未修改。
 
+## 消费世界退出时异步清退跨图预取
+
+独立复现确认：原 `TargetScenePrefetch` 随 world 一起销毁，进入 `MapLoader._exit_tree → drain_shutdown`，在主线程等待尚未完成的解析。真实 SCN 解码后受控延迟返回 250ms 时，普通 cancel 立即返回，但 world.free 阻塞 254.611ms、期间没有 process_frame 推进。
+
+现在 `TargetScenePrefetch.for_world` 在正常派发时即把任务挂到既有 SceneTree drainer 下。消费世界退出只 abandon/cancel，原 loader、回调和同一份预算继续存活，沿现有异步收尾路径退出；未在 `_exit_tree` 中重挂节点，也没有把仍被线程调用的 loader 提前释放。完成后才释放 lease 和空闲服务。真正销毁 SceneTree/drainer 时仍保留同步安全等待。
+
+预热的两次绘制仍检查相同 `FramePresentation` 的实际完成串号；等待期间逐帧响应取消，避免 renderer 不再提交绘制时 `_warming` 永久留住资源和预算。普通 process_frame 不能冒充绘制完成。abandon 后不能再 request/take，同 world 查找幂等、不同 world 独立；退出前已经捕获的路径继续供清退使用。
+
+最终以 `2ebe6dfd` 隔离基线和本切片指定 override 验证，默认 candidate07 EXE SHA 与前节相同。CPU **50 + 49** 项及 GPU **36** 项通过，零引擎错误/警告：
+
+- CPU 取消专用命令需要 `--cancel-only`：`target_scene_prefetch_cpu_01/cancel_frozen_02` 与 `retirement_frozen_01`。同一 250ms 门控条件下，world.free 返回为 70us，随后推进 39 次 process_frame；后台完成前原 native owner 与 1GiB lease 均仍保留，完成后归零。零绘制时取消预热、verify 进行中、两 world 隔离和幂等 abandon 也通过；最终 drainer 销毁仍等待 253.865ms。
+- GPU `target_scene_prefetch_cpu_01/gpu_04` 通过真实 world 进场、一个 initial native 模型和两个 STEX、两次实际绘制、park、`transfer_map` 接管及采样 RID 复用。另一次真实 SCN 读取的返回被门控 1000ms，world.free 返回为 40.641ms，随后推进 58 次 process_frame；取消地图文件被删除、session 路径被清理后，任务仍正常退役。最终 lease、门控 native owner、采样纹理弱引用及该夹具引擎纹理计账全部归零。
+
+这些是独立夹具的路径和生命周期证明，**不是 axel_town 总加载、1% low 或全部退出长帧的验收**。GPU 逐对象弱引用只覆盖采样的 PackedScene、Mesh、Material 和一个 surface Texture；另一个 STEX 由实际准备计数和最终引擎归零覆盖。`normal_loaded` 因测试字典别名被清空，具体串号/profile 未保存；对应原断言和 PASS 日志仍在，不补造这些数值。
+
+`gpu_01` 因平面恰落 entry clip 边界，没有进入 initial native 路径，保留为不合格夹具；移入 core 后 `gpu_02` 已走到该路径，但测试函数的 Mesh/Material 局部引用导致末尾仍有 9555B。将观测局限于返回标量/弱引用的短函数后，`gpu_03/04` 全绿，生产代码未因此修改。所有失败和较早工作区依赖样本原样保留。
+
+完整记录为 B 的 `target_scene_prefetch_cpu_01/delivery_cancel_gpu.json`。本切片不修改 split 预算估算：CPU 测试不带 `--cancel-only` 时仍会执行尚未解决的预算红探针。该探针只验证合法元数据声明的保守预约，不分配巨量像素，也不代表实际 RSS；后续须单独处理。试玩初入的 `playtest_session.clone.build` 是另一消费入口，本次跨图预取修复没有覆盖它。
+
 ## 后续顺序
 
 1. 旧 operation → 新 Initial 的**已完成 owner 入站复用已完成**，结果见上节及 B 的 `initial_native_inbound_reuse_handoff.json`。并发 operation 中尚未完成的 producer 仍各有自己的池，尚无跨 operation 的全局在途 single-flight；不把本轮完成票据复用说成该问题也已解决。也不能因 `start` 时目录为空就整次跳桥，旧 operation 可能在 metadata 就绪前发布 owner。后续可考虑请求抵达主线程时，以两个目录当前均空作 O(1) 全 miss 回复，保留现有取消与 metadata 退役合同。
