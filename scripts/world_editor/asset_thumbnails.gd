@@ -23,6 +23,12 @@ var _missing := {}
 var _attempted := {}
 var _errors := {}
 var _idle := 0.
+var _preparation:Node
+var _request:=0
+var _prepare_serial:=0
+var _active_idle:=false
+var _streamed_observer=preload("res://scripts/world_editor/streamed_preview_observer.gd").new()
+var _readiness=preload("res://scripts/world_editor/streamed_preview_readiness.gd").new()
 
 static func thumbnail_path(entry: Dictionary) -> String:
 	var paths=preload("res://scripts/world3d/map_paths.gd")
@@ -59,12 +65,22 @@ func set_visible_entries(entries: Array) -> void:
 			var path:=thumbnail_path(entry)
 			if not path.is_empty() and not FileAccess.file_exists(path): _missing[key]=entry
 	# No deferred callback per asset, and scrolling replaces obsolete queued work.
+	_imports=_imports.filter(func(entry):return not entry.get("_thumbnail_idle",false) or _wanted.has(key_for(entry)))
+	if _busy and _active_idle and not _wanted.has(_key):
+		_attempted.erase(_key);_cancel_active()
 
-func queue_import(entry: Dictionary) -> void:
+func queue_import(entry: Dictionary,idle_request:bool=false) -> void:
 	var key:=key_for(entry)
-	if (_busy and key==_key) or _imports.any(func(item):return key_for(item)==key): return
+	if _busy and key==_key:
+		if not idle_request:_active_idle=false
+		return
+	for queued:Dictionary in _imports:
+		if key_for(queued)==key:
+			if not idle_request:queued._thumbnail_idle=false
+			return
 	_errors.erase(key); _missing.erase(key)
 	var job:=entry.duplicate(); job.thumbnail_path=thumbnail_path(entry)
+	job._thumbnail_idle=idle_request
 	_imports.append(job)
 
 func _input(_event: InputEvent) -> void:
@@ -80,6 +96,7 @@ func _remember(key: String, texture: Texture2D) -> void:
 
 func _process(_delta: float) -> void:
 	_idle+=_delta
+	_readiness.pump()
 	if get_parent().has_method("saving") and get_parent().saving(): return
 	if not _busy and _imports.is_empty() and _pending.is_empty() and _idle>=.4 and not _missing.is_empty():
 		var key: String=_missing.keys()[0]
@@ -88,7 +105,7 @@ func _process(_delta: float) -> void:
 			_attempted[key]=true
 			var source:=key_for(entry)
 			var available:bool=(preload("res://scripts/world3d/map_paths.gd").allowed(source) and FileAccess.file_exists(source)) if entry.has("prefab_path") else preload("res://scripts/world_editor/asset_library.gd").native_available(source)
-			if available:queue_import(entry)
+			if available:queue_import(entry,true)
 			else:_errors[key]="缩略图资源缺失或缺少原生产物，请重新导入"
 	if not _busy: _next()
 
@@ -145,13 +162,12 @@ func _next() -> void:
 			import_finished.emit(key, _output, ERR_UNAVAILABLE)
 		return
 	_busy = true
+	_active_idle=entry.get("_thumbnail_idle",false)
 	var model: Node3D
-	if entry.has("prefab_path"):
+	if entry.has("prefab_path") or entry.has("asset_path"):
 		model_load_count += 1
-		model = preload("res://scripts/world_editor/prefab_library.gd").preview(entry)
-	elif entry.has("asset_path"):
-		model_load_count += 1
-		model = preload("res://scripts/world_editor/asset_library.gd").instantiate_preview(entry.asset_path,true)
+		_prepare_entry(entry,importing)
+		return
 	else:
 		var mesh := MeshInstance3D.new()
 		var box := BoxMesh.new()
@@ -166,6 +182,39 @@ func _next() -> void:
 			mesh.scale = entry.get("size", Vector3.ONE)
 			mesh.material_override = null
 		model = mesh
+	_present_model(model,key,importing)
+
+func _prepare_entry(entry:Dictionary,importing:bool)->void:
+	_prepare_serial+=1
+	var prefab:Dictionary={};var paths:Array=[]
+	if entry.has("prefab_path"):
+		var library=preload("res://scripts/world_editor/prefab_library.gd")
+		prefab=library.read(entry)
+		if not prefab.get("ok",false):_present_model(null,key_for(entry),importing);return
+		paths=library.preview_dependencies(prefab)
+	else:paths=[str(entry.asset_path)]
+	_preparation=preload("res://scripts/world_editor/editor_asset_preparation.gd").for_consumer(self)
+	if _preparation==null:_present_model(null,key_for(entry),importing);return
+	_request=_preparation.request_many(paths,self,_model_prepared.bind(_prepare_serial,entry,prefab,importing))
+	if _request==0:_present_model(null,key_for(entry),importing)
+
+func _model_prepared(id:int,result:Dictionary,serial:int,entry:Dictionary,prefab:Dictionary,importing:bool)->void:
+	if serial!=_prepare_serial or id!=_request or not is_inside_tree():return
+	_request=0
+	var model:Node3D
+	if result.get("ok",false):
+		if prefab.is_empty():
+			var handle:Variant=result.handles.get(str(entry.asset_path).replace("\\","/").simplify_path())
+			if handle!=null:model=handle.instantiate()
+		else:
+			var templates:Dictionary={};var current:=true
+			for path:String in result.handles:
+				if not result.handles[path].current():current=false;break
+				templates[path]=result.handles[path].packed
+			if current:model=preload("res://scripts/world_editor/prefab_library.gd").preview_prepared(prefab,templates)
+	_present_model(model,key_for(entry),importing)
+
+func _present_model(model:Node3D,key:String,importing:bool)->void:
 	if model != null:
 		_viewport.add_child(model)
 		for imported in model.find_children("*", "Camera3D", true, false): imported.current = false
@@ -178,6 +227,7 @@ func _next() -> void:
 		_camera.far = maxf(100, distance * 5)
 		_model = model
 		_key = key
+		_streamed_observer.capture(model)
 		# Bound signal callbacks disconnect automatically when the editor closes.
 		get_tree().process_frame.connect(_render, CONNECT_ONE_SHOT)
 		return
@@ -188,9 +238,15 @@ func _next() -> void:
 
 func _render() -> void:
 	if not is_inside_tree() or not is_instance_valid(_model):return
-	_viewport.render_target_update_mode = SubViewport.UPDATE_ONCE
 	_render_serial += 1
-	preload("res://scripts/util/frame_presentation.gd").after_drawn(_finish.bind(_render_serial))
+	_readiness.start(_viewport,self,_streamed_observer,_render_completed.bind(_render_serial))
+
+func _render_completed(result:Dictionary,serial:int)->void:
+	if serial!=_render_serial or not is_inside_tree() or not is_instance_valid(_model):return
+	if result.ok:_finish(serial);return
+	_errors[_key]=str(result.error)
+	if not _output.is_empty():import_finished.emit(_key,_output,int(result.error_code))
+	_dispose_model();_busy=false
 
 func _finish(serial: int) -> void:
 	if serial != _render_serial or not is_inside_tree() or not is_instance_valid(_model):return
@@ -207,6 +263,7 @@ func _finish(serial: int) -> void:
 	_busy = false
 
 func _dispose_model()->void:
+	_readiness.cancel();_streamed_observer.clear()
 	var owned:=_model;_model=null
 	if not is_instance_valid(owned):return
 	if owned.get_parent()!=null:
@@ -214,9 +271,13 @@ func _dispose_model()->void:
 		_viewport.remove_child(owned)
 	preload("res://scripts/world3d/asset_worker_drainer.gd").dispose_scene(owned)
 
+func _cancel_active()->void:
+	_prepare_serial+=1
+	if _request!=0 and is_instance_valid(_preparation):_preparation.cancel(_request)
+	_request=0
+	if get_tree().process_frame.is_connected(_render):get_tree().process_frame.disconnect(_render)
+	_render_serial+=1;_dispose_model();_busy=false
+
 func _exit_tree()->void:
 	# Stop delayed draws before the retirement sync can deliver renderer events.
-	if get_tree().process_frame.is_connected(_render):get_tree().process_frame.disconnect(_render)
-	_render_serial += 1
-	_dispose_model()
-	_busy=false
+	_cancel_active()

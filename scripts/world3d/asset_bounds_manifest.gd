@@ -3,6 +3,7 @@ extends RefCounted
 ## Unknown is deliberately eager. No nodes, image decoding, or resource caches.
 const MAX_JSON := 4 * 1024 * 1024
 const MAX_COORD := 1.0e12
+const SINGLE_ROOT_EXTENSION := "GODOT_single_root"
 const MATERIAL_EXTENSIONS := ["KHR_materials_specular", "KHR_materials_transmission", "KHR_materials_unlit", "KHR_materials_emissive_strength", "KHR_materials_pbrSpecularGlossiness", "KHR_materials_clearcoat", "KHR_materials_ior"]
 
 static func unknown(reason: String) -> Dictionary:
@@ -100,7 +101,13 @@ static func from_json(data: Dictionary, bin_size: int) -> Dictionary:
 			if not _index(index, nodes.size()) or parents[int(index)] != -1 or seen.has(int(index)): return unknown("scene_parent_or_duplicate")
 			seen[int(index)] = true
 	var pending: Array = []
-	for index in scenes[int(scene_id)].get("nodes", []): pending.append({"index":int(index), "parent":Transform3D.IDENTITY})
+	# Godot 4.8 generates node zero directly when this declaration is used,
+	# regardless of the selected scene's roots. Follow that exact tree, without
+	# an orphan's former parent transform or unrelated scene roots. Its default
+	# naming-version-2 importer preserves node zero's own transform normally.
+	var single_root:bool=data.get("extensionsUsed") is Array and data.extensionsUsed.has(SINGLE_ROOT_EXTENSION)
+	var roots:Array=[0] if single_root else scenes[int(scene_id)].get("nodes", [])
+	for index in roots: pending.append({"index":int(index), "parent":Transform3D.IDENTITY})
 	var parts: Array = []; var total := AABB(); var first := true
 	var authored_hinges:bool=nodes.any(func(n):return _authored_marker(n.get("extras",{})))
 	var cursor := 0
@@ -210,7 +217,7 @@ static func _extension_safe(value: Variant, path: Array = []) -> bool:
 				if not value[key] is Array: return false
 				if key == "extensionsRequired" and not value[key].is_empty(): return false
 				for extension in value[key]:
-					if extension not in MATERIAL_EXTENSIONS: return false
+					if extension != SINGLE_ROOT_EXTENSION and extension not in MATERIAL_EXTENSIONS: return false
 			if key == "extensions":
 				if not value[key] is Dictionary: return false
 				if not value[key].is_empty():

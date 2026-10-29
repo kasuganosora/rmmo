@@ -1,8 +1,15 @@
 extends SubViewportContainer
+signal streaming_failed(message:String)
 var viewport_: SubViewport
 var scene: Node3D
 var camera: Camera3D
 var current_path := ""
+var _preparation:Node
+var _request:=0
+var _generation:=0
+var _streamed_observer=preload("res://scripts/world_editor/streamed_preview_observer.gd").new()
+var _readiness=preload("res://scripts/world_editor/streamed_preview_readiness.gd").new()
+var streaming_error:=""
 
 func _ready() -> void:
 	stretch = true
@@ -27,25 +34,57 @@ func _ready() -> void:
 	light.rotation_degrees = Vector3(-50, -30, 0)
 	viewport_.add_child(light)
 	visible = false
+	set_process(false)
 
 func show_asset(path: String) -> void:
-	if path == current_path: return
+	if path == current_path and (scene!=null or _request!=0): return
+	_cancel_preparation()
 	current_path = path
 	_dispose_scene()
 	visible = not path.is_empty()
 	if not visible: return
-	scene = preload("res://scripts/world_editor/asset_library.gd").instantiate_preview(path)
-	_show_scene()
+	_preparation=preload("res://scripts/world_editor/editor_asset_preparation.gd").for_consumer(self)
+	if _preparation==null:visible=false;return
+	_request=_preparation.request_many([path],self,_prepared.bind(_generation,{}))
+	if _request==0:visible=false
 
 
 func show_prefab(entry: Dictionary) -> void:
 	var path := str(entry.get("prefab_path", ""))
-	if path == current_path: return
+	if path == current_path and (scene!=null or _request!=0): return
+	_cancel_preparation()
 	current_path = path
 	_dispose_scene()
-	scene = preload("res://scripts/world_editor/prefab_library.gd").preview(entry)
-	visible = scene != null
+	var prefabs=preload("res://scripts/world_editor/prefab_library.gd")
+	var loaded:Dictionary=prefabs.read(entry)
+	visible=false
+	if not loaded.get("ok",false):return
+	_preparation=preload("res://scripts/world_editor/editor_asset_preparation.gd").for_consumer(self)
+	if _preparation==null:return
+	_request=_preparation.request_many(prefabs.preview_dependencies(loaded),self,_prepared.bind(_generation,loaded))
+
+
+func _prepared(id:int,result:Dictionary,generation:int,prefab:Dictionary)->void:
+	if generation!=_generation or id!=_request or not is_inside_tree():return
+	_request=0
+	if not result.get("ok",false):visible=false;return
+	if prefab.is_empty():
+		var handle:Variant=result.handles.get(current_path.replace("\\","/").simplify_path())
+		scene=handle.instantiate() if handle!=null else null
+	else:
+		var templates:Dictionary={}
+		for path:String in result.handles:
+			if not result.handles[path].current():visible=false;return
+			templates[path]=result.handles[path].packed
+		scene=preload("res://scripts/world_editor/prefab_library.gd").preview_prepared(prefab,templates)
+	visible=scene!=null
 	_show_scene()
+
+
+func _cancel_preparation()->void:
+	_generation+=1
+	if _request!=0 and is_instance_valid(_preparation):_preparation.cancel(_request)
+	_request=0
 
 
 func _show_scene() -> void:
@@ -61,9 +100,38 @@ func _show_scene() -> void:
 	camera.look_at(bounds.get_center())
 	camera.near = maxf(0.001, distance / 1000)
 	camera.far = maxf(100, distance * 5)
-	viewport_.render_target_update_mode = SubViewport.UPDATE_ONCE
+	_streamed_observer.capture(scene)
+	if is_visible_in_tree():_start_render()
+
+func _start_render()->void:
+	streaming_error="";tooltip_text=""
+	_readiness.start(viewport_,self,_streamed_observer,_streaming_finished.bind(_generation))
+	set_process(true)
+
+func _process(_delta:float)->void:
+	if not is_visible_in_tree():_readiness.cancel()
+	else:_readiness.pump()
+	set_process(_readiness.active())
+
+func _streaming_finished(result:Dictionary,generation:int)->void:
+	if generation!=_generation or not is_inside_tree():return
+	set_process(false)
+	if result.ok:return
+	streaming_error=str(result.error);tooltip_text=streaming_error
+	visible=false
+	streaming_failed.emit(streaming_error)
+
+func _notification(what:int)->void:
+	if what!=NOTIFICATION_VISIBILITY_CHANGED or not is_instance_valid(viewport_):return
+	var active:=is_visible_in_tree() and is_instance_valid(scene)
+	# Hidden previews cancel their ticket. Reopening starts a new feedback
+	# period with the same weak descriptors, without scanning the scene again.
+	if active:_start_render()
+	else:_readiness.cancel();set_process(false)
 
 func _dispose_scene()->void:
+	_readiness.cancel();_streamed_observer.clear();set_process(false)
+	if is_instance_valid(viewport_):viewport_.render_target_update_mode=SubViewport.UPDATE_DISABLED
 	var owned:=scene;scene=null
 	if not is_instance_valid(owned):return
 	# Only this viewport's private preview belongs to us. A reparented instance
@@ -74,4 +142,5 @@ func _dispose_scene()->void:
 	preload("res://scripts/world3d/asset_worker_drainer.gd").dispose_scene(owned)
 
 func _exit_tree()->void:
+	_cancel_preparation()
 	_dispose_scene()

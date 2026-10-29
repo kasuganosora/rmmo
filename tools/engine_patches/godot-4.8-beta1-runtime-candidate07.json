@@ -1,0 +1,1457 @@
+{
+  "schema_version": 1,
+  "candidate": "07",
+  "status": "native_cpu_gpu_passed_installed_sha_verified",
+  "recorded_utc": "2026-10-29T09:35:12.544763+00:00",
+  "source_archive": {
+    "name": "godot-4.8-beta1.tar.xz",
+    "path_at_verification": "D:\\tools\\godot-4.8-build\\godot-4.8-beta1.tar.xz",
+    "url": "https://github.com/godotengine/godot-builds/releases/download/4.8-beta1/godot-4.8-beta1.tar.xz",
+    "sha256": "6d49c02e438935e49a12231d857b2b56131948b004d5b668bf295c9bc3b2281c",
+    "bytes": 47242444,
+    "source_commit": "4d10419cacd6d3009976e8f9fd3abd970fd58018"
+  },
+  "patch": {
+    "path": "godot-4.8-beta1-runtime-candidate07.patch",
+    "sha256": "6ce0cf9c941bf3dcd279546e6c7a612c8e0ed9c254327f4c60291c00eeac611e",
+    "apply_to": "official pristine 4.8 beta1 only; cumulative replacement, do not stack candidate patches"
+  },
+  "provenance": {
+    "previous_manifest": "godot-4.8-beta1-runtime-candidate06.json",
+    "previous_manifest_sha256": "9e44dc9c6e6cb7a1ee6295dcdcb1fe8384d477ef1733d5ad62902fd3449fbffb",
+    "previous_patch_sha256": "4a08ec4dc40e2762a3c2d49ea5fee050958e512ab58ff98322fe561ea0a45e51",
+    "observation_source_manifest": "D:\\code\\rmmo_runtime\\review_artifacts\\godot_4_8_adoption_20261029_01\\native_texture_observation_07\\source_manifest.json",
+    "observation_source_manifest_sha256": "2ea8ab4e2e298fd420ff99693d5236bdf8a61689e0dad27c831db63d3487d99a",
+    "observation_source_combined_sha256": "13ceee1116ae32de3d7e3f0cce0af4b55798d541dd128b1cf3d71d75b7994c83"
+  },
+  "files": [
+    {
+      "path": "core/io/image.cpp",
+      "archive_member": "godot-4.8-beta1/core/io/image.cpp",
+      "before_sha256": "195526a9113355ce9820305ddc90440a396ffbe7b9b5f92e5aec5b793fa31491",
+      "after_sha256": "44377f62ef44c0dfeddfb485385882cacc79298f72f81d021ed6ff1634ace567",
+      "before_bytes": 168859,
+      "after_bytes": 169260
+    },
+    {
+      "path": "core/io/image.h",
+      "archive_member": "godot-4.8-beta1/core/io/image.h",
+      "before_sha256": "6deec6ef1f8d6166ac93153eae4d381b7c5a5352fbd4729da06a8bacbb97961c",
+      "after_sha256": "bca1d81f891606d6027f1ad85c94242328f98d8f3c69fbb4a3cf9d784f77ee60",
+      "before_bytes": 22050,
+      "after_bytes": 22212
+    },
+    {
+      "path": "core/io/resource_loader.cpp",
+      "archive_member": "godot-4.8-beta1/core/io/resource_loader.cpp",
+      "before_sha256": "761bb7eb224de8f2dfa4513342a9f11c03cae3291ed4125569d44c3fc8f6c22c",
+      "after_sha256": "fab4b31c6a29f6c63c4fb11be32b8ae985f92b9631b0dd88bc98857e8afd2af6",
+      "before_bytes": 59269,
+      "after_bytes": 61613
+    },
+    {
+      "path": "core/io/resource_loader.h",
+      "archive_member": "godot-4.8-beta1/core/io/resource_loader.h",
+      "before_sha256": "9031249328aff1c94606f1d56261d040a6a0bd3fed53f831a754674e11f0f1ee",
+      "after_sha256": "e4d3b8b23d8259c534f0eb79f48f62740c4c190eac0ab69a903a79396a7ae4a5",
+      "before_bytes": 15009,
+      "after_bytes": 15635
+    },
+    {
+      "path": "core/object/worker_thread_pool.cpp",
+      "archive_member": "godot-4.8-beta1/core/object/worker_thread_pool.cpp",
+      "before_sha256": "d2a694a99c4f1b9f162404ef5acdc7ea0c9e17017de426d062fd15cd744a8ae6",
+      "after_sha256": "7d8a76de17e61e87e00f312a0e4ddf1cb37e9af9932603f644e7d58259c2937a",
+      "before_bytes": 31705,
+      "after_bytes": 32424
+    },
+    {
+      "path": "core/object/worker_thread_pool.h",
+      "archive_member": "godot-4.8-beta1/core/object/worker_thread_pool.h",
+      "before_sha256": "3030ced542f922c66ed32a5a9d2d4bef9fba36644d07f7d24d9b5990bab2873c",
+      "after_sha256": "ef18a6760d92936fc4c66443d87841183ff1fa4049d89a0f9318576bc7eb8099",
+      "before_bytes": 11712,
+      "after_bytes": 11945
+    },
+    {
+      "path": "doc/classes/Image.xml",
+      "archive_member": "godot-4.8-beta1/doc/classes/Image.xml",
+      "before_sha256": "5019db39e198c4bb2e5048dececbd6c44634f51e089a6379d6c7af8ca69a22ab",
+      "after_sha256": "05fc4c7e9e5d5248ae05ff60887e72a5e426a98866650f03acf1b58a5cf5dc98",
+      "before_bytes": 59566,
+      "after_bytes": 60231
+    },
+    {
+      "path": "drivers/vulkan/rendering_device_driver_vulkan.cpp",
+      "archive_member": "godot-4.8-beta1/drivers/vulkan/rendering_device_driver_vulkan.cpp",
+      "before_sha256": "8e74a8674701744c5f783ffa55e73ba2d1567551375d0e668fecfea5697c3e8c",
+      "after_sha256": "905e964ab728de0ff48df78d34f3a40e4c389a9df014d883edf86b320c87d9c7",
+      "before_bytes": 373941,
+      "after_bytes": 377215
+    },
+    {
+      "path": "drivers/windows/file_access_windows.cpp",
+      "archive_member": "godot-4.8-beta1/drivers/windows/file_access_windows.cpp",
+      "before_sha256": "0565a9429e9287c05520409b18cc7f64dbd9a5ae9ed0eac92388056f2e2edff4",
+      "after_sha256": "e8d5317ce6de06caf8e54e2a560cc121c7edefcdc6cdfe3a57e18ad740309a98",
+      "before_bytes": 21974,
+      "after_bytes": 25124
+    },
+    {
+      "path": "drivers/windows/file_access_windows.h",
+      "archive_member": "godot-4.8-beta1/drivers/windows/file_access_windows.h",
+      "before_sha256": "6d50561b2838967115cb1fe7556732a5b345c08cc4a4690e76ab5c911230c4a4",
+      "after_sha256": "93bbc7f17032278584ba506a82b2e0a81e6fba63982ddedb147d91f02e722767",
+      "before_bytes": 5297,
+      "after_bytes": 5828
+    },
+    {
+      "path": "modules/dds/texture_loader_dds.cpp",
+      "archive_member": "godot-4.8-beta1/modules/dds/texture_loader_dds.cpp",
+      "before_sha256": "fd1e656f6435ca93261c9283e9e7174c44293c6ac2ea0d8c806b0f4bb4776ea9",
+      "after_sha256": "20536e90fbf446236b48281b39f311c55ab1bafc2e8f6541b40fd8555bb5f807",
+      "before_bytes": 24265,
+      "after_bytes": 23836
+    },
+    {
+      "path": "modules/gdscript/gdscript.cpp",
+      "archive_member": "godot-4.8-beta1/modules/gdscript/gdscript.cpp",
+      "before_sha256": "9abfb4ec3989f0f800bc17b96943875a6c4bfdfd00b67577779d322a198c070b",
+      "after_sha256": "0228a58e29bfeaedcf71f4ead0d8db841df49d3c4c98a6dc4e4e01c816239e67",
+      "before_bytes": 89692,
+      "after_bytes": 90097
+    },
+    {
+      "path": "modules/gdscript/gdscript_analyzer.cpp",
+      "archive_member": "godot-4.8-beta1/modules/gdscript/gdscript_analyzer.cpp",
+      "before_sha256": "cfb65dd174e84680cee3765145b3abee9e3191e04f53076d9474607afd04f6cd",
+      "after_sha256": "390dd6c8859c44b2eb2cba684881f7c2acc8520d09a7d99264f5db0ac41e0a59",
+      "before_bytes": 279083,
+      "after_bytes": 280194
+    },
+    {
+      "path": "modules/gdscript/gdscript_analyzer.h",
+      "archive_member": "godot-4.8-beta1/modules/gdscript/gdscript_analyzer.h",
+      "before_sha256": "85582ce103700108bf1afc7b84d034fea32ab822b91ee36a12f8eb5db559de58",
+      "after_sha256": "17654c94e2ff96499114f788366f033f5a75742e74463caec154e97718067910",
+      "before_bytes": 14047,
+      "after_bytes": 14413
+    },
+    {
+      "path": "modules/gdscript/gdscript_vm.cpp",
+      "archive_member": "godot-4.8-beta1/modules/gdscript/gdscript_vm.cpp",
+      "before_sha256": "7b5628e032a973b9707d8add30a1a39fb3a7f996d10f8c65df57cf9d4642fe86",
+      "after_sha256": "b23db431a4207d01019f8f091b35f01425c8418aefceafd21cc36e31f2c6fd35",
+      "before_bytes": 130342,
+      "after_bytes": 131910
+    },
+    {
+      "path": "modules/godot_physics_3d/godot_concave_prepared_data_3d.h",
+      "archive_member": null,
+      "before_sha256": null,
+      "after_sha256": "025cd5391974eca045b15e564e6277282dad27a626049ae48e452949fd09da37",
+      "before_bytes": 0,
+      "after_bytes": 3231
+    },
+    {
+      "path": "modules/godot_physics_3d/godot_shape_3d.cpp",
+      "archive_member": "godot-4.8-beta1/modules/godot_physics_3d/godot_shape_3d.cpp",
+      "before_sha256": "02651752ed888a64470d17e415b9f88b581c88b7ad9b96e5194b11c0e364fe75",
+      "after_sha256": "2ce14f50ae8afbeb0a13eaf4b127e505f79bb08adde7a26ce0fe353ac5cd2b73",
+      "before_bytes": 63744,
+      "after_bytes": 64430
+    },
+    {
+      "path": "modules/godot_physics_3d/register_types.cpp",
+      "archive_member": "godot-4.8-beta1/modules/godot_physics_3d/register_types.cpp",
+      "before_sha256": "c4838fff1a29b3da88b216c6966e81aa6057c4ed40142f5459834cf85246938c",
+      "after_sha256": "fd317a46deda9e0d40553c981db5907a363f81cfdb16b2e3bf244d023e0e04ec",
+      "before_bytes": 3465,
+      "after_bytes": 3754
+    },
+    {
+      "path": "modules/text_server_adv/text_server_adv.cpp",
+      "archive_member": "godot-4.8-beta1/modules/text_server_adv/text_server_adv.cpp",
+      "before_sha256": "17e3c0dfdb715701b36635b77d2c778470cb4b4493cd1b909b5236ba2c1b6247",
+      "after_sha256": "342016316b18bd537edc48c052c886695c681a1f979bda747c038d01327f9ef9",
+      "before_bytes": 312971,
+      "after_bytes": 313567
+    },
+    {
+      "path": "modules/text_server_fb/text_server_fb.cpp",
+      "archive_member": "godot-4.8-beta1/modules/text_server_fb/text_server_fb.cpp",
+      "before_sha256": "8bd4e21ecfd233fb7d7b9e6c5dedf53d6a3f1431a9f74744e19733013404cbb6",
+      "after_sha256": "5c348fd12e229464b76804e0350f323dd3620819abb6ff6948d2500610300f23",
+      "before_bytes": 184839,
+      "after_bytes": 185478
+    },
+    {
+      "path": "modules/texture_streaming/tests/test_texture_streaming_lifetime.h",
+      "archive_member": null,
+      "before_sha256": null,
+      "after_sha256": "b8fa332201e435470ada42df02a7990e35f70f41460b3fa1d282e161ed8fe942",
+      "before_bytes": 0,
+      "after_bytes": 17193
+    },
+    {
+      "path": "modules/texture_streaming/tests/test_texture_streaming_observation.h",
+      "archive_member": null,
+      "before_sha256": null,
+      "after_sha256": "0a4731aa7b706ca3cb6a9deeb3525a3e9e62f7f42b7b006db920381fab062e53",
+      "before_bytes": 0,
+      "after_bytes": 21055
+    },
+    {
+      "path": "modules/texture_streaming/texture_streaming.cpp",
+      "archive_member": "godot-4.8-beta1/modules/texture_streaming/texture_streaming.cpp",
+      "before_sha256": "28109fa1eb5b3a5a054bfb51599b2207445b33550feacbe54d1aa8bda4904756",
+      "after_sha256": "6bbc2da186269135f16a1d1eeef8730e0b20ad1f9948b4ee2c23dd4cf08ede09",
+      "before_bytes": 35957,
+      "after_bytes": 55960
+    },
+    {
+      "path": "modules/texture_streaming/texture_streaming.h",
+      "archive_member": "godot-4.8-beta1/modules/texture_streaming/texture_streaming.h",
+      "before_sha256": "659ad1eaaca8c6d70392b2e737b2a507447804e0695a6853db3cd245634f780c",
+      "after_sha256": "ef39404da1d41eaefb326749488c99dc0c3e2cde924387c51f14d88cf7f68fd3",
+      "before_bytes": 25247,
+      "after_bytes": 30513
+    },
+    {
+      "path": "platform/windows/godot_windows.cpp",
+      "archive_member": "godot-4.8-beta1/platform/windows/godot_windows.cpp",
+      "before_sha256": "0d846194950057828fe323e661232ed8421eb7c2246d5bdff431ccf86f6c1c61",
+      "after_sha256": "63c11eef5e93c43d24c78c246c3c0251863936f385ee1ea7f86447f8050392c1",
+      "before_bytes": 5403,
+      "after_bytes": 6764
+    },
+    {
+      "path": "scene/register_scene_types.cpp",
+      "archive_member": "godot-4.8-beta1/scene/register_scene_types.cpp",
+      "before_sha256": "8968e4214eb741f13469efb4a9f44bd994415262f0ab62da9f10eb61255daa96",
+      "after_sha256": "afc96c34d157fd767b3c704e204b38e5071334e755bdc750c7b1045348a6ee13",
+      "before_bytes": 58849,
+      "after_bytes": 58943
+    },
+    {
+      "path": "scene/resources/3d/concave_polygon_shape_3d.cpp",
+      "archive_member": "godot-4.8-beta1/scene/resources/3d/concave_polygon_shape_3d.cpp",
+      "before_sha256": "a7adc68179249aa3e39c4933177a1bac7ce80c8bcc1328efb9f1e133caf8ebd1",
+      "after_sha256": "90353f44745aa6d69bf150ff5677f0253626a064c4e8a63d407efccdc6b34a43",
+      "before_bytes": 5329,
+      "after_bytes": 5931
+    },
+    {
+      "path": "scene/resources/3d/concave_polygon_shape_3d.h",
+      "archive_member": "godot-4.8-beta1/scene/resources/3d/concave_polygon_shape_3d.h",
+      "before_sha256": "772f46870bc4bdd8896f6274d8bcf1413671eb9c50fa9713319d314df5b411b4",
+      "after_sha256": "3f927ea56ffd18b1ca4a82e7b6971cd5dce1530680cd3c8c6952ab29752192db",
+      "before_bytes": 3465,
+      "after_bytes": 3517
+    },
+    {
+      "path": "scene/resources/3d/shape_3d.cpp",
+      "archive_member": "godot-4.8-beta1/scene/resources/3d/shape_3d.cpp",
+      "before_sha256": "eb0c3c2d44359993935135723a3f4359c6939ceb87a5ed1b7187ea45160754a4",
+      "after_sha256": "a7ae3b87c338df1f88d7a832322048e790231cd5e9163fb56dae6fdcaa3f29aa",
+      "before_bytes": 6983,
+      "after_bytes": 7530
+    },
+    {
+      "path": "scene/resources/material.cpp",
+      "archive_member": "godot-4.8-beta1/scene/resources/material.cpp",
+      "before_sha256": "fc0f63a5c3bb8543dcb04020642d65d329e0abf8fc43aa469bf94ce94996bbf4",
+      "after_sha256": "949511f4ead9358d3e7e83b9cbf7cc6cbb96000326884bdd87393ebd3be38150",
+      "before_bytes": 156274,
+      "after_bytes": 158013
+    },
+    {
+      "path": "scene/resources/material.h",
+      "archive_member": "godot-4.8-beta1/scene/resources/material.h",
+      "before_sha256": "82382cf162200daf6b81aea19d182afa10cec9b091ea5379474cff3013ebe41d",
+      "after_sha256": "d406b4d8923f4dfdf75cf0dfe792cd78aca56b3e7877e520bb68b86bb7322330",
+      "before_bytes": 28014,
+      "after_bytes": 28404
+    },
+    {
+      "path": "scene/resources/mesh.cpp",
+      "archive_member": "godot-4.8-beta1/scene/resources/mesh.cpp",
+      "before_sha256": "2b9cae0f6350f4210f67b7a91f6458f99020ac22154de695ad3257432d023960",
+      "after_sha256": "6e7c0f2652eb078c9bc4c4107e65c25c113b00c817d1684831e0693e12e75a52",
+      "before_bytes": 86160,
+      "after_bytes": 87084
+    },
+    {
+      "path": "scene/resources/mesh.h",
+      "archive_member": "godot-4.8-beta1/scene/resources/mesh.h",
+      "before_sha256": "c3539d54df2af0ee20a06d02cd55f437e7b9938dd5bbaf108d178123069db815",
+      "after_sha256": "26185b2bd91c1c1627c57c6d04aebf1cd5558194875a4dc2a202f9ad5316af2f",
+      "before_bytes": 18824,
+      "after_bytes": 18939
+    },
+    {
+      "path": "scene/resources/native_mesh_cpu_capture.cpp",
+      "archive_member": null,
+      "before_sha256": null,
+      "after_sha256": "1a202f5847a8248c82b5b4af0d237d310ec2679e0bf96f04971f0079b1d61bf3",
+      "before_bytes": 0,
+      "after_bytes": 10508
+    },
+    {
+      "path": "scene/resources/native_mesh_cpu_capture.h",
+      "archive_member": null,
+      "before_sha256": null,
+      "after_sha256": "4b094ccbe2a90945f960d50f7857cb2a23b29ec5d035c5356bfbfd260a8f1d98",
+      "before_bytes": 0,
+      "after_bytes": 4030
+    },
+    {
+      "path": "scene/resources/streamed_texture.cpp",
+      "archive_member": "godot-4.8-beta1/scene/resources/streamed_texture.cpp",
+      "before_sha256": "9b6f1a0d39a17b9760f8ec1bed603c6048711ed1bfea35efe94a7dcbae972e34",
+      "after_sha256": "26d5198f45b5f40734d1d3494cb0c1babdefe7bf92ce5bed6cb298f56040a80e",
+      "before_bytes": 23081,
+      "after_bytes": 23403
+    },
+    {
+      "path": "scene/resources/streamed_texture.h",
+      "archive_member": "godot-4.8-beta1/scene/resources/streamed_texture.h",
+      "before_sha256": "ae230d8526cf67f246f7ea555d7c775e2f76a981183ce3c49e82675d4762b97f",
+      "after_sha256": "d6f2b0fcb4557d269378195cd7674d206c3a562bacd497aee04e69685580d18c",
+      "before_bytes": 7580,
+      "after_bytes": 7950
+    },
+    {
+      "path": "servers/physics_3d/physics_server_3d.cpp",
+      "archive_member": "godot-4.8-beta1/servers/physics_3d/physics_server_3d.cpp",
+      "before_sha256": "1f7afa5940ef5fff81eac191b66256d70d37dc2dcd76006643c0549fd76e4c68",
+      "after_sha256": "0774dea22786ea9eba6028c3d8deba463f6abb68d1cd177a94352b8e86e724c8",
+      "before_bytes": 36467,
+      "after_bytes": 37234
+    },
+    {
+      "path": "servers/physics_3d/physics_server_3d.h",
+      "archive_member": "godot-4.8-beta1/servers/physics_3d/physics_server_3d.h",
+      "before_sha256": "5d2098aef2a6b6a230b8030a07c4f8ea021525dc4ba91d795c386221fa61c9bc",
+      "after_sha256": "1af320d24d07af649bfc7200d76b75df4334a49d7209a1f40b1f3e9b58acb325",
+      "before_bytes": 21036,
+      "after_bytes": 21422
+    },
+    {
+      "path": "servers/rendering/renderer_rd/effects/copy_effects.cpp",
+      "archive_member": "godot-4.8-beta1/servers/rendering/renderer_rd/effects/copy_effects.cpp",
+      "before_sha256": "5c4d90165de78ddf7bab0745793e6610dd4e6c184c1ec6600c168e61c01bf0b4",
+      "after_sha256": "78999578aa5231cdc331d13c454370e100dd1893f0164c5c0e4fd40b8c5b563c",
+      "before_bytes": 75869,
+      "after_bytes": 76563
+    },
+    {
+      "path": "servers/rendering/renderer_rd/effects/copy_effects.h",
+      "archive_member": "godot-4.8-beta1/servers/rendering/renderer_rd/effects/copy_effects.h",
+      "before_sha256": "107735749f70e897c246b88db98c026d85624b275a1ebebb784f431dbc1720d8",
+      "after_sha256": "7900b758b943d8ef5355c756f220b6b47425b6337149a60b90053ee1d90eee9b",
+      "before_bytes": 14767,
+      "after_bytes": 15101
+    },
+    {
+      "path": "servers/rendering/renderer_rd/effects/taa.cpp",
+      "archive_member": "godot-4.8-beta1/servers/rendering/renderer_rd/effects/taa.cpp",
+      "before_sha256": "a28d9f7a48c88ffd354a25acc527038c5146c28a158199016bac069159f33fe2",
+      "after_sha256": "f0915bece51f1bb8b53e179554ab62ddcf145d29a92b9add10e2d154ee9e81b0",
+      "before_bytes": 7374,
+      "after_bytes": 7404
+    },
+    {
+      "path": "servers/rendering/renderer_rd/shaders/effects/copy.glsl",
+      "archive_member": "godot-4.8-beta1/servers/rendering/renderer_rd/shaders/effects/copy.glsl",
+      "before_sha256": "5d35b131600fc6428e5e062cd9b53afbaa2f85ff03024df1fe099378c180fa64",
+      "after_sha256": "1d4dd0f5cac3d6ecdf8b91d3aab2a8417540ad87904314b7f365232ab750a2c6",
+      "before_bytes": 10243,
+      "after_bytes": 10358
+    },
+    {
+      "path": "servers/rendering/rendering_device.cpp",
+      "archive_member": "godot-4.8-beta1/servers/rendering/rendering_device.cpp",
+      "before_sha256": "8ea3c66e5580d0e894a0ea578c8481005b302c8d91f470190e36d0ea254ab9a3",
+      "after_sha256": "5adfdd46ed8b801cf7e530632f106cbf700370abea2d3dd1d920aa553e42dfa8",
+      "before_bytes": 465220,
+      "after_bytes": 465475
+    },
+    {
+      "path": "servers/rendering/rendering_server.cpp",
+      "archive_member": "godot-4.8-beta1/servers/rendering/rendering_server.cpp",
+      "before_sha256": "2b490b28acbdcb20963307ffce83c0bd113e5652e43c5f2eaac5982319e7ad89",
+      "after_sha256": "574569e6026bb35cacaff4f2706179b59ed054f6556d78e83afd4037e84bde40",
+      "before_bytes": 199465,
+      "after_bytes": 202657
+    },
+    {
+      "path": "servers/rendering/rendering_server.h",
+      "archive_member": "godot-4.8-beta1/servers/rendering/rendering_server.h",
+      "before_sha256": "f397b4ad9fe72a904b3b47563cd12fb60a7418c5881fc2e82e3430cdf82f7fc6",
+      "after_sha256": "86f82c8d4436dde6a49ed057c1dd4fad7c71e3fe1e4f75f7c67a4b7b258942d6",
+      "before_bytes": 74323,
+      "after_bytes": 74426
+    },
+    {
+      "path": "servers/rendering/rendering_server_default.cpp",
+      "archive_member": "godot-4.8-beta1/servers/rendering/rendering_server_default.cpp",
+      "before_sha256": "b21dc45c1dfe7f6e5aefecad3ebcba42a15012e1535e0b6131c76ec7f13b4654",
+      "after_sha256": "5e7d3fce189c0ecd35529145b85cdc2c255160fa928d771ed95107ff049fbb1e",
+      "before_bytes": 16907,
+      "after_bytes": 17151
+    },
+    {
+      "path": "servers/rendering/rendering_shader_container.cpp",
+      "archive_member": "godot-4.8-beta1/servers/rendering/rendering_shader_container.cpp",
+      "before_sha256": "3ca91cd6c1fe129ca0a7f3af0dec5f8d9b69c503800754466074f4b8f7ef6437",
+      "after_sha256": "a813fbf5f420a851d658a17e8fa2d150f02ebc1b31024a16137ee207d3e8017a",
+      "before_bytes": 46993,
+      "after_bytes": 47181
+    },
+    {
+      "path": "thirdparty/re-spirv/re-spirv.cpp",
+      "archive_member": "godot-4.8-beta1/thirdparty/re-spirv/re-spirv.cpp",
+      "before_sha256": "c4b1a58358c43013ae4a416a6d60119a54c8dee940d385b65aa073cecea73b3a",
+      "after_sha256": "1d241d8f890d9ea78387dc382f9a6097d89036cb3520f3089ea8e7dd56de5d8a",
+      "before_bytes": 154844,
+      "after_bytes": 157882
+    }
+  ],
+  "verification": {
+    "directory": "D:\\code\\rmmo_runtime\\review_artifacts\\godot_4_8_adoption_20261029_01\\native_texture_observation_07\\official_to_07_replay",
+    "commands": [
+      {
+        "command": [
+          "git",
+          "-c",
+          "core.autocrlf=false",
+          "apply",
+          "--check",
+          "--whitespace=nowarn",
+          "D:\\code\\rmmo\\tools\\engine_patches\\godot-4.8-beta1-runtime-candidate07.patch"
+        ],
+        "exit": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      {
+        "command": [
+          "git",
+          "-c",
+          "core.autocrlf=false",
+          "apply",
+          "--whitespace=nowarn",
+          "D:\\code\\rmmo\\tools\\engine_patches\\godot-4.8-beta1-runtime-candidate07.patch"
+        ],
+        "exit": 0,
+        "stdout": "",
+        "stderr": ""
+      }
+    ],
+    "exact_applied_files": 49,
+    "official_archive_sha256_verified": "6d49c02e438935e49a12231d857b2b56131948b004d5b668bf295c9bc3b2281c",
+    "replayed_file_sha256": {
+      "core/io/image.cpp": "44377f62ef44c0dfeddfb485385882cacc79298f72f81d021ed6ff1634ace567",
+      "core/io/image.h": "bca1d81f891606d6027f1ad85c94242328f98d8f3c69fbb4a3cf9d784f77ee60",
+      "core/io/resource_loader.cpp": "fab4b31c6a29f6c63c4fb11be32b8ae985f92b9631b0dd88bc98857e8afd2af6",
+      "core/io/resource_loader.h": "e4d3b8b23d8259c534f0eb79f48f62740c4c190eac0ab69a903a79396a7ae4a5",
+      "core/object/worker_thread_pool.cpp": "7d8a76de17e61e87e00f312a0e4ddf1cb37e9af9932603f644e7d58259c2937a",
+      "core/object/worker_thread_pool.h": "ef18a6760d92936fc4c66443d87841183ff1fa4049d89a0f9318576bc7eb8099",
+      "doc/classes/Image.xml": "05fc4c7e9e5d5248ae05ff60887e72a5e426a98866650f03acf1b58a5cf5dc98",
+      "drivers/vulkan/rendering_device_driver_vulkan.cpp": "905e964ab728de0ff48df78d34f3a40e4c389a9df014d883edf86b320c87d9c7",
+      "drivers/windows/file_access_windows.cpp": "e8d5317ce6de06caf8e54e2a560cc121c7edefcdc6cdfe3a57e18ad740309a98",
+      "drivers/windows/file_access_windows.h": "93bbc7f17032278584ba506a82b2e0a81e6fba63982ddedb147d91f02e722767",
+      "modules/dds/texture_loader_dds.cpp": "20536e90fbf446236b48281b39f311c55ab1bafc2e8f6541b40fd8555bb5f807",
+      "modules/gdscript/gdscript.cpp": "0228a58e29bfeaedcf71f4ead0d8db841df49d3c4c98a6dc4e4e01c816239e67",
+      "modules/gdscript/gdscript_analyzer.cpp": "390dd6c8859c44b2eb2cba684881f7c2acc8520d09a7d99264f5db0ac41e0a59",
+      "modules/gdscript/gdscript_analyzer.h": "17654c94e2ff96499114f788366f033f5a75742e74463caec154e97718067910",
+      "modules/gdscript/gdscript_vm.cpp": "b23db431a4207d01019f8f091b35f01425c8418aefceafd21cc36e31f2c6fd35",
+      "modules/godot_physics_3d/godot_concave_prepared_data_3d.h": "025cd5391974eca045b15e564e6277282dad27a626049ae48e452949fd09da37",
+      "modules/godot_physics_3d/godot_shape_3d.cpp": "2ce14f50ae8afbeb0a13eaf4b127e505f79bb08adde7a26ce0fe353ac5cd2b73",
+      "modules/godot_physics_3d/register_types.cpp": "fd317a46deda9e0d40553c981db5907a363f81cfdb16b2e3bf244d023e0e04ec",
+      "modules/text_server_adv/text_server_adv.cpp": "342016316b18bd537edc48c052c886695c681a1f979bda747c038d01327f9ef9",
+      "modules/text_server_fb/text_server_fb.cpp": "5c348fd12e229464b76804e0350f323dd3620819abb6ff6948d2500610300f23",
+      "modules/texture_streaming/tests/test_texture_streaming_lifetime.h": "b8fa332201e435470ada42df02a7990e35f70f41460b3fa1d282e161ed8fe942",
+      "modules/texture_streaming/tests/test_texture_streaming_observation.h": "0a4731aa7b706ca3cb6a9deeb3525a3e9e62f7f42b7b006db920381fab062e53",
+      "modules/texture_streaming/texture_streaming.cpp": "6bbc2da186269135f16a1d1eeef8730e0b20ad1f9948b4ee2c23dd4cf08ede09",
+      "modules/texture_streaming/texture_streaming.h": "ef39404da1d41eaefb326749488c99dc0c3e2cde924387c51f14d88cf7f68fd3",
+      "platform/windows/godot_windows.cpp": "63c11eef5e93c43d24c78c246c3c0251863936f385ee1ea7f86447f8050392c1",
+      "scene/register_scene_types.cpp": "afc96c34d157fd767b3c704e204b38e5071334e755bdc750c7b1045348a6ee13",
+      "scene/resources/3d/concave_polygon_shape_3d.cpp": "90353f44745aa6d69bf150ff5677f0253626a064c4e8a63d407efccdc6b34a43",
+      "scene/resources/3d/concave_polygon_shape_3d.h": "3f927ea56ffd18b1ca4a82e7b6971cd5dce1530680cd3c8c6952ab29752192db",
+      "scene/resources/3d/shape_3d.cpp": "a7ae3b87c338df1f88d7a832322048e790231cd5e9163fb56dae6fdcaa3f29aa",
+      "scene/resources/material.cpp": "949511f4ead9358d3e7e83b9cbf7cc6cbb96000326884bdd87393ebd3be38150",
+      "scene/resources/material.h": "d406b4d8923f4dfdf75cf0dfe792cd78aca56b3e7877e520bb68b86bb7322330",
+      "scene/resources/mesh.cpp": "6e7c0f2652eb078c9bc4c4107e65c25c113b00c817d1684831e0693e12e75a52",
+      "scene/resources/mesh.h": "26185b2bd91c1c1627c57c6d04aebf1cd5558194875a4dc2a202f9ad5316af2f",
+      "scene/resources/native_mesh_cpu_capture.cpp": "1a202f5847a8248c82b5b4af0d237d310ec2679e0bf96f04971f0079b1d61bf3",
+      "scene/resources/native_mesh_cpu_capture.h": "4b094ccbe2a90945f960d50f7857cb2a23b29ec5d035c5356bfbfd260a8f1d98",
+      "scene/resources/streamed_texture.cpp": "26d5198f45b5f40734d1d3494cb0c1babdefe7bf92ce5bed6cb298f56040a80e",
+      "scene/resources/streamed_texture.h": "d6f2b0fcb4557d269378195cd7674d206c3a562bacd497aee04e69685580d18c",
+      "servers/physics_3d/physics_server_3d.cpp": "0774dea22786ea9eba6028c3d8deba463f6abb68d1cd177a94352b8e86e724c8",
+      "servers/physics_3d/physics_server_3d.h": "1af320d24d07af649bfc7200d76b75df4334a49d7209a1f40b1f3e9b58acb325",
+      "servers/rendering/renderer_rd/effects/copy_effects.cpp": "78999578aa5231cdc331d13c454370e100dd1893f0164c5c0e4fd40b8c5b563c",
+      "servers/rendering/renderer_rd/effects/copy_effects.h": "7900b758b943d8ef5355c756f220b6b47425b6337149a60b90053ee1d90eee9b",
+      "servers/rendering/renderer_rd/effects/taa.cpp": "f0915bece51f1bb8b53e179554ab62ddcf145d29a92b9add10e2d154ee9e81b0",
+      "servers/rendering/renderer_rd/shaders/effects/copy.glsl": "1d4dd0f5cac3d6ecdf8b91d3aab2a8417540ad87904314b7f365232ab750a2c6",
+      "servers/rendering/rendering_device.cpp": "5adfdd46ed8b801cf7e530632f106cbf700370abea2d3dd1d920aa553e42dfa8",
+      "servers/rendering/rendering_server.cpp": "574569e6026bb35cacaff4f2706179b59ed054f6556d78e83afd4037e84bde40",
+      "servers/rendering/rendering_server.h": "86f82c8d4436dde6a49ed057c1dd4fad7c71e3fe1e4f75f7c67a4b7b258942d6",
+      "servers/rendering/rendering_server_default.cpp": "5e7d3fce189c0ecd35529145b85cdc2c255160fa928d771ed95107ff049fbb1e",
+      "servers/rendering/rendering_shader_container.cpp": "a813fbf5f420a851d658a17e8fa2d150f02ebc1b31024a16137ee207d3e8017a",
+      "thirdparty/re-spirv/re-spirv.cpp": "1d241d8f890d9ea78387dc382f9a6097d89036cb3520f3089ea8e7dd56de5d8a"
+    },
+    "scope": "All 49 affected files extracted from the official tar, then cumulative patch applied and compared byte-for-byte with frozen runtime sources. This is not a fresh complete-engine rebuild."
+  },
+  "build": {
+    "runtime_tests_no": {
+      "phase": "runtime_01",
+      "status": "built_unverified",
+      "files": [
+        {
+          "path": "core/io/image.cpp",
+          "sha256": "44377f62ef44c0dfeddfb485385882cacc79298f72f81d021ed6ff1634ace567",
+          "bytes": 169260
+        },
+        {
+          "path": "core/io/image.h",
+          "sha256": "bca1d81f891606d6027f1ad85c94242328f98d8f3c69fbb4a3cf9d784f77ee60",
+          "bytes": 22212
+        },
+        {
+          "path": "core/io/resource_loader.cpp",
+          "sha256": "fab4b31c6a29f6c63c4fb11be32b8ae985f92b9631b0dd88bc98857e8afd2af6",
+          "bytes": 61613
+        },
+        {
+          "path": "core/io/resource_loader.h",
+          "sha256": "e4d3b8b23d8259c534f0eb79f48f62740c4c190eac0ab69a903a79396a7ae4a5",
+          "bytes": 15635
+        },
+        {
+          "path": "core/object/worker_thread_pool.cpp",
+          "sha256": "7d8a76de17e61e87e00f312a0e4ddf1cb37e9af9932603f644e7d58259c2937a",
+          "bytes": 32424
+        },
+        {
+          "path": "core/object/worker_thread_pool.h",
+          "sha256": "ef18a6760d92936fc4c66443d87841183ff1fa4049d89a0f9318576bc7eb8099",
+          "bytes": 11945
+        },
+        {
+          "path": "doc/classes/Image.xml",
+          "sha256": "05fc4c7e9e5d5248ae05ff60887e72a5e426a98866650f03acf1b58a5cf5dc98",
+          "bytes": 60231
+        },
+        {
+          "path": "drivers/vulkan/rendering_device_driver_vulkan.cpp",
+          "sha256": "905e964ab728de0ff48df78d34f3a40e4c389a9df014d883edf86b320c87d9c7",
+          "bytes": 377215
+        },
+        {
+          "path": "drivers/windows/file_access_windows.cpp",
+          "sha256": "e8d5317ce6de06caf8e54e2a560cc121c7edefcdc6cdfe3a57e18ad740309a98",
+          "bytes": 25124
+        },
+        {
+          "path": "drivers/windows/file_access_windows.h",
+          "sha256": "93bbc7f17032278584ba506a82b2e0a81e6fba63982ddedb147d91f02e722767",
+          "bytes": 5828
+        },
+        {
+          "path": "modules/dds/texture_loader_dds.cpp",
+          "sha256": "20536e90fbf446236b48281b39f311c55ab1bafc2e8f6541b40fd8555bb5f807",
+          "bytes": 23836
+        },
+        {
+          "path": "modules/gdscript/gdscript.cpp",
+          "sha256": "0228a58e29bfeaedcf71f4ead0d8db841df49d3c4c98a6dc4e4e01c816239e67",
+          "bytes": 90097
+        },
+        {
+          "path": "modules/gdscript/gdscript_analyzer.cpp",
+          "sha256": "390dd6c8859c44b2eb2cba684881f7c2acc8520d09a7d99264f5db0ac41e0a59",
+          "bytes": 280194
+        },
+        {
+          "path": "modules/gdscript/gdscript_analyzer.h",
+          "sha256": "17654c94e2ff96499114f788366f033f5a75742e74463caec154e97718067910",
+          "bytes": 14413
+        },
+        {
+          "path": "modules/gdscript/gdscript_vm.cpp",
+          "sha256": "b23db431a4207d01019f8f091b35f01425c8418aefceafd21cc36e31f2c6fd35",
+          "bytes": 131910
+        },
+        {
+          "path": "modules/godot_physics_3d/godot_concave_prepared_data_3d.h",
+          "sha256": "025cd5391974eca045b15e564e6277282dad27a626049ae48e452949fd09da37",
+          "bytes": 3231
+        },
+        {
+          "path": "modules/godot_physics_3d/godot_shape_3d.cpp",
+          "sha256": "2ce14f50ae8afbeb0a13eaf4b127e505f79bb08adde7a26ce0fe353ac5cd2b73",
+          "bytes": 64430
+        },
+        {
+          "path": "modules/godot_physics_3d/register_types.cpp",
+          "sha256": "fd317a46deda9e0d40553c981db5907a363f81cfdb16b2e3bf244d023e0e04ec",
+          "bytes": 3754
+        },
+        {
+          "path": "modules/text_server_adv/text_server_adv.cpp",
+          "sha256": "342016316b18bd537edc48c052c886695c681a1f979bda747c038d01327f9ef9",
+          "bytes": 313567
+        },
+        {
+          "path": "modules/text_server_fb/text_server_fb.cpp",
+          "sha256": "5c348fd12e229464b76804e0350f323dd3620819abb6ff6948d2500610300f23",
+          "bytes": 185478
+        },
+        {
+          "path": "modules/texture_streaming/tests/test_texture_streaming_lifetime.h",
+          "sha256": "b8fa332201e435470ada42df02a7990e35f70f41460b3fa1d282e161ed8fe942",
+          "bytes": 17193
+        },
+        {
+          "path": "modules/texture_streaming/tests/test_texture_streaming_observation.h",
+          "sha256": "0a4731aa7b706ca3cb6a9deeb3525a3e9e62f7f42b7b006db920381fab062e53",
+          "bytes": 21055
+        },
+        {
+          "path": "modules/texture_streaming/texture_streaming.cpp",
+          "sha256": "6bbc2da186269135f16a1d1eeef8730e0b20ad1f9948b4ee2c23dd4cf08ede09",
+          "bytes": 55960
+        },
+        {
+          "path": "modules/texture_streaming/texture_streaming.h",
+          "sha256": "ef39404da1d41eaefb326749488c99dc0c3e2cde924387c51f14d88cf7f68fd3",
+          "bytes": 30513
+        },
+        {
+          "path": "platform/windows/godot_windows.cpp",
+          "sha256": "63c11eef5e93c43d24c78c246c3c0251863936f385ee1ea7f86447f8050392c1",
+          "bytes": 6764
+        },
+        {
+          "path": "scene/register_scene_types.cpp",
+          "sha256": "afc96c34d157fd767b3c704e204b38e5071334e755bdc750c7b1045348a6ee13",
+          "bytes": 58943
+        },
+        {
+          "path": "scene/resources/3d/concave_polygon_shape_3d.cpp",
+          "sha256": "90353f44745aa6d69bf150ff5677f0253626a064c4e8a63d407efccdc6b34a43",
+          "bytes": 5931
+        },
+        {
+          "path": "scene/resources/3d/concave_polygon_shape_3d.h",
+          "sha256": "3f927ea56ffd18b1ca4a82e7b6971cd5dce1530680cd3c8c6952ab29752192db",
+          "bytes": 3517
+        },
+        {
+          "path": "scene/resources/3d/shape_3d.cpp",
+          "sha256": "a7ae3b87c338df1f88d7a832322048e790231cd5e9163fb56dae6fdcaa3f29aa",
+          "bytes": 7530
+        },
+        {
+          "path": "scene/resources/material.cpp",
+          "sha256": "949511f4ead9358d3e7e83b9cbf7cc6cbb96000326884bdd87393ebd3be38150",
+          "bytes": 158013
+        },
+        {
+          "path": "scene/resources/material.h",
+          "sha256": "d406b4d8923f4dfdf75cf0dfe792cd78aca56b3e7877e520bb68b86bb7322330",
+          "bytes": 28404
+        },
+        {
+          "path": "scene/resources/mesh.cpp",
+          "sha256": "6e7c0f2652eb078c9bc4c4107e65c25c113b00c817d1684831e0693e12e75a52",
+          "bytes": 87084
+        },
+        {
+          "path": "scene/resources/mesh.h",
+          "sha256": "26185b2bd91c1c1627c57c6d04aebf1cd5558194875a4dc2a202f9ad5316af2f",
+          "bytes": 18939
+        },
+        {
+          "path": "scene/resources/native_mesh_cpu_capture.cpp",
+          "sha256": "1a202f5847a8248c82b5b4af0d237d310ec2679e0bf96f04971f0079b1d61bf3",
+          "bytes": 10508
+        },
+        {
+          "path": "scene/resources/native_mesh_cpu_capture.h",
+          "sha256": "4b094ccbe2a90945f960d50f7857cb2a23b29ec5d035c5356bfbfd260a8f1d98",
+          "bytes": 4030
+        },
+        {
+          "path": "scene/resources/streamed_texture.cpp",
+          "sha256": "26d5198f45b5f40734d1d3494cb0c1babdefe7bf92ce5bed6cb298f56040a80e",
+          "bytes": 23403
+        },
+        {
+          "path": "scene/resources/streamed_texture.h",
+          "sha256": "d6f2b0fcb4557d269378195cd7674d206c3a562bacd497aee04e69685580d18c",
+          "bytes": 7950
+        },
+        {
+          "path": "servers/physics_3d/physics_server_3d.cpp",
+          "sha256": "0774dea22786ea9eba6028c3d8deba463f6abb68d1cd177a94352b8e86e724c8",
+          "bytes": 37234
+        },
+        {
+          "path": "servers/physics_3d/physics_server_3d.h",
+          "sha256": "1af320d24d07af649bfc7200d76b75df4334a49d7209a1f40b1f3e9b58acb325",
+          "bytes": 21422
+        },
+        {
+          "path": "servers/rendering/renderer_rd/effects/copy_effects.cpp",
+          "sha256": "78999578aa5231cdc331d13c454370e100dd1893f0164c5c0e4fd40b8c5b563c",
+          "bytes": 76563
+        },
+        {
+          "path": "servers/rendering/renderer_rd/effects/copy_effects.h",
+          "sha256": "7900b758b943d8ef5355c756f220b6b47425b6337149a60b90053ee1d90eee9b",
+          "bytes": 15101
+        },
+        {
+          "path": "servers/rendering/renderer_rd/effects/taa.cpp",
+          "sha256": "f0915bece51f1bb8b53e179554ab62ddcf145d29a92b9add10e2d154ee9e81b0",
+          "bytes": 7404
+        },
+        {
+          "path": "servers/rendering/renderer_rd/shaders/effects/copy.glsl",
+          "sha256": "1d4dd0f5cac3d6ecdf8b91d3aab2a8417540ad87904314b7f365232ab750a2c6",
+          "bytes": 10358
+        },
+        {
+          "path": "servers/rendering/rendering_device.cpp",
+          "sha256": "5adfdd46ed8b801cf7e530632f106cbf700370abea2d3dd1d920aa553e42dfa8",
+          "bytes": 465475
+        },
+        {
+          "path": "servers/rendering/rendering_server.cpp",
+          "sha256": "574569e6026bb35cacaff4f2706179b59ed054f6556d78e83afd4037e84bde40",
+          "bytes": 202657
+        },
+        {
+          "path": "servers/rendering/rendering_server.h",
+          "sha256": "86f82c8d4436dde6a49ed057c1dd4fad7c71e3fe1e4f75f7c67a4b7b258942d6",
+          "bytes": 74426
+        },
+        {
+          "path": "servers/rendering/rendering_server_default.cpp",
+          "sha256": "5e7d3fce189c0ecd35529145b85cdc2c255160fa928d771ed95107ff049fbb1e",
+          "bytes": 17151
+        },
+        {
+          "path": "servers/rendering/rendering_shader_container.cpp",
+          "sha256": "a813fbf5f420a851d658a17e8fa2d150f02ebc1b31024a16137ee207d3e8017a",
+          "bytes": 47181
+        },
+        {
+          "path": "thirdparty/re-spirv/re-spirv.cpp",
+          "sha256": "1d241d8f890d9ea78387dc382f9a6097d89036cb3520f3089ea8e7dd56de5d8a",
+          "bytes": 157882
+        }
+      ],
+      "command": [
+        "D:\\tools\\godot-4.8-build\\python-env\\Scripts\\python.exe",
+        "-m",
+        "SCons",
+        "platform=windows",
+        "arch=x86_64",
+        "target=editor",
+        "use_mingw=yes",
+        "debug_symbols=yes",
+        "separate_debug_symbols=yes",
+        "dev_build=no",
+        "optimize=speed",
+        "lto=none",
+        "d3d12=no",
+        "accesskit=no",
+        "angle=no",
+        "-j4",
+        "tests=no"
+      ],
+      "review_combined_sha256": "13ceee1116ae32de3d7e3f0cce0af4b55798d541dd128b1cf3d71d75b7994c83",
+      "source_manifest": "D:\\code\\rmmo_runtime\\review_artifacts\\godot_4_8_adoption_20261029_01\\native_texture_observation_07\\source_manifest.json",
+      "started": "2026-10-29T09:01:02.219074+00:00",
+      "defaults_before": {
+        "Godot_v4.8-beta1_win64.exe": "d5fd6c2c82eae35a60c90b78318b71f7a8130987f1fd402ea22e1de0ba842f62",
+        "Godot_v4.8-beta1_win64_console.exe": "9a7bab7f3d2a35c3abfe3e8816714d7e97d5fd88ecfa63048cd5cc7e3d5d1f3a",
+        "PATCHED_BUILD_README.txt": "9e18b7c794877c077ae9a49a7e7eaf4cfa6d05a0e68e3063d7974ce1ba2a96a8",
+        "godot.exe": "d5fd6c2c82eae35a60c90b78318b71f7a8130987f1fd402ea22e1de0ba842f62",
+        "godot.windows.editor.x86_64.console.exe": "9a7bab7f3d2a35c3abfe3e8816714d7e97d5fd88ecfa63048cd5cc7e3d5d1f3a",
+        "godot.windows.editor.x86_64.console.exe.debugsymbols": "502aef069fe9cbb86adfe856c9761601d1826788d9a4771ed868a965b3397ffc",
+        "godot.windows.editor.x86_64.exe": "d5fd6c2c82eae35a60c90b78318b71f7a8130987f1fd402ea22e1de0ba842f62",
+        "godot.windows.editor.x86_64.exe.debugsymbols": "6d365125e668e13bc7b7a4d151f222094cd35b00a5e895a13e2ee67df0e6890e",
+        "patched_build_manifest.json": "de66a8e51d7bf697c0b09f13d8a2caa287d5e234878589cfbd8fb5cd722903c9"
+      },
+      "real_map_performance_claim": false,
+      "gpu": false,
+      "timeout_s": 2700,
+      "pid": 43108,
+      "timeout": false,
+      "exit": 0,
+      "elapsed_build_s": 252.95300000000861,
+      "source_unchanged": true,
+      "defaults_after": {
+        "Godot_v4.8-beta1_win64.exe": "d5fd6c2c82eae35a60c90b78318b71f7a8130987f1fd402ea22e1de0ba842f62",
+        "Godot_v4.8-beta1_win64_console.exe": "9a7bab7f3d2a35c3abfe3e8816714d7e97d5fd88ecfa63048cd5cc7e3d5d1f3a",
+        "PATCHED_BUILD_README.txt": "9e18b7c794877c077ae9a49a7e7eaf4cfa6d05a0e68e3063d7974ce1ba2a96a8",
+        "godot.exe": "d5fd6c2c82eae35a60c90b78318b71f7a8130987f1fd402ea22e1de0ba842f62",
+        "godot.windows.editor.x86_64.console.exe": "9a7bab7f3d2a35c3abfe3e8816714d7e97d5fd88ecfa63048cd5cc7e3d5d1f3a",
+        "godot.windows.editor.x86_64.console.exe.debugsymbols": "502aef069fe9cbb86adfe856c9761601d1826788d9a4771ed868a965b3397ffc",
+        "godot.windows.editor.x86_64.exe": "d5fd6c2c82eae35a60c90b78318b71f7a8130987f1fd402ea22e1de0ba842f62",
+        "godot.windows.editor.x86_64.exe.debugsymbols": "6d365125e668e13bc7b7a4d151f222094cd35b00a5e895a13e2ee67df0e6890e",
+        "patched_build_manifest.json": "de66a8e51d7bf697c0b09f13d8a2caa287d5e234878589cfbd8fb5cd722903c9"
+      },
+      "default_unchanged": true,
+      "artifacts": [
+        {
+          "path": "D:\\code\\rmmo_runtime\\review_artifacts\\godot_4_8_adoption_20261029_01\\native_texture_observation_07\\runtime_01\\engine\\godot.windows.editor.x86_64.console.exe",
+          "bytes": 199477,
+          "sha256": "04f351c93a4d5f4c6203e9f7f7ea380f8aff4fef952bc7faf1d3a007208fdb1e"
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\review_artifacts\\godot_4_8_adoption_20261029_01\\native_texture_observation_07\\runtime_01\\engine\\godot.windows.editor.x86_64.console.exe.debugsymbols",
+          "bytes": 78178,
+          "sha256": "9df2284addc446c68197d3cc67d595841864fa9c4c018deaf7ee76f17c122818"
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\review_artifacts\\godot_4_8_adoption_20261029_01\\native_texture_observation_07\\runtime_01\\engine\\godot.windows.editor.x86_64.exe",
+          "bytes": 163200394,
+          "sha256": "dabba1322488f959bddbd1d20ebdf40ee788c918c1a8b193a533d0472efb7375"
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\review_artifacts\\godot_4_8_adoption_20261029_01\\native_texture_observation_07\\runtime_01\\engine\\godot.windows.editor.x86_64.exe.debugsymbols",
+          "bytes": 2167742074,
+          "sha256": "53c4f5fbd0fad31f24e5c13f1cb2637484998b7bef23762b6a951e82dc5b98a3"
+        }
+      ]
+    },
+    "native_tests_yes": {
+      "phase": "tests_02",
+      "status": "built_unverified",
+      "files": [
+        {
+          "path": "core/io/image.cpp",
+          "sha256": "44377f62ef44c0dfeddfb485385882cacc79298f72f81d021ed6ff1634ace567",
+          "bytes": 169260
+        },
+        {
+          "path": "core/io/image.h",
+          "sha256": "bca1d81f891606d6027f1ad85c94242328f98d8f3c69fbb4a3cf9d784f77ee60",
+          "bytes": 22212
+        },
+        {
+          "path": "core/io/resource_loader.cpp",
+          "sha256": "fab4b31c6a29f6c63c4fb11be32b8ae985f92b9631b0dd88bc98857e8afd2af6",
+          "bytes": 61613
+        },
+        {
+          "path": "core/io/resource_loader.h",
+          "sha256": "e4d3b8b23d8259c534f0eb79f48f62740c4c190eac0ab69a903a79396a7ae4a5",
+          "bytes": 15635
+        },
+        {
+          "path": "core/object/worker_thread_pool.cpp",
+          "sha256": "7d8a76de17e61e87e00f312a0e4ddf1cb37e9af9932603f644e7d58259c2937a",
+          "bytes": 32424
+        },
+        {
+          "path": "core/object/worker_thread_pool.h",
+          "sha256": "ef18a6760d92936fc4c66443d87841183ff1fa4049d89a0f9318576bc7eb8099",
+          "bytes": 11945
+        },
+        {
+          "path": "doc/classes/Image.xml",
+          "sha256": "05fc4c7e9e5d5248ae05ff60887e72a5e426a98866650f03acf1b58a5cf5dc98",
+          "bytes": 60231
+        },
+        {
+          "path": "drivers/vulkan/rendering_device_driver_vulkan.cpp",
+          "sha256": "905e964ab728de0ff48df78d34f3a40e4c389a9df014d883edf86b320c87d9c7",
+          "bytes": 377215
+        },
+        {
+          "path": "drivers/windows/file_access_windows.cpp",
+          "sha256": "e8d5317ce6de06caf8e54e2a560cc121c7edefcdc6cdfe3a57e18ad740309a98",
+          "bytes": 25124
+        },
+        {
+          "path": "drivers/windows/file_access_windows.h",
+          "sha256": "93bbc7f17032278584ba506a82b2e0a81e6fba63982ddedb147d91f02e722767",
+          "bytes": 5828
+        },
+        {
+          "path": "modules/dds/texture_loader_dds.cpp",
+          "sha256": "20536e90fbf446236b48281b39f311c55ab1bafc2e8f6541b40fd8555bb5f807",
+          "bytes": 23836
+        },
+        {
+          "path": "modules/gdscript/gdscript.cpp",
+          "sha256": "0228a58e29bfeaedcf71f4ead0d8db841df49d3c4c98a6dc4e4e01c816239e67",
+          "bytes": 90097
+        },
+        {
+          "path": "modules/gdscript/gdscript_analyzer.cpp",
+          "sha256": "390dd6c8859c44b2eb2cba684881f7c2acc8520d09a7d99264f5db0ac41e0a59",
+          "bytes": 280194
+        },
+        {
+          "path": "modules/gdscript/gdscript_analyzer.h",
+          "sha256": "17654c94e2ff96499114f788366f033f5a75742e74463caec154e97718067910",
+          "bytes": 14413
+        },
+        {
+          "path": "modules/gdscript/gdscript_vm.cpp",
+          "sha256": "b23db431a4207d01019f8f091b35f01425c8418aefceafd21cc36e31f2c6fd35",
+          "bytes": 131910
+        },
+        {
+          "path": "modules/godot_physics_3d/godot_concave_prepared_data_3d.h",
+          "sha256": "025cd5391974eca045b15e564e6277282dad27a626049ae48e452949fd09da37",
+          "bytes": 3231
+        },
+        {
+          "path": "modules/godot_physics_3d/godot_shape_3d.cpp",
+          "sha256": "2ce14f50ae8afbeb0a13eaf4b127e505f79bb08adde7a26ce0fe353ac5cd2b73",
+          "bytes": 64430
+        },
+        {
+          "path": "modules/godot_physics_3d/register_types.cpp",
+          "sha256": "fd317a46deda9e0d40553c981db5907a363f81cfdb16b2e3bf244d023e0e04ec",
+          "bytes": 3754
+        },
+        {
+          "path": "modules/text_server_adv/text_server_adv.cpp",
+          "sha256": "342016316b18bd537edc48c052c886695c681a1f979bda747c038d01327f9ef9",
+          "bytes": 313567
+        },
+        {
+          "path": "modules/text_server_fb/text_server_fb.cpp",
+          "sha256": "5c348fd12e229464b76804e0350f323dd3620819abb6ff6948d2500610300f23",
+          "bytes": 185478
+        },
+        {
+          "path": "modules/texture_streaming/tests/test_texture_streaming_lifetime.h",
+          "sha256": "b8fa332201e435470ada42df02a7990e35f70f41460b3fa1d282e161ed8fe942",
+          "bytes": 17193
+        },
+        {
+          "path": "modules/texture_streaming/tests/test_texture_streaming_observation.h",
+          "sha256": "0a4731aa7b706ca3cb6a9deeb3525a3e9e62f7f42b7b006db920381fab062e53",
+          "bytes": 21055
+        },
+        {
+          "path": "modules/texture_streaming/texture_streaming.cpp",
+          "sha256": "6bbc2da186269135f16a1d1eeef8730e0b20ad1f9948b4ee2c23dd4cf08ede09",
+          "bytes": 55960
+        },
+        {
+          "path": "modules/texture_streaming/texture_streaming.h",
+          "sha256": "ef39404da1d41eaefb326749488c99dc0c3e2cde924387c51f14d88cf7f68fd3",
+          "bytes": 30513
+        },
+        {
+          "path": "platform/windows/godot_windows.cpp",
+          "sha256": "63c11eef5e93c43d24c78c246c3c0251863936f385ee1ea7f86447f8050392c1",
+          "bytes": 6764
+        },
+        {
+          "path": "scene/register_scene_types.cpp",
+          "sha256": "afc96c34d157fd767b3c704e204b38e5071334e755bdc750c7b1045348a6ee13",
+          "bytes": 58943
+        },
+        {
+          "path": "scene/resources/3d/concave_polygon_shape_3d.cpp",
+          "sha256": "90353f44745aa6d69bf150ff5677f0253626a064c4e8a63d407efccdc6b34a43",
+          "bytes": 5931
+        },
+        {
+          "path": "scene/resources/3d/concave_polygon_shape_3d.h",
+          "sha256": "3f927ea56ffd18b1ca4a82e7b6971cd5dce1530680cd3c8c6952ab29752192db",
+          "bytes": 3517
+        },
+        {
+          "path": "scene/resources/3d/shape_3d.cpp",
+          "sha256": "a7ae3b87c338df1f88d7a832322048e790231cd5e9163fb56dae6fdcaa3f29aa",
+          "bytes": 7530
+        },
+        {
+          "path": "scene/resources/material.cpp",
+          "sha256": "949511f4ead9358d3e7e83b9cbf7cc6cbb96000326884bdd87393ebd3be38150",
+          "bytes": 158013
+        },
+        {
+          "path": "scene/resources/material.h",
+          "sha256": "d406b4d8923f4dfdf75cf0dfe792cd78aca56b3e7877e520bb68b86bb7322330",
+          "bytes": 28404
+        },
+        {
+          "path": "scene/resources/mesh.cpp",
+          "sha256": "6e7c0f2652eb078c9bc4c4107e65c25c113b00c817d1684831e0693e12e75a52",
+          "bytes": 87084
+        },
+        {
+          "path": "scene/resources/mesh.h",
+          "sha256": "26185b2bd91c1c1627c57c6d04aebf1cd5558194875a4dc2a202f9ad5316af2f",
+          "bytes": 18939
+        },
+        {
+          "path": "scene/resources/native_mesh_cpu_capture.cpp",
+          "sha256": "1a202f5847a8248c82b5b4af0d237d310ec2679e0bf96f04971f0079b1d61bf3",
+          "bytes": 10508
+        },
+        {
+          "path": "scene/resources/native_mesh_cpu_capture.h",
+          "sha256": "4b094ccbe2a90945f960d50f7857cb2a23b29ec5d035c5356bfbfd260a8f1d98",
+          "bytes": 4030
+        },
+        {
+          "path": "scene/resources/streamed_texture.cpp",
+          "sha256": "26d5198f45b5f40734d1d3494cb0c1babdefe7bf92ce5bed6cb298f56040a80e",
+          "bytes": 23403
+        },
+        {
+          "path": "scene/resources/streamed_texture.h",
+          "sha256": "d6f2b0fcb4557d269378195cd7674d206c3a562bacd497aee04e69685580d18c",
+          "bytes": 7950
+        },
+        {
+          "path": "servers/physics_3d/physics_server_3d.cpp",
+          "sha256": "0774dea22786ea9eba6028c3d8deba463f6abb68d1cd177a94352b8e86e724c8",
+          "bytes": 37234
+        },
+        {
+          "path": "servers/physics_3d/physics_server_3d.h",
+          "sha256": "1af320d24d07af649bfc7200d76b75df4334a49d7209a1f40b1f3e9b58acb325",
+          "bytes": 21422
+        },
+        {
+          "path": "servers/rendering/renderer_rd/effects/copy_effects.cpp",
+          "sha256": "78999578aa5231cdc331d13c454370e100dd1893f0164c5c0e4fd40b8c5b563c",
+          "bytes": 76563
+        },
+        {
+          "path": "servers/rendering/renderer_rd/effects/copy_effects.h",
+          "sha256": "7900b758b943d8ef5355c756f220b6b47425b6337149a60b90053ee1d90eee9b",
+          "bytes": 15101
+        },
+        {
+          "path": "servers/rendering/renderer_rd/effects/taa.cpp",
+          "sha256": "f0915bece51f1bb8b53e179554ab62ddcf145d29a92b9add10e2d154ee9e81b0",
+          "bytes": 7404
+        },
+        {
+          "path": "servers/rendering/renderer_rd/shaders/effects/copy.glsl",
+          "sha256": "1d4dd0f5cac3d6ecdf8b91d3aab2a8417540ad87904314b7f365232ab750a2c6",
+          "bytes": 10358
+        },
+        {
+          "path": "servers/rendering/rendering_device.cpp",
+          "sha256": "5adfdd46ed8b801cf7e530632f106cbf700370abea2d3dd1d920aa553e42dfa8",
+          "bytes": 465475
+        },
+        {
+          "path": "servers/rendering/rendering_server.cpp",
+          "sha256": "574569e6026bb35cacaff4f2706179b59ed054f6556d78e83afd4037e84bde40",
+          "bytes": 202657
+        },
+        {
+          "path": "servers/rendering/rendering_server.h",
+          "sha256": "86f82c8d4436dde6a49ed057c1dd4fad7c71e3fe1e4f75f7c67a4b7b258942d6",
+          "bytes": 74426
+        },
+        {
+          "path": "servers/rendering/rendering_server_default.cpp",
+          "sha256": "5e7d3fce189c0ecd35529145b85cdc2c255160fa928d771ed95107ff049fbb1e",
+          "bytes": 17151
+        },
+        {
+          "path": "servers/rendering/rendering_shader_container.cpp",
+          "sha256": "a813fbf5f420a851d658a17e8fa2d150f02ebc1b31024a16137ee207d3e8017a",
+          "bytes": 47181
+        },
+        {
+          "path": "thirdparty/re-spirv/re-spirv.cpp",
+          "sha256": "1d241d8f890d9ea78387dc382f9a6097d89036cb3520f3089ea8e7dd56de5d8a",
+          "bytes": 157882
+        }
+      ],
+      "command": [
+        "D:\\tools\\godot-4.8-build\\python-env\\Scripts\\python.exe",
+        "-m",
+        "SCons",
+        "platform=windows",
+        "arch=x86_64",
+        "target=editor",
+        "use_mingw=yes",
+        "debug_symbols=yes",
+        "separate_debug_symbols=yes",
+        "dev_build=no",
+        "optimize=speed",
+        "lto=none",
+        "d3d12=no",
+        "accesskit=no",
+        "angle=no",
+        "-j4",
+        "tests=yes"
+      ],
+      "review_combined_sha256": "13ceee1116ae32de3d7e3f0cce0af4b55798d541dd128b1cf3d71d75b7994c83",
+      "source_manifest": "D:\\code\\rmmo_runtime\\review_artifacts\\godot_4_8_adoption_20261029_01\\native_texture_observation_07\\source_manifest.json",
+      "started": "2026-10-29T08:49:37.670806+00:00",
+      "defaults_before": {
+        "Godot_v4.8-beta1_win64.exe": "d5fd6c2c82eae35a60c90b78318b71f7a8130987f1fd402ea22e1de0ba842f62",
+        "Godot_v4.8-beta1_win64_console.exe": "9a7bab7f3d2a35c3abfe3e8816714d7e97d5fd88ecfa63048cd5cc7e3d5d1f3a",
+        "PATCHED_BUILD_README.txt": "9e18b7c794877c077ae9a49a7e7eaf4cfa6d05a0e68e3063d7974ce1ba2a96a8",
+        "godot.exe": "d5fd6c2c82eae35a60c90b78318b71f7a8130987f1fd402ea22e1de0ba842f62",
+        "godot.windows.editor.x86_64.console.exe": "9a7bab7f3d2a35c3abfe3e8816714d7e97d5fd88ecfa63048cd5cc7e3d5d1f3a",
+        "godot.windows.editor.x86_64.console.exe.debugsymbols": "502aef069fe9cbb86adfe856c9761601d1826788d9a4771ed868a965b3397ffc",
+        "godot.windows.editor.x86_64.exe": "d5fd6c2c82eae35a60c90b78318b71f7a8130987f1fd402ea22e1de0ba842f62",
+        "godot.windows.editor.x86_64.exe.debugsymbols": "6d365125e668e13bc7b7a4d151f222094cd35b00a5e895a13e2ee67df0e6890e",
+        "patched_build_manifest.json": "de66a8e51d7bf697c0b09f13d8a2caa287d5e234878589cfbd8fb5cd722903c9"
+      },
+      "real_map_performance_claim": false,
+      "gpu": false,
+      "timeout_s": 2700,
+      "pid": 37960,
+      "timeout": false,
+      "exit": 0,
+      "elapsed_build_s": 386.375,
+      "source_unchanged": true,
+      "defaults_after": {
+        "Godot_v4.8-beta1_win64.exe": "d5fd6c2c82eae35a60c90b78318b71f7a8130987f1fd402ea22e1de0ba842f62",
+        "Godot_v4.8-beta1_win64_console.exe": "9a7bab7f3d2a35c3abfe3e8816714d7e97d5fd88ecfa63048cd5cc7e3d5d1f3a",
+        "PATCHED_BUILD_README.txt": "9e18b7c794877c077ae9a49a7e7eaf4cfa6d05a0e68e3063d7974ce1ba2a96a8",
+        "godot.exe": "d5fd6c2c82eae35a60c90b78318b71f7a8130987f1fd402ea22e1de0ba842f62",
+        "godot.windows.editor.x86_64.console.exe": "9a7bab7f3d2a35c3abfe3e8816714d7e97d5fd88ecfa63048cd5cc7e3d5d1f3a",
+        "godot.windows.editor.x86_64.console.exe.debugsymbols": "502aef069fe9cbb86adfe856c9761601d1826788d9a4771ed868a965b3397ffc",
+        "godot.windows.editor.x86_64.exe": "d5fd6c2c82eae35a60c90b78318b71f7a8130987f1fd402ea22e1de0ba842f62",
+        "godot.windows.editor.x86_64.exe.debugsymbols": "6d365125e668e13bc7b7a4d151f222094cd35b00a5e895a13e2ee67df0e6890e",
+        "patched_build_manifest.json": "de66a8e51d7bf697c0b09f13d8a2caa287d5e234878589cfbd8fb5cd722903c9"
+      },
+      "default_unchanged": true,
+      "artifacts": [
+        {
+          "path": "D:\\code\\rmmo_runtime\\review_artifacts\\godot_4_8_adoption_20261029_01\\native_texture_observation_07\\tests_02\\engine\\godot.windows.editor.x86_64.console.exe",
+          "bytes": 199477,
+          "sha256": "b38997c0ff282c9fec57b9f37192c37ad451d5c4a844ea3b60e96d5baafd81ae"
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\review_artifacts\\godot_4_8_adoption_20261029_01\\native_texture_observation_07\\tests_02\\engine\\godot.windows.editor.x86_64.console.exe.debugsymbols",
+          "bytes": 78178,
+          "sha256": "29dc0eff1aaf47e7e98bd36c7267beb097dca661fc2c7db2f1405e4449cc8212"
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\review_artifacts\\godot_4_8_adoption_20261029_01\\native_texture_observation_07\\tests_02\\engine\\godot.windows.editor.x86_64.exe",
+          "bytes": 177410572,
+          "sha256": "10a0e911d01a77e51ac72149f0378f5287c554a712a50e55987a8ec8fb2eff0f"
+        },
+        {
+          "path": "D:\\code\\rmmo_runtime\\review_artifacts\\godot_4_8_adoption_20261029_01\\native_texture_observation_07\\tests_02\\engine\\godot.windows.editor.x86_64.exe.debugsymbols",
+          "bytes": 2326379808,
+          "sha256": "a716dd4a77c23664d7a89fc953c0aaa0d4c9e205109a9a6272b450b5e9308214"
+        }
+      ]
+    }
+  },
+  "validation": {
+    "native_tests": {
+      "command": [
+        "D:\\code\\rmmo_runtime\\review_artifacts\\godot_4_8_adoption_20261029_01\\native_texture_observation_07\\tests_02\\engine\\godot.windows.editor.x86_64.exe",
+        "--headless",
+        "--test",
+        "--test-case=*TextureStreaming*",
+        "--success",
+        "--no-colors"
+      ],
+      "cwd": "D:\\code\\rmmo_runtime\\review_artifacts\\godot_4_8_adoption_20261029_01\\native_texture_observation_07\\tests_02\\run_02\\empty_cwd",
+      "gpu": false,
+      "timeout_s": 90,
+      "source_manifest": "D:\\code\\rmmo_runtime\\review_artifacts\\godot_4_8_adoption_20261029_01\\native_texture_observation_07\\tests_02\\result.json",
+      "started": "2026-10-29T08:58:17.710243+00:00",
+      "expected_cases": {
+        "observation_new": 6,
+        "lifetime_existing": 4
+      },
+      "stdout": "D:\\code\\rmmo_runtime\\review_artifacts\\godot_4_8_adoption_20261029_01\\native_texture_observation_07\\tests_02\\run_02\\stdout.log",
+      "stderr": "D:\\code\\rmmo_runtime\\review_artifacts\\godot_4_8_adoption_20261029_01\\native_texture_observation_07\\tests_02\\run_02\\stderr.log",
+      "official_test_data_source": "D:\\tools\\godot-4.8-build\\source\\godot-4.8-beta1\\tests\\data",
+      "isolated_environment": {
+        "APPDATA": "D:\\code\\rmmo_runtime\\review_artifacts\\godot_4_8_adoption_20261029_01\\native_texture_observation_07\\tests_02\\run_02\\appdata",
+        "TEMP": "D:\\code\\rmmo_runtime\\review_artifacts\\godot_4_8_adoption_20261029_01\\native_texture_observation_07\\tests_02\\run_02\\temp",
+        "TMP": "D:\\code\\rmmo_runtime\\review_artifacts\\godot_4_8_adoption_20261029_01\\native_texture_observation_07\\tests_02\\run_02\\tmp"
+      },
+      "engine_sha256": "10a0e911d01a77e51ac72149f0378f5287c554a712a50e55987a8ec8fb2eff0f",
+      "pid": 38160,
+      "exit": 0,
+      "timeout": false,
+      "elapsed_s": 0.625,
+      "cases": [
+        {
+          "name": "[TextureStreaming][CommandQueue] owned values and destructor reentry",
+          "group": "lifetime_existing",
+          "passed_assertions": 11,
+          "failed_assertions": 0
+        },
+        {
+          "name": "[SceneTree][TextureStreaming][Lifetime] reload retains callback owner until completion",
+          "group": "lifetime_existing",
+          "passed_assertions": 22,
+          "failed_assertions": 0
+        },
+        {
+          "name": "[SceneTree][TextureStreaming][Lifetime] feedback releases last owner without waiting on itself",
+          "group": "lifetime_existing",
+          "passed_assertions": 13,
+          "failed_assertions": 0
+        },
+        {
+          "name": "[SceneTree][TextureStreaming][Lifetime] shutdown services final IO owner removal",
+          "group": "lifetime_existing",
+          "passed_assertions": 14,
+          "failed_assertions": 0
+        },
+        {
+          "name": "[SceneTree][TextureStreaming][Observation] marked buffer and ordered completion barrier",
+          "group": "observation_new",
+          "passed_assertions": 18,
+          "failed_assertions": 0
+        },
+        {
+          "name": "[SceneTree][TextureStreaming][Observation] no demand budget and version semantics",
+          "group": "observation_new",
+          "passed_assertions": 27,
+          "failed_assertions": 0
+        },
+        {
+          "name": "[SceneTree][TextureStreaming][Observation] remove cancel and stop reject late delivery",
+          "group": "observation_new",
+          "passed_assertions": 12,
+          "failed_assertions": 0
+        },
+        {
+          "name": "[SceneTree][TextureStreaming][Observation] async query observes an executing reload",
+          "group": "observation_new",
+          "passed_assertions": 20,
+          "failed_assertions": 0
+        },
+        {
+          "name": "[SceneTree][TextureStreaming][Observation] public batch rejects inactive and non-native resources",
+          "group": "observation_new",
+          "passed_assertions": 4,
+          "failed_assertions": 0
+        },
+        {
+          "name": "[SceneTree][TextureStreaming][Observation] reload epochs close on no-op stop and upload failure",
+          "group": "observation_new",
+          "passed_assertions": 7,
+          "failed_assertions": 0
+        }
+      ],
+      "groups": {
+        "observation_new": {
+          "cases": 6,
+          "passed_assertions": 88,
+          "failed_assertions": 0
+        },
+        "lifetime_existing": {
+          "cases": 4,
+          "passed_assertions": 60,
+          "failed_assertions": 0
+        }
+      },
+      "summary": [
+        "[doctest] test cases:  10 |  10 passed | 0 failed | 1433 skipped",
+        "[doctest] assertions: 148 | 148 passed | 0 failed |",
+        "[doctest] Status: SUCCESS!"
+      ],
+      "diagnostics": [],
+      "all_expected_cases_present": true,
+      "passed": true
+    },
+    "native_cases": 10,
+    "native_assertions": 148,
+    "observation_new": {
+      "cases": 6,
+      "assertions": 88,
+      "failed": 0
+    },
+    "lifetime_existing": {
+      "cases": 4,
+      "assertions": 60,
+      "failed": 0
+    },
+    "source_identical_between_test_and_runtime_builds": true,
+    "cpu_delivery": "D:\\code\\rmmo_runtime\\review_artifacts\\godot_4_8_adoption_20261029_01\\native_texture_observation_07\\delivery_cpu.json",
+    "runtime_delivery": "D:\\code\\rmmo_runtime\\review_artifacts\\godot_4_8_adoption_20261029_01\\native_texture_observation_07\\delivery_runtime.json",
+    "gpu_status": "passed_candidate07_exact_binary_and_recorded_project_snapshots",
+    "gpu": {
+      "report": "D:\\code\\rmmo_runtime\\review_artifacts\\godot_4_8_adoption_20261029_01\\editor_asset_preparation_01\\delivery_ui_gpu07_final.json",
+      "sha256": "01a3890e1b54c27c6ed9bc5e74670cece4e68619a82fb5e1897f35b74ca439c3",
+      "core_assertions": 259,
+      "inactive_stex_assertions": 24,
+      "collector_cpu_assertions": 24
+    },
+    "ordinary_game_status": "35_passed_74_existing_warnings_match_candidate06_exactly",
+    "candidate06_gpu_evidence_scope": "Historical candidate06 evidence remains in the previous manifest. It is not relabeled as validation of candidate07.",
+    "retained_failures": [
+      {
+        "kind": "compile_error",
+        "result": "D:\\code\\rmmo_runtime\\review_artifacts\\godot_4_8_adoption_20261029_01\\native_texture_observation_07\\tests_01\\result.json",
+        "log": "D:\\code\\rmmo_runtime\\review_artifacts\\godot_4_8_adoption_20261029_01\\native_texture_observation_07\\tests_01\\build.log",
+        "exit": 2,
+        "source_combined_sha256": "a1396ca05eb585ee77c2006dfefbc9e187fb00836d5744e6340a20bfa1682811",
+        "scope": "First source attempt used copy initialization for an explicit LocalVector copy constructor. Repaired with direct initialization; no API or synchronization semantic change. This attempt produced no tested executable."
+      },
+      {
+        "kind": "runner_setup_failure",
+        "result": "D:\\code\\rmmo_runtime\\review_artifacts\\godot_4_8_adoption_20261029_01\\native_texture_observation_07\\tests_02\\run_01\\result.json",
+        "stdout": "D:\\code\\rmmo_runtime\\review_artifacts\\godot_4_8_adoption_20261029_01\\native_texture_observation_07\\tests_02\\run_01\\stdout.log",
+        "stderr": "D:\\code\\rmmo_runtime\\review_artifacts\\godot_4_8_adoption_20261029_01\\native_texture_observation_07\\tests_02\\run_01\\stderr.log",
+        "exit": 3221225477,
+        "engine_sha256": "10a0e911d01a77e51ac72149f0378f5287c554a712a50e55987a8ec8fb2eff0f",
+        "scope": "A truly empty cwd lacked required cwd/tests/data. Main::test_setup failed before any case and ThemeDB teardown crashed. Same binary passed all 10 cases after only copying official tests/data to an isolated cwd and isolating APPDATA/TEMP/TMP."
+      }
+    ]
+  },
+  "api_contract": {
+    "path": "D:\\code\\rmmo_runtime\\review_artifacts\\godot_4_8_adoption_20261029_01\\native_texture_observation_07\\api_contract.json",
+    "sha256": "2a5e0f66e91dfdadedd31aa0a97725a78f24381fa6b746b27b06d963eee067f3",
+    "methods": [
+      "begin_texture_observation",
+      "query_texture_observation",
+      "cancel_texture_observation"
+    ]
+  },
+  "installation": {
+    "status": "installed_sha_verified",
+    "installed": true,
+    "default_candidate": "07",
+    "default_entry": "D:\\tools\\godot\\godot.windows.editor.x86_64.exe",
+    "current_default_manifest": "D:\\tools\\godot\\patched_build_manifest.json",
+    "record": "D:\\code\\rmmo_runtime\\review_artifacts\\godot_4_8_adoption_20261029_01\\native_texture_observation_07\\installation_attempts\\20261029_173232_031474\\installation.json",
+    "record_sha256": "8b66c54866536c2f570c2dba788116f6d056c3d2a6070655560820a1b2847db7",
+    "backup": "D:\\tools\\godot\\_backup\\before_07_20261029_173232_031474",
+    "installed_files": {
+      "godot.windows.editor.x86_64.exe": {
+        "path": "D:\\tools\\godot\\godot.windows.editor.x86_64.exe",
+        "bytes": 163200394,
+        "sha256": "dabba1322488f959bddbd1d20ebdf40ee788c918c1a8b193a533d0472efb7375"
+      },
+      "godot.windows.editor.x86_64.exe.debugsymbols": {
+        "path": "D:\\tools\\godot\\godot.windows.editor.x86_64.exe.debugsymbols",
+        "bytes": 2167742074,
+        "sha256": "53c4f5fbd0fad31f24e5c13f1cb2637484998b7bef23762b6a951e82dc5b98a3"
+      },
+      "godot.windows.editor.x86_64.console.exe": {
+        "path": "D:\\tools\\godot\\godot.windows.editor.x86_64.console.exe",
+        "bytes": 199477,
+        "sha256": "04f351c93a4d5f4c6203e9f7f7ea380f8aff4fef952bc7faf1d3a007208fdb1e"
+      },
+      "godot.windows.editor.x86_64.console.exe.debugsymbols": {
+        "path": "D:\\tools\\godot\\godot.windows.editor.x86_64.console.exe.debugsymbols",
+        "bytes": 78178,
+        "sha256": "9df2284addc446c68197d3cc67d595841864fa9c4c018deaf7ee76f17c122818"
+      },
+      "Godot_v4.8-beta1_win64.exe": {
+        "path": "D:\\tools\\godot\\Godot_v4.8-beta1_win64.exe",
+        "bytes": 163200394,
+        "sha256": "dabba1322488f959bddbd1d20ebdf40ee788c918c1a8b193a533d0472efb7375"
+      },
+      "Godot_v4.8-beta1_win64_console.exe": {
+        "path": "D:\\tools\\godot\\Godot_v4.8-beta1_win64_console.exe",
+        "bytes": 199477,
+        "sha256": "04f351c93a4d5f4c6203e9f7f7ea380f8aff4fef952bc7faf1d3a007208fdb1e"
+      },
+      "godot.exe": {
+        "path": "D:\\tools\\godot\\godot.exe",
+        "bytes": 163200394,
+        "sha256": "dabba1322488f959bddbd1d20ebdf40ee788c918c1a8b193a533d0472efb7375"
+      }
+    },
+    "version_probes": {
+      "godot.windows.editor.x86_64.exe": {
+        "command": [
+          "D:\\tools\\godot\\godot.windows.editor.x86_64.exe",
+          "--headless",
+          "--version"
+        ],
+        "exit": 0,
+        "stdout": "4.8.beta1.custom_build.4d10419ca",
+        "stderr": ""
+      },
+      "godot.windows.editor.x86_64.console.exe": {
+        "command": [
+          "D:\\tools\\godot\\godot.windows.editor.x86_64.console.exe",
+          "--headless",
+          "--version"
+        ],
+        "exit": 0,
+        "stdout": "4.8.beta1.custom_build.4d10419ca",
+        "stderr": ""
+      },
+      "Godot_v4.8-beta1_win64.exe": {
+        "command": [
+          "D:\\tools\\godot\\Godot_v4.8-beta1_win64.exe",
+          "--headless",
+          "--version"
+        ],
+        "exit": 0,
+        "stdout": "4.8.beta1.custom_build.4d10419ca",
+        "stderr": ""
+      },
+      "Godot_v4.8-beta1_win64_console.exe": {
+        "command": [
+          "D:\\tools\\godot\\Godot_v4.8-beta1_win64_console.exe",
+          "--headless",
+          "--version"
+        ],
+        "exit": 0,
+        "stdout": "4.8.beta1.custom_build.4d10419ca",
+        "stderr": ""
+      },
+      "godot.exe": {
+        "command": [
+          "D:\\tools\\godot\\godot.exe",
+          "--headless",
+          "--version"
+        ],
+        "exit": 0,
+        "stdout": "4.8.beta1.custom_build.4d10419ca",
+        "stderr": ""
+      }
+    }
+  },
+  "limitations": [
+    "Functional GPU contracts passed on recorded project snapshots; ordinary game retains exactly the 74 existing candidate06 glTF stride warnings. No new ordinary-game diagnostic.",
+    "Native CPU contracts use real StreamedTexture2D subclasses and existing worker queues under the dummy renderer, with controlled registration/reload and synthetic feedback completion.",
+    "Observation demand belongs to the whole marked feedback-buffer period, not one viewport. Covered no-demand rows are terminal ready independent of unrelated I/O; positive-demand rows require fitted residency and unchanged versions after project redraw.",
+    "Reload completion and queued render texture replacement are different boundaries; the project must redraw, await after_drawn, requery versions and then capture.",
+    "No LOD/budget/I/O-rate overrides, global streaming flush, main-thread worker join or new thread were added by the observation API.",
+    "Source replay is byte-exact for 49 affected files. Rebuilding with different paths, toolchains or timestamps need not produce identical executable/symbol bytes.",
+    "No whole-map loading, FPS, 1% low or physical RSS/VRAM claim is made."
+  ],
+  "installation_before_07": {
+    "status": "not_installed",
+    "installed": false,
+    "default_candidate": "06",
+    "default_entry": "D:\\tools\\godot\\godot.windows.editor.x86_64.exe",
+    "current_default_manifest": "D:\\tools\\godot\\patched_build_manifest.json",
+    "current_default_manifest_sha256": "de66a8e51d7bf697c0b09f13d8a2caa287d5e234878589cfbd8fb5cd722903c9",
+    "default_files_sha256_verified_unchanged": {
+      "Godot_v4.8-beta1_win64.exe": "d5fd6c2c82eae35a60c90b78318b71f7a8130987f1fd402ea22e1de0ba842f62",
+      "Godot_v4.8-beta1_win64_console.exe": "9a7bab7f3d2a35c3abfe3e8816714d7e97d5fd88ecfa63048cd5cc7e3d5d1f3a",
+      "PATCHED_BUILD_README.txt": "9e18b7c794877c077ae9a49a7e7eaf4cfa6d05a0e68e3063d7974ce1ba2a96a8",
+      "godot.exe": "d5fd6c2c82eae35a60c90b78318b71f7a8130987f1fd402ea22e1de0ba842f62",
+      "godot.windows.editor.x86_64.console.exe": "9a7bab7f3d2a35c3abfe3e8816714d7e97d5fd88ecfa63048cd5cc7e3d5d1f3a",
+      "godot.windows.editor.x86_64.console.exe.debugsymbols": "502aef069fe9cbb86adfe856c9761601d1826788d9a4771ed868a965b3397ffc",
+      "godot.windows.editor.x86_64.exe": "d5fd6c2c82eae35a60c90b78318b71f7a8130987f1fd402ea22e1de0ba842f62",
+      "godot.windows.editor.x86_64.exe.debugsymbols": "6d365125e668e13bc7b7a4d151f222094cd35b00a5e895a13e2ee67df0e6890e",
+      "patched_build_manifest.json": "de66a8e51d7bf697c0b09f13d8a2caa287d5e234878589cfbd8fb5cd722903c9"
+    }
+  }
+}

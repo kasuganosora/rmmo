@@ -2,13 +2,18 @@ extends SceneTree
 const Io = preload("res://scripts/world3d/gltf_map_io.gd")
 const Library = preload("res://scripts/world_editor/asset_library.gd")
 const Doc = preload("res://scripts/world3d/world_document.gd")
+const Paths = preload("res://scripts/world3d/map_paths.gd")
 var failed := 0
 func _init() -> void: call_deferred("run")
 func check(ok: bool, label: String) -> void:
 	print(("PASS: " if ok else "FAIL: ") + label)
 	if not ok: failed += 1
 func run() -> void:
-	var dir := preload("res://scripts/world3d/map_paths.gd").cache_directory("assets_%d" % Time.get_ticks_usec())
+	# This test removes a published content-addressed product. Its entire native
+	# namespace must be private, even if the small fixture matches another asset.
+	if not Paths.external_root().replace("\\","/").contains("/review_artifacts/"):
+		printerr("Requires an isolated review_artifacts content root");quit(2);return
+	var dir := Paths.cache_directory("assets_%d" % Time.get_ticks_usec())
 	var source := Node3D.new()
 	var visual := MeshInstance3D.new()
 	visual.mesh = BoxMesh.new()
@@ -19,7 +24,11 @@ func run() -> void:
 	source.free()
 	var library := Library.new(dir.path_join("library"))
 	var result := library.import_file(source_path)
-	check(result.ok, "import packages glTF dependencies into library GLB")
+	check(result.ok, "import publishes a native model from authoring glTF")
+	if not result.ok:
+		printerr("IMPORT_FAILURE ",JSON.stringify(result))
+		printerr("IMPORT_FIXTURE_RETAINED ",dir)
+		quit(1);return
 	check(library.import_file(source_path).ok and library.entries.size() == 1, "identical import is deduplicated")
 	var doc := Doc.new()
 	var id: String = doc.add_asset(result.entry, Vector3(2.125, 0, 3.25))
@@ -61,7 +70,8 @@ func run() -> void:
 	editor._palette.item_selected.emit(editor._pick)
 	editor._inspector.select(id)
 	editor._focus_selected()
-	await process_frame
+	var preview_deadline:=Time.get_ticks_msec()+15000
+	while editor._preview.scene==null and Time.get_ticks_msec()<preview_deadline:await process_frame
 	check(editor._preview.visible and editor._preview.scene != null and editor._preview.viewport_.own_world_3d, "editor previews selected asset in an isolated viewport")
 	check(editor._inspector.rows["size"][0].text == "缩放倍率", "asset inspector distinguishes model scale from box dimensions")
 	if OS.get_cmdline_user_args().has("--capture"):
@@ -71,7 +81,20 @@ func run() -> void:
 	session.world3d_editor_doc = null
 	session.world3d_editor_path = ""
 	DirAccess.remove_absolute(result.entry.asset_path)
-	check(doc.missing_assets().size() == 2 and doc.save(map_path) == ERR_FILE_NOT_FOUND, "missing model blocks overwrite and reports all affected records")
+	Library._scenes.erase(result.entry.asset_path)
+	check(doc.missing_assets().is_empty() and doc.save(map_path)==OK,"removing authoring GLB does not invalidate native references or saving")
+	var native_reopened=Doc.open_file(map_path)
+	check(native_reopened!=null and native_reopened.records.size()==2,"native reference document reopens without any authoring source")
+	loader=preload("res://scripts/world3d/map_loader.gd").new();root.add_child(loader);loader.start(map_path)
+	loaded=await loader.finished
+	check(loaded[0]!=null,"cold runtime reload uses only the published native product")
+	if loaded[0]!=null:preload("res://scripts/world3d/asset_worker_drainer.gd").dispose_scene(loaded[0]);loaded[0]=null
+	var native:=Library.native_candidate(result.entry.asset_path)
+	check(not native.is_empty(),"native product remains identifiable after GLB removal")
+	if native.is_empty():Io._remove_tree(dir);quit(1);return
+	check(DirAccess.remove_absolute(native.product)==OK,"remove only the isolated fixture's native product")
+	Library._scenes.erase(result.entry.asset_path)
+	check(doc.missing_assets().size() == 2 and doc.save(map_path) == ERR_FILE_NOT_FOUND, "missing native product blocks overwrite and reports all affected records")
 	check(Doc.open_file(map_path) != null, "missing reference does not destroy editable document")
 	loader = preload("res://scripts/world3d/map_loader.gd").new()
 	root.add_child(loader)

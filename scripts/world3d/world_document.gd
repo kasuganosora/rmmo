@@ -182,7 +182,7 @@ func has_uuid(uuid: String) -> bool:
 	return not _find(uuid).is_empty()
 
 
-func build(effects: bool=true) -> Node3D:
+func build(effects: bool=true, prepared_assets: Dictionary={}) -> Node3D:
 	# effects=false is the off-screen export view; cached meshes can be CPU-only.
 	# One immutable rebuild shares validation and painted primitive geometry;
 	# restore the ordinary edit context afterwards so later edits revalidate files.
@@ -192,7 +192,12 @@ func build(effects: bool=true) -> Node3D:
 	terrain_neighbors.update(records)
 	if not effects: _save_meshes.begin(records)
 	for record in records:
-		world.add_child(_asset(record) if record.get("kind") == "asset" else _mesh(record,effects))
+		# A preview can borrow this operation's READY templates without publishing
+		# them into the global scene cache or replacing them across an await.
+		var prepared:Dictionary={}
+		if record.get("kind")=="asset" and not record.has("house_prefab") and not record.has("bridge_mesh") and prepared_assets.has(record.get("asset_path","")):
+			prepared={"template":prepared_assets[record.asset_path]}
+		world.add_child(_asset(record,prepared) if record.get("kind") == "asset" else _mesh(record,effects))
 	load_paint_validation=previous_context[0];load_texture_checks=previous_context[1];load_box_meshes=previous_context[2]
 	load_model_signatures=previous_context[3]
 	load_material_pool=previous_context[4];load_native_model_identities=previous_context[5]

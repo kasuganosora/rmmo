@@ -163,10 +163,33 @@ static func place(doc, entry: Dictionary, position: Vector3) -> Dictionary:
 static func preview(entry: Dictionary) -> Node3D:
 	var loaded := read(entry)
 	if not loaded.ok: return null
+	return preview_prepared(loaded,{})
+
+
+static func preview_dependencies(loaded:Dictionary)->Array:
+	var paths:Array=[]
+	for record:Dictionary in loaded.get("records",[]):
+		if record.get("kind")=="asset" and not record.has("house_prefab") and not record.has("bridge_mesh"):
+			var path:=str(record.get("asset_path",""))
+			if not paths.has(path):paths.append(path)
+	return paths
+
+
+static func preview_prepared(loaded:Dictionary,templates:Dictionary) -> Node3D:
+	if not loaded.get("ok",false):return null
 	var doc = load("res://scripts/world3d/world_document.gd").new()
 	doc.records = loaded.records
 	doc.map_meta.building_instances=loaded.building_instances
-	return doc.build()
+	var prepared:Dictionary={}
+	for record:Dictionary in doc.records:
+		var path:=str(record.get("asset_path",""))
+		var normalized:=path.replace("\\","/").simplify_path()
+		if templates.has(normalized):prepared[path]=templates[normalized]
+	var scene:Node3D=doc.build(true,prepared)
+	for child:Node in scene.get_children():
+		if child.has_meta("missing_asset") or child.has_meta("paint_error") or child.has_meta("tile_error"):
+			preload("res://scripts/world3d/asset_worker_drainer.gd").dispose_scene(scene);return null
+	return scene
 
 
 static func place_buildings(doc,loaded:Dictionary,position:Vector3,label:String)->Dictionary:

@@ -1,18 +1,38 @@
 # Godot engine patches
 
-Current status (2026-10-29 10:35 +08:00): the project and the installed default use **Godot
-4.8 beta1 candidate04d**, with matching symbols, at
+Current status (2026-10-29 17:32 +08:00): the project and the installed default use **Godot
+4.8 beta1 candidate07**, with matching symbols, at
 `D:/tools/godot/godot.windows.editor.x86_64.exe`. Its executable SHA-256 is
-`b15441fd50cfcec8072150d8025770952339d86faa91e95b09d0a7d6a193621e`.
+`dabba1322488f959bddbd1d20ebdf40ee788c918c1a8b193a533d0472efb7375`.
 The installation record is `D:/tools/godot/patched_build_manifest.json`.
-The [installation evidence](D:/code/rmmo_runtime/review_artifacts/godot_4_8_adoption_20261029_01/default_04d_installation.json)
-verifies all default/version aliases and matching symbols, plus three version
-probes. The candidate04d manifest below preserves its **pre-installation
-snapshot** unchanged; this installation record supersedes that snapshot's
-installation status.
+The [installation evidence](D:/code/rmmo_runtime/review_artifacts/godot_4_8_adoption_20261029_01/native_texture_observation_07/installation_attempts/20261029_173232_031474/installation.json)
+verifies seven executable/alias/symbol files and three version probes. Candidate06
+is backed up under `D:/tools/godot/_backup/before_07_20261029_173232_031474`.
+The final candidate and installed manifests are synchronized by
+`native_texture_observation_07/delivery_manifest_lf_finalization.json` in the external evidence root.
 The [4.8 adoption record](../../docs/godot_4_8_adoption_20261029.md) tracks
 runtime/editor integration and remaining boundaries. The 4.7.2 sections below
 are historical experiments, not instructions to downgrade or resume 4.7 work.
+
+## Reproducible 4.8 beta1 candidate07
+
+Apply [`godot-4.8-beta1-runtime-candidate07.patch`](godot-4.8-beta1-runtime-candidate07.patch)
+once to the pristine official beta1 archive identified below. This is cumulative;
+do not apply it over candidate04d/05/06. Its [manifest](godot-4.8-beta1-runtime-candidate07.json)
+records **49/49 byte-exact source files**, both test/runtime builds, and matching symbols.
+
+It retains candidate06's stable command ownership and staged shutdown. The new
+asynchronous observation API follows an original GPU feedback-buffer generation,
+fitted texture residency, and an I/O execution epoch. A project must redraw and
+verify unchanged versions after presentation before saving a thumbnail. The API
+does not force mip zero, flush streaming, or wait for an I/O worker on main.
+
+Native tests pass 148 assertions. GPU UI72, LoadJob140, mip12 and ordinary game35
+pass; the game retains exactly 74 existing stride warnings. A separate 24-assertion
+GPU check covers fully resident STEX with streaming disabled. The final preview
+and PNG match the reference pixels. These are component correctness results,
+not an axel_town loading/FPS claim. See the
+[native editor report](../../docs/native_streamed_model_runtime_20261029.md).
 
 ## Reproducible 4.8 beta1 candidate04d
 

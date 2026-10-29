@@ -175,20 +175,51 @@ GPU 夹具执行了真实 native 文件/纹理表读取、共享池、绑定，�
 
 这些是编辑器管线与资源合同结果，没有新的 axel_town 加载、low 或物理 I/O 提升结论，未转换正式模型，默认 split 导入仍未开启。
 
-## 冷预览候选的显示缺口（尚未完成）
+## 冷预览候选的显示缺口（复现记录）
 
-另一个尚未提交的切片让普通模型、缩略图和普通组合 prefab 复用有限批次的 `EditorAssetPreparation`；私有模板不加入全局 `_scenes`，完成但仍等待慢兄弟的模板纳入 published geometry 追踪。CPU 158/158；split CPU 使用协议替身的部分已在报告中明确，不能替代 GPU 证明。交付 `editor_asset_preparation_01/delivery_cpu.json`。
+后续切片让普通模型、缩略图和普通组合 prefab 复用有限批次的 `EditorAssetPreparation`；私有模板不加入全局 `_scenes`，完成但仍等待慢兄弟的模板纳入 published geometry 追踪。CPU 158/158；split CPU 使用协议替身的部分已在报告中明确，不能替代 GPU 证明。交付 `editor_asset_preparation_01/delivery_cpu.json`。
 
 真实 GPU `gpu_ui_01` / `delivery_ui_gpu_red.json` 得到 **57 PASS、3 FAIL、零引擎诊断**。共享生产、真实 tracker、换选关闭、prefab、全局缓存不增长及最终归零通过。但首次预览 mip 3，随后纹理自然升至 mip 0，`UPDATE_ONCE` 画面仍停留 90 帧，相比同相机源图差 30,185 个 RGBA 字节；真实缩略图在 mip 2 保存，差 1,046 字节。之后仅允许普通连续重绘一帧，预览即为零差，未 flush 或强制 LOD。
 
-三条失败断言中，首帧与完整细节不相等属于渐进流式显示的观察，不单独规定首帧必须全清；持续冻结与永久保存低清 PNG 才是必须修复的缺口。引擎 `texture_reload` 更新 current mip 时只把替换排入渲染队列，没有发出 changed；current getter 也不代表新画面已经完成。现有 pending 在 I/O 入口就被清空，不能用它判断是否正在读取。后续将先按 mip 变化补画预览，再补指定绘制反馈/预算目标/执行中状态的可靠异步观察，等实际绘制完成后保存缩略图，不能靠固定等待、mip 0 或全局 flush 冒充完成。
+三条失败断言中，首帧与完整细节不相等属于渐进流式显示的观察，不单独规定首帧必须全清；持续冻结与永久保存低清 PNG 才是必须修复的缺口。引擎 `texture_reload` 更新 current mip 时只把替换排入渲染队列，没有发出 changed；current getter 也不代表新画面已经完成。现有 pending 在 I/O 入口就被清空，不能用它判断是否正在读取。单纯持续轮询 mip 后重绘会与未使用纹理的降级互相影响，因此最终采用下面的有限观察与复核流程，没有用固定等待、mip 0 或全局 flush 冒充完成。
 
 正式放置/rebuild、custom tile kit、UI 与当前 3D HTTP MCP 的事务验收仍在后续范围。`workspace.gd` 和 `docs/world_editor_mcp.md` 有其他会话修改，本切片未覆盖它们。
+
+## Candidate07：有限纹理就绪观察与实际编辑器回归
+
+引擎新增 `begin_texture_observation`、`query_texture_observation`、`cancel_texture_observation`。在正常 process、目标 `frame_pre_draw` 之前创建票据，然后请求一次真实绘制；票据对应原始反馈 buffer 的 generation，沿用原有异步 GPU 回读、30ms 节流及预算 fitting。完成水位只接受连续完成的 generation，乱序段合并，不把“最大已完成编号”当作全部完成。
+
+I/O epoch 在清空 pending 前进入执行态，全部返回路径用 RAII 退出，读取端检查一致性及内存顺序。查询复用反馈线程，主线程不 join/flush；票据仅持有 RID/ObjectID，不跨帧钉住纹理。无正反馈是整个被标记 buffer 周期的结果，并非单 viewport 归因；这类有效对象可完成，不被别的周期 I/O 阻挡。正需求则要求当前 mip 达到预算 fit、无 pending/执行中任务，允许预算限制下的非零 mip。
+
+编辑器只扫描一次当前材质图，保存弱引用；预览允许渐进首帧。观察 ready 后重新绘制，等待 `FramePresentation.after_drawn`，再以同一票据复核版本，才结束预览或写 PNG。版本改变就重试；隐藏、换选、滚动和关闭取消票据并屏蔽迟到回调。超时明确报错，不伪装完成；结束后停止查询/重绘。还修复了全驻留 STEX 的分类：关闭 streaming 后仍是同一纹理类，必须检查 `is_streaming_active()`，走普通单次绘制。
+
+|验证|结果与边界|证据（相对于 B）|
+|---|---|---|
+|引擎原生线程/反馈合同|10 case，148/148，含新增 88 和原生命周期 60；tests=yes 与 tests=no 的 49 项源码一致|`native_texture_observation_07/delivery_cpu.json`、`delivery_runtime.json`|
+|编辑器协议、collector/控件、请求服务|269 + 24 + 158 均通过；最终 active 分类修改后的 collector 24 项另复验|`editor_asset_preparation_01/readiness_delivery_01/report.json`、`delivery_ui_gpu07_final.json`|
+|最终真实 UI|72/72，预览 settled 与持久 PNG 均 RGBA 零差；该夹具每控制器 1 begin/6 query/2 draw，随后 90 帧无新增 query/draw；实际 ticket 取消、共享及各账本归零|`editor_asset_preparation_01/gpu_ui_07_04`|
+|既有 LoadJob 与 mip 边界|140/140、12/12，最终 ownership `ebf60ae…`；零诊断|`editor_asset_preparation_01/delivery_ui_gpu07_final.json`|
+|普通游戏|35/35，74 条既有 male GLTF stride warning 与 06 按序逐条相同；无新增错误/泄漏，71 项资源未变|同上，`gpu_normal_game_07_01`|
+|streaming 关闭的真实 STEX|红 14 PASS/6 FAIL，已加载 256×256/9 mip/有效 RID、mip0；修复后 24/24，预览/PNG 零差、各 1 draw/0 begin/0 query|同上，`inactive_stex` 字段|
+
+inactive 样本直接把已加载全驻留 STEX 交给控件，仅证明其呈现，不冒称整个 split 准备器的 Compatibility 支持已完成。原 259 项报告保持原 SHA；最终报告替换 UI 为最终 collector 的复验，其他同引擎回归引用原报告，额外 inactive 24 单列。第一次 GPU 快照混用了新 geometry consumer 与旧 AssetLibrary，虽然有 PASS 仍因解析诊断被拒绝；修正依赖后重跑。原冷 UI 红测、runner 路径错误和 inactive fixture 解析失败都保留。
+
+原生测试首次运行缺少官方 `tests/data`，在任何 case 之前初始化失败、ThemeDB 清理崩溃；补齐隔离 cwd 后同一二进制全部通过。首次编译的 LocalVector 显式复制构造写法也已修正并保留失败记录。这些不是历史游戏 `0xC0000005` 的复现或修复证据。
+
+普通 candidate07 已安装为默认 4.8：EXE SHA `dabba1322488f959bddbd1d20ebdf40ee788c918c1a8b193a533d0472efb7375`，主符号 SHA `53c4f5fbd0fad31f24e5c13f1cb2637484998b7bef23762b6a951e82dc5b98a3`。7 个入口/别名/符号全部核对，3 个主入口版本探测通过；旧 06 保留在 `D:/tools/godot/_backup/before_07_20261029_173232_031474`。安装及最终记录同步见 `native_texture_observation_07/installation_attempts/20261029_173232_031474/installation.json`、`delivery_manifest_lf_finalization.json`。累计 patch 从官方归档回放 49/49 文件逐字节相等，不叠加到旧 candidate 上。
+
+### Godot 导出模型的 SingleRoot 导入修复
+
+完整资产回归发现普通 Godot 导出的 GLB 带 `GODOT_single_root`，被旧 Manifest 的 extension 白名单拒绝。仅增加标记识别仍不够：4.8 实际固定生成 node 0，而非 selected scene 的 roots。现在 bounds 跟相同子树走，根 TRS/shear 保留一次、不累乘原父、不混入其他根；不添加“只能一个 scene”的限制。原有无效图、未知 payload、变形及 native-map 边界保持。
+
+专用红测 92 项中 19 失败；修复后 108 项真实导出/解析/native 保存、21 项独立进程无 GLB 冷重开、原 bounds 42、policy 22，合计 **193/193、零诊断**，见 `godot_single_root_bounds_01/delivery.json`。没有绕过 `Compiled.build` 的 graphics_required 让 CPU 假装完成实际导入。
+
+真实 GPU `editor_native_assets_regression_01/gpu_native_04` 的 **20/20** 验证 Library 导入、去重、真实编辑器预览、变换/碰撞、撤销、保存及删除 GLB、清理模板缓存后的重新加载；只有删除 native 产品才报缺失。隔离 content root 缺云噪声的 1 条 fallback warning 单独保留，无脚本错误。这里不是 file-dialog/HTTP MCP 的全流程验收、OS 冷缓存测量，也没有开启默认 split 导入或修改正式素材。
 
 ## 后续顺序
 
 1. 旧 operation → 新 Initial 的**已完成 owner 入站复用已完成**，结果见上节及 B 的 `initial_native_inbound_reuse_handoff.json`。并发 operation 中尚未完成的 producer 仍各有自己的池，尚无跨 operation 的全局在途 single-flight；不把本轮完成票据复用说成该问题也已解决。也不能因 `start` 时目录为空就整次跳桥，旧 operation 可能在 metadata 就绪前发布 owner。后续可考虑请求抵达主线程时，以两个目录当前均空作 O(1) 全 miss 回复，保留现有取消与 metadata 退役合同。
-2. 引擎排队 I/O 的 owner 与 shutdown 已按上节复现、修复、回归并安装 candidate06；后续编辑器验证使用该准确 SHA，不以相同 version 字符串混淆 04d/05/06。更广生命周期和整图表现继续在实际集成中检验。
+2. 引擎排队 I/O 的 owner、shutdown 及预览就绪 API 已按上节复现、修复、回归并安装 candidate07；后续验证使用准确 SHA，不以相同 version 字符串混淆 04d/05/06/07。更广生命周期和整图表现继续在实际集成中检验。
 3. 编辑器 LoadJob、PreparedModelOwnership、预览/放置和 TargetScenePrefetch 接入同一独立纹理准备与释放协议；当前 UI/HTTP MCP 还没有据此完成导入、保存重开验证。下一生产集成顺序按 B 的 `editor_native_streaming_integration_readonly_01.json`：先用无 GLB、空场景/弱缓存复现冷打开、预览、缩略图和放置；再以编辑器既有共享账本接异步准备、世代取消和主线程所有权，区分只需几何的消费者；引擎生命周期就绪后做 GPU、UI 与真实 loopback HTTP MCP 的放置/撤销/保存冷重开。全部冷消费者通过后，才切换默认 split 导入并迁移既有内嵌 native。该报告是 `9eb7a9fa` 上的只读审查，未修改或验收编辑器，不应把游戏 Initial 的独立账本直接当作编辑器并发共用账本。
 4. 从入口大模型开始转换并按 `rmmo-model-review` 做受影响项验收，保持原像素默认策略。随后覆盖实际引用与角色原生产品。
 5. 正式接入后再测 axel_town 加载、卸载、返回加载及 low，继续使用地图加载开始到当前需求区域完整就绪的计时边界。
