@@ -11,6 +11,8 @@ var progress_history: Array = []
 var _map_loader: Node
 var _cancelled := false
 var _remote_load_context:Dictionary={}
+var _remote_load_connection:=-1
+var _remote_load_server:=0
 
 func _stage(label: String, done: int = -1, total: int = 0) -> void:
 	status_label.text = label + (" %d / %d" % [done,total] if total>0 else "…")
@@ -195,7 +197,7 @@ func _on_enter_ready(ok: bool, message: String, spawn: Dictionary) -> void:
 
 
 func _prepare_world3d() -> void:
-	if Net.is_real_server():_remote_load_context=Net.server().context()
+	if Net.is_real_server():_capture_remote_load_context()
 	if not Net.session().has_active_character():
 		status_label.text = "缺少角色外观，请重新选择角色"
 		_show_transfer_fail_actions()
@@ -250,8 +252,7 @@ func _on_world3d_loaded(scene: Node, path: String, error: String) -> void:
 	if Net.is_real_server():
 		if _remote_load_context!=Net.server().context():
 			scene.free();status_label.text="服务器地图在加载期间发生变化，请返回后重新进入";_show_transfer_fail_actions();return
-		var authored:=str(preload("res://scripts/world3d/gltf_map_io.gd").extras_of(scene).get("map_ref",""))
-		if not authored.is_empty() and authored!=Net.server().world_session.get("map_ref",""):
+		if not _accept_remote_loaded_map(scene,path):
 			scene.free();status_label.text="本地地图身份与服务器不一致";_show_transfer_fail_actions();return
 	Net.session().clear_prepared_world3d(true)
 	Net.session().prepared_world3d = scene
@@ -259,6 +260,22 @@ func _on_world3d_loaded(scene: Node, path: String, error: String) -> void:
 	Net.session().loading_mode = ""
 	_stage("准备三维场景和附近碰撞")
 	Net.session().go_world()
+
+func _capture_remote_load_context()->void:
+	var server=Net.server()
+	_remote_load_context=server.context()
+	_remote_load_connection=server._connection_revision
+	_remote_load_server=server.get_instance_id()
+
+func _accept_remote_loaded_map(scene:Node,path:String)->bool:
+	var server=Net.server()
+	if server==null or not server.has_method("prepared_map_matches") or _remote_load_context!=server.context() or _remote_load_connection!=server._connection_revision or _remote_load_server!=server.get_instance_id():return false
+	var authored:=str(preload("res://scripts/world3d/gltf_map_io.gd").extras_of(scene).get("map_ref",""))
+	if not server.prepared_map_matches(authored,path):return false
+	scene.set_meta("remote_loaded_context",_remote_load_context.duplicate(true))
+	scene.set_meta("remote_loaded_connection",_remote_load_connection)
+	scene.set_meta("remote_loaded_server",_remote_load_server)
+	return true
 
 
 func _resolve_spawn_pack_path(spawn: Dictionary) -> String:

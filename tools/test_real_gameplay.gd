@@ -8,12 +8,15 @@ const SWORD=NS+"00000000-0000-4000-8000-00000000000c"
 const QUEST=NS+"00000000-0000-4000-8000-000000000f01"
 const LEVEL_QUEST=NS+"00000000-0000-4000-8000-000000000f21"
 const ENV_QUEST=NS+"00000000-0000-4000-8000-000000000f22"
+const INSTANCE_QUEST=NS+"00000000-0000-4000-8000-000000000f23"
+const INSTANCE_BOSS=NS+"00000000-0000-4000-8000-000000000f24"
 const DUMMY=NS+"00000000-0000-4000-8000-000000000f12"
 const HEAL=NS+"7de8d659-52d1-4d13-81fd-a72b5c5ad031"
 const STRIKE=NS+"935ae5bb-e846-44ca-9f8a-90f9aa2f5161"
 var server:Node
 var failures:=0
 var quest_social:=false
+var instance_quest:=false
 class DelayedGuildPeer extends Real:
 	signal guild_read_held
 	signal release_guild_read
@@ -64,6 +67,7 @@ func run()->void:
 	var address:=""
 	for arg:String in OS.get_cmdline_user_args():
 		if arg=="--test-quest-social":quest_social=true
+		if arg=="--test-instance-quest":instance_quest=true
 		if arg.begins_with("--test-server="):address=arg.trim_prefix("--test-server=")
 		if arg.begins_with("--test-content-root="):ProjectSettings.set_setting("rmmo/content_root",arg.trim_prefix("--test-content-root="))
 	server=Real.new();root.add_child(server)
@@ -82,6 +86,10 @@ func run()->void:
 	check(server.snapshot_skill_book().known.has(HEAL),"configured starter grants reach skill book")
 	check(not server.try_inventory_sort().get("deferred",false),"business mutations blocked before Ready")
 	check((await server.confirm_world_ready(server.world_session.map_ref)).ok,"Ready handshake")
+	if instance_quest:
+		var completed:bool=await instance_quest_checks()
+		server.disconnect_server();server.queue_free()
+		print("REAL_INSTANCE_QUEST_TESTS failures=",failures);quit(0 if completed and failures==0 else 1);return
 	await finish(server.gameplay.dispatch("fixture",["integration-building","gate",1.]),"open authoritative map fixture")
 	var opened:=false
 	for fixture:Dictionary in server.business_snapshots.interactions.objects:
@@ -308,3 +316,90 @@ func guild_checks(address:String)->void:
 	await finish(server.try_guild_disband(),"leader disbands real guild")
 	check(str(server.snapshot_guild().get("id","")).is_empty(),"disband clears leader membership")
 	peer.disconnect_server();peer.queue_free()
+
+func wait_combat_clear()->bool:
+	var deadline:=Time.get_ticks_msec()+8000
+	while Time.get_ticks_msec()<deadline:
+		var status:Dictionary=await server.request_api("/v1/world/logout")
+		if not status.ok:return false
+		if not status.body.data.get("blocked",true):return true
+		await pause(.1)
+	return false
+
+func instance_transition(action:String,body:Dictionary,expected_template:String)->bool:
+	var old_context:Dictionary=server.context()
+	var response:Dictionary=await server.request_api("/v1/gameplay/instances/"+action,HTTPClient.METHOD_POST,body)
+	# A transfer's WS publication can arrive before its HTTP receipt. Recover
+	# the session once; never replay the mutation after a context-change result.
+	var session:Dictionary=await server.request_api("/v1/world/session")
+	if session.ok:server._receive_world_snapshot(session.body)
+	var view:Dictionary=await server.request_api("/v1/gameplay/instances")
+	var transitioned:bool=session.ok and view.ok and server.context()!=old_context and view.body.get("template_map","")==expected_template
+	check(transitioned,"instance "+action+" commits real authority and fresh world context")
+	if not transitioned:print(response);return false
+	check(not server.is_world_ready(),"instance "+action+" enforces loading barrier")
+	var prepared:Dictionary=await server.prepare_authoritative_map()
+	check(prepared.ok,"instance "+action+" resolves authoritative template resource")
+	if not prepared.ok:print(prepared);return false
+	var hydrated:Dictionary=await server.refresh_world_snapshots()
+	check(hydrated.ok,"instance "+action+" hydrates gameplay before Ready")
+	if not hydrated.ok:print(hydrated);return false
+	check((await server.confirm_world_ready(server.world_session.map_ref)).ok,"instance "+action+" confirms runtime-map Ready")
+	return server.is_world_ready()
+
+func instance_quest_checks()->bool:
+	var npc_deadline:=Time.get_ticks_msec()+3000
+	while not server.gameplay.projection.entities.has(NPC) and Time.get_ticks_msec()<npc_deadline:await process_frame
+	check(server.gameplay.projection.entities.has(NPC),"initial Ready stream publishes real quest giver")
+	await finish(server.try_interact(NPC,0,0),"talk before accepting instance objective")
+	await finish(server.try_accept_quest(INSTANCE_QUEST),"accept instance quest before authoritative encounter")
+	var old_acceptance:Dictionary=server.gameplay.projection.acceptance(INSTANCE_QUEST)
+	await finish(server.try_abandon_quest(INSTANCE_QUEST),"abandon first instance quest acceptance")
+	await finish(server.try_accept_quest(INSTANCE_QUEST),"reaccept instance objective with fresh identity")
+	var acceptance:Dictionary=server.gameplay.projection.acceptance(INSTANCE_QUEST)
+	check(not acceptance.is_empty() and acceptance.acceptance_id!=old_acceptance.acceptance_id,"instance quest keeps distinct exact acceptance identities")
+	check(await wait_combat_clear(),"prior combat window closes before instance entry")
+	if not await instance_transition("enter",{"template_map":"tutorial/instance_trial","mode":"solo"},"tutorial/instance_trial"):return false
+	var runtime_map:=str(server.world_session.map_ref)
+	check(runtime_map.begins_with("_instance/") and server._map_path.ends_with("instance_trial/map.gltf"),"instance uses runtime communication identity and template resource path")
+	var boss:=""
+	var boss_deadline:=Time.get_ticks_msec()+3000
+	while boss.is_empty() and Time.get_ticks_msec()<boss_deadline:
+		for id:String in server.gameplay.projection.entities:
+			if server.gameplay.projection.entities[id].get("definition")==INSTANCE_BOSS:boss=id;break
+		if boss.is_empty():await process_frame
+	check(not boss.is_empty(),"server publishes runtime final-encounter identity")
+	if boss.is_empty():return false
+	check(server.snapshot_quest_journal()[0].objectives[0].cur==0,"instance admission alone does not complete objective")
+	await finish(server.try_attack(boss,0,0),"actual WebSocket attack kills final encounter")
+	var deadline:=Time.get_ticks_msec()+5000
+	var view:Dictionary={}
+	while Time.get_ticks_msec()<deadline:
+		view=await server.request_api("/v1/gameplay/instances")
+		if view.ok and view.body.get("progress",{}).get("finished",false):break
+		await pause(.1)
+	check(view.get("ok",false) and view.body.get("progress",{}).get("finished",false) and "final_boss" in view.body.get("progress",{}).get("completed",[]),"server commits final encounter and instance completion")
+	check((await server.refresh_gameplay_snapshots()).ok,"instance completion reaches real gameplay projection")
+	var quest:Dictionary=server.snapshot_quest_journal()[0]
+	check(quest.id==INSTANCE_QUEST and quest.status=="ready" and quest.objectives[0].cur==1,"complete_instance reaches deliverable HUD state from authoritative event")
+	var repeated:Dictionary=await server.request_api("/v1/gameplay/instances")
+	check(repeated.ok and repeated.body.progress.run==view.body.progress.run,"repeated completion read retains one authoritative run")
+	check((await server.refresh_gameplay_snapshots()).ok and server.snapshot_quest_journal()[0].objectives[0].cur==1,"replayed completion snapshot never increments objective twice")
+	check(await wait_combat_clear(),"final encounter combat window closes before exit")
+	if not await instance_transition("leave",{},"tutorial/yard"):return false
+	npc_deadline=Time.get_ticks_msec()+3000
+	while not server.gameplay.projection.entities.has(NPC) and Time.get_ticks_msec()<npc_deadline:await process_frame
+	await finish(server.try_interact(NPC,0,0),"return to real quest giver after instance exit")
+	var before_gold:int=server.inventory.get_gold();var before_herbs:int=server.inventory.get_qty(HERB)
+	var request:={"target":server.gameplay.projection.target(NPC),"action":"complete","quest":INSTANCE_QUEST,"acceptance_id":old_acceptance.acceptance_id}
+	var stale:Dictionary=await server.request_api("/v1/gameplay/interactions",HTTPClient.METHOD_POST,request)
+	check(not stale.ok and server.inventory.get_gold()==before_gold,"old instance acceptance cannot claim completion rewards")
+	await finish(server.try_turn_in_quest(INSTANCE_QUEST),"deliver actual instance quest and claim frozen rewards")
+	check(server.inventory.get_gold()==before_gold+37 and server.inventory.get_qty(HERB)==before_herbs+2,"instance quest rewards are committed exactly once")
+	request.acceptance_id=acceptance.acceptance_id
+	var replay:Dictionary=await server.request_api("/v1/gameplay/interactions",HTTPClient.METHOD_POST,request)
+	check(replay.ok,"replaying exact instance quest completion receipt is idempotent")
+	check((await server.refresh_gameplay_snapshots()).ok and server.inventory.get_gold()==before_gold+37 and server.inventory.get_qty(HERB)==before_herbs+2,"completion replay never duplicates gold or items")
+	var history:Dictionary=await finish(server.try_quest_history(),"instance quest completion stored in paginated history")
+	check(history.data.entries[0].quest==INSTANCE_QUEST and history.data.entries[0].acceptance_id==acceptance.acceptance_id and server.snapshot_quest_journal().is_empty(),"instance history preserves accepted identity and frees active journal")
+	return true

@@ -3,11 +3,20 @@ extends SceneTree
 
 
 func _init() -> void:
+	# Match the network regression harness: defer Mock initialization until its
+	# existing world3d profile can skip the unrelated optional 2D startup map.
+	# These settings are process-local; configure(false) below selects real Mock.
+	ProjectSettings.set_setting("rmmo/network/use_real_server", true)
+	ProjectSettings.set_setting("rmmo/startup_profile", "world3d")
 	call_deferred("_run")
 
 
 func _run() -> void:
 	var failed := 0
+	var connection = root.get_node("ServerConnection")
+	var configured: Dictionary = connection.configure(false)
+	var Net = load("res://scripts/net/net.gd")
+	failed += _expect(bool(configured.get("ok", false)) and connection.mode == "mock" and Net.server() == root.get_node("MockServer"), "actual Mock backend initialized without optional 2D startup map")
 	var Util = load("res://scripts/ui/quest_tracker_util.gd")
 	failed += _expect(Util != null, "util loaded")
 
@@ -81,10 +90,10 @@ func _run() -> void:
 	failed += _expect(text.find("老鼠 0/5") >= 0, "multi-obj first line")
 	failed += _expect(text.find("回报村长 0/1") >= 0, "multi-obj second line")
 
-	# Live journal snapshot smoke (catalog + grant).
+	# Exercise the real catalog loader without depending on an external runtime pack.
 	var QuestJournal = load("res://scripts/net/combat/quest_journal.gd")
 	var j = QuestJournal.new()
-	j.load_catalog()
+	failed += _expect(_load_catalog_fixture(j), "temporary quest catalog loaded and removed")
 	j.clear()
 	failed += _expect(j.accept_quest("herb_gather"), "accept herb_gather")
 	j.note_item_gain("wild_herb", 2)
@@ -128,6 +137,40 @@ func _run() -> void:
 	else:
 		push_error("FAIL quest tracker (%d)" % failed)
 		quit(1)
+
+
+func _load_catalog_fixture(journal: RefCounted) -> bool:
+	var manager = root.get_node_or_null("AssetManager")
+	if manager == null:
+		return false
+	var fixture_root := ProjectSettings.globalize_path("user://quest_tracker_%d_%d" % [OS.get_process_id(), Time.get_ticks_usec()])
+	var data_dir := fixture_root.path_join("data")
+	var combat_dir := data_dir.path_join("combat")
+	var catalog_path := combat_dir.path_join("quests.json")
+	var definition := {
+		"id": "herb_gather", "title": "采集野草", "category": "side",
+		"objectives": [{"text": "野草", "cur": 0, "max": 5, "item": "wild_herb"}],
+	}
+	var loaded := false
+	if DirAccess.make_dir_recursive_absolute(combat_dir) == OK:
+		var file := FileAccess.open(catalog_path, FileAccess.WRITE)
+		if file != null:
+			file.store_string(JSON.stringify({"quests": [definition]}))
+			file.close()
+			var previous_root: String = manager.content_root_override
+			manager.content_root_override = fixture_root
+			journal.load_catalog()
+			manager.content_root_override = previous_root
+			# JSON numbers are floats; compare both sides after JSON decoding.
+			loaded = journal.get_catalog_entry("herb_gather") == JSON.parse_string(JSON.stringify(definition))
+	# Delete only this test's exact files/directories; the HUD keeps its normal root.
+	var cleaned := true
+	if FileAccess.file_exists(catalog_path):
+		cleaned = DirAccess.remove_absolute(catalog_path) == OK
+	for directory in [combat_dir, data_dir, fixture_root]:
+		if DirAccess.dir_exists_absolute(directory):
+			cleaned = (DirAccess.remove_absolute(directory) == OK) and cleaned
+	return loaded and cleaned
 
 
 func _expect(cond: bool, msg: String) -> int:

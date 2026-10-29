@@ -40,6 +40,9 @@ var _snapshot_at:=0
 var _connection_revision:=0
 var _selected_id:=0
 var _map_path:=""
+var _prepared_resource_map_ref:=""
+var _prepared_map_context:Dictionary={}
+var _prepared_map_connection:=-1
 var _local_loaded_context:Dictionary={}
 var _http_requests:Dictionary={}
 var _snapshot_inflight:=false
@@ -169,9 +172,14 @@ func reconnect()->Dictionary:
 	if _token.is_empty() or _selected_id==0:return {"ok":false,"error":"login_required"}
 	disconnect_server()
 	if not await _connect_socket(true):return {"ok":false,"error":"connection_failed"}
+	var connection:=_connection_revision
 	var result:Dictionary=await rpc_call("enter_world",{"character_id":_selected_id,"visibility_protocol":1,"gameplay_protocol":1})
-	if result.get("ok",false):result=prepare_authoritative_map()
+	if connection!=_connection_revision:return {"ok":false,"error":"stale_map_preparation"}
+	var scope:=context()
+	if result.get("ok",false):result=await prepare_authoritative_map()
+	if connection!=_connection_revision or scope!=context():return {"ok":false,"error":"stale_map_preparation"}
 	if result.get("ok",false):result=await refresh_world_snapshots()
+	if connection!=_connection_revision or scope!=context():return {"ok":false,"error":"stale_map_preparation"}
 	if result.get("ok",false):_project_snapshots();world_changed.emit(world_session.duplicate(true))
 	return result
 
@@ -344,9 +352,18 @@ func enter_world(character_id:int)->void:enter_world3d(character_id)
 func enter_world3d(character_id:int)->void:
 	if _enter_inflight:return
 	_enter_inflight=true;_selected_id=character_id
+	var connection:=_connection_revision
 	var result:Dictionary=await rpc_call("enter_world",{"character_id":character_id,"visibility_protocol":1,"gameplay_protocol":1})
-	if result.get("ok",false):result=prepare_authoritative_map()
+	if connection!=_connection_revision:return
+	var scope:=context()
+	if result.get("ok",false):result=await prepare_authoritative_map()
+	if connection!=_connection_revision:return
+	if scope!=context():
+		_enter_inflight=false;enter_world_ready.emit(false,"服务器世界已变更，请重新进入",{});return
 	if result.get("ok",false):result=await refresh_world_snapshots()
+	if connection!=_connection_revision:return
+	if scope!=context():
+		_enter_inflight=false;enter_world_ready.emit(false,"服务器世界已变更，请重新进入",{});return
 	_enter_inflight=false
 	if not result.get("ok",false):enter_world_ready.emit(false,_message(result),{});return
 	var session:=get_node_or_null("/root/GameSession")
@@ -593,15 +610,55 @@ func resolve_map(map_ref:String)->String:
 	return str(matches[0]) if matches.size()==1 else ""
 
 func prepare_authoritative_map()->Dictionary:
+	_prepared_resource_map_ref="";_prepared_map_context.clear();_prepared_map_connection=-1
 	if self_actor.is_empty() or world_session.is_empty():return {"ok":false,"error":"服务器未返回完整世界快照"}
-	_map_path=resolve_map(world_session.map_ref)
-	if _map_path.is_empty():return {"ok":false,"error":"找不到服务器地图 %s，请配置 rmmo/network/map_paths"%world_session.map_ref}
+	var scope:=context();var connection:=_connection_revision
+	var resource_ref:=str(scope.map_ref)
+	if resource_ref.begins_with("_instance/"):
+		var response:Dictionary=await request_api("/v1/gameplay/instances")
+		if scope!=context() or connection!=_connection_revision:return {"ok":false,"error":"stale_map_preparation"}
+		if not response.ok:return {"ok":false,"error":"无法读取服务器副本资源身份"}
+		var descriptor:Dictionary=response.get("body",{})
+		resource_ref=str(descriptor.get("template_map",""))
+		var current:Variant=descriptor.get("current")
+		if not current is Dictionary or not _instance_resource_matches(str(scope.map_ref),resource_ref,current):return {"ok":false,"error":"服务器副本资源身份与当前世界不一致"}
+	var path:=resolve_map(resource_ref)
+	if path.is_empty():return {"ok":false,"error":"找不到服务器地图 %s，请配置 rmmo/network/map_paths"%resource_ref}
+	if scope!=context() or connection!=_connection_revision:return {"ok":false,"error":"stale_map_preparation"}
+	if self_actor.get("location",{}).get("map_ref","")!=scope.map_ref or int(self_actor.get("generation",-1))!=int(scope.map_generation):return {"ok":false,"error":"服务器未返回当前地图角色快照"}
+	_map_path=path;_prepared_resource_map_ref=resource_ref
+	_prepared_map_context=scope.duplicate(true);_prepared_map_connection=connection
 	var session:=get_node_or_null("/root/GameSession")
 	if session!=null:
 		var p:Dictionary=self_actor.location.get("position_m",{})
 		session.world3d_requested=true;session.world3d_map_path=_map_path
 		session.world3d_spawn=Vector3(p.get("x",0.),p.get("y",0.),p.get("z",0.))+Vector3.UP*.9
 	return {"ok":true}
+
+func _instance_resource_matches(runtime:String,resource:String,current:Dictionary)->bool:
+	# Resource lookup uses the server descriptor. Runtime encoding is checked
+	# only for consistency, so a response from another room/run cannot be used.
+	if resource.is_empty() or resource.begins_with("_instance/") or not preload("res://scripts/world3d/world_location.gd").map_ref_ok(resource):return false
+	var parts:=runtime.trim_prefix("_instance/").split("_")
+	var run:=str(current.get("instance_id",""))
+	if not run.begins_with("_instance/"):return false
+	var root_parts:=run.trim_prefix("_instance/").split("_")
+	if parts.size() not in [2,3] or root_parts.size()!=2 or parts[1].length()!=32 or parts[1]!=root_parts[1]:return false
+	for digit in parts[1]:
+		if digit not in "0123456789abcdef":return false
+	if parts[0]!=resource.to_utf8_buffer().hex_encode() or root_parts[0]!=str(current.get("template_map","")).to_utf8_buffer().hex_encode():return false
+	return runtime==run if parts.size()==2 else parts[2]==root_parts[0] and parts[0]!=parts[2]
+
+func prepared_resource_map()->String:
+	return _prepared_resource_map_ref if _prepared_map_connection==_connection_revision and _prepared_map_context==context() else ""
+
+func prepared_map_matches(authored:String,path:String)->bool:
+	var expected:=prepared_resource_map()
+	if expected.is_empty():return false
+	if not authored.is_empty():return authored==expected
+	# Preserve ordinary legacy maps without an authored ref only for the exact
+	# file selected by this preparation. Instance resources require a template ref.
+	return not str(world_session.get("map_ref","")).begins_with("_instance/") and not path.is_empty() and ProjectSettings.globalize_path(path).simplify_path()==ProjectSettings.globalize_path(_map_path).simplify_path()
 
 func confirm_world_ready(map_ref:String)->Dictionary:
 	var scope:=context()

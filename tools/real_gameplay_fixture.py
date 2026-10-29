@@ -1,6 +1,7 @@
 """Synthetic policy and gameplay records in a disposable content copy only."""
 import hashlib
 import json
+import copy
 
 NS='11111111-1111-4111-8111-111111111111:92205a4714219670:'
 NPC=NS+'00000000-0000-4000-8000-000000000005'
@@ -10,6 +11,9 @@ SWORD=NS+'00000000-0000-4000-8000-00000000000c'
 QUEST=NS+'00000000-0000-4000-8000-000000000f01'
 LEVEL_QUEST=NS+'00000000-0000-4000-8000-000000000f21'
 ENV_QUEST=NS+'00000000-0000-4000-8000-000000000f22'
+INSTANCE_QUEST=NS+'00000000-0000-4000-8000-000000000f23'
+INSTANCE_BOSS=NS+'00000000-0000-4000-8000-000000000f24'
+INSTANCE_SPAWN=NS+'00000000-0000-4000-8000-000000000f25'
 DUMMY=NS+'00000000-0000-4000-8000-000000000f02'
 KILLER=NS+'00000000-0000-4000-8000-000000000f03'
 HEAL=NS+'7de8d659-52d1-4d13-81fd-a72b5c5ad031'
@@ -18,12 +22,12 @@ STRIKE=NS+'935ae5bb-e846-44ca-9f8a-90f9aa2f5161'
 def write_rows(path,rows):
     path.write_text('\n'.join(json.dumps(row,ensure_ascii=False) for row in rows)+'\n')
 
-def configure(content,directory,quest_social=False):
+def configure(content,directory,quest_social=False,instance_quest=False):
     pack=content/'packs/tutorial/gameplay'
     rows=[json.loads(line) for line in (pack/'npcs.jsonl').read_text().splitlines()]
     header=rows[0]
     rows[1].pop('ai',None)
-    rows[1]['quests']=[QUEST,LEVEL_QUEST,ENV_QUEST] if quest_social else [QUEST]
+    rows[1]['quests']=[QUEST]+([LEVEL_QUEST,ENV_QUEST] if quest_social else [])+([INSTANCE_QUEST] if instance_quest else [])
     write_rows(pack/'npcs.jsonl',rows)
     quest_rows=[dict(header,kind='quests'),{
         'uuid':QUEST,'name':'Integration dialogue quest',
@@ -32,18 +36,34 @@ def configure(content,directory,quest_social=False):
         {'uuid':LEVEL_QUEST,'name':'Integration reach level quest','objectives':[{'id':'level','kind':'reach_level','count':1}],'gold':100},
         {'uuid':ENV_QUEST,'name':'Integration environment quest','objectives':[
             {'id':'state','kind':'environment_state','map':'tutorial/yard','object':'fixture:'+hashlib.sha256(b'integration-building\0gate').hexdigest()[:32],'state':'open','count':1},
-            {'id':'operate','kind':'environment_operate','map':'tutorial/yard','object':'fixture:'+hashlib.sha256(b'integration-building\0gate').hexdigest()[:32],'action':'open','count':1}]}]
-    write_rows(pack/'integration_quests.jsonl',quest_rows if quest_social else quest_rows[:2])
-    write_rows(pack/'integration_monsters.jsonl',[dict(header,kind='monsters'),
+            {'id':'operate','kind':'environment_operate','map':'tutorial/yard','object':'fixture:'+hashlib.sha256(b'integration-building\0gate').hexdigest()[:32],'action':'open','count':1}]},
+        {'uuid':INSTANCE_QUEST,'name':'Integration instance completion quest','gold':37,'items':[{'item':HERB,'qty':2}],
+         'objectives':[{'id':'finish','kind':'complete_instance','target':'tutorial/instance_trial','count':1}]}]
+    write_rows(pack/'integration_quests.jsonl',quest_rows[:2]+(quest_rows[2:4] if quest_social else [])+(quest_rows[4:] if instance_quest else []))
+    monsters=[dict(header,kind='monsters'),
         {'uuid':DUMMY,'name':'Integration dummy','level':1,'hp_max':30,'attack':0,'defense':0,'respawn_seconds':60,'loot':[{'item':HERB,'min':1,'max':1,'chance':1}]},
         {'uuid':KILLER,'name':'Integration death source','level':1,'hp_max':1000,'attack':200,'defense':0,
-         'aggressive':True,'ai':{'sight_m':1.5,'attack_range_m':1.5,'speed_mps':1,'attack_interval_seconds':.2}}])
+         'aggressive':True,'ai':{'sight_m':1.5,'attack_range_m':1.5,'speed_mps':1,'attack_interval_seconds':.2}}]
+    if instance_quest:
+        monsters.append({'uuid':INSTANCE_BOSS,'name':'Integration final encounter','level':1,'hp_max':1,'attack':0,'defense':0,'respawn_seconds':60})
+    write_rows(pack/'integration_monsters.jsonl',monsters)
     rows=[json.loads(line) for line in (pack/'spawns.jsonl').read_text().splitlines()]
     rows += [{'uuid':NS+'00000000-0000-4000-8000-000000000f12','map':'yard','kind':'monsters','definition':DUMMY,'position_m':{'x':0,'y':0,'z':6}},
              {'uuid':NS+'00000000-0000-4000-8000-000000000f13','map':'yard','kind':'monsters','definition':KILLER,'position_m':{'x':-6,'y':0,'z':4}}]
+    if instance_quest:
+        rows.append({'uuid':INSTANCE_SPAWN,'map':'instance_trial','kind':'monsters','definition':INSTANCE_BOSS,'position_m':{'x':0,'y':0,'z':2}})
     write_rows(pack/'spawns.jsonl',rows)
     map_path=content/'packs/tutorial/maps/yard/map.gltf'
     document=json.loads(map_path.read_text())
+    if instance_quest:
+        dungeon=copy.deepcopy(document)
+        dungeon['nodes'][0]['extras'].update({'map_ref':'tutorial/instance_trial','spawn':[0,.9,0],
+            'server_safety':{'version':1,'map_kind':'instance','entrance':{'map':'tutorial/yard','position_m':[0,0,4]},
+                'instance':{'modes':['solo'],'max_players':1,'entry_m':[0,0,0],'entrance_radius_m':5,'idle_seconds':60,'lifetime_seconds':600,
+                    'expedition':{'encounters':[{'id':'final_boss','map':'tutorial/instance_trial','spawn_uuid':INSTANCE_SPAWN}]}}}})
+        dungeon_path=map_path.parent.parent/'instance_trial'/'map.gltf'
+        dungeon_path.parent.mkdir()
+        dungeon_path.write_text(json.dumps(dungeon))
     document['nodes'][0]['extras']['rmmo_records'].append({
         'uuid':'integration-door','kind':'box','position':[1,1,2.5],
         'size':[.8,2,.12],'rotation':[0,0,0],
@@ -66,4 +86,4 @@ def configure(content,directory,quest_social=False):
         'id':'integration-home','name':'共享测试住宅','map':'tutorial/yard','building':'integration-building',
         'kind':'personal','owner':'1','entrances':['gate'],
         'bounds':[{'min':[-.2,0,-.1],'max':[2.2,3,2.8]}]}]}))
-    return ['-housing',str(housing),'-vendors',str(vendors),'-body-profiles',str(bodies),'-starter-skills',','.join([HEAL,STRIKE])] + (['-quest-history-max-page=1'] if quest_social else [])
+    return ['-housing',str(housing),'-vendors',str(vendors),'-body-profiles',str(bodies),'-starter-skills',','.join([HEAL,STRIKE])] + (['-quest-history-max-page=1'] if quest_social or instance_quest else []) + (['-combat-logout-quiet=5s'] if instance_quest else [])

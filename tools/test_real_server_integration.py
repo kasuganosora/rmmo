@@ -18,10 +18,11 @@ def main():
     parser.add_argument('--godot', default='godot')
     parser.add_argument('--gameplay', action='store_true', help='Exercise real gameplay with disposable synthetic records and policy')
     parser.add_argument('--quest-social', action='store_true', help='Extend gameplay with new quest objectives, history pages and guild management')
+    parser.add_argument('--instance-quest', action='store_true', help='Exercise a real instance encounter, quest completion and reward replay in temporary content')
     parser.add_argument('--stream', action='store_true', help='Verify actual WebSocket gameplay and absence of HTTP polling')
     parser.add_argument('--aoi', action='store_true', help='Exercise two real clients crossing distance visibility boundaries')
     args = parser.parse_args()
-    if args.quest_social:
+    if args.quest_social or args.instance_quest:
         args.gameplay = True
     with tempfile.TemporaryDirectory(prefix='rmmo-network-') as temporary:
         directory = Path(temporary)
@@ -36,9 +37,11 @@ def main():
                    '-ntp-required=false', '-ntp-servers=', '-addr', f'127.0.0.1:{port}']
         if args.gameplay or args.stream:
             from real_gameplay_fixture import configure
-            command += configure(content,directory,quest_social=args.quest_social)
+            command += configure(content,directory,quest_social=args.quest_social,instance_quest=args.instance_quest)
         script='res://tools/test_real_gameplay.gd' if args.gameplay else 'res://tools/test_real_server.gd'
         marker='REAL_GAMEPLAY_TESTS failures=0' if args.gameplay else 'REAL_SERVER_TESTS failures=0'
+        if args.instance_quest:
+            marker='REAL_INSTANCE_QUEST_TESTS failures=0'
         if args.stream:
             script, marker = 'res://tools/test_real_runtime_stream.gd', 'REAL_RUNTIME_STREAM_TESTS failures=0'
         if args.aoi:
@@ -66,7 +69,8 @@ def main():
                     run = subprocess.run([args.godot, '--headless', '--path', str(ROOT), '--script',
                                           script, '--', '--backend=real',
                                           '--test-server='+address, '--test-content-root='+str(content)] +
-                                         (['--test-quest-social'] if args.quest_social else []),
+                                         (['--test-quest-social'] if args.quest_social else []) +
+                                         (['--test-instance-quest'] if args.instance_quest else []),
                                          cwd=ROOT, text=True, stdout=subprocess.PIPE,
                                          stderr=subprocess.STDOUT, timeout=105)
                 except subprocess.TimeoutExpired as error:

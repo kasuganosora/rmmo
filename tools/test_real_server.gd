@@ -75,7 +75,7 @@ func integration(server:Node,address:String)->void:
 	check(server.business_snapshots.has("inventory") and server.business_snapshots.has("statuses") and server.business_snapshots.has("interactions"),"entry restores real business and map snapshots before Ready")
 	server._selected_id=int(character.id)
 	var scope:Dictionary=server.context()
-	check(server.prepare_authoritative_map().ok and root.get_node("GameSession").world3d_map_path.ends_with("map.gltf"),"resolve authoritative map identity under configured local content root")
+	check((await server.prepare_authoritative_map()).ok and root.get_node("GameSession").world3d_map_path.ends_with("map.gltf"),"resolve authoritative map identity under configured local content root")
 	check(not server.queue_movement(Vector3.RIGHT,true).ok,"pre-Ready movement blocked")
 	var api:Dictionary=await server.request_api("/v1/world/session")
 	check(api.ok and api.body.data.map_ref==scope.map_ref,"HTTP bearer authentication reaches same world session")

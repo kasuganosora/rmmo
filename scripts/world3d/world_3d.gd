@@ -574,9 +574,9 @@ func _ready() -> void:
 		if not is_inside_tree() or is_queued_for_deletion():return
 	loading_profile.radar=Time.get_ticks_msec()
 	if Net.is_real_server():
-		Net.server().restore_map_interactions(_map_root)
-		if _remote_entry_context!=Net.server().context():
+		if not _remote_entry_map_matches():
 			set_meta("entry_loading_error","服务器地图在场景准备期间发生变化，请重新进入");return
+		Net.server().restore_map_interactions(_map_root)
 		var acknowledgement:Dictionary=await Net.server().confirm_world_ready(_map_ref())
 		if not acknowledgement.get("ok",false):
 			set_meta("entry_loading_error","真实服务器入场确认失败");_loading_stage("真实服务器入场确认失败");return
@@ -1270,12 +1270,25 @@ func _remote_world_changed(_session:Dictionary)->void:
 	_remote_connection_lost("正在同步服务器地图")
 	if Net.session()._world_transition_active:
 		set_meta("entry_loading_error","服务器地图在场景准备期间发生变化，请重新进入");return
-	var prepared:Dictionary=Net.server().prepare_authoritative_map()
-	if not prepared.get("ok",false):_status.text=str(prepared.get("error","地图不可用"));return
-	prepared=await Net.server().refresh_world_snapshots()
-	if not prepared.get("ok",false):_status.text="服务器地图快照恢复失败，请重新进入";return
+	var server=Net.server();var scope:Dictionary=server.context();var connection:int=server._connection_revision
+	var prepared:Dictionary=await server.prepare_authoritative_map()
+	if not is_inside_tree() or not is_instance_valid(server) or Net.server()!=server or scope!=server.context() or connection!=server._connection_revision:return
+	if not prepared.get("ok",false):
+		if is_instance_valid(_status):_status.text=str(prepared.get("error","地图不可用"))
+		return
+	prepared=await server.refresh_world_snapshots()
+	if not is_inside_tree() or not is_instance_valid(server) or Net.server()!=server or scope!=server.context() or connection!=server._connection_revision:return
+	if not prepared.get("ok",false):
+		if is_instance_valid(_status):_status.text="服务器地图快照恢复失败，请重新进入"
+		return
 	Net.session().loading_mode="world3d_remote"
 	Net.session().go_loading()
+
+func _remote_entry_map_matches()->bool:
+	var server=Net.server()
+	if server==null or not is_instance_valid(_map_root) or _remote_entry_context!=server.context():return false
+	if _map_root.get_meta("remote_loaded_context",{})!=_remote_entry_context or _map_root.get_meta("remote_loaded_connection",-1)!=server._connection_revision or _map_root.get_meta("remote_loaded_server",0)!=server.get_instance_id():return false
+	return server.prepared_map_matches(str(GltfMapIo.extras_of(_map_root).get("map_ref","")),_map_path)
 
 
 func _talk() -> void:
