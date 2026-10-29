@@ -256,6 +256,34 @@ inactive 样本直接把已加载全驻留 STEX 交给控件，仅证明其呈�
 
 完整记录为 B 的 `target_scene_prefetch_cpu_01/delivery_cancel_gpu.json`。本切片不修改 split 预算估算：CPU 测试不带 `--cancel-only` 时仍会执行尚未解决的预算红探针。该探针只验证合法元数据声明的保守预约，不分配巨量像素，也不代表实际 RSS；后续须单独处理。试玩初入的 `playtest_session.clone.build` 是另一消费入口，本次跨图预取修复没有覆盖它。
 
+## 冷模型放置、预制件与撤销重做
+
+原真实编辑器红测出现两项失败：冷模型放置返回成功但只有占位物；释放最后一个 owner 后的冷 redo 也缺失模型。现在 UI 与 3D MCP 共用 `PreparedAssetOperation`，先通过现有 `EditorAssetPreparation` 去重并准备完整模板，再私下分帧建立场景和拾取碰撞。准备期间不修改当前记录、UUID、撤销栈、视图、选择或 dirty 状态；发布前复核文档/源/保护上下文及连接状态，成功后提交一次事务。HTTP 保留连接到最终结果，断线只取消本请求；并发请求若基于旧版本，则明确失败。
+
+历史操作只分类一次，姿态/属性/地形材质继续走增量路径。新碰撞形状先存私有缓存，成功才并入现有缓存；取消不会污染后续复用。普通模型操作借用已有地形上下文，零额外边界扫描；混合地形变化只准备受影响上下文。重力放置仍显示原下落过程，并在落定后产生一笔撤销。此处约 2ms 是切片调度预算，不能抢占单个模型、碰撞形状或最终同步提交。
+
+|验证|结果与边界|B 下证据|
+|---|---|---|
+|冷操作 CPU|174/174；真实文档/操作，split 上传和 ownership 为显式协议替身|`cold_asset_operations_01/frozen_cpu_04`|
+|拾取与建筑增量回归|42 + 30；相关最终源码 SHA 一致|同目录 `frozen_cpu_03/regression`、`frozen_cpu_04/regression_02`|
+|真实 HTTP/UI/GPU|89/89；默认服务/原生 STEX/真实 ownership，冷 redo、断线、并发版本冲突、UI model/prefab、无 GLB 保存与 LoadJob 重开|`cold_asset_operations_01/gpu_http_02`|
+
+合计 **335 项通过，零诊断**。GPU 的真实地表批次由 6 个 source surfaces 合为 1 个 render surface，模型放置/历史操作后原合批节点与 body 身份保持。源/候选渲染 RGBA 零差；真正冷 redo 前原 PackedScene/纹理 owner 已死亡，新分配身份不同。所有场景释放后 temporary、published geometry 和该夹具 engine texture 计数归零。截图已用实际有损 WebP quality=90 保存；root 查看了实际编辑器画面。
+
+该夹具准备延迟最高 58.548ms（不是主线程 CPU 时间），visual 0.544ms、body 2.761ms、commit 33.819ms、含复核的 publish 38.056ms。操作期间整帧最高 130.632ms；含保存、截图/readback 的整段最高 609.415ms。保留这些慢样本；没有整图加载或 1% low 收益结论，也不把本切片称为消除了主线程长帧。恢复 checkpoint、既有 Doc undo/redo 深拷贝及最终发布仍有同步工作。
+
+完整交付 `cold_asset_operations_01/delivery.json`，SHA `5e6a5976ef00eb5d74ce6543852712069fdef6f6a40271e3590697547faaa71f`，联合源码 SHA `c229560080c5f4e0026e45e3c05b6d1000f5f0817e8b947bfc9fe0960c90fcfa`，默认引擎 candidate07 与前节相同。最终 GPU 样本替代较早 87 项样本，不重复累加计数。
+
+原 `test_world3d_prefabs` 在旧基线与候选均为 21 PASS / 2 FAIL、无引擎诊断：一项期待模型复制到目标库目录，另一项期待删除 GLB 后 native 依赖失效。它们没有被改成通过；GLB 删除和原生产品删除应分开测试，而资源包独立依赖/搬迁的要求仍须核查，不能仅凭基线也失败就删除其合同。普通 `_rebuild`、custom kit 和试玩入口不计入本切片完成范围。默认 split 仍关闭，正式资源未修改。
+
+## 普通整视图重建与自定义套件的剩余入口缺口
+
+`1b3f5293` 上新增独立 CPU 复现，直接调用真实 `WorldEditor._rebuild` 与 `AutoTileKit.piece_mesh`。由共享服务完成准备、原 Handle 已释放、实际编辑器视图仍持有私有 READY 模型且全局 `_scenes` 为空时，整视图重建先释放旧视图，再调用没有 prepared templates 的 `WorldDocument.build`。结果模型变为 `missing_asset` 占位物，并额外读取一次 native 几何；原文档记录未变。这个入口仍由隔离显示、部分程序化编辑、重新关联等操作调用，不能用放置/历史操作的私有发布覆盖它的验收。
+
+同一模型的自定义套件入口也返回 null；从已准备场景提取 piece 的控制组成功，把同一模板放入既有全局缓存的控制组也成功且纹理对象相同。因此缺口在消费者取得完整模板的协议，不在模型或纹理内容。后续应让这些入口复用准备结果，并为真正的冷依赖保留异步准备、失败保护与明确完成状态；不能通过永久填充全局强缓存绕过。
+
+证据：B 的 `editor_native_rebuild_boundary_01/delivery_red.json`、`red_01`，**15 PASS / 3 FAIL、零引擎诊断**。以 git archive 为基线，只新增专用测试；6568 个归档文件复核一致。native 几何和表读取使用真实代码，纹理上传及 split ownership 沿用明确的 CPU 协议替身；不是 GPU/整图性能结果。红测源码保存在 `B/editor_native_rebuild_boundary_01/red_01/project/tools/test_editor_native_rebuild_boundary.gd`，SHA `1ede3d4d47424e20563b673ee257f868b0371c2ea1b8086384baf7f0d0390ebe`；工作区同名测试留待后续修复，未计入本次提交。默认 split 导入继续关闭，正式模型未转换。
+
 ## 后续顺序
 
 1. 旧 operation → 新 Initial 的**已完成 owner 入站复用已完成**，结果见上节及 B 的 `initial_native_inbound_reuse_handoff.json`。并发 operation 中尚未完成的 producer 仍各有自己的池，尚无跨 operation 的全局在途 single-flight；不把本轮完成票据复用说成该问题也已解决。也不能因 `start` 时目录为空就整次跳桥，旧 operation 可能在 metadata 就绪前发布 owner。后续可考虑请求抵达主线程时，以两个目录当前均空作 O(1) 全 miss 回复，保留现有取消与 metadata 退役合同。

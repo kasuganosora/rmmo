@@ -225,6 +225,16 @@ func _move(distance: float) -> void:
 	editor._sync_selected_transform(_records)
 	editor._inspector.refresh_transform()
 
+## Landing and every visual/body were prepared before the atomic insertion.
+## Keep the existing visible fall and single history entry at settlement.
+func start_prepared(records:Array,before:Array,next:int,selection:Array,dirty:bool,distance:float,ids:Array)->void:
+	_records=records.duplicate();_originals=records.duplicate(true);_before=before
+	_remaining=distance;_velocity=0;_dirty_before=dirty;_added_ids=ids.duplicate()
+	_next_before=next;_selection_before=selection;falling=true
+	if editor._walk_mode!=null:editor._walk_mode.reset_input()
+	if editor._camera_navigation!=null:editor._camera_navigation.reset()
+	editor._status.text="重力放置中 · Esc 取消"
+
 func tick(delta: float) -> void:
 	if not falling: return
 	_velocity += 9.8 * minf(delta, .05)

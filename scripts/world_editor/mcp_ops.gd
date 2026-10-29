@@ -32,6 +32,7 @@ func state() -> Dictionary:
 		"pivot": array3(editor._selection_tools.pivot()), "canvas_size": [editor._canvas.size.x, editor._canvas.size.y],
 		"surface_placement_active": editor._placement_tools.active,
 		"gravity_placement": editor._gravity.enabled, "gravity_falling": editor._gravity.falling,
+		"asset_preparation":editor._asset_operations.snapshot() if editor._asset_operations!=null else {"pending":0},
 		"building_region_drawing": editor._building_area_busy(),
 		"waterway_drawing":editor._city.waterway_draft,
 		"bridge_drawing":editor._city.bridge_draft,
@@ -360,10 +361,12 @@ func _execute(name: String, args: Dictionary) -> Dictionary:
 		"place_asset": return place_asset(args)
 		"paint_auto_tiles": return paint(args)
 		"undo":
-			editor._undo()
+			var result:Dictionary=editor._undo()
+			if result.get("pending",false) or not result.ok:return result
 			return state()
 		"redo":
-			editor._redo()
+			var result:Dictionary=editor._redo()
+			if result.get("pending",false) or not result.ok:return result
 			return state()
 		"save_world":
 			var path := str(args.get("path", editor._path))
@@ -471,23 +474,15 @@ func place_asset(args: Dictionary) -> Dictionary:
 	var previous_count: int = editor._doc.records.size()
 	if entry.has("prefab_path"):
 		if not allowed_path(str(entry.prefab_path)): return error("Prefab is outside the allowed content root")
-		var loaded := Prefabs.read(entry)
-		if not loaded.ok: return loaded
-		if loaded.records.size() > Schema.MAX_SELECTION: return error("Prefab has more than 256 components")
-		var invalid := validate_assets(loaded.records)
-		if not invalid.is_empty(): return error(invalid)
-		if not editor._place_prefab(entry, position): return error(editor._status.text)
+		return editor._asset_operations.place(entry,position)
 	else:
-		if editor._gravity.enabled:
-			if entry.has("asset_path") and not Library.native_available(str(entry.asset_path)): return error("Native asset unavailable; reimport the model")
-			return editor._gravity.place(entry, position)
-		var id := ""
 		if entry.has("asset_path"):
-			if not Library.native_available(str(entry.asset_path)): return error("Native asset unavailable; reimport the model")
-			id = editor._doc.add_asset(entry, position - Vector3(0, float(entry.get("bounds_position", [0, 0, 0])[1]), 0))
-		else:
-			var size_: Vector3 = entry.get("size", Vector3.ONE)
-			id = editor._doc.add_box(str(entry.surface_id), position + Vector3(0, size_.y * 0.5, 0), size_, entry.get("rotation", Vector3.ZERO))
+			if not Library.native_available(str(entry.asset_path)):return error("Native asset unavailable; reimport the model")
+			return editor._asset_operations.place(entry,position)
+		if editor._gravity.enabled:
+			return editor._gravity.place(entry, position)
+		var size_:Vector3=entry.get("size",Vector3.ONE)
+		var id:String=editor._doc.add_box(str(entry.surface_id),position+Vector3(0,size_.y*.5,0),size_,entry.get("rotation",Vector3.ZERO))
 		editor._dirty = true
 		editor._commit_records([id])
 		editor._selection_tools.set_ids([id])

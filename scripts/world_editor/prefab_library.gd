@@ -100,7 +100,10 @@ static func capture(records: Array, library, label: String, registry:Dictionary=
 static func read(entry: Dictionary) -> Dictionary:
 	var path := str(entry.get("prefab_path", ""))
 	if not FileAccess.file_exists(path): return {"ok": false, "error": "预制件文件不存在"}
-	var raw: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
+	var bytes:=FileAccess.get_file_as_bytes(path)
+	var digest:=HashingContext.new();digest.start(HashingContext.HASH_SHA256);digest.update(bytes)
+	var source_sha:=digest.finish().hex_encode()
+	var raw: Variant = JSON.parse_string(bytes.get_string_from_utf8())
 	if not raw is Dictionary or raw.get("format") != "rmmo_prefab" or raw.get("version") != 1 or not raw.get("records") is Array:
 		return {"ok": false, "error": "预制件格式不支持"}
 	if raw.records.is_empty() or raw.records.size() > 10000: return {"ok": false, "error": "预制件物件数量不合法"}
@@ -147,7 +150,7 @@ static func read(entry: Dictionary) -> Dictionary:
 	var buildings=preload("res://scripts/world3d/building_blueprint.gd")
 	for record:Dictionary in raw.records:preload("res://scripts/world3d/house_prefab.gd").retarget_materials(record)
 	if not buildings.valid_meta(meta) or not buildings.valid_ownership(meta,raw.records):return {"ok":false,"error":"预制件建筑归属损坏"}
-	return {"ok": true, "records": raw.records,"building_instances":registry}
+	return {"ok": true, "records": raw.records,"building_instances":registry,"source_sha":source_sha}
 
 
 static func place(doc, entry: Dictionary, position: Vector3) -> Dictionary:
@@ -158,6 +161,15 @@ static func place(doc, entry: Dictionary, position: Vector3) -> Dictionary:
 	doc.checkpoint()
 	var ids := Geometry.duplicate_records(doc, loaded.records, position, str(entry.get("label", "预制件")))
 	return {"ok": true, "ids": ids}
+
+## A private placement proposal. No live identity/history or view is changed.
+static func plan_place(doc,loaded:Dictionary,position:Vector3,label:String)->Dictionary:
+	if not position.is_finite():return {"ok":false,"error":"放置位置不合法"}
+	if not loaded.building_instances.is_empty():return place_buildings(doc,loaded,position,label,true)
+	var staged=load("res://scripts/world3d/world_document.gd").new()
+	staged._next=doc._next
+	var ids:=Geometry.duplicate_records(staged,loaded.records,position,label)
+	return {"ok":true,"ids":ids,"records":staged.records,"next":staged._next,"meta":doc.map_meta}
 
 
 static func preview(entry: Dictionary) -> Node3D:
@@ -192,7 +204,7 @@ static func preview_prepared(loaded:Dictionary,templates:Dictionary) -> Node3D:
 	return scene
 
 
-static func place_buildings(doc,loaded:Dictionary,position:Vector3,label:String)->Dictionary:
+static func place_buildings(doc,loaded:Dictionary,position:Vector3,label:String,plan_only:bool=false)->Dictionary:
 	var registry:Dictionary=doc.map_meta.get("building_instances",{}).duplicate(true)
 	if registry.size()+loaded.building_instances.size()>4096 or doc.records.size()+loaded.records.size()>100000:return {"ok":false,"error":"超过地图建筑或物件限制"}
 	var remap:Dictionary={};var records:Array=loaded.records.duplicate(true);var next:int=doc._next;var ids:Array[String]=[]
@@ -211,6 +223,9 @@ static func place_buildings(doc,loaded:Dictionary,position:Vector3,label:String)
 		value.parts[record.building.part]=record.uuid;value.signatures[record.building.part]=preload("res://scripts/world3d/building_blueprint.gd").geometry_signature(record)
 	var checked:=check_buildings(doc,records,registry,remap.values())
 	if not checked.ok:return checked
+	if plan_only:
+		var meta:Dictionary=doc.map_meta.duplicate();meta.building_instances=registry
+		return {"ok":true,"ids":ids,"records":records,"next":next,"meta":meta}
 	doc.checkpoint_recovery();doc._next=next;doc.records.append_array(records);doc.map_meta.building_instances=registry
 	return {"ok":true,"ids":ids}
 

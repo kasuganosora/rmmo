@@ -10,6 +10,8 @@ var _definitions := {}
 var _pending_saves := {}
 var _pending_imports := {}
 var _import_peers := {}
+var _pending_asset_operations:Dictionary={}
+var _asset_operation_peers:Dictionary={}
 
 func server_name() -> String:
 	return "rmmo-world-editor"
@@ -36,6 +38,7 @@ func start(p_port: int = PORT) -> Dictionary:
 	return {"ok": true, "url": url(), "port": port, "session": _session}
 
 func stop()->void:
+	for peer_id:int in _pending_asset_operations.keys():_cancel_asset_operation(peer_id)
 	for peer_id:int in _pending_imports.keys():_cancel_import(peer_id)
 	_pending_saves.clear()
 	super.stop()
@@ -90,6 +93,7 @@ func _process(_dt: float) -> void:
 		# A pending save owns this connection's response, but not the server loop.
 		if _pending_saves.has(peer.get_instance_id()):
 			if peer.get_status()!=StreamPeerTCP.STATUS_CONNECTED:
+				_cancel_asset_operation(peer.get_instance_id())
 				_cancel_import(peer.get_instance_id())
 				_pending_saves.erase(peer.get_instance_id())
 				peer.disconnect_from_host();_clients.remove_at(i)
@@ -121,9 +125,24 @@ func _handle_http(peer: StreamPeerTCP, method: String, path: String, body: Strin
 		return
 	if method == "POST":
 		var msg: Variant = JSON.parse_string(body)
+		if msg is Dictionary and msg.get("method")=="tools/call" and not msg.has("id") and msg.get("params") is Dictionary and msg.params.get("name") in ["place_asset","undo","redo"]:
+			_write_http(peer,400,"text/plain","Deferred editor operations require a JSON-RPC request id")
+			return
 		if msg is Dictionary and msg.get("method") == "tools/call" and msg.has("id") and msg.get("params") is Dictionary:
 			var params: Dictionary = msg.params
 			var args: Variant = params.get("arguments", {})
+			if params.get("name") in ["place_asset","undo","redo"]:
+				var reply:Dictionary=handle_rpc(msg)
+				var payload:Variant=JSON.parse_string(reply.get("result",{}).get("content",[{"text":"{}"}])[0].text)
+				if payload is Dictionary and payload.get("pending",false):
+					var request_id:int=payload.request_id;var peer_id:=peer.get_instance_id()
+					_pending_saves[peer_id]=true
+					_pending_asset_operations[peer_id]={"request_id":request_id,"peer":peer,"id":msg.id,"tool":params.name}
+					_asset_operation_peers[request_id]=peer_id
+					editor._asset_operations.bind_transport(request_id,_asset_peer_connected.bind(peer))
+					if not editor._asset_operations.finished.is_connected(_asset_operation_finished):editor._asset_operations.finished.connect(_asset_operation_finished)
+				else:_write_http(peer,200,"application/json",_stringify_rpc(reply))
+				return
 			if params.get("name")=="import_surface_material":
 				var reply:Dictionary=handle_rpc(msg)
 				var payload:Variant=JSON.parse_string(reply.get("result",{}).get("content",[{"text":"{}"}])[0].text)
@@ -164,6 +183,29 @@ func _cancel_import(peer_id:int)->void:
 		var service:Node=editor._surface_texture_imports
 		if _pending_imports.is_empty() and service.finished.is_connected(_imported_http):service.finished.disconnect(_imported_http)
 		service.cancel(pending.request_id)
+
+func _asset_peer_connected(peer:StreamPeerTCP)->bool:
+	peer.poll()
+	return running and peer.get_status()==StreamPeerTCP.STATUS_CONNECTED
+
+func _cancel_asset_operation(peer_id:int)->void:
+	if not _pending_asset_operations.has(peer_id):return
+	var pending:Dictionary=_pending_asset_operations[peer_id];_pending_asset_operations.erase(peer_id)
+	_asset_operation_peers.erase(pending.request_id);_pending_saves.erase(peer_id)
+	if is_instance_valid(editor) and is_instance_valid(editor._asset_operations):
+		var operations:Node=editor._asset_operations
+		if _pending_asset_operations.is_empty() and operations.finished.is_connected(_asset_operation_finished):operations.finished.disconnect(_asset_operation_finished)
+		operations.cancel(pending.request_id,"HTTP 请求已断开")
+
+func _asset_operation_finished(request_id:int,result:Dictionary)->void:
+	if not _asset_operation_peers.has(request_id):return
+	var peer_id:int=_asset_operation_peers[request_id];_asset_operation_peers.erase(request_id)
+	var pending:Dictionary=_pending_asset_operations[peer_id];_pending_asset_operations.erase(peer_id);_pending_saves.erase(peer_id)
+	if _pending_asset_operations.is_empty() and editor._asset_operations.finished.is_connected(_asset_operation_finished):editor._asset_operations.finished.disconnect(_asset_operation_finished)
+	var peer:StreamPeerTCP=pending.peer;peer.poll()
+	if peer.get_status()!=StreamPeerTCP.STATUS_CONNECTED:return
+	var payload:Dictionary=_ops.state() if result.get("ok",false) and pending.tool in ["undo","redo"] else result
+	_write_http(peer,200,"application/json",_stringify_rpc({"jsonrpc":"2.0","id":pending.id,"result":{"isError":not payload.get("ok",false),"content":[{"type":"text","text":JSON.stringify(payload)}]}}))
 
 func _imported_http(request_id:int,result:Dictionary)->void:
 	if not _import_peers.has(request_id):return
