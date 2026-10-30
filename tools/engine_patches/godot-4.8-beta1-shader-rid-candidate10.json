@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "candidate": "10",
-  "status": "isolated_candidate_not_installed",
+  "status": "editor_and_lifecycle_passed_installed_sha_verified",
   "apply_after": {
     "path": "tools/engine_patches/godot-4.8-beta1-material-queue-candidate09.json",
     "sha256": "6fabcd1b8e02e28d6caeffe835a86daf413b696d9c582aa3516ba7cdfdd402ea",
@@ -66,7 +66,7 @@
   "verification": {
     "functional": "road_private_contract10: 81 checks, zero failures, actual first-draw pixels, source mutation isolation, cancellation/drain, stale source rejection and editor exclusion. Default08 regression: 55/55 including absent-API fallback.",
     "real_batch": "road_install_A1/B1/B2/A2: exact 10 pavement identities, 3 surfaces/45264 vertices, packed bytes and CPU source identity; B pixel A/B/A equality. road_install_pixel_final additionally proves nonblank varied pavement pixels. A1 slow first draw retained; no p95 claim.",
-    "map": "road_map10_A1/B1/B2/A2: all normal full-HUD lifecycle checks pass with identical source/map SHA. A2 max main batch commit 430.629ms; B1/B2 15.619/24.033ms. Full readiness 70.245s versus 68.732/70.201s does not establish a large loading gain. Default engine and both private upload flags remain unchanged/off.",
+    "map": "road_map10_A1/B1/B2/A2: all normal full-HUD lifecycle checks pass with identical source/map SHA. A2 max main batch commit 430.629ms; B1/B2 15.619/24.033ms. Full readiness 70.245s versus 68.732/70.201s does not establish a large loading gain. Default engine and both private upload flags remain unchanged/off. Candidate10 subsequently installed after editor validation; the recorded ABBA switches are historical.",
     "map_evidence": "D:\\code\\rmmo_runtime\\review_artifacts\\axel_post_roads_perf_20261030_01\\road_map10_comparison.json",
     "patch_replay": "D:\\code\\rmmo_runtime\\review_artifacts\\axel_post_roads_perf_20261030_01\\engine_shader_rid_candidate10\\delta_replay_02\\result.json"
   },
@@ -74,7 +74,180 @@
     "Candidate09 prerequisites still apply. This patch is not a universal thread-safety guarantee for mutable materials.",
     "New private material owners per unique batch key are intentional; textures and geometry are not copied or decoded again.",
     "Readiness and cancellation remain governed by the existing worker lease and group generation.",
-    "Access violation and separate post-entry ~670ms spike remain unresolved.",
-    "Real content-editor rendering/native-import regression remains pending before default engine replacement."
-  ]
+    "Access violation and separate post-entry ~670ms spike remain unresolved."
+  ],
+  "validation": {
+    "editor_and_native": {
+      "editor10_native_ui": {
+        "checks": 72,
+        "evidence": [
+          {
+            "path": "D:\\code\\rmmo_runtime\\review_artifacts\\axel_post_roads_perf_20261030_01\\editor10_native_ui\\summary.json",
+            "bytes": 143,
+            "sha256": "58eb3a7e6a869c022da86ace7bfd13d960e973a3985b5e38a53b975778717ae0"
+          },
+          {
+            "path": "D:\\code\\rmmo_runtime\\review_artifacts\\axel_post_roads_perf_20261030_01\\editor10_native_ui\\launch.json",
+            "bytes": 1139,
+            "sha256": "5a069f70785057fa6f094161eb4f1b1ce956bb88cb1952c46179c6a5bf112d24"
+          },
+          {
+            "path": "D:\\code\\rmmo_runtime\\review_artifacts\\axel_post_roads_perf_20261030_01\\editor10_native_ui\\engine.log",
+            "bytes": 20664,
+            "sha256": "eafbe29235c5e69826a0b5276c38991e89e0f8f7da1a975da36ccc56cfae2e20"
+          }
+        ]
+      },
+      "editor10_native_consumers": {
+        "checks": 26,
+        "evidence": [
+          {
+            "path": "D:\\code\\rmmo_runtime\\review_artifacts\\axel_post_roads_perf_20261030_01\\editor10_native_consumers\\summary.json",
+            "bytes": 112,
+            "sha256": "f8191c98c83a81eee0b1c7924283fa3bb34affdffe32009c514bf1a8ff6f4da2"
+          },
+          {
+            "path": "D:\\code\\rmmo_runtime\\review_artifacts\\axel_post_roads_perf_20261030_01\\editor10_native_consumers\\launch.json",
+            "bytes": 894,
+            "sha256": "d60151ec61a34a41539baefc87b53dcbfb7025fecdd3b5cf43f71df407685a70"
+          },
+          {
+            "path": "D:\\code\\rmmo_runtime\\review_artifacts\\axel_post_roads_perf_20261030_01\\editor10_native_consumers\\engine.log",
+            "bytes": 4146,
+            "sha256": "6d560fb0a198b4fbeaaacc3a83ed7e3f0e6ad4714b45546fdba069b3598a7e11"
+          }
+        ]
+      },
+      "editor10_streamed_paint": {
+        "checks": 69,
+        "evidence": [
+          {
+            "path": "D:\\code\\rmmo_runtime\\review_artifacts\\axel_post_roads_perf_20261030_01\\editor10_streamed_paint\\summary.json",
+            "bytes": 112,
+            "sha256": "8bfc7c2cd044f9f0314f32ee091d98ee292befd79771bed21d995c971cd1c271"
+          },
+          {
+            "path": "D:\\code\\rmmo_runtime\\review_artifacts\\axel_post_roads_perf_20261030_01\\editor10_streamed_paint\\launch.json",
+            "bytes": 888,
+            "sha256": "2051e827c115525297c212d8ba30b744a3d6b79412da48b165787ac9d5820182"
+          },
+          {
+            "path": "D:\\code\\rmmo_runtime\\review_artifacts\\axel_post_roads_perf_20261030_01\\editor10_streamed_paint\\engine.log",
+            "bytes": 28019,
+            "sha256": "ddfd2523eebe5a203f0844e40459b0707d8a4c01bdc59f3d0822fb4497b49d6d"
+          }
+        ]
+      },
+      "editor10_native_join": {
+        "checks": 140,
+        "evidence": [
+          {
+            "path": "D:\\code\\rmmo_runtime\\review_artifacts\\axel_post_roads_perf_20261030_01\\editor10_native_join\\summary.json",
+            "bytes": 145,
+            "sha256": "d71fc683cda567aa240db4d060a7a594453fd9d0506fc0c4077cdbafa3466ff3"
+          },
+          {
+            "path": "D:\\code\\rmmo_runtime\\review_artifacts\\axel_post_roads_perf_20261030_01\\editor10_native_join\\launch.json",
+            "bytes": 1031,
+            "sha256": "211313cbdc9b4e15ba922de9035c0c54ccc74985a6a59651f0300cc46c5e5c15"
+          },
+          {
+            "path": "D:\\code\\rmmo_runtime\\review_artifacts\\axel_post_roads_perf_20261030_01\\editor10_native_join\\engine.log",
+            "bytes": 14504,
+            "sha256": "7b5998e235f3580c99b92cceb43ab7d6c122ac4f99ec168774f3732ce74a75b6"
+          }
+        ]
+      },
+      "native_handoff10": {
+        "checks": 35,
+        "evidence": [
+          {
+            "path": "D:\\code\\rmmo_runtime\\review_artifacts\\axel_post_roads_perf_20261030_01\\native_handoff10\\report.json",
+            "bytes": 409,
+            "sha256": "c65536e4c5f61f9c4785340df3f3cec0a0779d34f358d3c0036eae5c0d631fc9"
+          },
+          {
+            "path": "D:\\code\\rmmo_runtime\\review_artifacts\\axel_post_roads_perf_20261030_01\\native_handoff10\\launch.json",
+            "bytes": 577,
+            "sha256": "bbc0debb2c790247d1971b8a5942b057258415bc88df2cc67277a8d8446fa763"
+          },
+          {
+            "path": "D:\\code\\rmmo_runtime\\review_artifacts\\axel_post_roads_perf_20261030_01\\native_handoff10\\engine.log",
+            "bytes": 2331,
+            "sha256": "d8bb14977bb7691daf2c6387dfbd341016a7c5e1ff70d53620e61b2a1da4ccdf"
+          }
+        ]
+      },
+      "road_private_contract10": {
+        "checks": 81,
+        "evidence": [
+          {
+            "path": "D:\\code\\rmmo_runtime\\review_artifacts\\axel_post_roads_perf_20261030_01\\road_private_contract10\\report.json",
+            "bytes": 1580,
+            "sha256": "4098861a323633b793113327f1a7097b06b35754a438852961a7098113493d24"
+          },
+          {
+            "path": "D:\\code\\rmmo_runtime\\review_artifacts\\axel_post_roads_perf_20261030_01\\road_private_contract10\\launch.json",
+            "bytes": 612,
+            "sha256": "187b83213777d2b442e33f95830de5cae894d881d923431ad72035995c92ae45"
+          },
+          {
+            "path": "D:\\code\\rmmo_runtime\\review_artifacts\\axel_post_roads_perf_20261030_01\\road_private_contract10\\engine.log",
+            "bytes": 6581,
+            "sha256": "c0463dfc522c788f41902c990749c2145e4ea41df648efa53cc28cb8122f9c45"
+          }
+        ]
+      }
+    },
+    "full_map_comparison": {
+      "path": "D:\\code\\rmmo_runtime\\review_artifacts\\axel_post_roads_perf_20261030_01\\road_map10_comparison.json",
+      "bytes": 432539,
+      "sha256": "023f5eaeef74b69416e57af4177556d9b4ff595640462038d92f49296954d7b0"
+    }
+  },
+  "installation": {
+    "installed": true,
+    "default_candidate": "10",
+    "default_entry": "D:\\tools\\godot\\godot.windows.editor.x86_64.exe",
+    "record": "D:\\code\\rmmo_runtime\\review_artifacts\\axel_post_roads_perf_20261030_01\\engine_shader_rid_candidate10\\installation_attempts\\20261031_065704_076703\\installation.json",
+    "record_sha256": "89638792af31e21041a6b8b50232125bb2ae6be41236a92dab01d3ed0bae8c71",
+    "backup": "D:\\tools\\godot\\_backup\\before_10_20261031_065704_076703",
+    "installed_files": {
+      "godot.windows.editor.x86_64.exe": {
+        "path": "D:\\tools\\godot\\godot.windows.editor.x86_64.exe",
+        "bytes": 163200906,
+        "sha256": "7a8029a67b0e0bbc442c12f5ebf0aa67baf2e53f65c8750dd5fbb6b4adabdb53"
+      },
+      "godot.windows.editor.x86_64.exe.debugsymbols": {
+        "path": "D:\\tools\\godot\\godot.windows.editor.x86_64.exe.debugsymbols",
+        "bytes": 2167773287,
+        "sha256": "bd2749d59db19ef16b32351530922b81af52e7a6372a238a1331f0131b52c7c7"
+      },
+      "godot.windows.editor.x86_64.console.exe": {
+        "path": "D:\\tools\\godot\\godot.windows.editor.x86_64.console.exe",
+        "bytes": 199477,
+        "sha256": "ef5208bb2bc0e714b94009a08195a07029175e0ce586f1bb58ca958ac8b54699"
+      },
+      "godot.windows.editor.x86_64.console.exe.debugsymbols": {
+        "path": "D:\\tools\\godot\\godot.windows.editor.x86_64.console.exe.debugsymbols",
+        "bytes": 78178,
+        "sha256": "45983be73b2b80cc356e65f521eee8bb0a66c97c14f5fe8542a077fd8dc07bc0"
+      },
+      "Godot_v4.8-beta1_win64.exe": {
+        "path": "D:\\tools\\godot\\Godot_v4.8-beta1_win64.exe",
+        "bytes": 163200906,
+        "sha256": "7a8029a67b0e0bbc442c12f5ebf0aa67baf2e53f65c8750dd5fbb6b4adabdb53"
+      },
+      "Godot_v4.8-beta1_win64_console.exe": {
+        "path": "D:\\tools\\godot\\Godot_v4.8-beta1_win64_console.exe",
+        "bytes": 199477,
+        "sha256": "ef5208bb2bc0e714b94009a08195a07029175e0ce586f1bb58ca958ac8b54699"
+      },
+      "godot.exe": {
+        "path": "D:\\tools\\godot\\godot.exe",
+        "bytes": 163200906,
+        "sha256": "7a8029a67b0e0bbc442c12f5ebf0aa67baf2e53f65c8750dd5fbb6b4adabdb53"
+      }
+    }
+  }
 }

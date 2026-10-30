@@ -643,3 +643,27 @@ B的主线程finish只有0.078/0.084ms，初始化还包括probe的值比较和�
 补验`road_private_default08` **55/55**，包括没有原生getter时回到旧路径；`road_install_pixel_final`确认真实道路画面包含足够多不同颜色，且候选/原材质/候选A/B/A像素完全一致，避免空画面假通过。candidate10增量patch经`git -c core.autocrlf=false apply --check`及真实重放，源码SHA与编译输入一致。
 
 本切片保留默认关闭的已验证候选和复现工具；**默认引擎仍为08，没有声称已在日常游戏启用收益**。在替换默认引擎前继续补真实内容编辑器渲染/native导入的09/10兼容验证。下一主性能窗口仍是入口后约670ms，需按实际帧时钟用profiler/GDB抓栈；随后处理约210ms卸载和返回50–77ms长帧，以及约70s完整加载/58–61s返回收尾。此前access violation没有新栈，单独保留。同地图区块走动/返回还不能用本轮整图切换替代验收。不得以候选收益宣布目标完成或调整就绪边界。
+
+### candidate10 编辑器验收、默认引擎安装与正式道路路径启用
+
+接上轮候选，使用同一隔离 candidate10 对真实编辑器流程补验：`editor10_native_ui` **72/72**，`editor10_native_consumers` **26/26**，`editor10_streamed_paint` **69/69**，`editor10_native_join` **140/140**，`native_handoff10` **35/35**，均零引擎/脚本错误。涵盖真实 UI 预览/缩略图、HTTP MCP 导入和散布、撤销重做、保存重开、GLB 删除后的原生消费、源像素/alpha、流式纹理共享与取消、真实资源拥有者归零及原生网格 CPU 交接。仅使用一次性外部测试内容，没有改写正式模型、地图或混入其他会话的道路/灯光 WIP。
+
+`engine_shader_rid_candidate10/installation_attempts/20261031_065704_076703/installation.json`记录完整安装：核验累计08+09+10源码、patch重放、构建输入和上述测试后，备份默认08到`D:/tools/godot/_backup/before_10_20261031_065704_076703`，逐文件核对备份及暂存SHA，再替换默认入口、别名和匹配符号。当前默认主程序SHA为`7a8029a67b0e0bbc442c12f5ebf0aa67baf2e53f65c8750dd5fbb6b4adabdb53`，符号SHA为`bd2749d59db19ef16b32351530922b81af52e7a6372a238a1331f0131b52c7c7`；manifest保留不可变安装前证据快照及安装结果，版本字符串仍为4.8.beta1.custom_build.4d10419ca，不用版本号代替实际二进制身份。
+
+生产`private_road_upload_enabled`启用，分层地形候选继续关闭；仅 WorldStream 创建的运行期道路批次进入现有 worker，普通编辑器仍走已有路径，不支持的材质或缺少原生接口时沿用原有回退。probe 改为显式 on/off 覆盖，未传参数时保留生产默认值，避免测试悄悄把新路径关掉。
+
+默认入口`road_private_installed10` **81/81**。`road_default10_01`不传道路覆盖参数，正常引擎、全部 UI/HUD、固定地图、无 profiler/GDB，退出0、零错误/失败、无其他引擎/编译进程；源码与地图SHA不变，旧地图/队列确实释放，返回前retirement排空。
+
+| 项目 | 默认入口启用样本 |
+|---|---:|
+| 入口 / 完整需求就绪 | 14.002 / 69.434 s |
+| 返回事务后收尾 | 61.097 s |
+| 初次最大主线程 batch commit | 24.697 ms |
+| 初次道路任务 / 材质副本 / fallback | 69 / 206 / 0 |
+| snapshot 累计 | 54.545 ms |
+| 可玩加载段最大帧 | 718.085 ms |
+| 卸载 / 返回事务最大帧 | 198.839 / 243.331 ms |
+| 返回加载 p95 / max / >50ms帧数 | 52.217 / 68.198 ms / 136 |
+| 初次 / 返回稳定段 1% low | 26.66 / 24.29 FPS |
+
+这是正式默认入口的生效验证，未用单次69.434s宣称总加载收益或p95改善。道路提交的主线程负担已转移；完整加载约70s、入口后718ms、卸载199ms及返回持续长帧仍需处理。后续现有官方profiler记录将入口后最大帧收窄到`asset_library.cache_scene → PackedScene.pack`，其中一个原生模型的主线程cache_pack约595.5ms；新的GDB/独立复现继续核实内部调用，尚未宣布修复。
