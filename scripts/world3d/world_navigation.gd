@@ -4,6 +4,7 @@ const FrameBudget=preload("res://scripts/world3d/frame_work_budget.gd")
 const EMPTY_APPEND_RECORD:Dictionary={}
 static var ordered_retirement_catalog_enabled:=true
 static var lazy_retirement_snapshot_enabled:=true
+static var sliced_source_disposal_enabled:=true
 var covered_loading:=false
 var publication_guard:Callable=Callable() # Optional map/transaction lifetime validator.
 var preparation_timeout_msec:=180000
@@ -715,6 +716,22 @@ func _poll_resize_drain()->bool:
 		else:_baking_mesh=null;_bake_pending=""
 	return ready
 
+func _retire_source_owners()->void:
+	# The worker/server consumers have drained. The snapshot can lag behind the
+	# current catalogue, and doors can retain a removed source. A clean snapshot
+	# already covers every catalogue record; only a stale one needs that second
+	# root. Copy only outer references: live maps/other nav
+	# instances may still borrow their records. Never clear their nested data.
+	if not sliced_source_disposal_enabled or (_spec_snapshot.is_empty() and _spec_ids.is_empty() and _doors.is_empty()):return
+	var started:=Time.get_ticks_usec()
+	var owners:Array=_spec_snapshot.duplicate()
+	if streaming_geometry and _spec_snapshot_dirty:owners.append_array(_spec_ids.values())
+	owners.append_array(_doors)
+	if not preload("res://scripts/world3d/resource_retirement.gd").defer_private_array(owners,true):return
+	loading_profile.retired_source_references=owners.size()
+	_spec_snapshot=[];_spec_snapshot_dirty=false;_spec_ids={};_doors=[]
+	loading_profile.retire_source_handoff_us=Time.get_ticks_usec()-started
+
 
 func build(specs: Array, origin: Variant = null) -> void:
 	if not _publication_current():return
@@ -784,6 +801,7 @@ func _process(_delta: float) -> void:
 		if drained:
 			set_process(false)
 			if _retiring:
+				_retire_source_owners()
 				loading_profile.retire_done_us=Time.get_ticks_usec();queue_free()
 		return
 	# Deadline observation does not need a production-work budget. Exhausted

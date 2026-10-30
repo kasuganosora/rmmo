@@ -6,12 +6,17 @@ var _lifecycle_started:=false
 var _lifecycle_done:=false
 var _landing_map:=""
 var _landing_sha:=""
+var _diagnostic_phase_path:=""
 
 func _initialize()->void:
 	var destination:=""
 	for arg:String in OS.get_cmdline_user_args():
 		if arg.begins_with("--output="):destination=arg.trim_prefix("--output=").replace("\\","/")
 	if not destination.begins_with(TEST_ROOT+"/"):quit(2);return
+	if "--gdb-unload" in OS.get_cmdline_user_args():
+		_diagnostic_phase_path=destination.get_base_dir().path_join("phase.log")
+		report.native_stack_diagnostic=true
+		report.normal_performance_sample=false
 	_landing_map=destination.get_base_dir().path_join("landing/map.gltf")
 	DirAccess.make_dir_recursive_absolute(_landing_map.get_base_dir())
 	var doc:=preload("res://scripts/world3d/world_document.gd").new()
@@ -53,6 +58,12 @@ func _wait_settled(world:Node,label:String)->void:
 
 func _transfer(world:Node,path:String,destination:Vector3,label:String)->bool:
 	phase=label
+	if not _diagnostic_phase_path.is_empty():
+		FileAccess.open(_diagnostic_phase_path,FileAccess.WRITE).store_line("WHITE_TRAVERSAL "+label)
+		# The combat host exits immediately before outgoing map disposal, after
+		# destination validation. Gate the external sampler here; an artificial
+		# SceneTreeTimer wait barely advances under all-stop debugger sampling.
+		if label=="map_unload":world._combat.tree_exiting.connect(_mark_disposal,CONNECT_ONE_SHOT)
 	var started:=Time.get_ticks_usec()
 	var ok:bool=await world.transfer_map(path,destination)
 	report.lifecycle.append({"label":label,"ok":ok,"started_us":started,"finished_us":Time.get_ticks_usec(),"call_ms":(Time.get_ticks_usec()-started)/1000.,"at_ms":(Time.get_ticks_usec()-began)/1000.,"cover":world.get_meta("transfer_loading_profile",{}).duplicate(true)})
@@ -61,6 +72,9 @@ func _transfer(world:Node,path:String,destination:Vector3,label:String)->bool:
 	for i in 12:await physics_frame
 	check(not world._player.input_locked and not world._player.geometry_blocked and world._player.is_on_floor(),label+" avatar remains supported and usable")
 	return true
+
+func _mark_disposal()->void:
+	FileAccess.open(_diagnostic_phase_path,FileAccess.WRITE).store_line("WHITE_TRAVERSAL dispose_committed")
 
 func _round_trip(world:Node)->void:
 	report.lifecycle=[]
@@ -75,6 +89,9 @@ func _round_trip(world:Node)->void:
 	await create_timer(12.).timeout
 	check(previous_map.get_ref()==null and previous_queue.get_ref()==null,"old town and deferred owner actually freed before return")
 	report.old_owners_freed=previous_map.get_ref()==null and previous_queue.get_ref()==null
+	var retirement:Node=root.get_node_or_null("ResourceRetirement")
+	report.retirement_before_return={"pending":retirement.pending.size() if retirement!=null else 0,"known":retirement.known.size() if retirement!=null else 0,"profile":retirement.profile.duplicate(true) if retirement!=null else {}}
+	check(report.retirement_before_return.pending==0 and report.retirement_before_return.known==0,"old resource retirement drains before return")
 	if not await _transfer(world,selected_map,original,"map_return"):_lifecycle_done=true;return
 	phase="return_loading"
 	await _wait_settled(world,"return")

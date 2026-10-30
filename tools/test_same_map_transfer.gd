@@ -13,6 +13,7 @@ class PendingAssets extends Node:
 	var error:=""
 	var _reference_index:Dictionary={}
 	var source_signatures:Dictionary={"model":"digest"}
+	var publication_metadata:Dictionary={}
 	var demands:Dictionary={}
 	var demand_scope:Array=[]
 	var released:Array=[]
@@ -22,7 +23,7 @@ class PendingAssets extends Node:
 	func ensure_geometry(clip:AABB,id:String="navigation")->bool:demands[id]=clip;return true
 	func release_demand(id:String)->void:released.append(id);demands.erase(id)
 	func get_demand_scope()->Array:return demand_scope.duplicate()
-	func set_demand_scope(ids:Array)->bool:demand_scope=ids.duplicate();return true
+	func set_demand_scope(ids:Array,_retained_collision_tickets:Array=[])->bool:demand_scope=ids.duplicate();return true
 	func allow_demand_in_scope(id:String)->bool:
 		if not demand_scope.is_empty() and not demand_scope.has(id):demand_scope.append(id)
 		return true
@@ -36,8 +37,8 @@ class FakeNavigation extends Node:
 	var appended:=0
 	var error:=""
 	func set_geometry_pending(value:bool)->bool:geometry_pending=value;return true
-	func configure_geometry_provider(value:Callable)->void:provider=value
-	func append_specs(specs:Array)->Dictionary:appended+=specs.size();return {"ok":true}
+	func configure_geometry_provider(value:Callable,_release_request:Callable=Callable())->void:provider=value
+	func append_specs(specs:Array,_metadata:Variant=null)->Dictionary:appended+=specs.size();return {"ok":true}
 	func set_geometry_error(value:String)->void:error=value
 	func near_surface(_point:Vector3,_horizontal:float,_vertical:float)->bool:return true
 class MapData extends RefCounted:
@@ -56,6 +57,7 @@ func body_shape(body:CollisionObject3D,shape:Shape3D,offset:Vector3=Vector3.ZERO
 func settle()->void:
 	await physics_frame;await process_frame
 func run()->void:
+	create_timer(15.).timeout.connect(func():printerr("same-map fixture did not complete");quit(2))
 	var world:=QuietWorld.new();root.add_child(world)
 	world._map_path="D:/maps/town/map.gltf"
 	check(world._same_map_target("D:/maps/town/sub/../map.gltf") and not world._same_map_target("D:/maps/other/map.gltf"),"same-map routing normalizes paths without accepting another map")
@@ -123,6 +125,15 @@ func run()->void:
 	check(map_root.get_meta("entry_stream_clip")==target_clip,"old cleanup cannot clear a newer stream scope")
 	Stream.clear_entry_scope(map_root)
 	assets.set_demand_scope([])
+	# The live landing path now requires physical support, independently of
+	# the navigation fixture's near_surface response.
+	var floor_body:=StaticBody3D.new();map_root.add_child(floor_body);floor_body.position=Vector3(0,-.1,0)
+	var floor_shape:=BoxShape3D.new();floor_shape.size=Vector3(64,.2,64);body_shape(floor_body,floor_shape)
+	var floor_mesh:=BoxMesh.new();floor_mesh.size=floor_shape.size
+	var floor_spec:={"uuid":"floor","mesh":floor_mesh,"transform":floor_body.transform}
+	floor_body.set_meta("stream_physics_published_frame",Engine.get_physics_frames())
+	map_root.set_meta("stream_collision_index",{Vector2i(-1,-1):[floor_spec],Vector2i(0,-1):[floor_spec],Vector2i(-1,0):[floor_spec],Vector2i(0,0):[floor_spec]})
+	map_root.set_meta("stream_bodies",{"floor":floor_body})
 	var player:=CharacterBody3D.new();world.add_child(player);world._player=player;player.position=Vector3(0,.9,0)
 	var capsule:=CapsuleShape3D.new();capsule.radius=.3;capsule.height=2.1
 	body_shape(player,capsule,Vector3(0,.15,0))

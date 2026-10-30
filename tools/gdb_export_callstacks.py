@@ -25,6 +25,15 @@ def stack(thread, depth=64):
                 function = frame.read_var("this").dereference()
                 row.update(script_function=str(function["name"]),
                            script_source=str(function["source"]))
+            elif "GDScriptInstance::~GDScriptInstance" in row["function"]:
+                instance = frame.read_var("this").dereference()
+                script = instance["script"]["reference"].dereference()
+                row.update(retiring_script=str(script["path"]),
+                           retiring_member_count=int(instance["members"]["count"]))
+            elif "KeyValue<StringName, Variant>::~KeyValue" in row["function"]:
+                # The value is destroyed before its key; identify an Object's
+                # metadata entry without invoking methods in the paused target.
+                row["retiring_named_value"] = str(frame.read_var("this").dereference()["key"])
         except (gdb.error, RuntimeError):
             pass
         result.append(row)

@@ -5,6 +5,7 @@ extends RefCounted
 ## Never serialize this object or put it inside the index it owns (a ref cycle).
 const MAX_DEPTH := 64
 const MAX_VALUES := 2000000
+static var cpu_snapshot_retirement_enabled:=true
 var _index: Dictionary = {}
 var _rows_by_uuid: Dictionary = {}
 var _issuer: RefCounted
@@ -16,6 +17,14 @@ var _extras: Dictionary = {}
 var _rows: Array = []
 var _groups: Dictionary = {}
 var _models: Dictionary = {}
+
+func _notification(what:int)->void:
+	# Only the issuing factory below owns a sealed, Object-free snapshot. Its
+	# identity expires immediately; the existing CPU retirement lane retains
+	# the immutable containers until the main-thread destructor has returned.
+	# Never move the issuer or an arbitrary caller-created proof to a worker.
+	if what==NOTIFICATION_PREDELETE and cpu_snapshot_retirement_enabled and _issuer!=null and Engine.get_main_loop()!=null and Thread.is_main_thread():
+		preload("res://scripts/world3d/resource_retirement.gd").defer_cpu_values([_index,_rows_by_uuid,_extras,_rows,_groups,_models],0)
 
 ## Trusted internal factory. A caller-created issuer cannot match Index's key.
 ## The read result must still be privately owned by the issuing load operation.

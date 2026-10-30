@@ -35,6 +35,8 @@ static var sliced_retirement_schema_enabled:=true
 static var resident_retirement_catalog_enabled:=true # Runtime index owns membership; false retains the diagnostic full-directory proof.
 static var incremental_adoption_enabled:=true # A/B control for root-child adoption and empty-plan preservation.
 static var owned_removal_accounting_enabled:=true # Preserve the residency plan across a slow removal's early yield.
+static var cpu_author_retirement_enabled:=true
+static var sliced_record_disposal_enabled:=true
 ## Opt-in diagnostics add per-candidate clocks; leave off for timing A/B runs.
 static var collision_readiness_profile_enabled:=false
 const COLLISION_CANDIDATE_RANGES:=8
@@ -377,6 +379,22 @@ static func prepare_map_disposal(map_root:Node,tree:SceneTree=null)->void:
 		if outgoing==null:continue
 		outgoing.retire_workers(tree)
 		if service=="GroundRenderBatches":outgoing.clear(false)
+	# MapLoader stores this exact raw JSON snapshot for building authority and
+	# cutaway lookup. It contains no Resource/Node/RID owners. Keep the metadata
+	# readable through exit callbacks, but let the existing CPU retirement lane
+	# hold its final reference past this synchronous map destruction. Other map
+	# metadata mixes render resources and must retain its ordinary main release.
+	if cpu_author_retirement_enabled and map_root.has_meta("author_reference_extras") and not map_root.get_meta("author_snapshot_retiring",false):
+		if preload("res://scripts/world3d/resource_retirement.gd").defer_cpu_values([map_root.get_meta("author_reference_extras")],0):
+			map_root.set_meta("author_snapshot_retiring",true)
+	# Expanded runtime records can own Resources as well as nested CPU arrays.
+	# Retain one reference per record on the bounded MAIN queue, never the CPU
+	# lane. Leave the original metadata intact through all exit callbacks.
+	if sliced_record_disposal_enabled and not map_root.get_meta("runtime_records_retiring",false):
+		var records:Variant=map_root.get_meta("extras",{}).get("rmmo_records")
+		if records is Array and not records.is_empty():
+			if preload("res://scripts/world3d/resource_retirement.gd").defer_private_array(records.duplicate(),true):
+				map_root.set_meta("runtime_records_retiring",true)
 
 static func _finish_loading_sources(map_root:Node,batcher:Node,deadline:int,wait_for_membership:bool=true)->bool:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.world_stream._finish_loading_sources") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null

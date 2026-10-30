@@ -20,6 +20,12 @@ func _initialize()->void:
 	if "--native-cpu-handoff" in OS.get_cmdline_user_args():preload("res://scripts/world3d/compiled_asset_preparation.gd").native_cpu_handoff_enabled=true
 	if "--without-native-cpu-handoff" in OS.get_cmdline_user_args():preload("res://scripts/world3d/compiled_asset_preparation.gd").native_cpu_handoff_enabled=false
 	report.native_cpu_handoff=preload("res://scripts/world3d/compiled_asset_preparation.gd").native_cpu_handoff_enabled
+	var old_disposal:bool="--without-source-retirement" in OS.get_cmdline_user_args()
+	preload("res://scripts/world3d/world_navigation.gd").sliced_source_disposal_enabled=not old_disposal
+	preload("res://scripts/world3d/dependency_index_proof.gd").cpu_snapshot_retirement_enabled=not old_disposal
+	preload("res://scripts/world3d/world_stream.gd").cpu_author_retirement_enabled=not old_disposal
+	preload("res://scripts/world3d/world_stream.gd").sliced_record_disposal_enabled=not old_disposal
+	report.source_owner_retirement=not old_disposal
 	var copy:=OS.get_environment("RMMO_HUD_TEST_MAP").replace("\\","/").simplify_path()
 	if not preload("res://scripts/world3d/map_paths.gd").allowed(copy,TEST_ROOT) or not FileAccess.file_exists(copy):
 		printerr("HUD profile requires an existing temporary map under review_artifacts");quit(2);return
