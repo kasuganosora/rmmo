@@ -73,7 +73,14 @@ func run()->void:
 	var session=preload("res://scripts/net/net.gd").session();session.world3d_editor_doc=doc;session.world3d_editor_path=path
 	editor=preload("res://scripts/world_editor/world_editor.gd").new();editor._mcp_autostart=false;editor._draft_directory=directory.path_join("drafts")
 	root.add_child(editor);editor._safety.enabled=false;await settle()
-	check(not editor._view.get_node(third).has_meta("missing_asset"),"second fixture also succeeds in initial synchronous editor build")
+	# Startup publishes the whole view from the load job; inspect it only after
+	# that shared preparation protocol has handed over the map.
+	var load_deadline:=Time.get_ticks_msec()+120000
+	while editor.saving() and Time.get_ticks_msec()<load_deadline:await process_frame
+	while editor._asset_operations.snapshot().pending>0 and Time.get_ticks_msec()<load_deadline:await process_frame
+	check(not editor.saving() and editor._asset_operations.snapshot().pending==0,"startup load settles before the prepared view is inspected")
+	var startup_visual:Node3D=editor._view.get_node_or_null(third)
+	check(startup_visual!=null and not startup_visual.has_meta("missing_asset"),"second fixture also succeeds in the startup prepared build")
 	var probe:=TCPServer.new()
 	while probe.listen(port,"127.0.0.1")!=OK:port+=1
 	probe.stop();check(editor.start_mcp(port).ok,"real HTTP server started")

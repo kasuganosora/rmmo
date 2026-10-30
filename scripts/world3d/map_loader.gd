@@ -4,6 +4,8 @@ const CrossMapPrefetch=preload("res://scripts/world3d/cross_map_prefetch.gd")
 const OwnershipProof=preload("res://scripts/world3d/dependency_index_proof.gd")
 const PackagePolicy=preload("res://scripts/world3d/runtime_package_policy.gd")
 const Frames=preload("res://scripts/util/frame_presentation.gd")
+const RecordAssets=preload("res://scripts/world3d/record_asset_dependencies.gd")
+const RecordContext=preload("res://scripts/world3d/prepared_record_context.gd")
 ## Parse and prepare eligible private static graphs off-tree. Publish on main.
 signal finished(scene: Node, path: String, error: String)
 signal progress(stage: String, done: int, total: int)
@@ -63,6 +65,7 @@ var _failure_reason:=""
 var near_first:=false
 var background_preload:=false # Private GPU preload; no authority/global scene publication.
 var _private_assets:Dictionary={}
+var _record_context:RefCounted
 var _asset_cursor:RefCounted
 var source_prefetch:CrossMapPrefetch.Packet
 var _entry_origin:=Vector3(0,.9,4)
@@ -164,6 +167,7 @@ func _startup_context_drawn(serial:int)->void:
 func cancel() -> void:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.map_loader.cancel") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	_cancelled = true
+	_record_context=null
 	_texture_cancel_token.cancel()
 	_early_models.cancel()
 	_source_hash_preparation.cancel()
@@ -227,7 +231,9 @@ func _parse_inner() -> void:
 					selection=_collision_first_selection(candidate,selection)
 					_dependency_index=candidate;requested_extra=selection.extras;_selected_record_indices=selection.record_indices
 					_dependency_proof=directory.proof
-					if entry_pipeline_enabled and not background_preload:
+					# Unknown procedural rows may carry kit models absent from the
+					# directory's singular asset_path. Wait for their verified records.
+					if entry_pipeline_enabled and not background_preload and not selection.record_indices.any(func(index:int):return candidate.rows[index].asset_path.is_empty() and candidate.rows[index].classification=="global"):
 						var hints:Dictionary={}
 						for index:int in selection.record_indices:
 							var model_path:String=candidate.rows[index].asset_path
@@ -285,6 +291,10 @@ func _parse_inner() -> void:
 		if not _reference_integrity():
 			_error=ERR_BUSY;_failure_reason="读取期间地图或引用资源已改变";return
 		_profile.initial_integrity_us=Time.get_ticks_usec()-integrity_started
+		if not _dependency_index.is_empty() and entry_pipeline_enabled and not background_preload and not _profile.get("initial_models_prefetched",false):
+			_model_preparation.static_scene_paths=_dependency_index.models.duplicate()
+			_profile.initial_models_prefetched=_early_models.start(RecordAssets.paths(extra.rmmo_records,_content_root),_model_preparation,_initial_model_workers(),_content_root)
+			_profile.initial_models_prefetch_started_us=_early_models.started_us
 		_profile.reference_index_rebuilt_before_models=false
 		if near_first and _dependency_index.is_empty() and cold_index_rebuild_enabled:
 			if entry_pipeline_enabled and not background_preload:
@@ -324,12 +334,8 @@ func _parse_inner() -> void:
 			if not rebuild_integrity:
 				_error=ERR_BUSY;_failure_reason="重建区块目录期间地图或引用资源已改变";return
 			if rebuilt.ok and entry_pipeline_enabled and not background_preload and not _profile.get("initial_models_prefetched",false):
-				var hints:Dictionary={}
-				for index:int in _selected_record_indices:
-					var model_path:String=_dependency_index.rows[index].asset_path
-					if not model_path.is_empty():hints[model_path]=true
 				_model_preparation.static_scene_paths=_dependency_index.models.duplicate()
-				_profile.initial_models_prefetched=_early_models.start(hints.keys(),_model_preparation,_initial_model_workers(),_content_root)
+				_profile.initial_models_prefetched=_early_models.start(RecordAssets.paths(extra.rmmo_records,_content_root),_model_preparation,_initial_model_workers(),_content_root)
 				_profile.initial_models_prefetch_started_us=_early_models.started_us
 		elif near_first and _dependency_index.is_empty():_profile.reference_index_rebuild_reason="disabled"
 		_record_meta=extra
@@ -403,7 +409,12 @@ func _cold_model_hints(records:Array)->Dictionary:
 	var batch_paths:bool=preload("res://scripts/world3d/map_dependency_index.gd").classification_path_batching
 	var began:=0
 	for record:Dictionary in records:
-		if record.get("kind")!="asset" or record.has("house_prefab"):continue
+		# Kit rows are conservative/global in the directory and remain selected.
+		if record.has("tile3d"):
+			for dependency:String in RecordAssets.paths([record],_content_root):
+				if not _model_key_allowed(dependency):result.error="source_path";return _cold_hint_detail_result(result,detail)
+				paths[dependency]=true
+		if not RecordAssets.model(record):continue
 		var path:String=record.get("asset_path","")
 		var row:Variant=null
 		if detail!=null:
@@ -653,9 +664,10 @@ func _prepare_record_assets_inner()->void:
 		if record.has("fortification_art"):
 			var path:String=record.fortification_art.asset_path
 			signature_paths[path]=true
-		if record.get("kind")!="asset" or record.has("house_prefab"):continue
-		var path:String=str(record.get("asset_path",""))
-		if near_first:
+		var dependencies:Array[String]=RecordAssets.paths([record],_content_root)
+		if dependencies.is_empty():continue
+		var path:String=str(record.get("asset_path","")).replace("\\","/").simplify_path()
+		if near_first and RecordAssets.model(record):
 			var Manifest=preload("res://scripts/world3d/asset_bounds_manifest.gd")
 			if not manifests.has(path):manifests[path]=preload("res://scripts/world3d/asset_source_metadata.gd").read(path,_content_root,"",true) if _native_package_models() else Manifest.read(path)
 			else:_profile.source_manifest_reuse+=1
@@ -673,8 +685,9 @@ func _prepare_record_assets_inner()->void:
 				_deferred_assets.append({"record":record,"path":path,"bounds":footprint.world_bounds,"digest":str(manifests[path].get("native_source_sha","")),"memory":memory_estimates[path],"manifest":manifests[path],"draw_order":int(_record_order[record.uuid])*65536})
 				_deferred_ids[record.uuid]=true
 				continue
-		signature_paths[path]=true
-		if not first_ids.has(path):paths.append(path);first_ids[path]=record.uuid
+		for dependency:String in dependencies:
+			signature_paths[dependency]=true
+			if not first_ids.has(dependency):paths.append(dependency);first_ids[dependency]=record.uuid
 	_profile.deferred_asset_instances=_deferred_assets.size();_profile.initial_asset_paths=paths.size()
 	_profile.source_scan_us=Time.get_ticks_usec()-source_scan_started
 	Trace.elapsed("game.source_scan",source_scan_started,{"required_models":signature_paths.size()})
@@ -1029,6 +1042,7 @@ func _retire()->void:
 func _finish_error(message: String) -> void:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.map_loader._finish_error") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	_building=true
+	_record_context=null
 	# Failure can immediately resume the old world's queue. All private safety
 	# workers must relinquish their reservations before that rollback signal.
 	await _drain_entry_prefetch()
@@ -1065,6 +1079,7 @@ func _exit_tree() -> void:
 	preload("res://scripts/world3d/asset_worker_drainer.gd").synchronize_transfer()
 	for entry:Dictionary in _asset_states.values():preload("res://scripts/world3d/asset_worker_drainer.gd").dispose_result(entry)
 	_asset_states.clear()
+	_record_context=null
 	_private_assets.clear()
 	if _native_texture_scope!=null:_native_texture_scope.release_now();_native_texture_scope=null
 	_native_resident_bridge.release_now()
@@ -1362,6 +1377,21 @@ func _initial_native_scene(entry:Dictionary,record:Dictionary={})->Node:
 	Trace.elapsed("game.initial_native_handoff",began)
 	return scene
 
+func _accept_record_template(root:Node,path:String)->bool:
+	if _private_assets.has(path):return true
+	var prepared:Dictionary=_asset_states.get(path,{})
+	if not prepared.get("packed") is PackedScene:return false
+	var began:=Time.get_ticks_usec()
+	var accepted:bool=preload("res://scripts/world3d/model_texture_readiness.gd").packed_ready(prepared.packed) if background_preload else preload("res://scripts/world_editor/asset_library.gd").cache_packed(path,prepared.packed,str(_model_signatures.get(path,"")))
+	if not accepted:return false
+	# Keep the same normal/background publication policy for kit dependencies.
+	_private_assets[path]=prepared.packed
+	if not background_preload:preload("res://scripts/world3d/runtime_asset_cache_scope.gd").claim(root,path)
+	_prepared_asset_paths[path]=true
+	_profile.asset_generate_us+=Time.get_ticks_usec()-began
+	Trace.elapsed("game.asset_generate",began,{"path":path})
+	return true
+
 func _build_records() -> void:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.map_loader._build_records") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	var build_started:=Time.get_ticks_usec()
@@ -1397,6 +1427,7 @@ func _build_records() -> void:
 			records.append_array(landscape);records.sort_custom(distance_order)
 	else:records.append_array(landscape)
 	var doc = preload("res://scripts/world3d/world_document.gd").new()
+	_record_context=RecordContext.new()
 	doc.records=records
 	doc.load_immutable_records=true
 	doc.load_require_native_products=_model_preparation.require_native_products
@@ -1434,45 +1465,30 @@ func _build_records() -> void:
 				doc.load_surface_arrays=_surface_arrays
 				doc.load_surface_bounds=_surface_bounds
 				start=Time.get_ticks_usec()
+			for dependency:String in RecordAssets.paths([records[cursor]],_content_root):
+				if not _accept_record_template(root,dependency):
+					root.free();_prepared=null;_finish_error("地图素材无法实例化："+dependency);return
+				if records[cursor].has("tile3d"):
+					_record_context.accept(dependency,_private_assets[dependency])
+					if _asset_states.has(dependency) and not RecordAssets.model(records[cursor]):
+						_finish_initial_native_scene(_asset_states[dependency]);_asset_states.erase(dependency)
 			if records[cursor].get("kind") == "asset" and not records[cursor].has("house_prefab"):
-				if not _native_package_models() and not FileAccess.file_exists(str(records[cursor].get("asset_path", ""))):
+				if RecordAssets.model(records[cursor]) and not _native_package_models() and not FileAccess.file_exists(str(records[cursor].get("asset_path", ""))):
 					root.free()
 					_prepared = null
 					_finish_error("地图素材缺失：" + str(records[cursor].get("asset_path", "")))
 					return
-				var asset_path: String = records[cursor].asset_path
+				var asset_path: String = str(records[cursor].get("asset_path","")).replace("\\","/").simplify_path()
 				var initial_scene:Node
 				var initial_owner:Dictionary={}
 				if _asset_states.has(asset_path):
-					var asset_started:=Time.get_ticks_usec()
 					var prepared_asset:Dictionary=_asset_states[asset_path]
-					var asset_library=preload("res://scripts/world_editor/asset_library.gd")
-					var cached:=false
-					# Game preparation returns a native template. Raw generation and
-					# repacking belong to the content editor, including preload misses.
-					if prepared_asset.get("packed") is PackedScene:
-						if background_preload:
-							cached=preload("res://scripts/world3d/model_texture_readiness.gd").packed_ready(prepared_asset.packed)
-						else:cached=asset_library.cache_packed(asset_path,prepared_asset.packed,str(_model_signatures.get(asset_path,"")))
-					if not cached:
-						root.free()
-						_prepared = null
-						_finish_error("地图素材无法实例化：" + asset_path)
-						return
-					# Pin this operation's accepted owner across publication awaits.
-					# Every placement uses the same snapshot, even if another map or
-					# import replaces the global cache while this load yields.
-					_private_assets[asset_path]=prepared_asset.packed
 					initial_scene=_initial_native_scene(prepared_asset,records[cursor])
 					if initial_scene!=null:initial_owner=prepared_asset
 					# A covered-frame yield below can be cancelled before the asset
 					# cursor takes ownership. Keep the detached scene in the drainer's
 					# registered packet until that cursor has consumed or freed it.
 					else:_asset_states.erase(asset_path)
-					if not background_preload:preload("res://scripts/world3d/runtime_asset_cache_scope.gd").claim(root,asset_path)
-					_prepared_asset_paths[asset_path]=true
-					_profile.asset_generate_us+=Time.get_ticks_usec()-asset_started
-					Trace.elapsed("game.asset_generate",asset_started,{"path":asset_path})
 				var instance_started:=Time.get_ticks_usec()
 				# Do not stack a completed large template pack and instance creation
 				# in the same covered loading frame.
@@ -1517,12 +1533,14 @@ func _build_records() -> void:
 				cursor += 1
 				continue
 			var spec:Dictionary
-			if not cooked_specs.is_empty() and not cooked_specs[cursor].is_empty():spec=cooked_specs[cursor]
+			if not cooked_specs.is_empty() and not cooked_specs[cursor].is_empty():
+				spec=cooked_specs[cursor]
+				_record_context.retain(records[cursor],spec.get("mesh"))
 			else:
 				var hits_before:int=doc.load_box_hits
 				var mesh_started:=Time.get_ticks_usec()
 				var mesh_parts:Variant={} if Trace.enabled else null
-				var visual: MeshInstance3D = doc._mesh(records[cursor],true,mesh_parts)
+				var visual: MeshInstance3D = doc._mesh(records[cursor],true,mesh_parts,_record_context)
 				var mesh_elapsed:=Time.get_ticks_usec()-mesh_started
 				if Trace.enabled:Trace.elapsed("game.mesh",mesh_started,{"uuid":records[cursor].uuid,"prefab":records[cursor].has("house_prefab"),"terrain":records[cursor].has("terrain_mesh"),"parts_ms":mesh_parts})
 				if Trace.enabled and records[cursor].has("channel_mesh"):Trace.elapsed("game.channel_mesh:"+str(records[cursor].uuid),mesh_started)
@@ -1628,6 +1646,7 @@ func _build_records() -> void:
 	if not background_preload and server!=null:
 		preload("res://scripts/net/mock_server_host.gd").call_when_ready(server,&"register_loaded_world3d_environment",[_path,_record_meta])
 	_prepared = null
+	_record_context=null
 	finished.emit(root, _path, "")
 	await _retire()
 

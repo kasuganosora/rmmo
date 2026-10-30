@@ -19,21 +19,13 @@ static func apply(editor:Node3D,ids:Array,changes:Dictionary)->Dictionary:
 		if updates.has(id):return {"ok":false,"error":"不能重复选择同一棵树"}
 		var record:Dictionary=editor._doc._find(str(id))
 		if record.is_empty() or not editor._record_editable(record) or record.get("prefab_locked",false) or record.has("building") or record.get("kind")!="asset":return {"ok":false,"error":"树木不存在、隐藏、锁定或属于固定建筑"}
-		var model:=Library.instantiate_geometry(str(record.asset_path))
-		if model==null:return {"ok":false,"error":"树木资源无法读取"}
+		var model:Node=editor._view.get_node_or_null(NodePath(str(id)))
+		if model==null:return {"ok":false,"error":"树木视图尚未就绪"}
 		var config:=TreeModel.resolved(model,record)
-		if config.is_empty():Drainer.dispose_scene(model);return {"ok":false,"error":"请放置参数化松树预制件；普通模型没有枝簇配方"}
+		if config.is_empty():return {"ok":false,"error":"请放置参数化松树预制件；普通模型没有枝簇配方"}
 		config.merge(changes,true)
 		var next:=record.duplicate(true);next.tree_settings=config
-		if not TreeModel.valid(next):Drainer.dispose_scene(model);return {"ok":false,"error":"裸干长度须小于树高的 80%，参数须在允许范围内"}
-		error=TreeModel.apply(model,next)
-		if not error.is_empty():Drainer.dispose_scene(model);return {"ok":false,"error":error}
-		var bounds:=Library.bounds_of(model);Drainer.dispose_scene(model)
-		next.bounds_position=[bounds.position.x,bounds.position.y,bounds.position.z];next.bounds_size=[bounds.size.x,bounds.size.y,bounds.size.z]
+		if not TreeModel.valid(next):return {"ok":false,"error":"裸干长度须小于树高的 80%，参数须在允许范围内"}
 		updates[id]=next
 	if updates.values().all(func(r):return r==editor._doc._find(r.uuid)):return {"ok":true,"changed_ids":[]}
-	editor._doc.checkpoint()
-	for id in updates:
-		var record:Dictionary=editor._doc._find(str(id));record.merge(updates[id],true)
-	editor._dirty=true;editor._rebuild()
-	return {"ok":true,"changed_ids":updates.keys()}
+	return editor._replace_records(updates,[],null,{"ok":true,"changed_ids":updates.keys()})

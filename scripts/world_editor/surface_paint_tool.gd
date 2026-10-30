@@ -13,8 +13,14 @@ var selected := {}
 var hovered := {}
 var material_id := "builtin:checker"
 var options := {"mapping": "planar", "scale": [1.0, 1.0], "rotation": 0.0, "offset": [0.0, 0.0]}
-var _before: Array = []
-var _was_dirty := false
+var _target:RefCounted
+var _source_document:RefCounted
+var _source_revision:=0
+var _source_next:=0
+var _generation:=0
+var _changed:Dictionary={}
+var _preview_request:=0
+var _commit_request:=0
 var _visited := {}
 var _last_pointer := Vector2(INF, INF)
 var _last_camera := Transform3D()
@@ -29,7 +35,13 @@ func setup(owner: Node3D) -> void:
 
 func _visual(id: String) -> Node3D:
 	if editor._doc._find(id).is_empty(): return null
+	if is_instance_valid(editor._record_preview_root):
+		var preview:Node3D=editor._record_preview_root.get_node_or_null(NodePath(id))
+		if preview!=null:return preview
 	return editor._view.get_node_or_null(NodePath(id)) as Node3D
+
+func _record(id:String)->Dictionary:
+	return _target._find(id) if stroke_active and _target!=null else editor._doc._find(id)
 
 func resolve(id: String, target: Dictionary) -> Dictionary:
 	var root := _visual(id)
@@ -79,6 +91,13 @@ func pick(screen: Vector2) -> Dictionary:
 	if record.get("prefab_locked",false) and not (record.has("house_prefab") and record.has("building")):return Paint.fail("此固定预制件不支持单面换材质")
 	if not editor._record_editable(record) or record.get("kind") not in ["box", "asset", "seat"] or record.get("invisible", false): return Paint.fail("目标隐藏、锁定、不在当前楼层或不是可绘制物件")
 	var node: MeshInstance3D = editor._view.get_node_or_null(NodePath(id)) if hit.collider.has_meta("fortification_collision_ranges") else hit.collider.get_meta("visual")
+	var live_root:Node3D=editor._view.get_node_or_null(NodePath(id))
+	var relative:NodePath=live_root.get_path_to(node)
+	var displayed:Node3D=_visual(id)
+	if displayed!=live_root:
+		var preview:Node=displayed.get_node_or_null(relative)
+		if not preview is MeshInstance3D:return Paint.fail("预览表面正在变化，请等待准备完成")
+		node=preview
 	var geo := Paint.geometry(node)
 	if not geo.ok: return geo
 	var local_origin := node.global_transform.affine_inverse() * origin
@@ -94,13 +113,13 @@ func pick(screen: Vector2) -> Dictionary:
 			var distance := local_origin.distance_squared_to(at)
 			if distance >= closest: continue
 			closest = distance
-			target = {"mesh": str(_visual(id).get_path_to(node)), "surface": slot, "face": int(data.face_for_triangle[triangle]), "geometry": data.signature}
+			target = {"mesh": str(relative), "surface": slot, "face": int(data.face_for_triangle[triangle]), "geometry": data.signature}
 	if target.is_empty(): return Paint.fail("没有命中可绘制三角面")
 	return {"ok": true, "id": id, "target": target}
 
 func paint(id: String, target: Dictionary, chosen: String, settings: Dictionary = {}) -> Dictionary:
 	if editor._load_failed: return Paint.fail("地图只读")
-	var record: Dictionary = editor._doc._find(id)
+	var record: Dictionary = _record(id)
 	if record.get("prefab_locked",false) and not (record.has("house_prefab") and record.has("building")):return Paint.fail("此固定预制件不支持单面换材质")
 	if record.has("terrain_depth_blend") or record.has("terrain_slope_blend") or record.has("terrain_regions") or record.has("terrain_saturation"): return Paint.fail("此地形使用渐变、区域或底材调色；请先停用这些效果再手刷三角面，或使用地表区域工具")
 	if not editor._record_editable(record) or record.get("kind") not in ["box", "asset", "seat"]: return Paint.fail("物件不存在、锁定、隐藏或不在当前楼层")
@@ -126,7 +145,7 @@ func paint(id: String, target: Dictionary, chosen: String, settings: Dictionary 
 
 func clear_paint(id: String, target: Dictionary = {}) -> Dictionary:
 	if editor._load_failed: return Paint.fail("地图只读")
-	var record: Dictionary = editor._doc._find(id)
+	var record: Dictionary = _record(id)
 	if record.get("prefab_locked",false) and not (record.has("house_prefab") and record.has("building")):return Paint.fail("此固定预制件不支持单面换材质")
 	if not editor._record_editable(record): return Paint.fail("物件不存在、锁定、隐藏或不在当前楼层")
 	var next := record.duplicate(true)
@@ -139,23 +158,26 @@ func clear_paint(id: String, target: Dictionary = {}) -> Dictionary:
 	return _commit(id, next)
 
 func _commit(id: String, next: Dictionary) -> Dictionary:
-	var record: Dictionary = editor._doc._find(id)
+	var record: Dictionary = _record(id)
 	if record.get("prefab_locked",false) and not (record.has("house_prefab") and record.has("building")):return Paint.fail("此固定预制件不支持单面换材质")
 	if record == next: return {"ok": true, "changed_ids": []}
-	# A brush stroke already owns one complete before-image. Copying the whole
-	# town for each painted component makes large architectural sets quadratic.
-	var before: Array = [] if stroke_active else editor._doc.records.duplicate(true)
 	var detached := Rules.attached(next)
 	Rules.detach(next)
-	record.clear(); record.merge(next)
-	var changed: Array[String] = []
-	if detached: changed.assign(Rules.refresh_all(editor._doc.records))
-	if not changed.has(id): changed.append(id)
-	editor._refresh_records(changed)
-	if not stroke_active: editor._doc.commit_change(before)
-	editor._dirty = true
-	editor._selection_tools.refresh()
-	return {"ok": true, "changed_ids": changed, "detached_auto_tile": detached}
+	var candidate:RefCounted=preload("res://scripts/world_editor/prepared_asset_operation.gd").plan_replacements(_target if stroke_active else editor._doc,{id:next})
+	var changed:Array[String]=[id]
+	if detached:changed.append_array(preload("res://scripts/world_editor/auto_tile_stroke.gd").refresh_around(candidate,[id]))
+	var result:={"ok":true,"changed_ids":changed,"detached_auto_tile":detached}
+	if not stroke_active:return editor._prepare_target(candidate,result,false,Callable(),"material")
+	_target=candidate;_generation+=1
+	for uuid:String in changed:_changed[uuid]=true
+	var generation:=_generation
+	var valid:=func()->bool:return stroke_active and generation==_generation and _current()
+	var preview:Dictionary=editor._asset_operations.preview(_target,_changed.keys(),valid,editor._private_preview_ready,"material")
+	_preview_request=int(preview.get("request_id",0))
+	return result if preview.ok else preview
+
+func _current()->bool:
+	return editor._doc==_source_document and editor._doc.authoring_revision==_source_revision and editor._doc._next==_source_next
 
 func begin(mode: String) -> void:
 	editor._finish_edits()
@@ -167,13 +189,16 @@ func begin(mode: String) -> void:
 	editor._status.text = "点选或拖动刷材质 · Esc 取消 · 右键转视角；自动瓦片绘制后冻结造型" if mode == "paint" else ("点选表面恢复原材质 · Esc 退出" if mode == "restore" else "点选一个表面 · Esc 退出")
 
 func start_stroke() -> void:
+	if _commit_request!=0:editor._status.text="正在准备上一笔材质修改…";return
 	pointer_down = true
 	stroke_active = action != "pick"
-	_before = editor._doc.records.duplicate(true)
-	_was_dirty = editor._dirty
+	_source_document=editor._doc;_source_revision=editor._doc.authoring_revision;_source_next=editor._doc._next
+	_target=preload("res://scripts/world_editor/prepared_asset_operation.gd").plan_replacements(editor._doc,{})
+	_changed.clear();_generation+=1
 	_visited.clear()
 
 func dab(screen: Vector2) -> void:
+	if action!="pick" and not stroke_active:return
 	var hit := pick(screen)
 	if not hit.ok: report(hit); return
 	selected = hit
@@ -189,17 +214,23 @@ func finish(cancelled: bool = false) -> void:
 	pointer_down = false
 	if not stroke_active: return
 	stroke_active = false
-	if editor._doc.records != _before:
-		if cancelled:
-			editor._doc.records = _before
-			editor._dirty = _was_dirty
-			editor._rebuild()
-		else: editor._doc.commit_change(_before)
-	_before = []
+	if _preview_request!=0:editor._asset_operations.cancel(_preview_request);_preview_request=0
+	if not cancelled and _current() and not _changed.is_empty():
+		var result:Dictionary=editor._prepare_target(_target,{"changed_ids":_changed.keys()},false,Callable(),"material")
+		_commit_request=int(result.get("request_id",0))
+		if _commit_request!=0:editor._asset_operations.tag_ui(_commit_request,_published);editor._status.text="正在准备材质修改…"
+		else:_published(result)
+	else:editor._clear_private_preview()
+	_target=null;_source_document=null;_changed.clear()
 	_visited.clear()
 
+func _published(result:Dictionary)->void:
+	_commit_request=0;editor._clear_private_preview()
+	if not result.ok:report(result)
+
 func cancel() -> void:
-	finish()
+	finish(true)
+	if _commit_request!=0:editor._asset_operations.cancel(_commit_request);_commit_request=0
 	active = false
 	hovered.clear()
 	queue_redraw()

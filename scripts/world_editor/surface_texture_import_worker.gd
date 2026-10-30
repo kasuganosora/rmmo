@@ -142,12 +142,17 @@ static func _decode(bytes:PackedByteArray,extension:String)->Image:
 
 ## Encoder is optional injection for CPU contract testing; the normal path uses
 ## the engine's editor-only S3TC encoder. Empty output means PNG fallback.
-static func encode_dds(image:Image,encoder:Callable=Callable())->Dictionary:
+static func coverage_options(preserve:bool=false,threshold:float=.5)->Dictionary:
+	if not is_finite(threshold) or threshold<0. or threshold>1.:return {}
+	# Disabled thresholds share the original products and worker, not variants.
+	return {"preserve_alpha_test_coverage":preserve,"alpha_test_threshold":threshold if preserve else .5,"coverage_key":_digest(var_to_bytes([1,threshold])) if preserve else ""}
+
+static func encode_dds(image:Image,encoder:Callable=Callable(),coverage:Dictionary={})->Dictionary:
 	var width:=image.get_width();var height:=image.get_height()
 	if width%4!=0 or height%4!=0:return {"ok":false,"reason":"dimensions_not_multiple_of_four"}
 	var alpha:=image.detect_alpha()!=Image.ALPHA_NONE
 	var candidate:=image.duplicate() as Image
-	if candidate.generate_mipmaps()!=OK:return {"ok":false,"reason":"mipmap_failed"}
+	if candidate.generate_mipmaps(false,coverage.get("preserve_alpha_test_coverage",false),coverage.get("alpha_test_threshold",.5))!=OK:return {"ok":false,"reason":"mipmap_failed"}
 	var channels:=Image.USED_CHANNELS_RGBA if alpha else Image.USED_CHANNELS_RGB
 	var error:int=ERR_UNAVAILABLE
 	if encoder.is_valid():error=encoder.call(candidate,channels)
@@ -163,7 +168,9 @@ static func encode_dds(image:Image,encoder:Callable=Callable())->Dictionary:
 
 ## Source bytes are read once. The content ID is the SHA of the canonical PNG,
 ## exactly matching the existing library naming and mutable DDS source schema.
-static func prepare(path:String,directory:String,token:RefCounted,root:String="",expected:Dictionary={},read_observer:Callable=Callable(),compression:String="dds")->Dictionary:
+static func prepare(path:String,directory:String,token:RefCounted,root:String="",expected:Dictionary={},read_observer:Callable=Callable(),compression:String="dds",preserve_alpha_test_coverage:bool=false,alpha_test_threshold:float=.5)->Dictionary:
+	var coverage:=coverage_options(preserve_alpha_test_coverage,alpha_test_threshold)
+	if coverage.is_empty():return _fail("透明裁切阈值必须介于 0 和 1 之间")
 	if OS.get_thread_caller_id()==OS.get_main_thread_id():return _fail("贴图导入必须在后台执行")
 	if compression not in ["source","dds"]:return _fail("贴图质量选项无效")
 	if root.is_empty():root=Paths.external_root()
@@ -193,12 +200,13 @@ static func prepare(path:String,directory:String,token:RefCounted,root:String=""
 	var content_id:=_digest(png)
 	# Keep old DDS identities stable. An explicit source variant must not pick
 	# up an existing compressed sibling through ordinary sidecar discovery.
-	var texture_path:=directory.path_join(content_id+(".source" if compression=="source" else "")+".png")
+	var product_directory:=directory if coverage.coverage_key.is_empty() else directory.path_join("alpha_coverage").path_join(coverage.coverage_key)
+	var texture_path:=product_directory.path_join(content_id+(".source" if compression=="source" else "")+".png")
 	if not Paths.allowed(texture_path,root) or not Paths.allowed(texture_path+".previous",root):return _fail("材质库路径无效")
 	if _cancelled(token):return _fail("贴图导入已取消")
 	# The caller retains this packet under its original lease until encoding and
 	# publication finish. PNG and image are borrowed, not copied by phase two.
-	return {"ok":true,"texture_path":texture_path,"content_id":content_id,"source_name":path.get_file().get_basename(),"png":png,"image":image,"compression":compression}
+	return {"ok":true,"texture_path":texture_path,"content_id":content_id,"source_name":path.get_file().get_basename(),"png":png,"image":image,"compression":compression,"library_directory":directory,"coverage":coverage}
 
 static func encode_publish(prepared:Dictionary,token:RefCounted,root:String="",encoder:Callable=Callable(),writer:Callable=Callable(),retain_pixels:bool=false,stage_observer:Callable=Callable())->Dictionary:
 	if OS.get_thread_caller_id()==OS.get_main_thread_id():return _fail("贴图导入必须在后台执行")
@@ -248,7 +256,7 @@ static func encode_publish(prepared:Dictionary,token:RefCounted,root:String="",e
 			var thumb_identity:={"version":1,"source_sha256":content_id,"source_bytes":png.size(),"source_modified_time":source_mtime}
 			if source_unchanged and not _cancelled(token):Library._write(thumb_metadata,JSON.stringify(thumb_identity).to_utf8_buffer())
 	# Ordinary game/package reads never perform this explicit-import comparison.
-	var result:={"ok":true,"texture_path":texture_path,"content_id":content_id,"source_name":str(prepared.source_name),"dds_ready":false,"dds_reason":"","compression":compression}
+	var result:={"ok":true,"texture_path":texture_path,"content_id":content_id,"source_name":str(prepared.source_name),"dds_ready":false,"dds_reason":"","compression":compression,"library_directory":prepared.get("library_directory",directory),"coverage":prepared.get("coverage",coverage_options())}
 	if _cancelled(token):return _fail("贴图导入已取消")
 	if compression=="source":
 		if not DDS.sidecar_path(texture_path,false,false).is_empty():return _fail("保真贴图存在外部压缩副产物，未使用该副产物")
@@ -263,7 +271,7 @@ static func encode_publish(prepared:Dictionary,token:RefCounted,root:String="",e
 	# Runtime's trusted reader selects any existing sidecar by name. Do not
 	# advertise PNG fallback when an invalid old file could still be consumed.
 	if not DDS.sidecar_path(texture_path,false,false).is_empty():return _fail("已有 DDS 副产物无效或身份不匹配，请先处理该副产物")
-	var encoded:=encode_dds(image,encoder)
+	var encoded:=encode_dds(image,encoder,result.coverage)
 	if not encoded.ok:
 		result.dds_reason=encoded.reason
 		return _finish_texture_product(result,image,content_id,"source",image.detect_alpha()!=Image.ALPHA_NONE,retain_pixels,token,root)
@@ -305,21 +313,25 @@ static func encode_publish(prepared:Dictionary,token:RefCounted,root:String="",e
 static func _finish_texture_product(result:Dictionary,image:Image,source_sha:String,representation:String,alpha:bool,retain_pixels:bool,token:RefCounted,root:String)->Dictionary:
 	var native=preload("res://scripts/world3d/streamed_texture_source.gd")
 	if not retain_pixels and not native.enabled():return result
-	var pixels:=_prepared_image(image,source_sha,representation,alpha)
+	if representation=="source" and not str(result.get("coverage",{}).get("coverage_key","")).is_empty():representation+=";coverage:"+str(result.coverage.coverage_key)
+	var pixels:=_prepared_image(image,source_sha,representation,alpha,result.get("coverage",{}))
 	if pixels==null:return _fail("贴图像素准备失败")
 	if native.enabled():
 		# Both UI and HTTP imports use this worker. Reuse its admitted pixels or
 		# existing DDS blocks; never reread the source or encode a second time.
 		var error:Error=native.publish(result.texture_path,pixels,source_sha,representation,root,false,false,token)
 		if error==ERR_SKIP:return _fail("贴图导入已取消")
+		# PNG cannot retain the generated mip chain. Never advertise a coverage
+		# import whose persistent product failed, then silently lose it on reopen.
+		if error!=OK and result.get("coverage",{}).get("preserve_alpha_test_coverage",false):return _fail("无法保存保留透明轮廓的流式贴图："+error_string(error))
 		result.streamed_ready=error==OK
 		result.streamed_reason="" if error==OK else error_string(error)
 	if retain_pixels:result.prepared_image=pixels
 	return result
 
-static func _prepared_image(image:Image,source_sha:String,representation:String,alpha:bool)->Image:
+static func _prepared_image(image:Image,source_sha:String,representation:String,alpha:bool,coverage:Dictionary={})->Image:
 	if image==null:return null
-	if not image.is_compressed() and not image.has_mipmaps() and image.generate_mipmaps()!=OK:return null
+	if not image.is_compressed() and not image.has_mipmaps() and image.generate_mipmaps(false,coverage.get("preserve_alpha_test_coverage",false),coverage.get("alpha_test_threshold",.5))!=OK:return null
 	if not image.is_compressed():preload("res://scripts/world3d/runtime_texture_cache.gd").prepare_upload(image)
 	image.set_meta("runtime_source_sha256",source_sha)
 	image.set_meta("runtime_texture_representation",representation)
@@ -378,6 +390,8 @@ static func _write_immutable(path:String,bytes:PackedByteArray,root:String,token
 	return OK if status=="match" else ERR_ALREADY_EXISTS
 
 static func _label_identity(prepared:Dictionary,label:String)->String:
+	var coverage_key:=str(prepared.get("coverage",{}).get("coverage_key",""))
+	if not coverage_key.is_empty():return "coverage_"+_digest(var_to_bytes([prepared.content_id,prepared.get("compression","dds"),coverage_key,label]))
 	# A marker inside the hash input can be supplied by a DDS label. Prefix
 	# the final ID instead, outside the legacy 64-hex namespace.
 	return ("source_" if prepared.get("compression","dds")=="source" else "")+(str(prepared.content_id)+label).sha256_text()
@@ -402,18 +416,20 @@ static func publish_material(prepared:Dictionary,label:String,token:RefCounted,r
 	var name:=label.strip_edges()
 	if name.is_empty():name=fallback_name if not known_id.is_empty() else str(prepared.source_name)
 	var id:=known_id if not known_id.is_empty() else _label_identity(prepared,name)
-	var metadata:=texture_path.get_base_dir().path_join(id+".json")
+	var metadata:=str(prepared.get("library_directory",texture_path.get_base_dir())).path_join(id+".json")
 	if not Paths.allowed(metadata,root) or not Paths.allowed(metadata+".previous",root):return _fail("材质库路径无效")
-	var material:={"name":name,"texture_path":texture_path.get_file(),"color":[1,1,1,1],"roughness":0.9}
+	var material:={"name":name,"texture_path":texture_path.trim_prefix(metadata.get_base_dir().trim_suffix("/")+"/"),"color":[1,1,1,1],"roughness":0.9}
+	var coverage:Dictionary=prepared.get("coverage",coverage_options())
+	if coverage.preserve_alpha_test_coverage:material.alpha_scissor_threshold=coverage.alpha_test_threshold
 	if _cancelled(token):return _fail("贴图导入已取消")
 	# Cancellation and publication race through one short state transition.
 	# Once claimed, cancellation reports that the atomic commit has begun; it
 	# never waits for filesystem I/O on the scene thread.
 	if token!=null and token.has_method("begin_commit") and not token.begin_commit():return _fail("贴图导入已取消")
-	var error:=Library._write(metadata,JSON.stringify({"material":material}).to_utf8_buffer())
+	var error:=Library._write(metadata,JSON.stringify({"material":material,"source":{"preserve_alpha_test_coverage":coverage.preserve_alpha_test_coverage,"alpha_test_threshold":coverage.alpha_test_threshold}}).to_utf8_buffer())
 	if error!=OK:return _fail("材质写入失败："+error_string(error))
 	material.texture_path=texture_path
-	return {"ok":true,"material_id":id,"material":material,"dds_ready":prepared.dds_ready,"dds_reason":prepared.dds_reason,"dds_reused":prepared.get("dds_reused",false),"dds_sha":prepared.get("dds_sha",""),"compression":prepared.get("compression","dds")}
+	return {"ok":true,"material_id":id,"material":material,"dds_ready":prepared.dds_ready,"dds_reason":prepared.dds_reason,"dds_reused":prepared.get("dds_reused",false),"dds_sha":prepared.get("dds_sha",""),"compression":prepared.get("compression","dds"),"preserve_alpha_test_coverage":coverage.preserve_alpha_test_coverage,"alpha_test_threshold":coverage.alpha_test_threshold}
 
 static func run(path:String,directory:String,label:String,token:RefCounted,root:String="",encoder:Callable=Callable())->Dictionary:
 	var prepared:=prepare(path,directory,token,root)

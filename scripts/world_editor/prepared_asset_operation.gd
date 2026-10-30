@@ -7,18 +7,88 @@ const Prefabs=preload("res://scripts/world_editor/prefab_library.gd")
 const Geometry=preload("res://scripts/world_editor/selection_geometry.gd")
 const Drainer=preload("res://scripts/world3d/asset_worker_drainer.gd")
 const Authoring=preload("res://scripts/world_editor/authoring_view.gd")
-const Picking=preload("res://scripts/world_editor/picking_lod_policy.gd")
+const Dependencies=preload("res://scripts/world3d/record_asset_dependencies.gd")
+const Context=preload("res://scripts/world3d/prepared_record_context.gd")
+const Builder=preload("res://scripts/world_editor/private_view_preparation.gd")
 var editor:Node3D
 var _serial:=0
 var _operations:Dictionary={}
+var _rebuild_wanted:=false
 var work_budget_us:=2000
 var profile:={"started":0,"committed":0,"cancelled":0,"failed":0,"visuals":0,"body_nodes":0,"slices":0,"visual_max_us":0,"body_max_us":0,"commit_max_us":0,"slice_max_us":0,"preparation_max_us":0,"plan_max_us":0,"begin_max_us":0,"place_entry_max_us":0,"history_entry_max_us":0,"history_plan_max_us":0,"history_plan_visits":0,"history_plans":0,"publish_max_us":0,"publish_check_max_us":0,"terrain_updates":0,"terrain_contexts":0,"terrain_boundary_vertices":0}
 
 func snapshot()->Dictionary:return {"pending":_operations.size(),"profile":profile.duplicate()}
-func _guard()->Dictionary:
-	return editor._gameplay.guard() if is_instance_valid(editor) else {"ok":false,"error":"编辑器已关闭"}
+func _guard(canvas:String="")->Dictionary:
+	return editor._gameplay.guard(canvas=="auto",canvas=="material") if is_instance_valid(editor) else {"ok":false,"error":"编辑器已关闭"}
 func _context()->Dictionary:
 	return {"path":editor._path,"settings":editor._authoring.settings.duplicate(true),"gravity":editor._gravity.enabled}
+
+func rebuild()->Dictionary:
+	var guard:=_guard()
+	if not guard.ok:return guard
+	_rebuild_wanted=false
+	var target:=Doc.new();target.records=editor._doc.records.duplicate();target.map_meta=editor._doc.map_meta.duplicate(true);target._next=editor._doc._next
+	return _begin({"kind":"rebuild","target":target,"records":target.records,"ids":target.records.map(func(record):return str(record.uuid)),"full":true,"ui":false,"gravity":false})
+
+## Replace only the private brush presentation. Subscribe before cancelling the
+## previous request so common native producers keep their live consumers.
+func preview(target:RefCounted,ids:Array,valid:Callable,completed:Callable,canvas:String="auto")->Dictionary:
+	var guard:=_guard(canvas)
+	if not guard.ok:return guard
+	var previous:Array=[]
+	for id:int in _operations:
+		if _operations[id].kind=="preview":previous.append(id)
+	var records:Array=[]
+	for id:String in ids:
+		var record:Dictionary=target._find(id)
+		if not record.is_empty():records.append(record)
+	var result:=_begin({"kind":"preview","target":target,"records":records,"ids":ids,"full":false,"ui":true,"gravity":false,"preview_check":valid,"completed":completed,"canvas":canvas})
+	for id:int in previous:cancel(id)
+	return result
+
+func tag_ui(id:int,cleanup:Callable=Callable())->void:
+	if _operations.has(id):_operations[id].ui=true;_operations[id].ui_cleanup=cleanup
+
+## A planner supplies values only; neither document history nor presentation is
+## changed until every target visual and body can be published.
+func replace(updates:Variant,removed:Variant=[],meta:Variant=null,result:Dictionary={},completed:Callable=Callable())->Dictionary:
+	return commit_target(plan_replacements(editor._doc,updates,removed,meta),result,false,completed)
+
+static func plan_replacements(document:RefCounted,updates:Variant,removed:Variant=[],meta:Variant=null)->RefCounted:
+	var target:=Doc.new();target.map_meta=document.map_meta if meta==null else meta;target._next=document._next
+	var erased:Dictionary={}
+	for id:Variant in removed:erased[str(id)]=true
+	if updates is Array:
+		# Generated groups retain their established remove-then-append order.
+		for record:Dictionary in updates:erased[str(record.uuid)]=true
+		for record:Dictionary in document.records:
+			if not erased.has(str(record.uuid)):target.records.append(record)
+		target.records.append_array(updates)
+	else:
+		var remaining:Dictionary=updates.duplicate()
+		for record:Dictionary in document.records:
+			var id:=str(record.uuid)
+			if remaining.has(id):target.records.append(remaining[id])
+			elif not erased.has(id):target.records.append(record)
+			remaining.erase(id)
+		for record:Dictionary in remaining.values():target.records.append(record)
+	return target
+
+func commit_target(target:RefCounted,result:Dictionary={},full:bool=false,completed:Callable=Callable(),canvas:String="",coalesce:bool=false)->Dictionary:
+	var began:=Time.get_ticks_usec();var guard:=_guard(canvas)
+	if not guard.ok:return guard
+	var old:Dictionary={};var ids:Array=[];var changed:Array=[]
+	for record:Dictionary in editor._doc.records:old[str(record.uuid)]=record
+	full=full or Authoring.Settings.resolve(editor._doc.map_meta)!=Authoring.Settings.resolve(target.map_meta)
+	for record:Dictionary in target.records:
+		var id:=str(record.uuid)
+		if full or record!=old.get(id,{}):ids.append(id);changed.append(record)
+		old.erase(id)
+	ids.append_array(old.keys())
+	if ids.is_empty() and target.map_meta==editor._doc.map_meta:return result.merged({"ok":true},true)
+	var op:={"kind":"mutate","target":target,"records":changed,"ids":ids,"full":full,"ui":false,"gravity":false,"result":result,"completed":completed,"canvas":canvas,"coalesce":coalesce and not editor._doc._undo.is_empty()}
+	profile.plan_max_us=maxi(profile.plan_max_us,Time.get_ticks_usec()-began)
+	return _begin(op)
 
 func place(entry:Dictionary,point:Vector3,ui:bool=false)->Dictionary:
 	var began:=Time.get_ticks_usec()
@@ -145,7 +215,7 @@ func _history_plan(records:Array,meta:Dictionary)->Dictionary:
 		var id:=str(record.uuid);var previous:Dictionary=old.get(id,{})
 		if full or previous!=record:
 			ids.append(id);changed.append(record)
-			if _model(record):
+			if Dependencies.has_models(record):
 				native_change=true
 		old.erase(id)
 	ids.append_array(old.keys())
@@ -159,10 +229,10 @@ func _begin(op:Dictionary)->Dictionary:
 	_serial+=1;var id:=_serial;profile.started+=1
 	op.placed_records=op.records;op.placed_ids=op.ids
 	op.records=op.records.duplicate();op.ids=op.ids.duplicate()
-	op.started_usec=Time.get_ticks_usec();op.before=[];op.snapshot_cursor=0
+	op.started_usec=Time.get_ticks_usec();op.before=[];op.snapshot_cursor=0;op.metadata_cursor=0;op.work={"visuals":0,"body_nodes":0}
 	op.merge({"id":id,"document":editor._doc,"revision":editor._doc.authoring_revision,"next":editor._doc._next,"context":_context(),"phase":"waiting","request":0,"handles":{},"visuals":{},"bodies":{},"cursor":0,"nodes":[],"root":Node3D.new(),"shapes":editor._picking_shapes.fork(),"transport":Callable()})
 	op.authoring=Authoring.new();op.authoring.settings=Authoring.Settings.resolve(op.target.map_meta)
-	if op.full:op.root.free();op.root=op.target.export_root()
+	if op.full:op.root.free();op.root=op.target.export_root([])
 	# Native-only changes borrow immutable contexts. Terrain edits fork only the
 	# incremental indices; unchanged Images and contexts remain shared/read-only.
 	var live:RefCounted=editor._doc.terrain_neighbors
@@ -187,24 +257,67 @@ func _begin(op:Dictionary)->Dictionary:
 		if not affected.has(uuid):
 			var record:Dictionary=op.target._find(uuid)
 			if not record.is_empty():op.records.append(record);op.ids.append(uuid)
-	var paths:Dictionary={}
-	for record:Dictionary in op.records:
-		if _model(record):paths[str(record.asset_path)]=true
+	var paths:Array=Dependencies.paths(op.records)
 	_operations[id]=op;set_process(true)
+	op.banner_imports={};op.banner_owners=[]
+	if not _prepare_banner_sources(op):return {"ok":false,"error":"旗帜贴图准备无法启动"}
+	if paths.is_empty():
+		op.synchronous=true
+		_prepared(0,{"ok":true,"handles":{}},id)
+		if _operations.has(id):_advance(op,Time.get_ticks_usec()+work_budget_us)
+		op.synchronous=false
+		profile.begin_max_us=maxi(profile.begin_max_us,Time.get_ticks_usec()-began)
+		if op.has("completion"):return op.completion
+		return {"ok":true,"pending":true,"operation":"prepared_view","request_id":id}
 	var service:Node=Service.for_consumer(self)
 	if service==null:_finish(id,{"ok":false,"error":"模型准备服务不可用"});return {"ok":false,"error":"模型准备服务不可用"}
 	op.service=service
-	op.request=service.request_many(paths.keys(),self,_prepared.bind(id))
+	op.request=service.request_many(paths,self,_prepared.bind(id))
 	if op.request==0:_finish(id,{"ok":false,"error":"模型准备任务无法启动"});return {"ok":false,"error":"模型准备任务无法启动"}
 	profile.begin_max_us=maxi(profile.begin_max_us,Time.get_ticks_usec()-began)
-	return {"ok":true,"pending":true,"request_id":id}
+	return {"ok":true,"pending":true,"operation":"prepared_view","request_id":id}
+
+func _prepare_banner_sources(op:Dictionary)->bool:
+	# New authoring choices import once through the existing shared producer and
+	# ledger. History/rebuild already holds immutable published texture paths.
+	if op.kind!="mutate":return true
+	var requested:Dictionary={};var root_:=preload("res://scripts/world3d/map_paths.gd").external_root()
+	for record:Dictionary in op.records:
+		if record.get("banner",{}).get("design","") not in ["flag","emblem"]:continue
+		var path:String=record.banner.material.texture_path
+		if not preload("res://scripts/world3d/streamed_texture_source.gd").plan_imported(path,false,false,root_).is_empty():continue
+		requested[path]=true
+	if requested.is_empty():return true
+	var service:Node=editor._surface_texture_imports
+	if not service.finished.is_connected(_banner_imported):service.finished.connect(_banner_imported)
+	var library:=preload("res://scripts/world_editor/surface_material_library.gd").new(root_.path_join("assets/banner_streetlamp/designs"))
+	for path:String in requested:
+		var result:Dictionary=service.submit(library,path,"旗帜图案","source")
+		if not result.get("ok",false):_finish(op.id,result);return false
+		op.banner_imports[result.request_id]=path
+	return true
+
+func _banner_imported(request:int,result:Dictionary)->void:
+	for id:int in _operations.keys():
+		var op:Dictionary=_operations[id]
+		if not op.get("banner_imports",{}).has(request):continue
+		var source:String=op.banner_imports[request];op.banner_imports.erase(request)
+		if not result.get("ok",false):_finish(id,result);return
+		if not _current(op):cancel(id,"旗帜准备期间文档或保护上下文已变化");return
+		for record:Dictionary in op.records:
+			if record.get("banner",{}).get("material",{}).get("texture_path","")==source:
+				record.banner.material.texture_path=result.material.texture_path
+		var owner:=preload("res://scripts/world3d/surface_materials.gd").retained_texture(str(result.material.texture_path))
+		if owner!=null:op.banner_owners.append(owner)
+		return
 
 func bind_transport(id:int,check:Callable)->void:
 	if _operations.has(id):_operations[id].transport=check
 func _current(op:Dictionary)->bool:
 	if not is_instance_valid(editor) or not editor.is_inside_tree() or editor._doc!=op.document:return false
 	if editor._doc.authoring_revision!=op.revision or editor._doc._next!=op.next or _context()!=op.context:return false
-	if not _guard().ok:return false
+	if not _guard(op.get("canvas","")).ok:return false
+	if op.kind=="preview" and (not op.preview_check.is_valid() or not op.preview_check.call()):return false
 	if op.transport.is_valid() and not op.transport.call():return false
 	if op.kind in ["undo","redo"]:
 		var history_:Array=editor._doc._undo if op.kind=="undo" else editor._doc._redo
@@ -214,8 +327,13 @@ func _prepared(_request:int,result:Dictionary,id:int)->void:
 	if not _operations.has(id):return
 	var op:Dictionary=_operations[id];op.request=0
 	if not result.get("ok",false):_finish(id,result);return
-	if not _current(op):cancel(id,"文档、保护上下文或请求已变化");return
+	if not _current(op):
+		_retain_stale_rebuild(op)
+		cancel(id,"文档、保护上下文或请求已变化");return
 	op.handles=result.handles;op.phase="building"
+	var templates:Dictionary={}
+	for path:String in op.handles:templates[path]=op.handles[path].packed
+	op.prepared_context=Context.new(templates)
 	profile.preparation_max_us=maxi(profile.preparation_max_us,Time.get_ticks_usec()-int(op.started_usec))
 
 func _process(_delta:float)->void:
@@ -223,62 +341,60 @@ func _process(_delta:float)->void:
 	for id:int in _operations.keys():
 		if not _operations.has(id):continue
 		var op:Dictionary=_operations[id]
-		if not _current(op):cancel(id,"文档、保护上下文或请求已变化");continue
+		if not _current(op):
+			_retain_stale_rebuild(op)
+			cancel(id,"文档、保护上下文或请求已变化");continue
 		if op.phase!="building":continue
-		profile.slices+=1
-		var slice_started:=Time.get_ticks_usec()
-		var advanced:=false
-		while _operations.has(id) and (not advanced or Time.get_ticks_usec()<deadline):
-			advanced=true
-			if op.kind=="place" and op.snapshot_cursor<op.document.records.size():
-				op.before.append(op.document.records[op.snapshot_cursor].duplicate(true));op.snapshot_cursor+=1
-			elif not op.nodes.is_empty():
-				var began:=Time.get_ticks_usec();var valid:=_body_step(op)
-				profile.body_max_us=maxi(profile.body_max_us,Time.get_ticks_usec()-began)
-				if not valid:_finish(id,{"ok":false,"error":"模型碰撞准备失败"});break
-			elif op.cursor<op.records.size():
-				var began:=Time.get_ticks_usec();var valid:=_visual_step(op)
-				profile.visual_max_us=maxi(profile.visual_max_us,Time.get_ticks_usec()-began)
-				if not valid:_finish(id,{"ok":false,"error":"模型实例准备失败，原文档保持不变"});break
-			else:_publish(op);break
-		profile.slice_max_us=maxi(profile.slice_max_us,Time.get_ticks_usec()-slice_started)
+		_advance(op,deadline)
 		if Time.get_ticks_usec()>=deadline:break
-	if _operations.is_empty():set_process(false)
+	if not _operations.is_empty():return
+	set_process(false)
+	# A whole-view rebuild holds no authored change of its own: when a concurrent
+	# transaction invalidates it, the old view is still displayed while the
+	# document already carries that transaction. Retry once the editor is quiet so
+	# the presentation cannot stay behind the authored records.
+	if _rebuild_wanted and is_instance_valid(editor) and editor.is_inside_tree() and not editor._load_failed:
+		_rebuild_wanted=false
+		editor.call_deferred("_rebuild")
+
+## A cancelled view-only rebuild must converge; every other operation is
+## transactional and re-planning it would duplicate authored work.
+func _retain_stale_rebuild(op:Dictionary)->void:
+	if op.kind!="rebuild" or not is_instance_valid(editor) or editor._doc!=op.document:return
+	if not _guard().ok:return
+	_rebuild_wanted=true
+
+func _advance(op:Dictionary,deadline:int)->void:
+	if not op.get("banner_imports",{}).is_empty():return
+	var id:int=op.id
+	profile.slices+=1
+	var slice_started:=Time.get_ticks_usec()
+	var advanced:=false
+	while _operations.has(id) and (not advanced or Time.get_ticks_usec()<deadline):
+		advanced=true
+		if op.kind in ["place","mutate"] and not op.get("coalesce",false) and op.snapshot_cursor<op.document.records.size():
+			op.before.append(op.document.records[op.snapshot_cursor].duplicate(true));op.snapshot_cursor+=1
+		elif op.full and op.metadata_cursor<op.target.records.size():
+			op.root.get_meta("extras").rmmo_records.append(op.target.records[op.metadata_cursor].duplicate(true));op.metadata_cursor+=1
+		elif not op.nodes.is_empty():
+			var began:=Time.get_ticks_usec();var valid:=_body_step(op)
+			profile.body_max_us=maxi(profile.body_max_us,Time.get_ticks_usec()-began)
+			if not valid:_finish(id,{"ok":false,"error":"模型碰撞准备失败"});break
+		elif op.cursor<op.records.size():
+			var began:=Time.get_ticks_usec();var valid:=_visual_step(op)
+			profile.visual_max_us=maxi(profile.visual_max_us,Time.get_ticks_usec()-began)
+			if not valid:_finish(id,{"ok":false,"error":"模型实例准备失败，原文档保持不变"});break
+		else:_publish(op);break
+	profile.slice_max_us=maxi(profile.slice_max_us,Time.get_ticks_usec()-slice_started)
 
 func _visual_step(op:Dictionary)->bool:
-	var record:Dictionary=op.records[op.cursor];op.cursor+=1
-	var prepared:Dictionary={}
-	if _model(record):
-		var path:=str(record.asset_path).replace("\\","/").simplify_path()
-		if not op.handles.has(path) or not op.handles[path].ready():return false
-		prepared.template=op.handles[path].packed
-	var visual:Node3D=op.target._asset(record,prepared) if record.get("kind")=="asset" else op.target._mesh(record)
-	if visual==null:return false
-	op.root.add_child(visual);op.visuals[str(record.uuid)]=visual
-	if visual.get_meta("missing_asset",false) or visual.has_meta("paint_error") or visual.has_meta("tile_error"):return false
-	op.authoring.decorate(record,visual)
-	op.picking=Picking.build(visual,editor._body_node_enabled,op.target._find)
-	op.nodes.append(visual);profile.visuals+=1
-	return true
+	var valid:=Builder.visual_step(op,editor)
+	profile.visuals+=op.work.visuals;op.work.visuals=0
+	return valid
 func _body_step(op:Dictionary)->bool:
-	var node:Node=op.nodes.pop_back();profile.body_nodes+=1
-	if not editor._body_node_enabled(node):return true
-	if node is MeshInstance3D and node.mesh!=null and not op.picking.has(node.get_instance_id()) and editor._body_layers(node)!=0:
-		var pose:=Transform3D.IDENTITY;var current:Node=node
-		while current!=null and current!=op.root:
-			if current is Node3D:
-				pose=current.transform*pose
-				if current.top_level:break
-			current=current.get_parent()
-		var uuid:String=editor._body_uuid(node)
-		var body:StaticBody3D=editor._prepare_body(node,op.shapes,op.target.terrain_neighbors.data.get(uuid,{}),pose)
-		if body==null:return false
-		for shape:Node in body.get_children():
-			if shape is CollisionShape3D and shape.shape==null:body.free();return false
-		if not op.bodies.has(uuid):op.bodies[uuid]=[]
-		op.bodies[uuid].append(body)
-	for child:Node in node.get_children():op.nodes.append(child)
-	return true
+	var valid:=Builder.body_step(op,editor)
+	profile.body_nodes+=op.work.body_nodes;op.work.body_nodes=0
+	return valid
 
 func _publish(op:Dictionary)->void:
 	var began:=Time.get_ticks_usec()
@@ -308,6 +424,11 @@ func _publish_checked(op:Dictionary)->void:
 		else:_finish(op.id,validation)
 		return
 	var commit_started:=Time.get_ticks_usec()
+	if op.kind=="preview":
+		var preview_root:Node3D=op.root;op.root=Node3D.new()
+		op.completed.call(preview_root,op.ids)
+		_finish(op.id,{"ok":true})
+		return
 	var before:Array=op.before
 	var dirty_before:bool=editor._dirty
 	var selected:Array=editor._selection_tools.ids.duplicate()
@@ -316,18 +437,27 @@ func _publish_checked(op:Dictionary)->void:
 			if op.target.map_meta!=editor._doc.map_meta:editor._doc.checkpoint_recovery()
 			else:editor._doc.commit_owned_snapshot(before);before=[]
 		editor._doc.records=op.target.records;editor._doc.map_meta=op.target.map_meta;editor._doc._next=op.target._next
-	else:
+	elif op.kind in ["undo","redo"]:
 		if op.kind=="undo":editor._doc.undo()
 		else:editor._doc.redo()
+	elif op.kind=="mutate":
+		if op.get("coalesce",false):editor._doc.authoring_revision+=1;editor._doc._redo.clear()
+		elif op.target.map_meta!=editor._doc.map_meta:editor._doc.checkpoint_recovery()
+		else:editor._doc.commit_owned_snapshot(before);before=[]
+		editor._doc.records=op.target.records;editor._doc.map_meta=op.target.map_meta;editor._doc._next=op.target._next
+		editor._dirty=true
 	editor._doc.terrain_neighbors=op.target.terrain_neighbors
 	editor._publish_prepared_records(op)
 	editor._picking_shapes.adopt(op.shapes)
+	if op.kind=="rebuild":editor._dirty=dirty_before
 	if op.kind=="place":editor._selection_tools.set_ids(op.placed_ids)
 	else:editor._selection_tools.refresh()
 	if op.gravity:editor._gravity.start_prepared(op.placed_records,before,op.next,selected,dirty_before,validation.landing.distance,op.placed_ids)
 	profile.committed+=1
 	profile.commit_max_us=maxi(profile.commit_max_us,Time.get_ticks_usec()-commit_started)
-	_finish(op.id,{"ok":true,"ids":op.placed_ids if op.kind=="place" else op.ids,"gravity_falling":op.gravity})
+	var result:Dictionary=op.get("result",{}).merged({"ok":true,"ids":op.placed_ids if op.kind=="place" else op.ids,"gravity_falling":op.gravity},true)
+	if op.get("completed",Callable()).is_valid():op.completed.call(result)
+	_finish(op.id,result)
 
 func cancel(id:int,reason:String="操作已取消")->bool:
 	if not _operations.has(id):return false
@@ -337,15 +467,34 @@ func cancel_all(reason:String="操作已取消")->void:
 func cancel_ui()->void:
 	for id:int in _operations.keys():
 		if _operations[id].ui:cancel(id)
+
+## Authored operations hold the only copy of pending document changes. Save,
+## undo/redo and playtest must wait for them instead of cancelling the edit.
+func authored_pending()->int:
+	var count:=0
+	for id:int in _operations:
+		if _operations[id].kind in ["place","mutate","undo","redo"]:count+=1
+	return count
+
+## Presentation-only operations can be dropped without losing authored work.
+func cancel_presentation()->void:
+	for id:int in _operations.keys():
+		if _operations[id].kind in ["preview","rebuild"]:cancel(id)
 func _finish(id:int,result:Dictionary)->void:
 	if not _operations.has(id):return
 	var op:Dictionary=_operations[id];_operations.erase(id)
 	if op.request!=0 and is_instance_valid(op.get("service")):op.service.cancel(op.request)
+	if is_instance_valid(editor) and is_instance_valid(editor._surface_texture_imports):
+		for request:int in op.get("banner_imports",{}):editor._surface_texture_imports.cancel(request)
+	op.get("banner_owners",[]).clear()
 	for bodies:Array in op.bodies.values():
 		for body:Node in bodies:
 			if is_instance_valid(body) and body.get_parent()==null:body.free()
-	Drainer.dispose_scene(op.root);op.handles.clear();op.visuals.clear();op.bodies.clear()
+	Drainer.dispose_scene(op.root);op.handles.clear();op.visuals.clear();op.bodies.clear();op.prepared_context=null
+	if op.get("ui_cleanup",Callable()).is_valid():op.ui_cleanup.call(result)
 	if not result.get("ok",false) and not result.get("cancelled",false):profile.failed+=1
-	if op.ui and is_instance_valid(editor) and editor._status!=null:editor._status.text="已放置，可撤销" if result.get("ok",false) else str(result.get("error","操作失败"))
-	finished.emit(id,result)
+	if op.kind=="preview" and not result.get("ok",false) and not result.get("cancelled",false) and is_instance_valid(editor):editor._status.text=str(result.get("error","预览准备失败"))
+	if op.ui and op.kind!="preview" and is_instance_valid(editor) and editor._status!=null:editor._status.text="已更新，可撤销" if result.get("ok",false) else str(result.get("error","操作失败"))
+	if op.get("synchronous",false):op.completion=result
+	else:finished.emit(id,result)
 func _exit_tree()->void:cancel_all("编辑器已关闭")

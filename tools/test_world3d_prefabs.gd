@@ -101,7 +101,8 @@ func run() -> void:
 	var undo_count: int = destination._undo.size()
 	check(not Prefabs.place(destination, {"prefab_path": broken}, Vector3.ZERO).ok and destination.records.size() == count and destination._undo.size() == undo_count, "malformed prefab is rejected without changing map or history")
 	var packed := Prefabs.read(moved_entry)
-	DirAccess.remove_absolute(str(packed.records[1].asset_path))
+	# Authoring GLB is optional; the packaged native registration is the actual dependency.
+	DirAccess.remove_absolute(Library.Compiled.index_path(str(packed.records[1].asset_path),preload("res://scripts/world3d/map_paths.gd").external_root()))
 	check(not Prefabs.place(destination, moved_entry, Vector3.ZERO).ok and destination.records.size() == count, "missing prefab dependency fails before placement")
 	# Stale library saves must not overwrite another window's published edits.
 	var stale := Library.new(moved)

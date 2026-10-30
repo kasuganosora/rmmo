@@ -189,15 +189,22 @@ func build(effects: bool=true, prepared_assets: Dictionary={}) -> Node3D:
 	var previous_context:Array=[load_paint_validation,load_texture_checks,load_box_meshes,load_model_signatures,load_material_pool,load_native_model_identities]
 	load_paint_validation={};load_texture_checks={};load_box_meshes={};load_model_signatures={};load_material_pool={};load_native_model_identities={}
 	var world := export_root()
+	var context:RefCounted=preload("res://scripts/world3d/prepared_record_context.gd").new(prepared_assets) if not prepared_assets.is_empty() else null
 	terrain_neighbors.update(records)
 	if not effects: _save_meshes.begin(records)
 	for record in records:
 		# A preview can borrow this operation's READY templates without publishing
 		# them into the global scene cache or replacing them across an await.
 		var prepared:Dictionary={}
-		if record.get("kind")=="asset" and not record.has("house_prefab") and not record.has("bridge_mesh") and prepared_assets.has(record.get("asset_path","")):
-			prepared={"template":prepared_assets[record.asset_path]}
-		world.add_child(_asset(record,prepared) if record.get("kind") == "asset" else _mesh(record,effects))
+		if context!=null and record.get("kind")=="asset" and not record.has("house_prefab") and not record.has("bridge_mesh"):
+			prepared=context.prepared(record)
+			if prepared.is_empty():prepared={"scene":null}
+		var visual:Node3D=_asset(record,prepared) if record.get("kind") == "asset" else _mesh(record,effects,null,context)
+		world.add_child(visual)
+		if effects and not world.has_meta("prepared_record_error"):
+			for field:String in ["missing_asset","paint_error","tile_error"]:
+				if visual.get_meta(field,false):
+					world.set_meta("prepared_record_error",str(record.get("uuid",""))+" · "+field+": "+str(visual.get_meta(field)));break
 	load_paint_validation=previous_context[0];load_texture_checks=previous_context[1];load_box_meshes=previous_context[2]
 	load_model_signatures=previous_context[3]
 	load_material_pool=previous_context[4];load_native_model_identities=previous_context[5]
@@ -428,7 +435,7 @@ func _find(uuid: String) -> Dictionary:
 	return {}
 
 
-func _mesh(record: Dictionary, effects: bool=true, timings: Variant=null) -> MeshInstance3D:
+func _mesh(record: Dictionary, effects: bool=true, timings: Variant=null, prepared_context:RefCounted=null) -> MeshInstance3D:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.world_document._mesh") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	var profile_mark:int=Time.get_ticks_usec() if timings!=null else 0
 	var cpu_index:bool=effects and load_immutable_records and (preload("res://scripts/world3d/ground_batch_geometry.gd").candidate(record) or (record.has("water_depth_effect") and preload("res://scripts/world3d/river_materials.gd").water_cpu_index_enabled))
@@ -455,6 +462,9 @@ func _mesh(record: Dictionary, effects: bool=true, timings: Variant=null) -> Mes
 		if timings!=null:timings.texture_validation_ms=(Time.get_ticks_usec()-profile_mark)/1000.;profile_mark=Time.get_ticks_usec()
 	var signature: String = _save_meshes.key(record, terrain_neighbors.data.get(str(record.uuid), {})) if not effects else ""
 	var cached: Mesh = _save_meshes.get_mesh(str(record.uuid), signature) if not effects else null
+	# A supplied template is the operation's source identity. A legacy saved
+	# derived mesh cannot replace it merely because the tile JSON is unchanged.
+	if prepared_context!=null and record.get("tile3d",{}).get("options",{}).has("kit"):cached=null
 	var box_key:Array=[]
 	if effects and load_box_meshes!=null and not record.has("fortification_art"):
 		for field in ["terrain_mesh","terrain_volume","road_mesh","channel_mesh","rock_bank"]:
@@ -537,7 +547,7 @@ func _mesh(record: Dictionary, effects: bool=true, timings: Variant=null) -> Mes
 		mesh_node.mesh=prepared
 		if timings!=null:timings.arraymesh_ms=(Time.get_ticks_usec()-profile_mark)/1000.;profile_mark=Time.get_ticks_usec()
 	else:
-		var geometry:Mesh = preload("res://scripts/world3d/auto_tile_mesh.gd").build(record.tile3d) if record.has("tile3d") else box
+		var geometry:Mesh = preload("res://scripts/world3d/auto_tile_mesh.gd").build(record.tile3d,prepared_context) if record.has("tile3d") else box
 		# Bind only the final geometry; assigning a disposable box uploads it and
 		# can wait for the renderer before the real procedural mesh is prepared.
 		if legacy_mesh_placeholder_enabled:mesh_node.mesh=geometry
@@ -633,6 +643,7 @@ func _mesh(record: Dictionary, effects: bool=true, timings: Variant=null) -> Mes
 		if timings!=null:timings.river_ms=(Time.get_ticks_usec()-profile_mark)/1000.;profile_mark=Time.get_ticks_usec()
 	preload("res://scripts/world3d/wind_response.gd").annotate(mesh_node,record)
 	if effects and preload("res://scripts/world3d/ground_batch_geometry.gd").candidate(record): mesh_node.set_meta("ground_batch_record", (record if load_immutable_records else record.duplicate(true)))
+	if prepared_context!=null:prepared_context.retain(record,mesh_node.mesh)
 	if timings!=null:timings.final_ms=(Time.get_ticks_usec()-profile_mark)/1000.
 	return mesh_node
 

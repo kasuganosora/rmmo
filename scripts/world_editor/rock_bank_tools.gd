@@ -125,11 +125,10 @@ static func apply(editor,args:Dictionary,preview:bool=false)->Dictionary:
 	var result:=plan(editor._doc,args,editor._material_tool.library,Callable(editor,"_record_editable"),func(r):return editor._authoring.Settings.contains(r,editor._authoring.settings))
 	if not result.ok:return result
 	if preview:return {"ok":true,"id":result.record.uuid,"samples":result.samples,"triangles":result.triangles,"bounds":result.bounds,"parameters":recipe(result.record)}
-	commit(editor._doc,result);editor._dirty=true;editor._rebuild()
-	return {"ok":true,"id":result.record.uuid,"samples":result.samples,"triangles":result.triangles}
+	return editor._replace_records({str(result.record.uuid):result.record},[],null,{"ok":true,"id":result.record.uuid,"samples":result.samples,"triangles":result.triangles})
 static func remove(editor,id:String)->Dictionary:
 	var guard:Dictionary=editor._gameplay.guard()
 	if not guard.ok:return guard
 	var r:Dictionary=editor._doc._find(id)
 	if not r.has("rock_bank") or not editor._record_editable(r):return fail("请选择可见、未锁定的当前楼层岩岸")
-	editor._doc.checkpoint();editor._doc.records.erase(r);editor._dirty=true;editor._rebuild();return {"ok":true}
+	return editor._replace_records({},[id],null,{"ok":true})

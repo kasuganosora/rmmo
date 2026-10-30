@@ -316,9 +316,14 @@ func _import() -> void:
 	dialog.current_dir = preload("res://scripts/world3d/map_paths.gd").external_root()
 	dialog.filters = PackedStringArray(["*.png,*.jpg,*.jpeg,*.webp ; 表面贴图"])
 	dialog.add_option("图像质量",PackedStringArray(["保留原像素","有损压缩（节省显存）"]),0 if editor._surface_texture_imports.DEFAULT_COMPRESSION=="source" else 1)
+	var coverage_row:=HBoxContainer.new();dialog.get_vbox().add_child(coverage_row)
+	var coverage:=CheckBox.new();coverage.name="PreserveAlphaCoverage";coverage.text="保持远景叶缘 / 发丝轮廓";coverage.tooltip_text="仅用于透明裁切的颜色贴图；不会改动原始像素。不用于法线贴图或半透明玻璃。";coverage_row.add_child(coverage)
+	var threshold_label:=Label.new();threshold_label.text="裁切阈值";coverage_row.add_child(threshold_label)
+	var threshold:=SpinBox.new();threshold.name="AlphaTestThreshold";threshold.min_value=0.;threshold.max_value=1.;threshold.step=.01;threshold.value=.5;threshold.editable=false;coverage_row.add_child(threshold)
+	coverage.toggled.connect(func(enabled:bool):threshold.editable=enabled)
 	dialog.file_selected.connect(func(path):
 		var compression:="dds" if int(dialog.get_selected_options().get("图像质量",0))==1 else "source"
-		var result: Dictionary = editor._surface_texture_imports.submit(editor._material_tool.library,path,"",compression)
+		var result: Dictionary = editor._surface_texture_imports.submit(editor._material_tool.library,path,"",compression,coverage.button_pressed,threshold.value)
 		if result.ok:
 			editor._status.text="正在后台导入贴图"
 			_import_requests[result.request_id]=true

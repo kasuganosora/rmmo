@@ -74,7 +74,7 @@ static func publish(path:String,image:Image,source_sha:String,representation:Str
 	# a cancelled conversion can leave an unadvertised disposable product only.
 	if _cancelled(token):return ERR_SKIP
 	var alpha:bool=image.get_meta("runtime_upload_has_alpha") if image.has_meta("runtime_upload_has_alpha") else image.detect_alpha()!=Image.ALPHA_NONE
-	var metadata:={"version":1,"file":product.get_file(),"source_sha256":source_sha,"representation":"stex:"+identity,
+	var metadata:={"version":1,"file":product.get_file(),"source_sha256":source_sha,"representation":"stex:"+identity,"source_representation":representation,
 		"normal":normal,"flip":flip,"alpha":alpha,"width":image.get_width(),"height":image.get_height(),"format":image.get_format(),"bytes":image.get_data_size()}
 	var encoded:=JSON.stringify(metadata).to_utf8_buffer()
 	var existing:=FileAccess.open(descriptor,FileAccess.READ)
@@ -106,6 +106,7 @@ static func plan(path:String,flip:bool,normal:bool,root:String)->Dictionary:
 	var name:Variant=data.get("file")
 	if not name is String or name.is_empty() or name!=name.get_file() or not name.ends_with(".stex"):return {}
 	if not data.get("representation") is String or not data.representation.begins_with("stex:"):return {}
+	if not data.get("source_representation","") is String:return {}
 	for field:String in ["width","height","format","bytes"]:
 		var value:Variant=data.get(field)
 		if not (value is int or value is float) or not is_finite(value) or value<0 or value>0xffffffff or value!=int(value):return {}
@@ -134,13 +135,23 @@ static func plan(path:String,flip:bool,normal:bool,root:String)->Dictionary:
 		if header.decode_u32(header_size-16+field*4)!=0:return {}
 	return {"path":path,"flip":flip,"normal":normal,"root":root,"extension":"stex","product":product,
 		"width":width,"height":height,"format":format,"source_bytes":header_size+full_bytes,"output_bytes":full_bytes,
-		"alpha":data.alpha,"representation":data.representation,"mip_sizes":sizes}
+		"alpha":data.alpha,"representation":data.representation,"mip_sizes":sizes,"source_sha256":data.get("source_sha256",""),"source_representation":data.get("source_representation","")}
+
+static func plan_imported(path:String,flip:bool,normal:bool,root:String)->Dictionary:
+	# The importer publishes immutable <PNG SHA>[.source].png names. Arbitrary
+	# editable files retain the snapshot decoder; a sidecar alone cannot make
+	# them immutable. No full source read/hash is needed for this import contract.
+	var identity:=path.get_file().get_basename().trim_suffix(".source")
+	if identity.length()!=64 or not identity.is_valid_hex_number(false):return {}
+	var row:=plan(path,flip,normal,root)
+	return row if row.get("source_sha256","")==identity else {}
 
 static func read(row:Dictionary,digest:String)->Texture2D:
 	var texture:Texture2D=ClassDB.instantiate("StreamedTexture2D")
 	if texture==null or texture.call("load",row.product)!=OK:return null
 	texture.set_meta("runtime_source_sha256",digest)
 	texture.set_meta("runtime_texture_representation",row.representation)
+	if not str(row.get("source_representation","")).is_empty():texture.set_meta("runtime_source_representation",row.source_representation)
 	texture.set_meta("surface_has_alpha",row.alpha)
 	texture.set_meta("runtime_normal_xy",row.format==Image.FORMAT_RGTC_RG)
 	# Full-chain conservative cache charge, not measured dynamic GPU residency.

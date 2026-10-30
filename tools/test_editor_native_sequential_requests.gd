@@ -34,7 +34,7 @@ func borrow_lifetime_case(kind:String)->void:
 	check(first.get("ok",false),kind+": probe starts from real adopted native allocation")
 	await quiet(service,pool)
 	var candidate:=Assets.native_candidate(model.path,content_root)
-	var key:String=service._private_key(model.path)
+	var key:String=service._private_key(model.path,candidate)
 	var probe:=borrow_probe(first.packed,kind=="invalid_last_borrow")
 	service._private_models[key].packed=probe
 	if kind=="prune":
@@ -156,11 +156,11 @@ func invalidation_case(kind:String)->void:
 	await quiet(service,pool)
 	if kind=="budget_candidate":
 		var changed:=change_budget(model.path)
-		check(changed!=candidate and service._identity(model.path,changed,content_root)==service._identity(model.path,candidate,content_root),"full descriptor changes can preserve the in-flight identity key")
+		check(changed!=candidate and service._identity(model.path,changed,content_root)!=service._identity(model.path,candidate,content_root),"budget changes create a separate complete preparation identity")
 	else:invalidate_template(first.packed,kind)
 	var second:=await capture_scene(service,consumer,host,model.path)
 	check(second.get("ok",false) and second.packed_id!=first.packed_id and service.profile.producers==2,kind+": invalid private row cannot be reused")
-	check(service.snapshot().private_templates==1 and index_consistent(service),kind+": current path has one correctly indexed replacement")
+	check(service.snapshot().private_templates==(2 if kind=="budget_candidate" else 1) and index_consistent(service),kind+": distinct live candidates retain only correctly indexed weak entries")
 	check(Ready.scene_ready(first.scene) and Ready.scene_ready(second.scene),kind+": original instance survives while replacement is ready")
 	var references:Array=[first.packed,first.mesh,second.packed,second.mesh]
 	var scenes:Array=[first.scene,second.scene];first={};second={}

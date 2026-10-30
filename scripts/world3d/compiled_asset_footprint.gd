@@ -29,28 +29,35 @@ static func directory(content_root: String) -> String:
 	return Compiled.directory(content_root).path_join("footprints_v1")
 
 static func descriptor_path(path: String, content_root: String) -> String:
+	var local:=Compiled.registration_directory(path)
+	if not local.is_empty():return local.path_join("footprint.json")
 	return directory(content_root).path_join(_path(path).sha256_text() + ".json")
 
 static func building_descriptor_path(path:String,content_root:String)->String:
+	var local:=Compiled.registration_directory(path)
+	if not local.is_empty():return local.path_join("building.json")
 	return directory(content_root).path_join(_path(path).sha256_text()+".building.json")
 
 static func generator() -> String:
 	# This invalidates only footprints, never an existing native product.
 	return (str(VERSION) + ":" + FileAccess.get_sha256("res://scripts/world3d/compiled_asset_footprint.gd")).sha256_text()
 
-static func candidate(path: String, content_root: String, expected_source: String = "", trusted_package: bool = false, expected_product_generator: String = "", metadata: Variant = null, file_identities: Variant = null) -> Dictionary:
+static func candidate(path: String, content_root: String, expected_source: String = "", trusted_package: bool = false, expected_product_generator: String = "", metadata: Variant = null, file_identities: Variant = null, registration:Variant=null) -> Dictionary:
 	if content_root.is_empty() or not Compiled.enabled: return {}
 	if not expected_source.is_empty() and not Compiled._sha(expected_source): return {}
-	var identity := _identity(path, content_root, trusted_package, expected_product_generator, file_identities)
+	var identity := _identity(path, content_root, trusted_package, expected_product_generator, file_identities,registration)
 	if identity.is_empty() or (not expected_source.is_empty() and identity.source_sha != expected_source): return {}
 	var filename := descriptor_path(path, content_root)
-	if not Paths.allowed(filename, directory(content_root)): return {}
+	if not Paths.allowed(filename, content_root if not Compiled.registration_directory(path).is_empty() else directory(content_root)): return {}
 	var envelope := _read_json(filename, MAX_DESCRIPTOR_BYTES, file_identities)
 	var body: Variant = envelope.get("body")
 	if envelope.get("version") != VERSION or not body is String: return {}
 	if not trusted_package and (not Compiled._sha(envelope.get("sha256")) or body.sha256_text() != envelope.sha256): return {}
 	var descriptor: Variant = JSON.parse_string(body)
 	if not descriptor is Dictionary or descriptor.get("version") != VERSION: return {}
+	if not Compiled.registration_directory(path).is_empty():
+		if descriptor.get("source_path")!="model.glb":return {}
+		descriptor.source_path=_path(path)
 	if not trusted_package and descriptor.get("footprint_generator") != generator(): return {}
 	for key in ["source_path", "source_sha", "payload_sha", "generator", "bytes"]:
 		if descriptor.get(key) != identity[key]: return {}
@@ -78,7 +85,7 @@ static func candidate(path: String, content_root: String, expected_source: Strin
 	identity.erase("source_bytes")
 	return identity
 
-static func _identity(path: String, content_root: String, trusted_package:bool=false, expected_product_generator:String="", file_identities:Variant=null) -> Dictionary:
+static func _identity(path: String, content_root: String, trusted_package:bool=false, expected_product_generator:String="", file_identities:Variant=null, registration:Variant=null) -> Dictionary:
 	path = _path(path)
 	if content_root.is_empty(): return {}
 	if not (Paths.asset_key_allowed(path,content_root) if trusted_package else Paths.allowed(path,content_root)): return {}
@@ -90,7 +97,7 @@ static func _identity(path: String, content_root: String, trusted_package:bool=f
 	var folder := Compiled.directory(content_root)
 	if not Paths.allowed(folder, content_root): return {}
 	var index := Compiled.index_path(path, content_root)
-	if not Paths.allowed(index, folder): return {}
+	if not Paths.allowed(index, content_root if not Compiled.registration_directory(path).is_empty() else folder): return {}
 	var manifest := _read_json(index, 8192, file_identities)
 	if manifest.get("version") != Compiled.VERSION or not manifest.get("generator") is String: return {}
 	if not trusted_package and manifest.generator != Compiled.generator(): return {}
@@ -111,6 +118,7 @@ static func _identity(path: String, content_root: String, trusted_package:bool=f
 		for field:String in ["bytes","textures","image_bytes"]:
 			if not _integer(table.get(field),9007199254740991,1 if field=="bytes" else 0):return {}
 		identity.texture_table={"version":1,"sha256":table.sha256,"bytes":int(table.bytes),"textures":int(table.textures),"image_bytes":int(table.image_bytes)}
+	if registration is Dictionary:registration.assign(manifest)
 	return identity
 
 static func build(path: String, content_root: String = "", preserve_published:bool = false) -> Dictionary:
@@ -316,7 +324,7 @@ static func ensure_imported_building(path:String,content_root:String,force:bool=
 
 static func _building_metadata(path:String,content_root:String,identity:Dictionary)->Dictionary:
 	var target:=building_descriptor_path(path,content_root)
-	if not Paths.allowed(target,directory(content_root)):return {}
+	if not Paths.allowed(target,content_root if not Compiled.registration_directory(path).is_empty() else directory(content_root)):return {}
 	var file:=FileAccess.open(target,FileAccess.READ)
 	if file==null or file.get_length()<=0 or file.get_length()>BUILDING_DESCRIPTOR_MAX_BYTES:return {}
 	var outer:=JSON.new()

@@ -7,6 +7,7 @@ const Paths = preload("res://scripts/world3d/map_paths.gd")
 const Doc = preload("res://scripts/world3d/world_document.gd")
 const Io = preload("res://scripts/world3d/gltf_map_io.gd")
 const Stream = preload("res://scripts/world3d/world_stream.gd")
+const RecordAssets = preload("res://scripts/world3d/record_asset_dependencies.gd")
 class PreviewServer extends "res://scripts/net/mock_server.gd":
 	func _ready() -> void: _init_combat_layers()
 
@@ -97,16 +98,15 @@ func _prepare(clone, character: Dictionary, generation: int) -> void:
 	if not _context_current(): _fail("试玩准备期间编辑文档已变化"); return
 	_preparation_clone = clone; _preparation_character = character
 	set_process(true)
-	var paths: Dictionary = {}
+	var paths: Array[String] = RecordAssets.paths(clone.records)
+	for path: String in paths: _asset_paths[path] = path
 	for record: Dictionary in clone.records:
-		if record.get("kind") != "asset" or record.has("house_prefab") or record.has("bridge_mesh"): continue
-		var original := str(record.get("asset_path", ""))
-		var path := original.replace("\\", "/").simplify_path()
-		paths[path] = true; _asset_paths[original] = path
+		for original: String in RecordAssets.for_record(record):
+			_asset_paths[original] = original.replace("\\", "/").simplify_path()
 	if not paths.is_empty():
 		_asset_service = preload("res://scripts/world_editor/editor_asset_preparation.gd").for_consumer(self)
 		if _asset_service == null: _fail("试玩模型准备服务不可用"); return
-		_asset_request = _asset_service.request_many(paths.keys(), self, _assets_prepared.bind(generation))
+		_asset_request = _asset_service.request_many(paths, self, _assets_prepared.bind(generation))
 		if _asset_request == 0: _fail("试玩模型准备任务无法启动"); return
 		return
 	_begin_probe(generation)
@@ -116,7 +116,12 @@ func _begin_probe(generation: int) -> void:
 	if not _preparation_current(): _fail("试玩模型或编辑文档在准备期间已变化"); return
 	_stage = SubViewport.new(); _stage.own_world_3d = true; _stage.disable_3d = true; add_child(_stage)
 	var host := Node3D.new(); _stage.add_child(host)
-	var scene: Node3D = _preparation_clone.build(true, _asset_templates); host.add_child(scene)
+	var scene: Node3D = _preparation_clone.build(true, _asset_templates)
+	var error := _scene_error(scene)
+	if not error.is_empty():
+		preload("res://scripts/world3d/asset_worker_drainer.gd").dispose_scene(scene)
+		_fail(error); return
+	host.add_child(scene)
 	Stream.sync(scene,host,spawn+Vector3(0,.9,0))
 	# One real physics step followed by process, with disconnectable callbacks.
 	# An await owned by a freed session would resume a destroyed GDScript.
@@ -156,7 +161,6 @@ func _assets_prepared(id: int, result: Dictionary, generation: int) -> void:
 	_asset_request = 0
 	if not result.get("ok", false): _fail(str(result.get("error", "试玩模型准备失败"))); return
 	_asset_handles = result.handles
-	if not _preparation_current(): _fail("试玩模型或编辑文档在准备期间已变化"); return
 	for original: String in _asset_paths:
 		var handle: Variant = _asset_handles.get(_asset_paths[original])
 		if handle == null: _fail("试玩模型准备结果不完整"); return
@@ -180,8 +184,16 @@ func _build_play_scene(clone: RefCounted, generation: int) -> Node3D:
 	# The probe root has stream indexes and sibling physics bodies in another
 	# world. Build fresh runtime owners from the same READY allocations instead.
 	var scene: Node3D = clone.build(true, _asset_templates)
+	var error := _scene_error(scene)
+	if not error.is_empty():
+		preload("res://scripts/world3d/asset_worker_drainer.gd").dispose_scene(scene)
+		_fail(error); return null
 	_release_assets()
 	return scene
+
+static func _scene_error(scene:Node3D)->String:
+	if scene == null: return "试玩场景无法构建"
+	return "试玩物件无法准备："+str(scene.get_meta("prepared_record_error")) if scene.has_meta("prepared_record_error") else ""
 
 func _enter(character: Dictionary, generation: int, clone:RefCounted) -> void:
 	var prepared := _build_play_scene(clone, generation)

@@ -7,6 +7,7 @@ const Paths = preload("res://scripts/world3d/map_paths.gd")
 const AssetLibrary = preload("res://scripts/world_editor/asset_library.gd")
 const Io = preload("res://scripts/world3d/gltf_map_io.gd")
 const TerrainTextures=preload("res://scripts/world_editor/terrain_texture_preparation.gd")
+const Paint=preload("res://scripts/world3d/surface_materials.gd")
 const PickingPreparation=preload("res://scripts/world_editor/picking_load_preparation.gd")
 const SourceSnapshot=preload("res://scripts/world3d/document_source_snapshot.gd")
 const PreparationQueue=preload("res://scripts/world_editor/load_preparation_queue.gd")
@@ -18,6 +19,8 @@ const Drainer=preload("res://scripts/world3d/asset_worker_drainer.gd")
 const FrameBudget=preload("res://scripts/world3d/frame_work_budget.gd")
 const ModelOwnership=preload("res://scripts/world_editor/prepared_model_ownership.gd")
 const NativeTextures=preload("res://scripts/world_editor/native_model_texture_preparation.gd")
+const RecordAssets=preload("res://scripts/world3d/record_asset_dependencies.gd")
+const RecordContext=preload("res://scripts/world3d/prepared_record_context.gd")
 static var parallel_preparation_enabled:=true # HTTP roundtrip + fixed-town 1/2-worker ABBA validated.
 static var preparation_worker_limit:=2 # One is a conservative comparison control.
 static var native_model_footprints_enabled:=true # Legacy diagnostic; cannot disable native-only consumption.
@@ -62,6 +65,7 @@ var _terrain_masks:Dictionary={}
 var _terrain_texture_checked:Dictionary={}
 var _texture_pool_sources:Dictionary={}
 var _native_textures:RefCounted
+var _record_context:RefCounted
 # Operation-local CPU test injection; production uses the ordinary shared pool.
 var native_texture_pool:RefCounted
 var native_texture_preparer:Callable
@@ -161,12 +165,14 @@ func _run() -> void:
 	mark=Time.get_ticks_usec()
 	editor._view=document.export_root(); editor.add_child(editor._view)
 	_build_timing("export_root",mark)
-	var slice:=Time.get_ticks_usec(); var count:=0; var slice_first_uuid:=""
+	var slice:=Time.get_ticks_usec(); var count:=0; var slice_first_uuid:="";var construction_error:=""
 	for record in document.records:
 		var uuid:=str(record.get("uuid",""))
 		var prepared_asset:Dictionary=await _prepare_asset(record)
 		if not _operation_current(operation) or prepared_asset.get("cancelled",false):
 			Drainer.dispose_result(prepared_asset);return
+		if not str(prepared_asset.get("error","")).is_empty():
+			construction_error=prepared_asset.error;break
 		var texture_payload:Dictionary={}
 		var texture_frame:=Engine.get_process_frames()
 		while true:
@@ -184,12 +190,17 @@ func _run() -> void:
 		if slice_first_uuid.is_empty():slice_first_uuid=uuid
 		var record_started:=Time.get_ticks_usec()
 		TerrainTextures.reconcile_pool(texture_payload,document.load_material_pool,_texture_pool_sources)
+		var texture_scope:Dictionary=Paint.prepared_textures
 		var image_scope:Dictionary=TerrainTextures.install(texture_payload) if prepared_pixels else {}
 		var visual: Node3D=document._asset(record,prepared_asset) if record.get("kind")=="asset" else _prepared_mesh(document,record)
 		if prepared_pixels:
 			TerrainTextures.restore(image_scope,texture_payload.failed)
+			Paint.prepared_textures=texture_scope
 			if not texture_payload.failed.is_empty():visual.set_meta("paint_error","材质贴图缺失或损坏")
 		_release_texture_payload(texture_payload)
+		if record.has("tile3d") and visual.has_meta("tile_error"):
+			construction_error="自动拼接套件模型无法准备："+uuid+" · "+str(visual.get_meta("tile_error"))
+			Drainer.dispose_scene(visual);break
 		FrameBudget.charge("publication",record_started)
 		_build_timing("asset" if record.get("kind")=="asset" else "mesh",record_started,uuid)
 		mark=Time.get_ticks_usec();editor._view.add_child(visual)
@@ -213,6 +224,7 @@ func _run() -> void:
 	mark=Time.get_ticks_usec()
 	document.load_paint_validation=context[0]; document.load_texture_checks=context[1]; document.load_box_meshes=context[2]; document.load_model_signatures=context[3]; document.load_material_pool=context[4]; document.load_native_model_identities=context[5]
 	_build_timing("context_restore",mark)
+	if not construction_error.is_empty():_complete(false,construction_error);return
 	report("batch"); await get_tree().process_frame
 	if not _operation_current(operation):return
 	mark=Time.get_ticks_usec()
@@ -320,7 +332,7 @@ func _build_elapsed(unit:String,used:int,uuid:String="")->void:
 
 func _prepared_mesh(document:RefCounted,record:Dictionary)->MeshInstance3D:
 	var uuid:=str(record.uuid)
-	if not _terrain_surfaces.has(uuid) and not _terrain_masks.has(uuid):return document._mesh(record,true)
+	if not _terrain_surfaces.has(uuid) and not _terrain_masks.has(uuid):return document._mesh(record,true,null,_record_context)
 	# UUID-keyed preparation belongs only to this immutable load. Install it for
 	# this call and restore everything before any input/undo can see the document.
 	var previous_arrays:Dictionary=document.load_surface_arrays
@@ -329,7 +341,7 @@ func _prepared_mesh(document:RefCounted,record:Dictionary)->MeshInstance3D:
 	var had_context:=contexts.has(uuid);var context:Dictionary=contexts.get(uuid,{})
 	var had_mask:=context.has("region_mask");var previous_mask:Variant=context.get("region_mask")
 	if _terrain_masks.has(uuid):context.region_mask=_terrain_masks[uuid];contexts[uuid]=context
-	var visual:MeshInstance3D=document._mesh(record,true)
+	var visual:MeshInstance3D=document._mesh(record,true,null,_record_context)
 	document.load_surface_arrays=previous_arrays
 	if had_mask:context.region_mask=previous_mask
 	else:context.erase("region_mask")
@@ -409,6 +421,7 @@ func _asset_load_estimate(asset_path:String,root_:String)->Dictionary:
 
 func _begin_asset_lookahead(records:Array)->void:
 	_clear_asset_lookahead()
+	_record_context=RecordContext.new()
 	_preparation=PreparationQueue.new();_preparation.worker_limit=clampi(preparation_worker_limit,1,4) if parallel_preparation_enabled else 1
 	_preparation.resident_enabled=prepared_model_residency_enabled and native_model_footprints_enabled
 	_preparation.lanes_enabled=preparation_lanes_enabled or _preparation.resident_enabled
@@ -434,8 +447,7 @@ func _begin_asset_lookahead(records:Array)->void:
 	var native_bytes:=0;var legacy_bytes:=0;var legacy_skipped:=0
 	var began:=Time.get_ticks_usec()
 	for record:Dictionary in records:
-		if record.get("kind")=="asset" and not record.has("house_prefab") and not record.has("bridge_mesh"):
-			var value:=str(record.get("asset_path",""))
+		for value:String in RecordAssets.paths([record]):
 			if not seen.has(value) and Paths.asset_key_allowed(value,root_):
 				seen[value]=true;_asset_paths.append(value)
 				var plan:=_asset_load_estimate(value,root_)
@@ -487,13 +499,13 @@ func _can_reside_native(key:String,packet:Dictionary)->bool:
 	return not candidate.is_empty() and _native_result_action(candidate,packet)=="ready"
 
 func _enqueue_textures(key:String,requested:Dictionary,root_:String)->void:
-	var plan:=PrefabPixels.estimate(requested,root_,true)
-	var bounded:bool=plan.rows.size()==requested.size()
-	var estimate:Dictionary={"estimated_bytes":maxi(1,int(plan.estimated_bytes)),"exclusive":false} if bounded else MemoryEstimate._unknown("editor_texture_format")
+	var plan:=TerrainTextures.plan(requested,root_)
+	var estimate:Dictionary={"estimated_bytes":maxi(1,int(plan.estimated_bytes)),"exclusive":false} if plan.bounded else MemoryEstimate._unknown("editor_texture_format")
 	estimate.cpu_only=true
-	_preparation.enqueue(key,_decode_textures.bind(requested,root_,plan if bounded else {}),estimate,"texture")
+	_preparation.enqueue(key,_decode_textures.bind(requested,root_,plan),estimate,"texture")
 
 static func _decode_textures(requested:Dictionary,root_:String,plan:Dictionary)->Dictionary:
+	if plan.has("streams"):return TerrainTextures.prepare(plan,root_)
 	if plan.is_empty():return TerrainTextures.decode(requested,root_)
 	# Editor files may change in place. Reuse the admitted snapshot decoder with
 	# content identity, without flipping the process-wide game package policy.
@@ -502,6 +514,7 @@ static func _decode_textures(requested:Dictionary,root_:String,plan:Dictionary)-
 	return {"images":packet.images,"failed":[],"source_proof":packet.sources}
 
 func _clear_asset_lookahead()->void:
+	_record_context=null
 	if is_instance_valid(_preparation):
 		_timings.preparation=_preparation.snapshot()
 		_preparation.cancel();_preparation.queue_free()
@@ -522,8 +535,36 @@ func _publication_slot()->bool:
 	return _operation_current(operation)
 
 func _prepare_asset(record:Dictionary)->Dictionary:
-	if record.get("kind")!="asset" or record.has("house_prefab") or record.has("bridge_mesh"):return {}
-	var asset_path:=str(record.get("asset_path",""))
+	var ordinary:Dictionary={};var yielded:=false
+	var model:bool=RecordAssets.model(record)
+	var path:=str(record.get("asset_path","")).replace("\\","/").simplify_path()
+	for dependency:String in RecordAssets.paths([record]):
+		var prepared:Dictionary=await _prepare_model_template(dependency,str(record.get("uuid","")))
+		if prepared.get("cancelled",false):return prepared
+		yielded=yielded or prepared.get("yielded",false)
+		if not prepared.get("template") is PackedScene:
+			return {"scene":null,"error":"自动拼接套件模型无法准备："+dependency} if record.has("tile3d") else {"scene":null}
+		if record.has("tile3d"):
+			if _record_context==null:_record_context=RecordContext.new()
+			_record_context.accept(dependency,prepared.template)
+		if model and dependency==path:ordinary=prepared
+		else:prepared.clear()
+	if not model:return {"yielded":yielded}
+	if ordinary.is_empty():return {"scene":null}
+	if not ordinary.get("fresh",false):
+		var result:Dictionary={"template":ordinary.template,"yielded":yielded}
+		ordinary.clear();return result
+	var mark:=Time.get_ticks_usec()
+	var scene:Node3D=AssetLibrary._instantiate(ordinary.template)
+	# The awaited function's completion signal can still alias this private
+	# result while the caller immediately disposes its scene. Consume the handoff.
+	ordinary.clear()
+	if scene==null:_asset_failures[path]=true
+	_build_timing("asset_instantiate",mark,str(record.get("uuid","")))
+	FrameBudget.charge("publication",mark)
+	return {"scene":scene,"yielded":yielded}
+
+func _prepare_model_template(asset_path:String,uuid:String)->Dictionary:
 	if _asset_failures.has(asset_path):return {"scene":null}
 	var key:="model:"+asset_path
 	if not is_instance_valid(_preparation) or not _preparation.has(key) or _preparation.rows[key].state=="done":
@@ -531,7 +572,7 @@ func _prepare_asset(record:Dictionary)->Dictionary:
 		var owner:PackedScene=verified.owner.get_ref() if not verified.is_empty() else null
 		return {"template":owner} if owner!=null and AssetLibrary._scenes.get(asset_path)==owner and AssetLibrary.has_cached_scene(asset_path,verified.source_digest) else {"scene":null}
 	var queue:Node=_preparation;var operation:=_serial
-	var done:=completed;var count:=total;var uuid:=str(record.get("uuid",""))
+	var done:=completed;var count:=total
 	report("asset",done,count)
 	var wait_started:=Time.get_ticks_usec();var yielded:=false
 	if queue.is_ready(key):_timings.asset_lookahead.ready_on_consume+=1
@@ -551,7 +592,7 @@ func _prepare_asset(record:Dictionary)->Dictionary:
 	_build_timing("asset_wait",wait_started,uuid)
 	_build_elapsed("asset_parse_worker",worker_us,uuid)
 	if not await _publication_slot() or not _queue_current(queue,operation):return {"cancelled":true,"scene":null}
-	var mark:=Time.get_ticks_usec();var scene:Node3D
+	var mark:=Time.get_ticks_usec()
 	var source_digest:String=str(parsed.get("source_digest",""))
 	var already_cached:bool=parsed.get("error",FAILED)==OK and AssetLibrary._native_cached(asset_path,candidate)
 	var cached_template:PackedScene=AssetLibrary._scenes.get(asset_path) if already_cached else null
@@ -559,11 +600,11 @@ func _prepare_asset(record:Dictionary)->Dictionary:
 	if not already_cached:
 		if parsed.get("error",FAILED)==OK:
 			if queue.resident_enabled:
-				scene=_publish_owned_native(asset_path,parsed,int(candidate.estimated_bytes) if candidate.has("texture_table") else int(queue.rows[key].estimate.estimated_bytes))
-			elif AssetLibrary.cache_packed(asset_path,parsed.packed,source_digest,candidate):scene=AssetLibrary._instantiate(parsed.packed)
-		if scene==null:_asset_failures[asset_path]=true
+				cached_template=_accept_owned_template(asset_path,parsed,int(candidate.estimated_bytes) if candidate.has("texture_table") else int(queue.rows[key].estimate.estimated_bytes))
+			elif AssetLibrary.cache_packed(asset_path,parsed.packed,source_digest,candidate):cached_template=parsed.packed
+		if cached_template==null:_asset_failures[asset_path]=true
 		else:_verified_asset_versions[asset_path]={"source_digest":source_digest,"owner":weakref(AssetLibrary._scenes[asset_path])}
-	if (already_cached or scene!=null) and _native_textures!=null:_native_textures.published(parsed)
+	if cached_template!=null and _native_textures!=null:_native_textures.published(parsed)
 	_build_timing("asset_prepare_main",mark,uuid)
 	FrameBudget.charge("publication",mark)
 	mark=Time.get_ticks_usec();queue.release(key)
@@ -571,9 +612,17 @@ func _prepare_asset(record:Dictionary)->Dictionary:
 	report("build",done,count)
 	# Texture preparation/publication can yield again in _run. Pin the validated
 	# allocation through that gap instead of resolving the mutable global cache.
-	return {"template":cached_template,"yielded":yielded} if already_cached else {"scene":scene,"yielded":yielded}
+	var accepted:Dictionary={"template":cached_template,"yielded":yielded,"fresh":not already_cached}
+	# A suspended function emits its completion before its stack unwinds. Its
+	# caller consumes the private dictionary, so keep no second strong alias here.
+	cached_template=null
+	return accepted
 
 func _publish_owned_native(asset_path:String,packet:Dictionary,envelope_bytes:int)->Node3D:
+	var packed:=_accept_owned_template(asset_path,packet,envelope_bytes)
+	return AssetLibrary._instantiate(packed) if packed!=null else null
+
+func _accept_owned_template(asset_path:String,packet:Dictionary,envelope_bytes:int)->PackedScene:
 	# No await between receipt, cache assignment and adoption. The queue retains
 	# its complete private lease throughout; release occurs only in the caller.
 	var receipt:Dictionary=_model_ownership.preflight(_model_candidates.get(asset_path,{}),packet,envelope_bytes)
@@ -588,7 +637,7 @@ func _publish_owned_native(asset_path:String,packet:Dictionary,envelope_bytes:in
 		if AssetLibrary._scenes.get(asset_path)==packet.packed:AssetLibrary._scenes.erase(asset_path)
 		_timings.asset_lookahead.ownership_rejections[asset_path]=adopted.get("reason","adoption_failed")
 		return null
-	return AssetLibrary._instantiate(packet.packed)
+	return packet.packed
 
 func _prepare_record_textures(record:Dictionary)->Dictionary:
 	var owners:Dictionary={}
@@ -630,11 +679,12 @@ func _prepare_record_textures(record:Dictionary)->Dictionary:
 	_build_timing(timing_prefix+"_wait",wait_started,uuid)
 	_build_elapsed(timing_prefix+"_worker",prepared.elapsed_us,uuid)
 	for image_key:String in prepared.images:_terrain_texture_checked[image_key]=true
+	for image_key:String in prepared.get("uploaded_textures",{}):_terrain_texture_checked[image_key]=true
 	for image_key:String in prepared.failed:_terrain_texture_checked[image_key]=true
 	report("build",done,count)
-	# Do not add GPU owners to the queue's CPU-only packet. Both aliases are
-	# released together by the caller, immediately after publication/cancellation.
-	return {"images":prepared.images,"failed":prepared.failed,"queue_key":key,"owners":owners}
+	# Prepared stream owners remain charged to this job through publication;
+	# borrowed existing owners belong only to the caller's synchronous scope.
+	return {"images":prepared.images,"uploaded_textures":prepared.get("uploaded_textures",{}),"failed":prepared.failed,"queue_key":key,"owners":owners}
 
 func _release_texture_payload(payload:Dictionary)->void:
 	var key:String=payload.get("queue_key","")

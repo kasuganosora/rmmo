@@ -44,6 +44,7 @@ static func for_world(world:Node)->Node:
 static func plan(records:Array,root:String,source_path:String,source_sha:String,dependencies:Dictionary)->Dictionary:
 	var files:Dictionary={source_path:source_sha};var models:Dictionary={};var pixels:Dictionary={};var bytes:=512*1024*1024
 	var geometry_bytes:=0;var split_native:=false
+	for path:String in preload("res://scripts/world3d/record_asset_dependencies.gd").paths(records,root):models[path]=true
 	for record:Dictionary in records:
 		bytes+=int(record.get("house_prefab",{}).get("length",0))*16
 		if record.has("terrain_mesh"):bytes+=int(record.terrain_mesh.columns)*int(record.terrain_mesh.rows)*1024

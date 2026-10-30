@@ -17,7 +17,17 @@ static func directory(content_root:String="")->String:
 	return content_root.path_join("cache/world3d/compiled_assets_v1") if not content_root.is_empty() else Paths.cache_directory("compiled_assets_v1")
 
 static func index_path(path:String,content_root:String="")->String:
+	var local:=registration_directory(path)
+	if not local.is_empty():return local.path_join("index.json")
 	return directory(content_root).path_join(path.replace("\\","/").simplify_path().sha256_text()+".json")
+
+## A prefab may own a portable registration while sharing root-addressed
+## products. This fixed namespace never redirects a product to an arbitrary URI.
+static func registration_directory(path:String)->String:
+	path=path.replace("\\","/").simplify_path()
+	var folder:=path.get_base_dir()
+	if path.get_file()!="model.glb" or folder.get_base_dir().get_file()!="native_models_v1" or not _sha(folder.get_file()):return ""
+	return folder
 
 static func generator()->String:
 	var values:Array=[VERSION,Engine.get_version_info(),ProjectSettings.get_setting("rendering/renderer/rendering_method","")]

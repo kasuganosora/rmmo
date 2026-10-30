@@ -125,7 +125,7 @@ func _handle_http(peer: StreamPeerTCP, method: String, path: String, body: Strin
 		return
 	if method == "POST":
 		var msg: Variant = JSON.parse_string(body)
-		if msg is Dictionary and msg.get("method")=="tools/call" and not msg.has("id") and msg.get("params") is Dictionary and msg.params.get("name") in ["place_asset","undo","redo"]:
+		if msg is Dictionary and msg.get("method")=="tools/call" and not msg.has("id"):
 			_write_http(peer,400,"text/plain","Deferred editor operations require a JSON-RPC request id")
 			return
 		if msg is Dictionary and msg.get("method") == "tools/call" and msg.has("id") and msg.get("params") is Dictionary:
@@ -173,6 +173,19 @@ func _handle_http(peer: StreamPeerTCP, method: String, path: String, body: Strin
 					editor._save_job.finished.connect(_saved_http.bind(peer,msg.id,saving_close), CONNECT_ONE_SHOT)
 				else: _write_http(peer, 200, "application/json", _stringify_rpc(reply))
 				return
+			# Execute once. Any shared prepared transaction can hold this HTTP
+			# request until publication; dispatch does not need a second tool list.
+			var reply:Dictionary=handle_rpc(msg)
+			var payload:Variant=JSON.parse_string(reply.get("result",{}).get("content",[{"text":"{}"}])[0].text)
+			if payload is Dictionary and payload.get("pending",false) and payload.get("operation","")=="prepared_view":
+				var request_id:int=payload.request_id;var peer_id:=peer.get_instance_id()
+				_pending_saves[peer_id]=true
+				_pending_asset_operations[peer_id]={"request_id":request_id,"peer":peer,"id":msg.id,"tool":params.name}
+				_asset_operation_peers[request_id]=peer_id
+				editor._asset_operations.bind_transport(request_id,_asset_peer_connected.bind(peer))
+				if not editor._asset_operations.finished.is_connected(_asset_operation_finished):editor._asset_operations.finished.connect(_asset_operation_finished)
+			else:_write_http(peer,200,"application/json",_stringify_rpc(reply))
+			return
 	super._handle_http(peer, method, path, body)
 
 func _cancel_import(peer_id:int)->void:

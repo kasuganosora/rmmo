@@ -32,4 +32,13 @@ func setup(value:Node3D)->void:
 func _commit_records(_ids:Array)->void:pass
 func _refresh_records(_ids:Array,_index:Variant=null)->void:pass
 func _refresh_selection(_scene:bool=true)->void:pass
-func _rebuild()->void:pass
+func _rebuild()->Dictionary:return {"ok":true}
+
+func _prepare_target(target:RefCounted,result:Dictionary={},_full:bool=false,_completed:Callable=Callable(),_canvas:String="",_coalesce:bool=false)->Dictionary:
+	# The surrounding candidate owns this document. Presentation callbacks must
+	# remain inert until the actual editor accepts the enclosing candidate.
+	_doc.records=target.records;_doc.map_meta=target.map_meta;_doc._next=target._next;_dirty=true
+	return result.merged({"ok":true},true)
+
+func _replace_records(updates:Variant,removed:Variant=[],meta:Variant=null,result:Dictionary={},_completed:Callable=Callable())->Dictionary:
+	return _prepare_target(preload("res://scripts/world_editor/prepared_asset_operation.gd").plan_replacements(_doc,updates,removed,meta),result)

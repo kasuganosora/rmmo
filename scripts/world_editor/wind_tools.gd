@@ -43,10 +43,9 @@ func set_settings(ids: Array, changes: Dictionary) -> Dictionary:
 			if view!=null:imported_default=Response.Paint.meshes(view).any(func(n):return n.get_meta("extras",{}).has("rmmo_wind"))
 		if config != Response.resolve(record) or imported_default: updates[id] = config
 	if updates.is_empty(): return {"ok":true,"changed_ids":[]}
-	editor._doc.checkpoint()
+	var records:Dictionary={}
 	for id in updates:
-		var record: Dictionary = editor._doc._find(str(id))
+		var record: Dictionary = editor._doc._find(str(id)).duplicate(true)
 		# Keep an explicit off override: erasing it would restore authored GLB wind.
-		record.wind_response = updates[id]
-	editor._dirty = true; editor._rebuild()
-	return {"ok":true,"changed_ids":updates.keys()}
+		record.wind_response = updates[id];records[id]=record
+	return editor._replace_records(records,[],null,{"ok":true,"changed_ids":updates.keys()})

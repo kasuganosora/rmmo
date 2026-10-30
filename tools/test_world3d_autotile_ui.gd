@@ -30,6 +30,14 @@ func screen(cell: Vector2i) -> Vector2:
 	return editor._camera.unproject_position(point(cell)) + editor._canvas.global_position
 
 
+## A released drag publishes through the bounded prepared transaction; the
+## document is committed once that operation settles.
+func drained() -> void:
+	var deadline := Time.get_ticks_msec() + 15000
+	while editor._asset_operations.snapshot().pending > 0 and Time.get_ticks_msec() < deadline: await process_frame
+	await settle()
+
+
 func mouse(cell: Vector2i, pressed: bool, shift: bool = false, outside: bool = false) -> void:
 	var event := InputEventMouseButton.new()
 	event.button_index = MOUSE_BUTTON_LEFT
@@ -38,6 +46,7 @@ func mouse(cell: Vector2i, pressed: bool, shift: bool = false, outside: bool = f
 	event.position = Vector2(160, 300) if outside else screen(cell)
 	Input.parse_input_event(event)
 	await settle()
+	if not pressed: await drained()
 
 
 func motion(cell: Vector2i) -> void:
@@ -97,6 +106,9 @@ func run() -> void:
 	editor = load("res://scenes/world_editor.tscn").instantiate()
 	root.add_child(editor)
 	await settle()
+	# The window publishes its startup view through the bounded prepared
+	# transaction; interact only after that build has handed over the map.
+	await drained()
 	editor._camera.position = Vector3(17, 20, 24)
 	editor._camera.look_at(Vector3(0, 0, 1))
 	editor._orbit_center = Vector3(0, 0, 1)
@@ -122,7 +134,7 @@ func run() -> void:
 	await mouse(Vector2i(1, 1), true, true)
 	await mouse(Vector2i(1, 1), false)
 	check(record(Vector2i(1, 1), "road").is_empty() and Rules.shape_name(int(record(Vector2i(0, 1), "road").tile3d.mask)) == "端头", "Shift eraser removes corner and rebuilds adjacent endpoint")
-	editor._undo()
+	editor._undo(); await drained()
 	check(Rules.shape_name(int(record(Vector2i(1, 1), "road").tile3d.mask)) == "转角", "undo restores path connectivity")
 	var before: Array = doc.records.duplicate(true)
 	await mouse(Vector2i(2, 3), true)
@@ -149,7 +161,7 @@ func run() -> void:
 	editor._set_transform_mode(0)
 	editor._inspector.fields.position_0.value += 0.25
 	check(not Rules.attached(doc._find(selected_id)) and record(Vector2i(-2, 1), "road").is_empty(), "manual transform explicitly detaches tile from grid membership")
-	editor._undo()
+	editor._undo(); await drained()
 	check(Rules.attached(doc._find(selected_id)), "undo manual transform restores attached tile and neighboring variants")
 	# An L-shaped wall must leave its inside corner pickable as the terrain below.
 	var wall := record(Vector2i(-3, -2), "wall")
@@ -165,7 +177,7 @@ func run() -> void:
 	await motion(Vector2i(2, -2))
 	await mouse(Vector2i(2, -2), false)
 	check(not record(Vector2i(0, -2), "wall", 3).is_empty() and record(Vector2i(0, -2), "wall", 0).is_empty(), "explicit elevation paints a separate upper layer")
-	editor._undo()
+	editor._undo(); await drained()
 	editor._auto_height = 0
 	check(editor._save() and editor.open_document(editor._path), "editor saves and reopens automatic tile document")
 	check(Rules.shape_name(int(record(Vector2i(-1, 1), "road").tile3d.mask)) == "T 形", "reopened document keeps editable connection variants")

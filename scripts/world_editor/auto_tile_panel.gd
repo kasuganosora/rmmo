@@ -33,13 +33,13 @@ func setup(host: Node3D) -> void:
 	field("rail_height", "栏杆高度（米）", .3, 3, 1)
 	var direction := OptionButton.new()
 	for title in ["向北上升（-Z）", "向东上升（+X）", "向南上升（+Z）", "向西上升（-X）"]: direction.add_item(title)
-	direction.item_selected.connect(func(_index): editor._finish_auto_stroke())
+	direction.item_selected.connect(func(_index): editor._finish_auto_stroke(true);editor._asset_operations.cancel_ui())
 	fields.direction = direction
 	add_child(direction)
 	var label := Label.new(); label.text = "拼接模型套件"; add_child(label)
 	kit_select = OptionButton.new()
 	kit_select.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-	kit_select.item_selected.connect(func(_index): editor._finish_auto_stroke())
+	kit_select.item_selected.connect(func(_index): editor._finish_auto_stroke(true);editor._asset_operations.cancel_ui())
 	add_child(kit_select)
 	var import_button := Button.new(); import_button.text = "导入套件清单…"
 	import_button.pressed.connect(import_dialog)
@@ -54,7 +54,7 @@ func field(key: String, title: String, low: float, high: float, value: float) ->
 	var box := VBoxContainer.new()
 	var label := Label.new(); label.text = title; box.add_child(label)
 	var spin := SpinBox.new(); spin.min_value = low; spin.max_value = high; spin.step = .1; spin.value = value
-	spin.value_changed.connect(func(_value): editor._finish_auto_stroke())
+	spin.value_changed.connect(func(_value): editor._finish_auto_stroke(true);editor._asset_operations.cancel_ui())
 	box.add_child(spin); add_child(box)
 	fields[key] = spin
 

@@ -5,7 +5,7 @@ static var shaders := {}
 # Main-thread cache. A Shader is ready only after its first material/uniform use.
 static func variant_key(source:StandardMaterial3D)->String:
 	if source==null:source=StandardMaterial3D.new()
-	return "%d/%d/%d/%s/%d/%s" % [source.cull_mode,source.transparency,source.shading_mode,source.texture_repeat,source.texture_filter,source.backlight_enabled]
+	return "%d/%d/%d/%s/%d/%s/%s/%d/%d" % [source.cull_mode,source.transparency,source.shading_mode,source.texture_repeat,source.texture_filter,source.backlight_enabled,source.detail_enabled,source.detail_blend_mode,source.detail_uv_layer]
 
 static func variant_is_prepared(key:String)->bool:
 	return shaders.has(key) and shaders[key].get_meta("wind_variant_prepared",false)
@@ -37,6 +37,12 @@ static func make(source: StandardMaterial3D, config: Dictionary, bounds: AABB, t
 		elif source.transparency == BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR: alpha = "ALPHA = base.a; ALPHA_SCISSOR_THRESHOLD = alpha_cut;"
 		code = code.replace("// ALPHA_INSERT",alpha)
 		code = code.replace("// BACKLIGHT_INSERT","BACKLIGHT = backlight + texture(backlight_tex,UV).rgb;" if source.backlight_enabled else "")
+		var detail:=""
+		if source.detail_enabled:
+			var uv:="UV2*detail_uv_scale.xy+detail_uv_offset.xy" if source.detail_uv_layer==BaseMaterial3D.DETAIL_UV_2 else "UV"
+			var blend:String=["art.rgb","ALBEDO+art.rgb","ALBEDO-art.rgb","ALBEDO*art.rgb"][source.detail_blend_mode]
+			detail="vec4 art=texture(detail_albedo_tex,"+uv+"); ALBEDO=mix(ALBEDO,"+blend+",art.a*texture(detail_mask_tex,UV).r);"
+		code=code.replace("// DETAIL_INSERT",detail)
 		timing.shader_source_ms=(Time.get_ticks_usec()-phase)/1000.0
 		phase=Time.get_ticks_usec()
 		var shader:=Shader.new()
@@ -74,6 +80,10 @@ static func make(source: StandardMaterial3D, config: Dictionary, bounds: AABB, t
 		var texture: Texture2D = source.get(pair[1])
 		if texture != null: result.set_shader_parameter(pair[0],texture)
 	if source.backlight_texture!=null:result.set_shader_parameter("backlight_tex",source.backlight_texture)
+	if source.detail_enabled:
+		result.set_shader_parameter("detail_uv_scale",source.uv2_scale);result.set_shader_parameter("detail_uv_offset",source.uv2_offset)
+		if source.detail_albedo!=null:result.set_shader_parameter("detail_albedo_tex",source.detail_albedo)
+		if source.detail_mask!=null:result.set_shader_parameter("detail_mask_tex",source.detail_mask)
 	timing.textures_ms=(Time.get_ticks_usec()-phase)/1000.0
 	shaders[key].set_meta("wind_variant_prepared",true)
 	timing.total_ms=(Time.get_ticks_usec()-started)/1000.0

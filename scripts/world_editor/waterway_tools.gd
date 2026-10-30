@@ -149,9 +149,8 @@ func generate(args: Dictionary) -> Dictionary:
 		if not frozen.ok:return frozen
 		result.records[i]=frozen.record
 	preload("res://scripts/world3d/structure_prefab.gd").refresh_bindings({"editor_layout":result.metadata},result.records)
-	editor._doc.checkpoint_recovery(); editor._doc.records=editor._doc.records.filter(func(r):return not result.excluded.has(r.uuid)); editor._doc.records.append_array(result.records)
-	editor._doc.map_meta.editor_layout=result.metadata; editor._dirty=true; editor._rebuild()
-	return {"ok":true,"changed":true,"chunks":result.records.size(),"ids":result.records.map(func(r):return r.uuid)}
+	var meta:Dictionary=editor._doc.map_meta.duplicate();meta.editor_layout=result.metadata
+	return editor._replace_records(result.records,result.excluded,meta,{"ok":true,"changed":true,"chunks":result.records.size(),"ids":result.records.map(func(r):return r.uuid)},_published)
 func remove(id: String,keep_objects: bool) -> Dictionary:
 	var ready: Dictionary=editor._city.guard()
 	if not ready.ok: return ready
@@ -170,8 +169,8 @@ func remove(id: String,keep_objects: bool) -> Dictionary:
 			if ownership.ids.has(r.uuid): continue
 			for poly in plan.envelope:
 				if Foot.batches_overlap(Foot.record_shapes(r),[Plan.shape(poly,old.settings.bank_height-old.settings.water_drop-old.settings.depth,old.settings.bank_height+.05)]): return Data.fail("河槽中已有独立物件，恢复地面会覆盖它；请先移开或保留现场解除关联")
-	editor._doc.checkpoint_recovery()
-	if not keep_objects:
-		editor._doc.records=editor._doc.records.filter(func(r):return not ownership.ids.has(r.uuid)); editor._doc.records.append_array(old.sources.duplicate(true))
-	var value:=Data.resolve(editor._doc.map_meta); value.waterways=regions().filter(func(r):return r.settings.id!=id); editor._doc.map_meta.editor_layout=value; editor._dirty=true; editor._rebuild()
-	return {"ok":true,"kept_objects":keep_objects,"restored_ground":0 if keep_objects else old.sources.size()}
+	var value:=Data.resolve(editor._doc.map_meta);value.waterways=regions().filter(func(r):return r.settings.id!=id)
+	var meta:Dictionary=editor._doc.map_meta.duplicate();meta.editor_layout=value
+	return editor._replace_records([] if keep_objects else old.sources.duplicate(true),[] if keep_objects else ownership.ids,meta,{"ok":true,"kept_objects":keep_objects,"restored_ground":0 if keep_objects else old.sources.size()},_published)
+
+func _published(_result:Dictionary)->void:editor._city.refresh()

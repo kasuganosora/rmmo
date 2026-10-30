@@ -1,6 +1,8 @@
 extends Control
 ## Selection is editor state; grouping/visibility/locking live in undoable records.
 const Geometry = preload("res://scripts/world_editor/selection_geometry.gd")
+const Rules = preload("res://scripts/world3d/auto_tile_rules.gd")
+const Document = preload("res://scripts/world3d/world_document.gd")
 var editor: Node3D
 var ids: Array[String] = []
 var box_mode := false
@@ -11,6 +13,7 @@ var additive := false
 var component_edit := false
 var whole := false
 var last_error := ""
+var last_operation:Dictionary={}
 var motion = preload("res://scripts/world_editor/building_motion.gd").new()
 var _pivot_valid := false
 var _pivot := Vector3.ZERO
@@ -231,18 +234,23 @@ func changed(refresh_scene: bool=true) -> void:
 	refresh(refresh_scene)
 
 
-func remove() -> void:
-	if editor._load_failed or ids.is_empty(): return
+func remove() -> Dictionary:
+	if editor._load_failed or ids.is_empty():return {"ok":false,"error":"请先选择可编辑物件"}
 	var structures:Array=records().filter(func(r):return r.get("prefab_locked",false) and r.has("fortification"))
 	if not structures.is_empty():
 		var owner:String=structures[0].fortification.id
-		if structures.size()!=ids.size() or not structures.all(func(r):return r.fortification.id==owner):motion.fail("请单独选择一组固定城防进行整体删除");return
+		if structures.size()!=ids.size() or not structures.all(func(r):return r.fortification.id==owner):return motion.fail("请单独选择一组固定城防进行整体删除")
 		var result:Dictionary=editor._fortifications.remove(owner,false)
 		if not result.ok:motion.fail(result.error)
 		else:set_ids([])
-		return
+		return result
 	editor._transform_drag.finish()
-	if whole: motion.remove(); return
+	if whole:return motion.remove()
+	if needs_native_detach(records()):
+		var target:=_native_target()
+		target.records=target.records.filter(func(record):return not ids.has(str(record.uuid)))
+		Rules.refresh_all(target.records)
+		return _submit_native_target(target,{"ok":true},[],true)
 	editor._doc.checkpoint()
 	var changed:Array=ids.duplicate()
 	for id in ids: editor._doc.remove(id)
@@ -251,19 +259,61 @@ func remove() -> void:
 	editor._dirty = true
 	editor._commit_records(changed)
 	refresh()
+	return {"ok":true}
 
 
-func duplicate_selected() -> void:
-	if editor._load_failed or ids.is_empty(): return
-	if records().any(func(r):return r.get("prefab_locked",false) and r.has("fortification")):motion.fail("固定城防不支持复制现有路径身份；请在城防面板新建独立布局");return
+func needs_native_detach(selected:Array)->bool:
+	if not selected.any(func(record):return Rules.attached(record)):return false
+	return editor._doc.records.any(func(record):return record.get("tile3d",{}).get("options",{}).has("kit"))
+
+
+func _native_target()->RefCounted:
+	var target:=Document.new()
+	target.records=editor._doc.records.duplicate(true);target.map_meta=editor._doc.map_meta;target._next=editor._doc._next
+	return target
+
+
+func _submit_native_target(target:RefCounted,result:Dictionary,selected:Array,record_history:bool)->Dictionary:
+	var desired:=selected.duplicate()
+	var completed:=func(done:Dictionary):
+		if done.ok:set_ids(desired)
+	var pending:Dictionary=editor._asset_operations.commit_target(target,result,false,completed,"",not record_history)
+	if pending.get("pending",false):editor._status.text="正在准备模型及相邻网格…"
+	elif not pending.ok:editor._status.text=str(pending.error)
+	return pending
+
+
+func prepare_native_transform(proposed:Array,record_history:bool=true)->Dictionary:
+	var target:=_native_target();var updates:Dictionary={};var selected:Array=[]
+	for record:Dictionary in proposed:updates[str(record.uuid)]=record;selected.append(str(record.uuid))
+	for record:Dictionary in target.records:
+		if not updates.has(str(record.uuid)):continue
+		for field:String in ["position","rotation","size"]:record[field]=updates[str(record.uuid)][field].duplicate()
+		if Rules.attached(record):Rules.detach(record)
+	Rules.refresh_all(target.records)
+	return _submit_native_target(target,{"ok":true,"changed":true},selected,record_history)
+
+
+func duplicate_selected() -> Dictionary:
+	if editor._load_failed or ids.is_empty(): return {"ok":false,"error":"请先选择可编辑物件"}
+	if records().any(func(r):return r.get("prefab_locked",false) and r.has("fortification")):
+		var message:="固定城防不支持复制现有路径身份；请在城防面板新建独立布局"
+		motion.fail(message);return {"ok":false,"error":message}
 	editor._transform_drag.finish()
-	if whole: motion.duplicate_selected(); return
-	editor._doc.checkpoint()
+	if whole:return motion.duplicate_selected()
 	var step: float = editor._snap if editor._snap > 0 else 0.25
+	if not preload("res://scripts/world3d/record_asset_dependencies.gd").paths(records()).is_empty():
+		var target:=preload("res://scripts/world3d/world_document.gd").new()
+		target.records=editor._doc.records.duplicate();target.map_meta=editor._doc.map_meta;target._next=editor._doc._next
+		var copies:=Geometry.duplicate_records(target,records(),Vector3(step,0,0))
+		return editor._prepare_target(target,{"ok":true,"ids":copies},false,func(result:Dictionary):
+			if result.ok:set_ids(copies))
+	editor._doc.checkpoint()
 	var added := Geometry.duplicate_records(editor._doc, records(), Vector3(step, 0, 0))
 	editor._dirty = true
 	editor._commit_records(added)
 	set_ids(added)
+	return {"ok":true,"ids":added}
 
 
 func transform_numeric(field: String, axis: int, value: float) -> void:
@@ -298,6 +348,7 @@ func apply_transform(translation: Vector3, rotation: Basis, factor: float) -> Di
 		record.size = [size_.x, size_.y, size_.z]
 	if editor._gravity.enabled: proposed = editor._gravity.constrain(previous, proposed)
 	if proposed == previous: return {"ok":true,"changed":false}
+	if needs_native_detach(previous):return prepare_native_transform(proposed)
 	editor._doc.checkpoint()
 	var live := records()
 	for i in live.size():
@@ -332,6 +383,7 @@ func set_properties(targets: Array, properties: Dictionary) -> bool:
 
 
 func set_object_transform(id: String, properties: Dictionary, record_history: bool = true) -> bool:
+	last_operation={}
 	last_error = "物件不存在、已隐藏、锁定或不在当前楼层"
 	var record: Dictionary = editor._doc._find(id)
 	if editor._load_failed or not editor._record_editable(record): return false
@@ -354,6 +406,12 @@ func set_object_transform(id: String, properties: Dictionary, record_history: bo
 	for field in properties:
 		if record[field] != properties[field]: changed_ = true
 	if not changed_: return true
+	if needs_native_detach([record]):
+		var proposed:=record.duplicate(true)
+		for field in properties:proposed[field]=properties[field].duplicate()
+		last_operation=prepare_native_transform([proposed],record_history)
+		if not last_operation.ok:last_error=str(last_operation.error)
+		return bool(last_operation.ok)
 	if record_history: editor._doc.checkpoint()
 	for field in properties: record[field] = properties[field].duplicate()
 	if ids != [id]: set_ids([id])

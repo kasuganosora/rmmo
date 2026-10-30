@@ -324,10 +324,121 @@ inactive 样本直接把已加载全驻留 STEX 交给控件，仅证明其呈�
 
 完整交付 `target_scene_prefetch_budget_01/delivery_budget_final.json`，SHA `a2edac1f90c029de15691ea2ba15aee2525811f046e1a832f50b01959efce7ef`。默认 candidate07 未修改。GPU 原夹具 `normal_loaded` 字典别名被清空、只对其中一个 surface texture 保留逐对象弱引用等限制沿原记录保留；不补造 profile，也不将旧样本重复计数。没有 axel_town 总加载或 1% low 收益结论。
 
+## 默认拆分导入：完整编辑流候选验证（尚未切主默认）
+
+当前 `AssetLibrary.import_file` 默认仍调用 embedded native 编译。独立 `e1cb061b` 归档中通过真实 GLB 导出/公共导入接口复现：8 项检查中 6 通过、2 失败，失败分别是没有独立纹理表、原生几何仍内嵌图片，零引擎诊断。证据为 B 的 `editor_split_import_flow_01/red_01`。这不是资源坏包，属于导入默认值尚未切换。
+
+候选只在导入端启用 `Compiled.build_from_prepared(..., true)` / `Compiled.build(..., true)`，并要求本次会话的复用记录含纹理表。`candidate_01` 使用相同归档和明确的单文件覆盖，实际公共导入两个带纹理模型，再删除原 GLB 和素材库中的 GLB 副本，运行既有真实 UI/HTTP 冷放置、撤销重做、预制件、原子保存、切图及冷重开流程：**95/95 检查通过，零诊断**。实际放置纹理为 `StreamedTexture2D`，同相机对比 30,912 个可见像素、RGBA 差异字节 0；退出后临时账本、私有几何和引擎纹理驻留全部归零。未改变正式地图或资源。
+
+实际编辑器图及源/候选对比图均保存为原尺寸有损质量 90 WebP，记录见 `candidate_01/webp_proof.json`。两张对比图 SHA 都是 `941d47458aa1a7ce63ed3ebe3e1fde929162111a6c85bfc16a3cbf33da1c20fe`。这里只是合成管线夹具的功能与无损画面证据；不是新美术模型交付，也不是 axel_town 性能数据。导入场景包含 GLB 重导出路径，实际记录 parse_count=2，未冒称一次解析。
+
+**该候选轮结束时主默认尚未切换**。2026-10-30 已在工作区将默认导入切到拆分产物，并进行整合验证，见文末；正式旧模型迁移和其受影响项验收尚未完成。
+
+## 整视图重建、套件消费者与预制件独立登记（已完成并回归）
+
+上节列出的三项入口缺口已经落地，编辑器交互、LoadJob、MapLoader、试玩与跨图预取现在共用同一份记录依赖与构建上下文：
+
+- `record_asset_dependencies.gd` 统一“记录→原生依赖”（普通模型 + 自定义套件件），替换各入口各自的 `kind=="asset"` 判断；`prepared_record_context.gd` 让一次构建借用 READY 模板并缓存派生套件网格，不再把派生件写回全局强缓存；`private_view_preparation.gd` 提供与事务共享的私有视觉/碰撞分帧构建。
+- `WorldEditor._rebuild()` 改为 `PreparedAssetOperation.rebuild()`：重建期间保留旧视图，准备完成才整体替换；只读依赖时走同步完成，模型冷依赖时分帧并在编辑器静默后发布。
+- 套件消费者 `AutoTileKit.piece_mesh/build` 接受构建上下文；缓存改为弱引用 + 有界标量存活检查，套件派生网格通过 `_compiled_resource_owners` 保留原模板租约，CPU 规格捕获沿用该租约。
+- 预制件独立登记：`native_prefab_dependencies.gd` 在目标包内写 `native_models_v1/<identity>/{index,footprint,(building)}.json`，记录只指向固定命名空间的 `model.glb` 逻辑路径；`Compiled.index_path` / `CompiledAssetFootprint.descriptor_path` 识别该命名空间，校验仍要求源/产物/合同字段一致。检查改用原生可用性而非 GLB 是否存在，原“把 GLB 复制进包”的测试假设替换为“移走原登记后预制件仍可读”。
+
+同时补两处事务安全，避免新交互丢失已编辑内容：
+
+- 作者修改类事务（放置、整视图变更、撤销/重做）不再被保存、撤销、重做、试玩和关闭前的清理取消；处于准备中时给出“正在准备编辑结果，请稍候”的明确提示，只有预览与整视图重建这类纯呈现事务可以被丢弃。
+- 整视图重建被并发编辑打断后会自行重试（`_retain_stale_rebuild` + 静默后一次重建），不会停留在旧视图。
+
+导入与重新关联也收敛为一份实现：`model_import_tools.gd` 的 `import_model` / `relink_model` 同时服务 UI 文件选择框与当前 3D MCP（schema 与文档同步），重关联保留实例 ID、变换并只形成一笔撤销。
+
+自动拼接画笔的“私有预演”尝试已回退为逐格同步刷新（UI 与 MCP 一致）：该实验在真实 UI 测试里会把整视图替换成只含本次格子的部分视图。`auto_tile_stroke` 的暂存能力保留但不在交互路径使用，后续若恢复必须重做整视图替换条件。
+
+|验证|结果|环境|
+|---|---|---|
+|整视图重建、套件消费者、中断后重试|25/25；真实编辑器、私有 READY 模型、原生读取计数 0、历史/脏标记不变|CPU headless，隔离内容根|
+|冷放置/历史/试玩事务回归|174 + 89|CPU headless；GPU 私有桌面|
+|载入与准备|130 + 1095 + 106 + 55 + 21|CPU headless|
+|自动拼接画笔真实 UI|17/17；路径形状、撤销、保存重开、墙内角拾取、1024 布局|GPU 私有桌面|
+|素材准备与启动视图|53/53；含“启动即准备好的视图”检查|GPU 私有桌面|
+|预制件独立登记|23/23；移走原 GLB 与素材库副本后仍可读、可放置、可保存重开|GPU 私有桌面|
+|导入/重关联真实 HTTP|38/38；非法参数无副作用、撤销重做、锁定保护、保存冷重开|GPU 私有桌面|
+|整图增量记录|81/81|GPU 私有桌面|
+
+全部夹具使用 `editor_rebuild_transaction_20261029/run_01|run_02` 的隔离内容根，未改正式地图或正式素材库；CPU 与 GPU 样本分开记录，不把两者相加当整图成绩。
+
+**保留的基线红项**：`test_world3d_autotile` 的“导出 glTF 保留顶点色”断言在未修改的 `e1cb061b` 上同样失败（headless 与 GPU 均复现，错误为导出网格缺少 `COLOR_0`），不是本切片引入，也未在本切片修复。`test_native_kit_consumers_gpu` 的 split 元数据断言按设计需要候选默认导入，默认仍为 embedded，因此该断言在主默认切换前保持失败；其余 9 项照常通过。
+
 ## 后续顺序
 
 1. 旧 operation → 新 Initial 的**已完成 owner 入站复用已完成**，结果见上节及 B 的 `initial_native_inbound_reuse_handoff.json`。并发 operation 中尚未完成的 producer 仍各有自己的池，尚无跨 operation 的全局在途 single-flight；不把本轮完成票据复用说成该问题也已解决。也不能因 `start` 时目录为空就整次跳桥，旧 operation 可能在 metadata 就绪前发布 owner。后续可考虑请求抵达主线程时，以两个目录当前均空作 O(1) 全 miss 回复，保留现有取消与 metadata 退役合同。
 2. 引擎排队 I/O 的 owner、shutdown 及预览就绪 API 已按上节复现、修复、回归并安装 candidate07；后续验证使用准确 SHA，不以相同 version 字符串混淆 04d/05/06/07。更广生命周期和整图表现继续在实际集成中检验。
-3. **当前优先交付编辑器可用性，性能后置。** 普通模型的 LoadJob、预览/缩略图、冷放置/历史操作、试玩已按上节完成各自协议与 GPU/HTTP 验证；剩余普通整视图重建和 custom kit 需要共同依赖/build context，覆盖编辑器操作、LoadJob、MapLoader 与试玩。prefab 独立包/搬迁合同已有上述原生红测，继续修复；TargetScenePrefetch 严格预算与重复拒绝已按本节收尾。优先贯通导入、放置/套件、编辑、撤销、试玩、保存冷重开，随后切换默认 split 导入并迁移既有内嵌 native。历史只读报告 `editor_native_streaming_integration_readonly_01.json` 不是这些后续切片的验收证据，游戏 Initial 的独立账本也不能代替编辑器共用账本。
+3. **当前优先交付编辑器可用性，性能后置。** 普通模型 LoadJob、预览/缩略图、冷放置/历史操作、试玩、普通整视图重建、custom kit 消费者与 prefab 独立登记均已完成各自协议与 CPU/GPU/HTTP 验证（见上节）。下一段的入口是**切换默认 split 导入并迁移既有内嵌 native**：先把 `AssetLibrary.import_file` 的默认可选值切到拆分产物，用 `test_editor_split_import_flow_gpu` 的 `--import-only --reuse-contract` 复验重复导入复用与旧 embedded 会话升级，再按 `rmmo-model-review` 迁移入口大模型与受影响引用。历史只读报告 `editor_native_streaming_integration_readonly_01.json` 不是这些后续切片的验收证据，游戏 Initial 的独立账本也不能代替编辑器共用账本。着色/彩窗工作流仍在工作区未提交，不属于本切片。
 4. 从入口大模型开始转换并按 `rmmo-model-review` 做受影响项验收，保持原像素默认策略。随后覆盖实际引用与角色原生产品。
 5. 正式接入后再测 axel_town 加载、卸载、返回加载及 low，继续使用地图加载开始到当前需求区域完整就绪的计时边界。
+
+## 2026-10-30 编辑器整合与实际 GLB 改名验证
+
+本节更新上述默认导入的待办状态。当前工作区已启用原生几何与独立纹理的默认导入；复用导入结果时也要求有 texture_table，避免继续复用旧 embedded 会话标记。默认纹理保持原像素，不改变用户选择。UI 文件选择器允许导入外部源文件；HTTP MCP 的 `import_model(path, pack_root)` 继续遵守资源根约束，检查外部引用路径后才进行离线导入。`relink_model(id, asset_id)` 选择已经登记的原生模型，使用私有准备事务，保持保护、撤销和保存语义。两项工具同步 3D schema、发现和实现。
+
+另复现并修复原生模型复制入口：旧代码直接提交新记录，没有传递准备好的原生模板，删除 GLB 后复制产生缺失占位。现在复制含模型依赖的记录先准备私有目标，完成后一起发布记录、节点和历史；MCP 等待该事务，UI 显示准备状态。普通无模型依赖的复制保留现有路径。
+
+所有新测试使用默认 4.8 beta1 candidate07，exe SHA `dabba1322488f959bddbd1d20ebdf40ee788c918c1a8b193a533d0472efb7375`。冻结项目为 e1cb061b 加本专项工作区脚本；不覆盖或混入受保护的其他会话改动。证据根：`D:/code/rmmo_runtime/review_artifacts/godot_4_8_adoption_20261029_01/editor_usable_20261030/`。每次包含 freeze.json、parse.log、engine.log、runner.json，保留具体脚本 SHA。
+
+| 测试 | 已通过 | 证据目录 |
+| --- | ---: | --- |
+| 真实套件导入、删除两份 GLB、冷开、预制件预览/缩略图、F5/HTTP 试玩、MapLoader、释放归零 | 60 | kit_01 |
+| HTTP 导入/重新关联、删除 GLB、复制、保护失败无副作用、撤销重做、保存重开 | 49 | import_http_03 |
+| 实际自动瓦片 UI、取消、邻接、手动脱离、保存重开 | 17 | autotile_ui_01 |
+| 共享记录准备上下文 | 51 | context_cpu_01 |
+| 私有整视图重建 | 25 | rebuild_cpu_01 |
+| 同一内容根内预制件登记随包移动，移走原登记仍可用 | 30 | prefab_cpu_01 |
+| 别名并发共享生产、各自身份检查及释放 | 67 | alias_cpu_01 |
+| 选择移动与历史回归（套件编辑补丁后重跑） | 20 | selection_cpu_02 |
+| 实际增量编辑、原生模型放置/删除/撤销、未变节点与碰撞/合批身份保持、保存重开（套件编辑补丁后重跑） | 81 | incremental_gpu_02 |
+
+这些成功样本均零脚本/引擎诊断。历史 kit 保存失败来自测试用无效高度构造；修正为正式 AutoTileRules.configure 后通过。历史 import_http_02 保留复制缺失的修复前证据，不以修复后的样本覆盖它。
+
+`incremental_cpu_01` 被误以 headless 运行：真实模型导入失败后测试继续读取 entry，报错并在 180 秒超时。保留原日志；测试已补失败原因与提前退出，在独立图形桌面重跑 `incremental_gpu_01` 81/81。未将该 headless 失败计入通过数，也未声称 headless 原生导入已经解决。
+
+### 用户提出的实际素材 GLB 改名检查
+
+直接选用默认素材库里已经导入的三件模型及其现有原生产物，未重新导入或转换模型：
+
+| 模型 | GLB 文件 SHA / 文件名（省略 .glb） |
+| --- | --- |
+| banner_streetlamp | 095d9b9daa40576e8457d359861ffa002aea186c639b05a097664bc0169ab3de |
+| 圆拱石砌门套 | fe4c4307d64e2f96ace70887725d5f789196b1b0f79ecd2516a5dc26edcf6c9e |
+| 写实阔叶橡树·宽冠粗干 | 52968b76c466f7ab198e8c47d2c724980b0067783567eb264f90fe1fa467f057 |
+
+外部驱动 `probe_existing_03.py` 先启动源文件正常的独立进程，然后把三件真实 GLB 改名为 `.withheld_editor_20261030_<pid>`，再启动新进程。正式地图和模型产物不改写，新增地图/缩略图在外部测试目录。finally 恢复文件，并核对 SHA。`existing_glb_rename_receipt_03.json` 证明三件均已恢复且内容完全一致，没有遗留改名文件。
+
+- 正常源文件：`existing_baseline_03`，56/56，零诊断。
+- GLB 改名：`existing_withheld_03`，56/56，零诊断。
+- 两次冻结脚本 SHA 完全一致。检查包括原生登记、真实预览、新缩略图、HTTP 放置/复制/撤销、保存/重开、试玩/返回和源文件仍未被重建。
+- 试玩实际网格数量分别为路灯 5、门套 1、橡树 4；改名前后相同。运行时会将组件展开为 `uuid__part` 同级节点，测试同时检查这些节点的真实 Mesh surface，不能用空父节点或空数组 all() 冒充实际渲染验证。
+- 01/02 的失败样本保留：初版测试错误地从 list_assets 读取未暴露的 asset_path，随后又把运行时的组件展开误判为网格缺失。这些是测试断言缺陷，不记作修复了生产 GLB 回退。最终 03 使用相同修正后的测试完成前后对照。
+
+本组验证证明这三件实际素材和列出的编辑/试玩入口已不依赖 GLB，不代表全库、全部模型类型或旧 embedded 纹理已迁移完成。原生登记里的 `.glb` 可以是逻辑资源键，不能仅凭扩展名判定运行时仍打开 GLB。
+
+### 自定义套件邻居变体的补充修复
+
+实际改名测试后，又把套件构造成相邻格，并删除全部原始/导入 GLB、清除全局强缓存，复现删除与手动脱离时邻居丢失原生模板的缺口：`kit_edit_red_01`。原因是这些旧编辑入口直接 `_commit_records` / `_refresh_records`，没有经过共享模型准备；split 模型同步 miss 明确拒绝加载，因此派生网格缺件。
+
+现在含自定义套件的邻接变化使用私有文档：先计算变体和准备原生依赖，再发布记录、网格、碰撞与单次历史。覆盖删除、单物件变换、选择变换、UI 旋转和实际 Gizmo 拖拽；拖拽结束先恢复临时姿态，再提交私有目标，避免失败留下半次编辑。3D MCP 的删除、单物件变换和选择变换等待同一事务的最终结果，保留原保护检查。
+
+`kit_edit_full_03` **100/100、零诊断**：包含相邻格删除与移动、两类 MCP 变换、UI 旋转、真实 Gizmo begin/update/finish 与取消、撤销、临时移走原生登记后的无副作用失败，以及原有预览/缩略图、F5/HTTP 试玩、MapLoader 和所有资源账本归零。`selection_cpu_02` 20/20，最终普通编辑回归 `incremental_gpu_02` 81/81。`kit_edit_full_02` 的 UI undo 被正确拒绝是测试只等待 saving、未等模型事务；补为同时等待操作队列后通过，没有修改保护规则。`kit_edit_full_01` 的测试辅助函数不存在导致 parse 失败，保留记录。
+
+### 尚未关闭的编辑器边界
+
+- 自定义套件上述编辑入口已按前节关闭；自动笔刷真实鼠标交互的 17 项仍是内建件，后续新增套件类型仍应检查其实际变体及碰撞，不能把当前两件 cliff 模型当作所有类型的外观验收。
+- 既有 embedded 原生模型尚未按模型验收流程全部转换成独立流式纹理；本次改名检查没有改动三件正式模型的几何、材质或导出字节。
+- 原生 prefab 的本轮可移植范围是同一 content_root 内的资源库位置变化，完整跨根导出不是本轮验收结果。
+- 当前继续优先补齐编辑器可用性，上述边界关闭前不恢复独立性能专项。
+
+
+## 2026-10-30：继续复查 4.8 编辑器适配
+
+新增复查记录见 [editor_godot48_adaptation_review_20261030.md](editor_godot48_adaptation_review_20261030.md)。已复现并接通导入材质首次使用、地图重开及缓存失效后的流式纹理路径；真实 UI/HTTP 回归 69 项、并发发布回归 30 项、可变源身份回归 37 项通过。旗帜 CPU 合成、alpha coverage 导入选项、可选接触阴影等分别记录为后续缺口，没有宣称本轮已完成全部 4.8 特性适配或整城性能改善。
+
+### 2026-10-30 后续实施
+
+前节列出的旗帜 CPU 合成、可选 alpha coverage 和本机画质开关已完成本轮适配。同步补齐预制件的纹理产物闭包，以及真实风场准入；并用 candidate08 修复内置透明裁切材质的冷流式反馈死区。机制、测试与保留边界统一见 [4.8 适配复查](editor_godot48_adaptation_review_20261030.md) 的后续实施节。未批量改写正式素材，旧 embedded 资产迁移和跨根导出边界没有因此自动关闭。

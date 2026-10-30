@@ -6,6 +6,40 @@ const TextureCache=preload("res://scripts/world3d/runtime_texture_cache.gd")
 const Compressed=preload("res://scripts/world3d/compressed_texture_source.gd")
 const River=preload("res://scripts/world3d/river_materials.gd")
 const Prefab=preload("res://scripts/world3d/house_prefab.gd")
+const Streamed=preload("res://scripts/world3d/streamed_texture_source.gd")
+const PrefabPixels=preload("res://scripts/world3d/prefab_texture_preparation.gd")
+
+static func plan(requested:Dictionary,content_root:String)->Dictionary:
+	var mutable:Dictionary=requested.duplicate();var streams:Dictionary={};var output:=0;var scratch:=0
+	for key:String in requested:
+		var source:Array=requested[key]
+		var row:=Streamed.plan_imported(source[0],source[1],source[2],content_root)
+		if row.is_empty():continue
+		streams[key]=row;mutable.erase(key)
+		# Keep the complete chain charged until publication, not an estimate of
+		# the engine's dynamic GPU residency. One lease covers both source types.
+		output+=int(row.output_bytes);scratch=maxi(scratch,PrefabPixels.workspace_bytes(row))
+	var pixels:=PrefabPixels.estimate(mutable,content_root,true)
+	output+=int(pixels.output_bytes)
+	scratch=maxi(scratch,int(pixels.estimated_bytes)-int(pixels.output_bytes)*2)
+	return {"streams":streams,"mutable":mutable,"pixels":pixels,"bounded":pixels.rows.size()==mutable.size(),"estimated_bytes":output*2+scratch}
+
+static func prepare(plan_:Dictionary,content_root:String)->Dictionary:
+	var result:Dictionary={"images":{},"failed":[],"uploaded_textures":{}}
+	if not plan_.mutable.is_empty():
+		if not plan_.bounded:result=decode(plan_.mutable,content_root)
+		else:
+			var packet:=PrefabPixels.prepare(plan_.mutable,plan_.pixels,content_root,null,true,{},false,true)
+			if not packet.error.is_empty():return {"images":{},"failed":plan_.mutable.keys()+plan_.streams.keys(),"error":packet.error}
+			result={"images":packet.images,"failed":[],"source_proof":packet.sources}
+	var owners:Dictionary={}
+	for key:String in plan_.streams:
+		var row:Dictionary=plan_.streams[key]
+		var owner:=Streamed.read(row,str(row.path).sha256_text())
+		if owner==null:result.failed.append(key)
+		else:owners[key]=owner
+	result.uploaded_textures=owners
+	return result
 
 static func requests(record:Dictionary,checked:Dictionary,owners:Variant=null)->Dictionary:
 	var result:Dictionary={}
@@ -73,7 +107,7 @@ static func reconcile_pool(prepared:Dictionary,material_pool:Variant,sources:Dic
 	# just published by an import. Ordinary owner reuse must not rescan the pool
 	# for every record. This table holds identities only, never resources/pixels.
 	var changed:Dictionary={}
-	for field:String in ["owners","images"]:
+	for field:String in ["owners","images","uploaded_textures"]:
 		for key:String in prepared.get(field,{}):
 			var resource:Resource=prepared[field][key]
 			var representation:Variant=resource.get_meta("runtime_texture_representation") if resource.has_meta("runtime_texture_representation") else null

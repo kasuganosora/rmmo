@@ -1,5 +1,5 @@
 extends RefCounted
-## Imports become self-contained, immutable GLBs outside the source repository.
+## Offline GLB imports publish native geometry and independent texture products.
 const Io = preload("res://scripts/world3d/gltf_map_io.gd")
 const Compiled = preload("res://scripts/world3d/compiled_asset_cache.gd")
 var entries: Array = []
@@ -147,11 +147,11 @@ static func _compile_import(path:String,prepared:Compiled.PreparedSource=null)->
 		return {"ok":false,"reason":"source_changed","total_elapsed_us":Time.get_ticks_usec()-started}
 	var compiled:Dictionary
 	var previous:Variant=_compiled_imports.get(path)
-	if previous is Dictionary and not previous.is_empty() and _verified_compiled_identity(path)==previous:
+	if previous is Dictionary and previous.has("texture_table") and _verified_compiled_identity(path)==previous:
 		compiled={"ok":true,"reused":true}
 	else:
 		_compiled_imports.erase(path)
-		compiled=Compiled.build_from_prepared(prepared) if prepared!=null else Compiled.build(path)
+		compiled=Compiled.build_from_prepared(prepared,true) if prepared!=null else Compiled.build(path,true)
 	# Footprint measurement reloads the closed native graph. Do not retain the
 	# original decoded GLTFState/scene across that independent measurement.
 	if prepared!=null:prepared.dispose()

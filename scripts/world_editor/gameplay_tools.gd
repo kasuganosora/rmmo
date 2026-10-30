@@ -6,7 +6,7 @@ const Geometry = preload("res://scripts/world_editor/selection_geometry.gd")
 const Net = preload("res://scripts/net/net.gd")
 var editor: Node3D
 
-func guard() -> Dictionary:
+func guard(allow_auto_stroke:bool=false,allow_material_stroke:bool=false) -> Dictionary:
 	if editor.saving(): return {"ok":false,"error":"正在读取或保存地图，请等待完成"}
 	if editor._gravity.falling:return {"ok":false,"error":"请等待当前物件落地"}
 	if editor._ground_draw!=null and editor._ground_draw.active: return {"ok":false,"error":"请先完成或取消地表区域绘制"}
@@ -16,7 +16,7 @@ func guard() -> Dictionary:
 	if editor._building_area_busy(): return {"ok":false,"error":"请先完成或取消建筑区域框选"}
 	if editor._load_failed: return {"ok": false, "error": "地图加载失败，当前为只读模式"}
 	if editor._safety.state().close_pending: return {"ok": false, "error": "请先处理关闭提示"}
-	if editor._transform_drag.active or editor._auto_stroke.active or editor._selection_tools.marquee or editor._stroke._open or editor._placement_tools.active or editor._material_tool.active or (editor._terrain_brush!=null and editor._terrain_brush.active): return {"ok": false, "error": "请先完成当前画布操作"}
+	if editor._transform_drag.active or (editor._auto_stroke.active and not allow_auto_stroke) or editor._selection_tools.marquee or editor._stroke._open or editor._placement_tools.active or (editor._material_tool.active and not allow_material_stroke) or (editor._terrain_brush!=null and editor._terrain_brush.active): return {"ok": false, "error": "请先完成当前画布操作"}
 	return {"ok": true}
 
 func resources() -> Dictionary:
@@ -47,8 +47,8 @@ func create_event(type: String, position: Vector3, parameters: Dictionary) -> Di
 	if not position.is_finite() or position.abs()[position.abs().max_axis_index()] > 100000: return {"ok": false, "error": "事件位置超出范围"}
 	var result := prepare(type, parameters)
 	if not result.ok: return result
-	var doc = editor._doc
-	doc.checkpoint()
+	var doc=preload("res://scripts/world3d/world_document.gd").new();doc._next=editor._doc._next
+	doc.records=editor._doc.records.duplicate();doc.map_meta=editor._doc.map_meta
 	var size_ := Vector3(.8, .8, .8) if type != "transfer" else Vector3(1.2, .1, 1.2)
 	var id: String = doc.add_box_silent("event", position + Vector3(0, size_.y / 2, 0), size_)
 	var record: Dictionary = doc._find(id)
@@ -56,9 +56,10 @@ func create_event(type: String, position: Vector3, parameters: Dictionary) -> Di
 	record.editor_name = result.value.parameters.name
 	record.color = {"dialogue": [.3,.6,.8], "chest": [.72,.48,.16], "gather": [.35,.65,.3], "transfer": [.6,.35,.8], "shop": [.8,.5,.35]}[type]
 	if type == "transfer": record.collision = "none"
-	changed()
-	editor._selection_tools.set_ids([id]); editor._set_mode(1)
-	return {"ok": true, "id": id, "event_template": result.value, "event": Templates.compile(result.value)}
+	return editor._prepare_target(doc,{"ok":true,"id":id,"event_template":result.value,"event":Templates.compile(result.value)},false,_event_created.bind(id))
+
+func _event_created(_result:Dictionary,id:String)->void:
+	editor._selection_tools.set_ids([id]);editor._set_mode(1)
 
 func set_event(id: String, type: String, parameters: Dictionary) -> Dictionary:
 	var ready := guard()
@@ -73,10 +74,8 @@ func set_event(id: String, type: String, parameters: Dictionary) -> Dictionary:
 	var result := prepare(type, merged)
 	if not result.ok: return result
 	if previous == result.value: return {"ok": true, "changed": false, "event_template": result.value}
-	editor._doc.checkpoint()
-	record.event_template = result.value
-	changed()
-	return {"ok": true, "changed": true, "event_template": result.value, "event": Templates.compile(result.value)}
+	var next:=record.duplicate(true);next.event_template=result.value
+	return editor._replace_records({id:next},[],null,{"ok":true,"changed":true,"event_template":result.value,"event":Templates.compile(result.value)})
 
 func clear_event(id: String) -> Dictionary:
 	var ready := guard()
@@ -84,8 +83,8 @@ func clear_event(id: String) -> Dictionary:
 	var record: Dictionary = editor._doc._find(id)
 	if record.is_empty() or not editor._record_editable(record): return {"ok": false, "error": "物件不存在、被隐藏、锁定或不在当前楼层"}
 	if not record.has("event_template"): return {"ok": true, "changed": false}
-	editor._doc.checkpoint(); record.erase("event_template"); changed()
-	return {"ok": true, "changed": true}
+	var next:=record.duplicate(true);next.erase("event_template")
+	return editor._replace_records({id:next},[],null,{"ok":true,"changed":true})
 
 func set_environment(changes: Dictionary) -> Dictionary:
 	var ready := guard()

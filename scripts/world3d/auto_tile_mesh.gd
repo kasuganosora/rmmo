@@ -5,10 +5,10 @@ const COLORS = {"grass": Color("6b9653"), "dirt": Color("b8996c"), "water": Colo
 static var _cache := {}
 
 
-static func build(tile: Dictionary) -> ArrayMesh:
+static func build(tile: Dictionary, context:RefCounted=null) -> ArrayMesh:
 	var family := str(tile.family)
 	var mask := int(tile.mask)
-	if tile.get("options", {}).has("kit"): return Rules.Kits.build(tile)
+	if tile.get("options", {}).has("kit"): return Rules.Kits.build(tile,context)
 	var key := family + ":" + str(mask) + ":" + str(tile.get("neighbors", [])) + str(tile.get("options", {})) + str(tile.get("drops", [])) + str(tile.get("cell_size", 4))
 	if _cache.has(key): return _cache[key]
 	var tool := SurfaceTool.new()

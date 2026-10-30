@@ -33,6 +33,8 @@ static func capture(records: Array, library, label: String, registry:Dictionary=
 		pivot.y=INF
 		for value:Dictionary in baked.values():pivot.y=minf(pivot.y,float(value.position[1]))
 	var copies: Array = records.duplicate(true)
+	var native_dependencies:Dictionary={}
+	var texture_dependencies:Dictionary={}
 	for value:Dictionary in baked.values():value.position=preload("res://scripts/world3d/house_prefab.gd").arr(preload("res://scripts/world3d/house_prefab.gd").vec(value.position)-pivot)
 	for record in copies:
 		if baked.is_empty():
@@ -47,28 +49,31 @@ static func capture(records: Array, library, label: String, registry:Dictionary=
 		var kit: Dictionary = record.get("tile3d", {}).get("options", {}).get("kit", {})
 		for key in kit.get("pieces", {}):
 			var source: String = kit.pieces[key]
-			if not Rules.Kits.check_model(source).is_empty(): return {"ok": false, "error": "预制件拼接套件模型无效"}
-			# Capture references an already imported native model. Re-importing or
-			# copying its GLB makes saving depend on an optional authoring source.
-			kit.pieces[key] = source.trim_prefix(library.directory.trim_suffix("/") + "/")
+			if not native_dependencies.has(source.replace("\\","/").simplify_path()) and not Rules.Kits.reference_error(source).is_empty(): return {"ok": false, "error": "预制件拼接套件模型无效"}
+			var packaged:=preload("res://scripts/world_editor/native_prefab_dependencies.gd").capture(source,library.directory,native_dependencies)
+			if not packaged.ok:return packaged
+			kit.pieces[key] = str(packaged.path).trim_prefix(library.directory.trim_suffix("/") + "/")
 		for definition in SurfacePaint.definitions(record):
 			for field in SurfacePaint.MAP_FIELDS:
 				var source := str(definition.get(field, ""))
 				if source.is_empty(): continue
-				var destination: String = library.directory.path_join("material_textures").path_join(FileAccess.get_sha256(source) + "." + source.get_extension().to_lower())
-				if not MapPaths.allowed(destination) or not MapPaths.allowed(destination + ".previous"): return {"ok": false, "error": "预制件贴图目录无效"}
-				var error := DirAccess.make_dir_recursive_absolute(destination.get_base_dir())
-				if error == OK and not FileAccess.file_exists(destination): error = preload("res://scripts/world_editor/surface_material_library.gd")._write(destination, FileAccess.get_file_as_bytes(source))
-				if error != OK: return {"ok": false, "error": "预制件贴图打包失败"}
+				var identity:=source.replace("\\","/").simplify_path()
+				if not texture_dependencies.has(identity):
+					var copied:=preload("res://scripts/world_editor/published_texture_copy.gd").capture(source,library.directory.path_join("material_textures"),MapPaths.external_root())
+					if not copied.ok:return copied
+					texture_dependencies[identity]=copied.path
+				var destination:String=texture_dependencies[identity]
 				definition[field] = destination.trim_prefix(library.directory.trim_suffix("/") + "/")
 		preload("res://scripts/world3d/house_prefab.gd").retarget_materials(record)
 		if not baked.is_empty():baked[record.building.id].signatures[record.building.part]=preload("res://scripts/world3d/building_blueprint.gd").geometry_signature(record)
 		if record.get("kind") == "asset":
 			var original_path := str(record.get("asset_path", ""))
-			# Derived inline geometry has no source-model dependency. All other
-			# assets keep the same native identity and painted surface paths.
-			if not record.has("house_prefab") and not preload("res://scripts/world_editor/asset_library.gd").native_available(original_path):
-				return {"ok":false,"error":"预制件模型缺少原生产物，请重新导入："+original_path}
+			# Inline derived geometry has no source-model dependency. Native model
+			# registrations travel with the pack; immutable products stay shared.
+			if not record.has("house_prefab") and not record.has("bridge_mesh"):
+				var packaged:=preload("res://scripts/world_editor/native_prefab_dependencies.gd").capture(original_path,library.directory,native_dependencies)
+				if not packaged.ok:return packaged
+				original_path=packaged.path
 			record.asset_path = original_path.trim_prefix(library.directory.trim_suffix("/") + "/")
 			record.erase("thumbnail_path")
 	var payload := JSON.stringify({"format": "rmmo_prefab", "version": 1, "records": copies,"building_instances":baked}, "\t")
@@ -125,7 +130,7 @@ static func read(entry: Dictionary) -> Dictionary:
 		for key in kit.get("pieces", {}):
 			var source: String = kit.pieces[key]
 			if not source.is_absolute_path(): source = path.get_base_dir().get_base_dir().path_join(source).simplify_path()
-			if not Rules.Kits.check_model(source).is_empty(): return {"ok": false, "error": "预制件拼接模型缺失或路径无效"}
+			if not Rules.Kits.reference_error(source).is_empty(): return {"ok": false, "error": "预制件拼接模型缺失或路径无效"}
 			kit.pieces[key] = source
 		for definition in SurfacePaint.definitions(record):
 			for field in SurfacePaint.MAP_FIELDS:
@@ -143,7 +148,7 @@ static func read(entry: Dictionary) -> Dictionary:
 		if record.kind == "asset":
 			var asset := str(record.get("asset_path", ""))
 			if not asset.is_absolute_path(): asset = path.get_base_dir().get_base_dir().path_join(asset).simplify_path()
-			if not record.has("house_prefab") and not preload("res://scripts/world_editor/asset_library.gd").native_available(asset): return {"ok": false, "error": "预制件模型缺少原生产物，请重新导入：" + asset.get_file()}
+			if not record.has("house_prefab") and not record.has("bridge_mesh") and not preload("res://scripts/world_editor/asset_library.gd").native_available(asset): return {"ok": false, "error": "预制件模型缺少原生产物，请重新导入：" + asset.get_file()}
 			record.asset_path = asset
 	var registry:Dictionary=raw.get("building_instances",{})
 	var meta:={"building_instances":registry}
@@ -179,12 +184,7 @@ static func preview(entry: Dictionary) -> Node3D:
 
 
 static func preview_dependencies(loaded:Dictionary)->Array:
-	var paths:Array=[]
-	for record:Dictionary in loaded.get("records",[]):
-		if record.get("kind")=="asset" and not record.has("house_prefab") and not record.has("bridge_mesh"):
-			var path:=str(record.get("asset_path",""))
-			if not paths.has(path):paths.append(path)
-	return paths
+	return preload("res://scripts/world3d/record_asset_dependencies.gd").paths(loaded.get("records",[]))
 
 
 static func preview_prepared(loaded:Dictionary,templates:Dictionary) -> Node3D:
@@ -192,15 +192,9 @@ static func preview_prepared(loaded:Dictionary,templates:Dictionary) -> Node3D:
 	var doc = load("res://scripts/world3d/world_document.gd").new()
 	doc.records = loaded.records
 	doc.map_meta.building_instances=loaded.building_instances
-	var prepared:Dictionary={}
-	for record:Dictionary in doc.records:
-		var path:=str(record.get("asset_path",""))
-		var normalized:=path.replace("\\","/").simplify_path()
-		if templates.has(normalized):prepared[path]=templates[normalized]
-	var scene:Node3D=doc.build(true,prepared)
-	for child:Node in scene.get_children():
-		if child.has_meta("missing_asset") or child.has_meta("paint_error") or child.has_meta("tile_error"):
-			preload("res://scripts/world3d/asset_worker_drainer.gd").dispose_scene(scene);return null
+	var scene:Node3D=doc.build(true,templates)
+	if scene.has_meta("prepared_record_error"):
+		preload("res://scripts/world3d/asset_worker_drainer.gd").dispose_scene(scene);return null
 	return scene
 
 

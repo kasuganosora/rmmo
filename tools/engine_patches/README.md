@@ -1,18 +1,40 @@
 # Godot engine patches
 
-Current status (2026-10-29 17:32 +08:00): the project and the installed default use **Godot
-4.8 beta1 candidate07**, with matching symbols, at
+Current status (2026-10-30 08:37 +08:00): the project and the installed default use **Godot
+4.8 beta1 candidate08**, with matching symbols, at
 `D:/tools/godot/godot.windows.editor.x86_64.exe`. Its executable SHA-256 is
-`dabba1322488f959bddbd1d20ebdf40ee788c918c1a8b193a533d0472efb7375`.
+`69fccbed237845e578fdb279d9951ac92c71a29d2a1c7c660903064296cb3303`.
 The installation record is `D:/tools/godot/patched_build_manifest.json`.
-The [installation evidence](D:/code/rmmo_runtime/review_artifacts/godot_4_8_adoption_20261029_01/native_texture_observation_07/installation_attempts/20261029_173232_031474/installation.json)
-verifies seven executable/alias/symbol files and three version probes. Candidate06
-is backed up under `D:/tools/godot/_backup/before_07_20261029_173232_031474`.
-The final candidate and installed manifests are synchronized by
-`native_texture_observation_07/delivery_manifest_lf_finalization.json` in the external evidence root.
+The [installation evidence](D:/code/rmmo_runtime/review_artifacts/godot_4_8_adoption_20261029_01/streaming_alpha_feedback_08/installation_attempts/20261030_083604_735508/installation.json)
+verifies seven executable/alias/symbol files and five version probes. Candidate07,
+including its full manifest and symbols, is backed up under
+`D:/tools/godot/_backup/before_08_20261030_083604_735508`.
 The [4.8 adoption record](../../docs/godot_4_8_adoption_20261029.md) tracks
 runtime/editor integration and remaining boundaries. The 4.7.2 sections below
 are historical experiments, not instructions to downgrade or resume 4.7 work.
+
+## Reproducible 4.8 beta1 candidate08
+
+Apply [`godot-4.8-beta1-runtime-candidate08.patch`](godot-4.8-beta1-runtime-candidate08.patch)
+once to the pristine official beta1 archive. Its [manifest](godot-4.8-beta1-runtime-candidate08.json)
+records **51/51 byte-exact source files**, the runtime build, matching symbols,
+four red/green cutout samples and the editor regressions. Do not stack it over
+candidate07 or an earlier candidate.
+
+Two Forward+ files change after07. Feedback now precedes the built-in cutout;
+feedback-enabled alpha-clip color pipelines retain reverse-Z GREATER_OR_EQUAL
+instead of forcing prepass EQUAL, with color depth writes still disabled.
+This lets initially transparent coarse mips request their missing detail.
+Default-prepass occluder rejection and transparent holes remain correct.
+
+Candidate08 passes scissor GPU20, editor alpha71, banner47 and final actual
+WindRuntime banner48 checks. The original07 fails the two targeted scissor
+checks; the08 result is pixel-identical to a full-resident reference. Alpha-hash
+is in the affected code scope but not a separately rendered acceptance case.
+Prepass-off hidden surfaces may request extra detail; custom FRAGMENT discard
+remains outside the fix. Candidate07 native CPU tests were not rebuilt or rerun
+for08. See the [cutout report](../../docs/godot48_cutout_streaming_feedback_20261030.md)
+for exact evidence and boundaries; no whole-map performance claim is made.
 
 ## Reproducible 4.8 beta1 candidate07
 

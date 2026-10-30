@@ -25,6 +25,7 @@ func includes(record: Dictionary) -> bool:
 	return Settings.contains(record,settings)
 
 func decorate(record: Dictionary, visual: Node3D) -> void:
+	_restore_dim(visual)
 	visual.set_meta("editor_mesh_size",record.get("size",[]).duplicate())
 	_membership[str(record.uuid)] = Settings.contains(record,settings)
 	var inside := includes(record)
@@ -53,8 +54,15 @@ func decorate(record: Dictionary, visual: Node3D) -> void:
 	preload("res://scripts/world_editor/building_shadow_preview.gd").attach(record,visual)
 
 func _dim(node: Node) -> void:
-	if node is GeometryInstance3D: node.transparency = maxf(node.transparency,.85)
+	if node is GeometryInstance3D:
+		if not node.has_meta("editor_before_dim"):node.set_meta("editor_before_dim",node.transparency)
+		node.transparency = maxf(node.transparency,.85)
 	for child in node.get_children(): _dim(child)
+
+func _restore_dim(node:Node)->void:
+	if node is GeometryInstance3D and node.has_meta("editor_before_dim"):
+		node.transparency=float(node.get_meta("editor_before_dim"));node.remove_meta("editor_before_dim")
+	for child:Node in node.get_children():_restore_dim(child)
 
 func set_settings(changes: Dictionary) -> Dictionary:
 	var ready: Dictionary = editor._gameplay.guard()
@@ -64,12 +72,13 @@ func set_settings(changes: Dictionary) -> Dictionary:
 	if not error.is_empty(): return {"ok":false,"error":error}
 	var value := Settings.resolve(editor._doc.map_meta); value.merge(changes,true)
 	if value == settings: return {"ok":true,"changed":false,"view":value}
-	editor._doc.checkpoint_recovery(); editor._doc.map_meta.editor_view = value
-	editor._dirty = true
-	if changes.has("base_height") and value.isolation: editor._auto_height = value.base_height
+	var meta:Dictionary=editor._doc.map_meta.duplicate();meta.editor_view=value
+	return editor._replace_records({},[],meta,{"ok":true,"changed":true,"view":value},_settings_published.bind(value,changes.has("base_height")))
+
+func _settings_published(_result:Dictionary,value:Dictionary,base_changed:bool)->void:
+	if base_changed and value.isolation:editor._auto_height=value.base_height
 	editor._material_tool.clear_target()
-	editor._rebuild()
-	return {"ok":true,"changed":true,"view":value}
+	if editor._status!=null:editor._status.text="视图设置已更新，可撤销"
 
 func pick(screen: Vector2) -> Dictionary:
 	if not Rect2(Vector2.ZERO,editor._canvas.size).has_point(screen): return {"ok":false,"error":"坐标不在地图画布内"}
@@ -90,6 +99,6 @@ func input(event: InputEvent) -> bool:
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed and editor._canvas.get_global_rect().has_point(event.position):
 		picking = false
 		var result := pick(event.position-editor._canvas.global_position)
-		editor._status.text = "试玩出生点已设置，可撤销" if result.ok else str(result.error)
+		editor._status.text = ("正在准备视图" if result.get("pending",false) else "试玩出生点已设置，可撤销") if result.ok else str(result.error)
 		return true
 	return event is InputEventKey or event is InputEventMouseButton

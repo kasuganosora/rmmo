@@ -31,7 +31,11 @@ static func material_error(material: Material) -> String:
 	if material.diffuse_mode != BaseMaterial3D.DIFFUSE_BURLEY or material.specular_mode != BaseMaterial3D.SPECULAR_SCHLICK_GGX: return "此漫反射 / 高光模型暂不支持受风"
 	if material.blend_mode != BaseMaterial3D.BLEND_MODE_MIX or material.no_depth_test or material.disable_receive_shadows or material.disable_ambient_light: return "此混合 / 深度 / 光照设置暂不支持受风"
 	if material.ao_on_uv2 or material.emission_on_uv2: return "第二套 UV 的 AO / 自发光暂不支持受风"
-	for feature in ["uv1_triplanar","uv2_triplanar","detail_enabled","heightmap_enabled","refraction_enabled","rim_enabled","clearcoat_enabled","subsurf_scatter_enabled","grow_enabled","proximity_fade_enabled"]:
+	# The banner detail path preserves albedo/mask/UVs. Normal blending is not
+	# implemented by the wind shader, so do not silently flatten those materials.
+	if material.detail_enabled and (material.normal_enabled or material.detail_normal!=null):return "细节层与法线混合暂不支持受风"
+	if material.detail_enabled and material.detail_blend_mode not in [BaseMaterial3D.BLEND_MODE_MIX,BaseMaterial3D.BLEND_MODE_ADD,BaseMaterial3D.BLEND_MODE_SUB,BaseMaterial3D.BLEND_MODE_MUL]:return "此细节混合模式暂不支持受风"
+	for feature in ["uv1_triplanar","uv2_triplanar","heightmap_enabled","refraction_enabled","rim_enabled","clearcoat_enabled","subsurf_scatter_enabled","grow_enabled","proximity_fade_enabled"]:
 		if material.get(feature): return "材质特性 %s 暂不支持受风" % feature
 	if material.distance_fade_mode != BaseMaterial3D.DISTANCE_FADE_DISABLED: return "距离淡出材质暂不支持受风"
 	return ""

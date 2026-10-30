@@ -43,7 +43,7 @@ var _next_request:=0
 var _next_batch:=0
 var _closed:=false
 # Discover already adopted templates while their real callers still own them.
-# One current candidate per logical path; these rows own no model resources.
+# Complete content candidates across logical aliases; rows own no resources.
 var _private_models:Dictionary={}
 var _private_order:Array[String]=[]
 var _private_cursor:=0
@@ -60,8 +60,11 @@ static func for_consumer(consumer:Node)->Node:
 	host.add_child(service)
 	return service
 
-static func _identity(path:String,candidate:Dictionary,root_:String)->String:
-	return JSON.stringify([root_,path,candidate.get("source_sha"),candidate.get("payload_sha"),candidate.get("generator"),candidate.get("texture_table",{})])
+static func _identity(_path:String,candidate:Dictionary,root_:String)->String:
+	# A pack-local alias changes only the logical lookup. Budget, table, product,
+	# generator and every other candidate field must agree before sharing work.
+	var content:Dictionary=candidate.duplicate();content.erase("source_path")
+	return JSON.stringify([root_,content],"",true,true)
 
 func request(path:String,consumer:Node,callback:Callable)->int:
 	if _closed or ledger==null or not is_inside_tree() or not is_instance_valid(consumer) or not callback.is_valid():return 0
@@ -73,7 +76,9 @@ func request(path:String,consumer:Node,callback:Callable)->int:
 	var candidate:=Library.native_candidate(path,content_root)
 	if candidate.is_empty():
 		request_.result={"ok":false,"error":"模型缺少可用原生产物："+path};return id
+	request_.path=path;request_.candidate=candidate
 	if Library._native_cached(path,candidate):
+		_remember_private(path,candidate,Library._scenes[path])
 		request_.result={"ok":true,"handle":_handle(path,candidate,Library._scenes[path])};return id
 	var borrowed:=_borrow_private(path,candidate)
 	if borrowed!=null:
@@ -147,17 +152,13 @@ static func _render_ready(packed:PackedScene,candidate:Dictionary)->bool:
 		if state.get_node_property_name(0,index)==StringName("metadata/"+str(Ready.GEOMETRY_ONLY_META)) and state.get_node_property_value(0,index):return false
 	return true
 
-func _private_key(path:String)->String:
-	return JSON.stringify([content_root,path])
+func _private_key(path:String,candidate:Dictionary)->String:
+	return _identity(path,candidate,content_root)
 
 func _borrow_private(path:String,candidate:Dictionary)->PackedScene:
-	var key:=_private_key(path)
+	var key:=_private_key(path,candidate)
 	if not _private_models.has(key):return null
 	var row:Dictionary=_private_models[key]
-	# Compare the complete descriptor, including accounting fields absent from
-	# the in-flight coalescing key. The snapshot is private, never a Handle alias.
-	if row.candidate!=candidate:
-		_forget_private(key);return null
 	var packed:PackedScene=row.packed.get_ref() as PackedScene
 	var valid:bool=_render_ready(packed,candidate)
 	valid=valid and packed.get_meta("compiled_asset_validated",false) and (preload("res://scripts/world3d/runtime_package_policy.gd").trusted() or packed.get_meta("_rmmo_native_audited",false)) and packed.get_meta("_rmmo_source_digest","")==candidate.get("source_sha") and packed.get_meta("_rmmo_native_payload_sha","")==candidate.get("payload_sha") and packed.get_meta("_rmmo_native_generator","")==candidate.get("generator")
@@ -172,11 +173,11 @@ func _remember_private(path:String,candidate:Dictionary,packed:PackedScene)->voi
 	# Called only after successful adoption/publication, while the original
 	# charged packet still owns this complete allocation. No second adoption.
 	_prune_private()
-	var key:=_private_key(path)
+	var key:=_private_key(path,candidate)
 	var slot:int
 	if _private_models.has(key):slot=_private_models[key].slot
 	else:slot=_private_order.size();_private_order.append(key)
-	_private_models[key]={"packed":weakref(packed),"instance_id":packed.get_instance_id(),"candidate":candidate.duplicate(true),"slot":slot}
+	_private_models[key]={"packed":weakref(packed),"instance_id":packed.get_instance_id(),"slot":slot}
 
 func _forget_private(key:String)->void:
 	if not _private_models.has(key):return
@@ -242,8 +243,13 @@ func _process(_delta:float)->void:
 
 func _accept(key:String,group:Dictionary,batch:Dictionary)->void:
 	var packet:Dictionary=batch.queue.acquire(key)
-	var accepted:bool=not group.requests.is_empty() and packet.get("error",FAILED)==OK and not packet.get("cancelled",false) and packet.get("compiled",false)==true and packet.get("source_digest")==group.candidate.source_sha and packet.get("packed") is PackedScene
-	accepted=accepted and _render_ready(packet.get("packed"),group.candidate) and Library.native_candidate(group.path,content_root)==group.candidate
+	var current:Dictionary={}
+	for id:int in group.requests:
+		if not _requests.has(id):continue
+		var request_:Dictionary=_requests[id]
+		current[id]=Library.native_candidate(request_.path,content_root)==request_.candidate
+	var accepted:bool=current.values().has(true) and packet.get("error",FAILED)==OK and not packet.get("cancelled",false) and packet.get("compiled",false)==true and packet.get("source_digest")==group.candidate.source_sha and packet.get("packed") is PackedScene
+	accepted=accepted and _render_ready(packet.get("packed"),group.candidate)
 	var reason:=str(packet.get("error_message","模型准备失败或原生产物已变化"))
 	if accepted:
 		var tracker:Node=ownership_tracker if is_instance_valid(ownership_tracker) else Ownership.for_tree(get_tree())
@@ -256,15 +262,16 @@ func _accept(key:String,group:Dictionary,batch:Dictionary)->void:
 			proof=tracker.adopt(proof.ticket)
 		accepted=proof.get("ok",false)
 		if not accepted:reason="模型所有权交接失败："+str(proof.get("reason","unknown"))
-	var result:Dictionary
 	if accepted:
 		batch.native.published(packet)
 		_remember_private(group.path,group.candidate,packet.packed)
-		result={"ok":true,"handle":_handle(group.path,group.candidate,packet.packed)};profile.completed+=1
+		profile.completed+=1
 	else:
-		result={"ok":false,"error":reason};profile.failed+=1
+		profile.failed+=1
 	for id:int in group.requests:
-		if _requests.has(id):_requests[id].erase("group");_requests[id].result=result
+		if not _requests.has(id):continue
+		var request_:Dictionary=_requests[id];request_.erase("group")
+		request_.result={"ok":true,"handle":_handle(request_.path,request_.candidate,packet.packed)} if accepted and current.get(id,false) else {"ok":false,"error":reason}
 	batch.queue.release(key);batch.queue.forget_terminal(key)
 	_groups.erase(key);batch.groups.erase(key)
 	if batch.groups.is_empty():_close_batch(batch.id)

@@ -7,7 +7,7 @@ static func apply(editor:Node,ids:Array,changes:Dictionary)->Dictionary:
 	if not ready.ok:return ready
 	var error:=Banner.Schema.validate(changes,Banner.schema())
 	if not error.is_empty():return {"ok":false,"error":error}
-	if ids.is_empty() or ids.size()>256:return {"ok":false,"error":"请选择 1～256 盏路灯"}
+	if ids.is_empty():return {"ok":false,"error":"请选择路灯"}
 	var updates:Dictionary={}
 	for id in ids:
 		var record:Dictionary=editor._doc._find(str(id))
@@ -19,10 +19,11 @@ static func apply(editor:Node,ids:Array,changes:Dictionary)->Dictionary:
 		if value.design in ["original","plain"]:value.texture_path=""
 		var candidate:=record.duplicate(true);candidate.banner=Banner.store(value)
 		if not Paint.valid(candidate):return {"ok":false,"error":"旗帜配置无效；贴图必须在资源根目录内"}
-		if value.design in ["flag","emblem"] and Paint.texture(candidate.banner.material)==null:return {"ok":false,"error":"请选择可以读取的 PNG/JPG/WebP 旗帜或透明图案"}
+		# Image preparation belongs to the private transaction's shared worker
+		# budget. No full decode or texture upload while validating this command.
 		if candidate.banner!=record.get("banner",{}):updates[id]=candidate.banner
 	if updates.is_empty():return {"ok":true,"changed_ids":[]}
-	editor._doc.checkpoint()
-	for id in updates:editor._doc._find(str(id)).banner=updates[id]
-	editor._dirty=true;editor._rebuild()
-	return {"ok":true,"changed_ids":updates.keys()}
+	var records:Dictionary={}
+	for id in updates:
+		var record:Dictionary=editor._doc._find(str(id)).duplicate(true);record.banner=updates[id];records[id]=record
+	return editor._replace_records(records,[],null,{"ok":true,"changed_ids":updates.keys()})

@@ -4,6 +4,11 @@ const Paths = preload("res://scripts/world3d/map_paths.gd")
 const Io = preload("res://scripts/world3d/gltf_map_io.gd")
 const Families = ["road", "wall", "grass", "dirt", "water", "cliff", "stairs", "roof", "bridge"]
 static var _meshes := {}
+static var _mesh_ids:Dictionary={}
+static var _mesh_slots:Dictionary={}
+static var _mesh_order:Array[String]=[]
+static var _mesh_free:Array[int]=[]
+static var _mesh_cursor:=0
 var directory := ""
 
 func _init(folder: String = "") -> void:
@@ -72,7 +77,7 @@ func read(path: String, author_import:bool=false) -> Dictionary:
 		if not checked_sources.has(source):
 			# The explicit importer checks each unique authored model immediately
 			# before copying it; ordinary reads use only the published native.
-			checked_sources[source]="" if author_import and FileAccess.file_exists(source) else ("套件模型缺失" if author_import else check_model(source,false))
+			checked_sources[source]="" if author_import and FileAccess.file_exists(source) else ("套件模型缺失" if author_import else reference_error(source))
 		var checked:String=checked_sources[source]
 		if not checked.is_empty(): return {"ok": false, "error": checked}
 		kit.pieces[key] = source
@@ -132,13 +137,16 @@ static func check_model(path: String, author_import:bool=false) -> String:
 		mesh=_piece_from_scene(root);root.free()
 	else:mesh=piece_mesh(path)
 	if mesh == null or mesh.get_surface_count() == 0: return "套件模型没有有效静态三角网格"
-	if mesh.get_surface_count() > 16: return "单块模型最多支持 16 个材质面"
 	return ""
+
+static func reference_error(path:String)->String:
+	if not Paths.asset_key_allowed(path):return "套件模型路径越界"
+	return "" if preload("res://scripts/world_editor/asset_library.gd").native_available(path) else "套件模型缺少原生产物"
 
 static func _header_error(path: String) -> String:
 	if not Paths.allowed(path): return "套件模型超出资源根"
 	var file := FileAccess.open(path, FileAccess.READ)
-	if file == null or file.get_length() > 16777216 or file.get_length() < 20: return "套件模型无法读取或超过 16 MiB"
+	if file == null or file.get_length() < 20: return "套件模型无法读取"
 	if file.get_32() != 0x46546C67 or file.get_32() != 2 or file.get_32() != file.get_length(): return "套件需要 GLB 2.0 模型"
 	var length := file.get_32()
 	if file.get_32() != 0x4E4F534A or length > file.get_length() - 20: return "套件 GLB JSON 块无效"
@@ -154,37 +162,58 @@ static func _header_error(path: String) -> String:
 		if not raw.get(section, []) is Array or not raw.get(section, []).is_empty(): return "套件只支持静态模型"
 	return ""
 
-static func piece_mesh(path: String) -> ArrayMesh:
+static func piece_mesh(path: String, context:RefCounted=null) -> ArrayMesh:
+	if context!=null:return context.piece(path)
 	if not Paths.asset_key_allowed(path):return null
 	var library=preload("res://scripts/world_editor/asset_library.gd")
 	var candidate:Dictionary=library.native_validation_candidate(path)
 	if candidate.is_empty():return null
 	var key:String=path+":"+str(candidate.native_product_kind)+":"+str(candidate.source_sha)+":"+str(candidate.payload_sha)+":"+str(candidate.generator)
-	if _meshes.has(key): return _meshes[key]
+	if _meshes.has(key):
+		var existing:Variant=_meshes[key].get_ref()
+		if existing is ArrayMesh:return existing
+		_forget_mesh(key)
 	var root:=library.instantiate_preview(path,true)
 	if root == null: return null
 	var output:=_piece_from_scene(root)
 	root.free()
 	if output==null:return null
-	if _meshes.size() >= 64: _meshes.erase(_meshes.keys()[0])
-	_meshes[key] = output
+	_prune_meshes()
+	_meshes[key] = weakref(output)
+	_mesh_ids[key]=output.get_instance_id()
+	var slot:int=_mesh_slots[key] if _mesh_slots.has(key) else (_mesh_free.pop_back() if not _mesh_free.is_empty() else _mesh_order.size())
+	if slot==_mesh_order.size():_mesh_order.append(key)
+	else:_mesh_order[slot]=key
+	_mesh_slots[key]=slot
 	return output
+
+static func _forget_mesh(key:String)->void:
+	if _mesh_slots.has(key):
+		var slot:int=_mesh_slots[key];_mesh_order[slot]="";_mesh_free.append(slot);_mesh_slots.erase(key)
+	_meshes.erase(key);_mesh_ids.erase(key)
+
+static func _prune_meshes()->void:
+	# Bounded scalar liveness checks never acquire a temporary final owner.
+	for index:int in mini(16,_mesh_order.size()):
+		if _mesh_cursor>=_mesh_order.size():_mesh_cursor=0
+		var key:String=_mesh_order[_mesh_cursor];_mesh_cursor+=1
+		if not key.is_empty() and not is_instance_id_valid(int(_mesh_ids.get(key,0))):_forget_mesh(key)
 
 static func _piece_from_scene(root:Node)->ArrayMesh:
 	var output := ArrayMesh.new()
 	var success := append_node(output, root, Transform3D.IDENTITY)
-	if not success: return null
-	var vertices := 0
-	for surface in output.get_surface_count(): vertices += output.surface_get_array_len(surface)
-	if vertices > 50000: return null
+	if not success or output.get_surface_count()==0: return null
 	return output
 
 static func append_node(output: ArrayMesh, node: Node, parent: Transform3D) -> bool:
+	if node is AnimationPlayer and not node.get_animation_list().is_empty():return false
 	var transform: Transform3D = parent * node.transform if node is Node3D else parent
 	if node is MeshInstance3D and node.mesh != null:
 		if node.skin != null or node.mesh.get_blend_shape_count() > 0: return false
 		for surface in node.mesh.get_surface_count():
-			if node.mesh.surface_get_primitive_type(surface) != Mesh.PRIMITIVE_TRIANGLES or output.get_surface_count() >= 16: return false
+			# ArrayMesh and the RD renderer enforce this engine limit. There is no
+			# separate kit-only vertex or material-count budget.
+			if node.mesh.surface_get_primitive_type(surface) != Mesh.PRIMITIVE_TRIANGLES or output.get_surface_count() >= RenderingServer.MAX_MESH_SURFACES: return false
 			var tool := SurfaceTool.new()
 			tool.begin(Mesh.PRIMITIVE_TRIANGLES)
 			tool.append_from(node.mesh, surface, transform)
@@ -194,9 +223,14 @@ static func append_node(output: ArrayMesh, node: Node, parent: Transform3D) -> b
 		if not append_node(output, child, transform): return false
 	return true
 
-static func append_piece(output: ArrayMesh, path: String, transform: Transform3D) -> bool:
-	var mesh := piece_mesh(path)
+static func append_piece(output: ArrayMesh, path: String, transform: Transform3D, context:RefCounted=null) -> bool:
+	var mesh := piece_mesh(path,context)
 	if mesh == null: return false
+	if output.get_surface_count()+mesh.get_surface_count()>RenderingServer.MAX_MESH_SURFACES:return false
+	var owners:Array=output.get_meta("_compiled_resource_owners",[])
+	for owner:PackedScene in mesh.get_meta("_compiled_resource_owners",[]):
+		if not owners.has(owner):owners.append(owner)
+	if not owners.is_empty():output.set_meta("_compiled_resource_owners",owners)
 	for surface in mesh.get_surface_count():
 		var tool := SurfaceTool.new()
 		tool.begin(Mesh.PRIMITIVE_TRIANGLES)
@@ -205,23 +239,36 @@ static func append_piece(output: ArrayMesh, path: String, transform: Transform3D
 		tool.commit(output)
 	return true
 
-static func build(tile: Dictionary) -> ArrayMesh:
+static func required_paths(tile:Dictionary,content_root:String="")->Array[String]:
+	var kit:Dictionary=tile.get("options",{}).get("kit",{})
+	var result:Array[String]=[]
+	if not valid(kit,false,content_root):return result
+	if tile.family=="cliff":
+		result.append(kit.pieces.top)
+		if tile.get("drops",[1,1,1,1]).any(func(drop):return float(drop)>0):result.append(kit.pieces.edge)
+	elif tile.family=="stairs":result.append(kit.pieces.default)
+	else:
+		var selected:=variant(kit.pieces,int(tile.mask) if tile.family in ["grass","dirt","water","roof"] else int(tile.mask)&15)
+		if not selected.is_empty():result.append(selected.path)
+	return result
+
+static func build(tile: Dictionary, context:RefCounted=null) -> ArrayMesh:
 	var kit: Dictionary = tile.get("options", {}).get("kit", {})
 	if not valid(kit): return null
 	var output := ArrayMesh.new()
 	if tile.family == "cliff":
-		if not append_piece(output, kit.pieces.top, Transform3D.IDENTITY): return null
+		if not append_piece(output, kit.pieces.top, Transform3D.IDENTITY,context): return null
 		var drops: Array = tile.get("drops", [1, 1, 1, 1])
 		for side in 4:
 			var drop := float(drops[side])
 			if drop <= 0: continue
 			var transform := Transform3D(Basis(Vector3.UP, -side * PI / 2).scaled(Vector3(1, drop, 1)), Vector3(0, (1 - drop) / 2, 0))
-			if not append_piece(output, kit.pieces.edge, transform): return null
+			if not append_piece(output, kit.pieces.edge, transform,context): return null
 	elif tile.family == "stairs":
-		if not append_piece(output, kit.pieces.default, Transform3D(Basis(Vector3.UP, -int(tile.options.direction) * PI / 2), Vector3.ZERO)): return null
+		if not append_piece(output, kit.pieces.default, Transform3D(Basis(Vector3.UP, -int(tile.options.direction) * PI / 2), Vector3.ZERO),context): return null
 	else:
 		var selected := variant(kit.pieces, int(tile.mask) if tile.family in ["grass", "dirt", "water", "roof"] else int(tile.mask) & 15)
-		if selected.is_empty() or not append_piece(output, selected.path, Transform3D(Basis(Vector3.UP, -int(selected.turns) * PI / 2), Vector3.ZERO)): return null
+		if selected.is_empty() or not append_piece(output, selected.path, Transform3D(Basis(Vector3.UP, -int(selected.turns) * PI / 2), Vector3.ZERO),context): return null
 	return output
 
 static func missing(records: Array) -> Array:

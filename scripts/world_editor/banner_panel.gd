@@ -8,6 +8,8 @@ var note:Label
 var key:=""
 var picker:FileDialog
 var image_mode:="flag"
+var _copy_queue:Node
+var _copy:Dictionary={}
 
 func setup(host:Node)->void:
 	editor=host
@@ -46,14 +48,34 @@ func refresh()->void:
 
 func commit(changes:Dictionary)->void:
 	var result:=Ops.apply(editor,ids,changes)
-	editor._status.text="旗帜已更换，可撤销；保存地图后生效" if result.ok else str(result.error)
+	if result.get("pending",false):
+		editor._asset_operations.tag_ui(result.request_id)
+		editor._status.text="正在后台准备旗帜，完成后可撤销"
+	else:editor._status.text="旗帜已更换，可撤销；保存地图后生效" if result.ok else str(result.error)
 
 func import_image(path:String)->void:
-	var input:=Image.load_from_file(path)
-	if input==null or input.get_width()>8192 or input.get_height()>8192:
-		editor._status.text="请选择不超过 8192×8192 的有效图片";return
-	var directory:=preload("res://scripts/asset/art_paths.gd").path("banner_streetlamp/designs")
-	var destination:=directory.path_join(FileAccess.get_sha256(path)+"."+path.get_extension().to_lower())
-	if DirAccess.make_dir_recursive_absolute(directory)!=OK or (not FileAccess.file_exists(destination) and DirAccess.copy_absolute(path,destination)!=OK):
-		editor._status.text="旗帜图片导入失败";return
-	commit(form.values().merged({"design":image_mode,"texture_path":destination},true))
+	var root_:=preload("res://scripts/world3d/map_paths.gd").external_root()
+	if preload("res://scripts/world3d/map_paths.gd").allowed(path,root_):
+		commit(form.values().merged({"design":image_mode,"texture_path":path},true));return
+	if not _copy.is_empty():_copy.token.cancel();_copy_queue.cancel();_copy_queue.queue_free();_copy.clear()
+	_copy_queue=preload("res://scripts/world_editor/load_preparation_queue.gd").new()
+	_copy_queue.ledger=editor._shared_preparation_ledger;_copy_queue.shared_ledger_enabled=true;add_child(_copy_queue)
+	var token:=preload("res://scripts/world3d/asset_worker_drainer.gd").CancelToken.new()
+	_copy={"token":token,"document":editor._doc,"revision":editor._doc.authoring_revision,"ids":ids.duplicate(),"settings":form.values().merged({"design":image_mode},true)}
+	if not _copy_queue.enqueue("copy",preload("res://scripts/world_editor/banner_image_copy.gd").run.bind(path,root_,token),{"estimated_bytes":5*1024*1024,"exclusive":false,"cpu_only":true},"texture"):
+		_copy.clear();_copy_queue.queue_free();set_process(false)
+		editor._status.text="图片导入任务无法启动";return
+	editor._status.text="正在后台导入旗帜图片"
+	set_process(true)
+
+func _process(_delta:float)->void:
+	if _copy.is_empty() or not _copy_queue.is_ready("copy"):return
+	var result:Dictionary=_copy_queue.acquire("copy").duplicate();_copy_queue.release("copy");_copy_queue.queue_free()
+	var pending:=_copy;_copy={};set_process(false)
+	if not result.get("ok",false):editor._status.text=result.get("error","图片导入失败");return
+	if editor._doc!=pending.document or editor._doc.authoring_revision!=pending.revision or ids!=pending.ids:
+		editor._status.text="图片已导入，选择或地图已变化，本次未修改旗帜";return
+	commit(pending.settings.merged({"texture_path":result.path},true))
+
+func _exit_tree()->void:
+	if not _copy.is_empty():_copy.token.cancel()

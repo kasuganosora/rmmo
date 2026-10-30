@@ -999,3 +999,11 @@ UI 与当前 3D MCP 的地形修改自动使用内部格点 CPU 网格／切线�
 
 
 2026-10-18 风动与透明植被：`playtest_state.preparation.wind` 补充 `covered_preparation/last_recovery`。缓存内接收体后台绑定；运行期出现未知变体时自动绘制准备遮罩，准备完成并绘制相机首帧后恢复原位置操作，MCP 不得将 pending 记作 ready。`editor_state.vegetation_batching` 与散布面板共用 `vegetation_render_status()`，提供 `cutout_admission`（原路径采样、准入、CPU 余量不足或 GPU 保护回退）、`cutout_groups/active_cutout_groups/cutout_active_member_limit` 及提示文本。密集静态 alpha-scissor 仅在实测 CPU 有余量、远距全视野、无原生 LOD／遮挡／XR 的条件下自动实例化；风动和不兼容来源保留原路径。UI／HTTP 的预览、应用、撤销、保存重开及中途停止验收见[交付报告](wind_cutout_rollout_20261018.md)。没有新增工具或参数，也不恢复二维适配器。
+
+## 2026-10-30：Godot 4.8 编辑器适配
+
+- `set_streetlamp_banner` 沿用参数；图片通过共享后台导入/流式纹理准备，移除 256 选择项限制。UI 支持外部文件选择后导入，HTTP 仍限制内容根路径。风场、撤销、保存重开和预制件打包详见 [旗帜流式适配](editor_banner_streaming_20261030.md)。
+- `import_surface_material` 新增 `preserve_alpha_test_coverage`（默认 false）及 `alpha_test_threshold`（默认 0.5，范围 0–1）。仅颜色裁切图按需开启，导入材质使用同一裁切阈值；不同阈值/保真与 DDS 的产物独立。UI 使用同一后台服务，mip0 保真；[验证、当前配置范围和引擎反馈问题](editor_alpha_coverage_20261030.md)。
+- 新增 `get_rendering_preferences`、`set_rendering_preferences`、`reset_rendering_preferences`、`restore_rendering_preferences`，对应顶栏“本机画质”。接触阴影/多次反弹 AO 属于本机进程启动设置，保存后重启生效，不改变地图和撤销历史。pending 时轮询 get 并检查 last_result；[参数和恢复语义](editor_rendering_preferences_20261030.md)。
+
+本轮完整记录见 [4.8 适配复查](editor_godot48_adaptation_review_20261030.md)。使用临时地图、真实 3D HTTP 与独立桌面验收，没有启用二维适配器。

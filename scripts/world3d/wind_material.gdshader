@@ -9,6 +9,10 @@ uniform sampler2D ao_tex : hint_default_white, filter_linear_mipmap_anisotropic,
 uniform sampler2D emission_tex : source_color, hint_default_white, filter_linear_mipmap_anisotropic, repeat_enable;
 uniform vec3 uv_scale = vec3(1.);
 uniform vec3 uv_offset = vec3(0.);
+uniform sampler2D detail_albedo_tex : source_color, hint_default_white, filter_linear_mipmap_anisotropic, repeat_enable;
+uniform sampler2D detail_mask_tex : hint_default_white, filter_linear_mipmap_anisotropic, repeat_enable;
+uniform vec3 detail_uv_scale = vec3(1.);
+uniform vec3 detail_uv_offset = vec3(0.);
 uniform bool vertex_color = false;
 uniform float roughness = 1.;
 uniform float metallic = 0.;
@@ -83,6 +87,7 @@ void fragment() {
 	vec4 base = texture(albedo_tex,UV)*tint;
 	if (vertex_color) base *= COLOR;
 	ALBEDO = base.rgb;
+	// DETAIL_INSERT
 	ROUGHNESS = roughness*dot(texture(rough_tex,UV),rough_channel);
 	METALLIC = metallic*dot(texture(metal_tex,UV),metal_channel);
 	SPECULAR = specular;

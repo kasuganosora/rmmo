@@ -58,9 +58,9 @@ func prepare(args: Dictionary) -> Dictionary:
 		# logical model path. Identical source with a rebuilt product is distinct.
 		var hash_:String=Data.token([native.native_product_kind,native.source_sha,native.payload_sha,native.generator]); hashes.append(hash_)
 		if not _bounds_cache.has(hash_):
-			var node=Library.instantiate_geometry(id,native)
-			if node==null: return Data.fail("散布模型无法读取")
-			var bounds:=Library.bounds_of(node); node.free()
+			var metadata:Dictionary=preload("res://scripts/world3d/asset_source_metadata.gd").read(id,Data.Paths.external_root(),"",true)
+			if not metadata.get("known",false) or not metadata.get("local_bounds") is AABB:return Data.fail("散布模型缺少有效原生包围盒，请重新导入")
+			var bounds:AABB=metadata.local_bounds
 			if not bounds.position.is_finite() or not bounds.size.is_finite() or bounds.size.x<.01 or bounds.size.y<.01 or bounds.size.z<.01: return Data.fail("散布模型缺少有效三维包围盒")
 			if _bounds_cache.size()>=32: _bounds_cache.clear()
 			_bounds_cache[hash_]=bounds
@@ -168,11 +168,8 @@ func generate(args: Dictionary) -> Dictionary:
 	if Data.token(previous)==Data.token(result.manifest): return {"ok":true,"changed":false,"count":result.count,"ids":result.records.map(func(r):return r.uuid)}
 	list=list.filter(func(r):return r.settings.id!=args.id); list.append(result.manifest); data.vegetation=list
 	if not Data.valid({"editor_layout":data}): return Data.fail("植被散布记录无效")
-	editor._doc.checkpoint_recovery()
-	editor._doc.records=editor._doc.records.filter(func(r):return not result.excluded.has(r.uuid))
-	editor._doc.records.append_array(result.records); editor._doc.map_meta.editor_layout=data
-	editor._dirty=true; overlay_plan={}; editor._rebuild()
-	return {"ok":true,"changed":true,"count":result.count,"shortfall":result.shortfall,"ids":result.records.map(func(r):return r.uuid)}
+	var meta:Dictionary=editor._doc.map_meta.duplicate();meta.editor_layout=data
+	return editor._replace_records(result.records,result.excluded,meta,{"ok":true,"changed":true,"count":result.count,"shortfall":result.shortfall,"ids":result.records.map(func(r):return r.uuid)},_published)
 func remove(id: String, keep_objects: bool) -> Dictionary:
 	var ready: Dictionary=editor._city.guard()
 	if not ready.ok: return ready
@@ -182,8 +179,9 @@ func remove(id: String, keep_objects: bool) -> Dictionary:
 	if old.is_empty(): return Data.fail("散布区域不存在")
 	var ownership:=owned(old,not keep_objects)
 	if not ownership.ok: return ownership
-	editor._doc.checkpoint_recovery()
-	if not keep_objects: editor._doc.records=editor._doc.records.filter(func(r):return not ownership.ids.has(r.uuid))
-	data.vegetation=regions().filter(func(r):return r.settings.id!=id); editor._doc.map_meta.editor_layout=data
-	editor._dirty=true; overlay_plan={}; editor._rebuild()
-	return {"ok":true,"kept_objects":keep_objects}
+	data.vegetation=regions().filter(func(r):return r.settings.id!=id)
+	var meta:Dictionary=editor._doc.map_meta.duplicate();meta.editor_layout=data
+	return editor._replace_records({},[] if keep_objects else ownership.ids,meta,{"ok":true,"kept_objects":keep_objects},_published)
+
+func _published(_result:Dictionary)->void:
+	overlay_plan={};editor._city.refresh()

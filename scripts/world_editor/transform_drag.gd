@@ -176,11 +176,18 @@ func finish(cancel: bool = false) -> void:
 			var previous: Dictionary=originals[i]
 			var record: Dictionary = _live_records[i]
 			for field in ["position", "rotation", "size"]: record[field] = previous[field].duplicate()
-		if not editor._authoring.settings.isolation:
-			editor._sync_selected_transform(_live_records)
-			editor._inspector.refresh(false)
+		editor._sync_selected_transform(_live_records)
+		editor._inspector.refresh(false)
 		if building_drag and changed and not cancel:
 			result = editor._selection_tools.motion.move(building_delta,building_rotation,1.0,center)
+	elif editor._selection_tools.needs_native_detach(_live_records):
+		var proposed:Array=_live_records.duplicate(true)
+		# The drag is a pose preview. Restore the live pose before starting the
+		# private transaction so failure/cancellation leaves document and history.
+		for i in originals.size():
+			for field in ["position","rotation","size"]:_live_records[i][field]=originals[i][field].duplicate()
+		editor._sync_selected_transform(_live_records)
+		result=editor._selection_tools.prepare_native_transform(proposed)
 	else:
 		editor._detach_selected_tile()
 		editor._doc.commit_owned_snapshot(before)
@@ -191,9 +198,8 @@ func finish(cancel: bool = false) -> void:
 	originals.clear()
 	_live_records.clear()
 	_live_primary = {}
-	# A successful building commit already rebuilt the isolated floor once.
-	if not gravity_started and editor._authoring.settings.isolation and not (building_drag and changed and not cancel and result.get("changed",false)): editor._rebuild()
-	if not gravity_started and editor._status != null: editor._status.text = ("已取消变换" if cancel else editor._hint()) if result.ok else result.error
+	if not gravity_started and editor._status != null:
+		editor._status.text="正在准备模型及相邻网格…" if result.get("pending",false) else (("已取消变换" if cancel else editor._hint()) if result.ok else result.error)
 
 
 func _intersection(screen: Vector2) -> Variant:

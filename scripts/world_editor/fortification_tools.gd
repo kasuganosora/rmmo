@@ -266,8 +266,8 @@ func generate(args: Dictionary,gate_control:=false) -> Dictionary:
 	var frozen:=freeze(r.records,r.manifest)
 	if not frozen.ok:return frozen
 	r.records=frozen.records
-	editor._doc.checkpoint_recovery(); editor._doc.records=editor._doc.records.filter(func(item):return not r.excluded.has(item.uuid)); editor._doc.records.append_array(r.records); editor._doc.map_meta.editor_layout=r.metadata; editor._dirty=true; editor._rebuild()
-	return {"ok":true,"changed":true,"count":r.records.size(),"ids":r.records.map(func(item):return item.uuid)}
+	var meta:Dictionary=editor._doc.map_meta.duplicate();meta.editor_layout=r.metadata
+	return editor._replace_records(r.records,r.excluded,meta,{"ok":true,"changed":true,"count":r.records.size(),"ids":r.records.map(func(item):return item.uuid)},_published)
 func set_gate(id: String,gate_id: String,amount: float) -> Dictionary:
 	var ready:Dictionary=editor._city.guard()
 	if not ready.ok:return ready
@@ -277,15 +277,17 @@ func set_gate(id: String,gate_id: String,amount: float) -> Dictionary:
 		if r.get("baked",false):
 			var owner:=owned(r)
 			if not owner.ok:return owner
-			var members:Array=editor._doc.records.filter(func(item):return owner.ids.has(item.uuid) and item.get("fixture",{}).get("id","")==gate_id)
+			var members:Array=editor._doc.records.filter(func(item):return owner.ids.has(item.uuid) and item.get("fixture",{}).get("id","")==gate_id).duplicate(true)
 			if members.is_empty():return Data.fail("城门不存在或水关没有门扇")
-			editor._doc.checkpoint_recovery()
 			for item in members:item.fixture.open=amount
 			for gate in r.settings.gates:
 				if gate.id==gate_id:gate.open=amount
-			for part in r.parts:part.signature=Data.token(editor._doc._find(part.id))
-			var data:=Data.resolve(editor._doc.map_meta);data.fortifications=data.fortifications.filter(func(item):return item.settings.id!=id);data.fortifications.append(r);editor._doc.map_meta.editor_layout=data
-			editor._dirty=true;editor._rebuild();return {"ok":true,"changed":true}
+			var updates:Dictionary={}
+			for item:Dictionary in members:updates[str(item.uuid)]=item
+			for part in r.parts:part.signature=Data.token(updates.get(str(part.id),editor._doc._find(part.id)))
+			var data:=Data.resolve(editor._doc.map_meta);data.fortifications=data.fortifications.filter(func(item):return item.settings.id!=id);data.fortifications.append(r)
+			var meta:Dictionary=editor._doc.map_meta.duplicate();meta.editor_layout=data
+			return editor._replace_records(updates,[],meta,{"ok":true,"changed":true},_published)
 		var gates: Array=r.settings.gates.duplicate(true)
 		for gate in gates:
 			if gate.id==gate_id: gate.open=amount; return generate({"id":id,"gates":gates},true)
@@ -300,13 +302,14 @@ func remove(id: String,keep: bool) -> Dictionary:
 	if keep and old.get("baked",false):return Data.fail("固定城防预制件不能解除关联拆成散件")
 	var owner:=owned(old,not keep)
 	if not owner.ok: return owner
-	editor._doc.checkpoint_recovery()
-	if not keep: editor._doc.records=editor._doc.records.filter(func(r):return not owner.ids.has(r.uuid))
-	else:
+	var updates:Dictionary={}
+	if keep:
 		for r in editor._doc.records:
 			if owner.ids.has(r.uuid):
-				preload("res://scripts/world3d/building_fixtures.gd").bake_snapshot(r); r.erase("fortification")
-	var data:=Data.resolve(editor._doc.map_meta); data.fortifications=regions().filter(func(r):return r.settings.id!=id); editor._doc.map_meta.editor_layout=data; editor._dirty=true; editor._rebuild(); return {"ok":true}
+				var next:Dictionary=r.duplicate(true);preload("res://scripts/world3d/building_fixtures.gd").bake_snapshot(next);next.erase("fortification");updates[str(r.uuid)]=next
+	var data:=Data.resolve(editor._doc.map_meta);data.fortifications=regions().filter(func(r):return r.settings.id!=id)
+	var meta:Dictionary=editor._doc.map_meta.duplicate();meta.editor_layout=data
+	return editor._replace_records(updates,[] if keep else owner.ids,meta,{"ok":true},_published)
 
 static func freeze(records:Array,manifest:Dictionary)->Dictionary:
 	var result:=preload("res://scripts/world3d/structure_prefab.gd").fortification(records)
@@ -335,10 +338,10 @@ func bake(id:String)->Dictionary:
 		var manifest:Dictionary=region.duplicate(true)
 		var result:=freeze(editor._doc.records.filter(func(r):return owner.ids.has(r.uuid)),manifest)
 		if not result.ok:return result
-		editor._doc.checkpoint_recovery()
-		editor._doc.records=editor._doc.records.filter(func(r):return not owner.ids.has(r.uuid));editor._doc.records.append_array(result.records)
 		var data:=Data.resolve(editor._doc.map_meta)
 		data.fortifications=data.fortifications.filter(func(r):return r.settings.id!=id);data.fortifications.append(manifest)
-		editor._doc.map_meta.editor_layout=data;editor._dirty=true;editor._rebuild()
-		return {"ok":true,"source_count":result.source_count,"component_count":result.component_count}
+		var meta:Dictionary=editor._doc.map_meta.duplicate();meta.editor_layout=data
+		return editor._replace_records(result.records,owner.ids,meta,{"ok":true,"source_count":result.source_count,"component_count":result.component_count},_published)
 	return Data.fail("城防不存在")
+
+func _published(_result:Dictionary)->void:editor._city.refresh()

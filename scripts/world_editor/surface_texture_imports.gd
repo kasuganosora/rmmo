@@ -72,9 +72,11 @@ func configure(ledger:RefCounted)->void:
 	_queue=Queue.new();_queue.ledger=ledger;_queue.shared_ledger_enabled=true
 	add_child(_queue)
 
-func submit(library:RefCounted,path:String,label:String="",compression:String=DEFAULT_COMPRESSION)->Dictionary:
+func submit(library:RefCounted,path:String,label:String="",compression:String=DEFAULT_COMPRESSION,preserve_alpha_test_coverage:bool=false,alpha_test_threshold:float=.5)->Dictionary:
 	if _stopping or not is_instance_valid(_queue) or library==null:return {"ok":false,"error":"贴图导入服务不可用"}
 	if compression not in ["source","dds"]:return {"ok":false,"error":"贴图质量选项无效"}
+	var coverage:=Worker.coverage_options(preserve_alpha_test_coverage,alpha_test_threshold)
+	if coverage.is_empty():return {"ok":false,"error":"透明裁切阈值必须介于 0 和 1 之间"}
 	_queue.set_process(true)
 	_next_id+=1;var id:=_next_id
 	var directory:String=library.directory
@@ -84,7 +86,7 @@ func submit(library:RefCounted,path:String,label:String="",compression:String=DE
 	var dir_key:=directory.replace("\\","/").simplify_path()
 	var path_key:=path.replace("\\","/").simplify_path()
 	if OS.get_name()=="Windows":dir_key=dir_key.to_lower();path_key=path_key.to_lower()
-	var key:=JSON.stringify([dir_key,path_key,compression])
+	var key:=JSON.stringify([dir_key,path_key,compression,coverage.coverage_key])
 	if _groups.has(key) and _groups[key].token.is_cancelled():
 		# A cancelled in-flight generation can still own a worker and lease.
 		# Retire it under its own key; a new request must get a fresh token.
@@ -97,7 +99,7 @@ func submit(library:RefCounted,path:String,label:String="",compression:String=DE
 		_groups[key].subscribers.append(id)
 	else:
 		var token:=Drainer.CancelToken.new()
-		_groups[key]={"subscribers":[id],"token":token,"path":path,"directory":directory,"root":content_root,"compression":compression}
+		_groups[key]={"subscribers":[id],"token":token,"path":path,"directory":directory,"root":content_root,"compression":compression,"coverage":coverage}
 		if not _start_probe(_groups[key]):
 			_groups.erase(key);_requests.erase(id)
 			return {"ok":false,"error":"贴图导入任务无法启动"}
@@ -135,10 +137,10 @@ func _start_prepare(group:Dictionary,probe:Dictionary)->bool:
 	_serial+=1;var job:="surface_import:%d:%d"%[get_instance_id(),_serial]
 	group.job=job;group.state="preparing"
 	var estimate:={"estimated_bytes":int(probe.estimated_bytes),"exclusive":false,"cpu_only":true,"stage":"surface_texture_import"}
-	return _queue.enqueue(job,_prepare_and_publish.bind(group.path,group.directory,group.token,_broker,probe,group.root,producer_observer,group.compression),estimate,"texture")
+	return _queue.enqueue(job,_prepare_and_publish.bind(group.path,group.directory,group.token,_broker,probe,group.root,producer_observer,group.compression,group.coverage.preserve_alpha_test_coverage,group.coverage.alpha_test_threshold),estimate,"texture")
 
-static func _prepare_and_publish(path:String,directory:String,token:RefCounted,broker:RefCounted,probe:Dictionary,root:String,observer:Callable,compression:String=DEFAULT_COMPRESSION)->Dictionary:
-	var prepared:Dictionary=Worker.prepare(path,directory,token,root,probe,Callable(),compression)
+static func _prepare_and_publish(path:String,directory:String,token:RefCounted,broker:RefCounted,probe:Dictionary,root:String,observer:Callable,compression:String=DEFAULT_COMPRESSION,preserve_alpha_test_coverage:bool=false,alpha_test_threshold:float=.5)->Dictionary:
+	var prepared:Dictionary=Worker.prepare(path,directory,token,root,probe,Callable(),compression,preserve_alpha_test_coverage,alpha_test_threshold)
 	if not prepared.get("ok",false):return prepared
 	var key:String=prepared.texture_path
 	if not broker.claim(key):
@@ -148,8 +150,15 @@ static func _prepare_and_publish(path:String,directory:String,token:RefCounted,b
 	if observer.is_valid():observer.call(path)
 	var result:Dictionary=Worker.encode_publish(prepared,token,root,Callable(),Callable(),true)
 	prepared.clear()
-	# Producer alone carries the Image back under its joined queue lease.
-	# Followers receive no Image and cannot complete until main publishes it.
+	if result.get("ok",false) and result.get("streamed_ready",false) and not token.is_cancelled():
+		var streamed:=preload("res://scripts/world3d/streamed_texture_source.gd")
+		var row:=streamed.plan_imported(key,false,false,root)
+		if not row.is_empty():
+			var texture:=streamed.read(row,key.sha256_text())
+			if texture!=null:
+				result.prepared_texture=texture;result.erase("prepared_image")
+	# Only the producer carries the completed owner under its joined queue lease.
+	# Followers receive metadata after main has published that same allocation.
 	return {"ok":true,"broker_key":key,"producer":true,"result":result}
 
 func _process(_delta:float)->void:
@@ -167,20 +176,20 @@ func _process(_delta:float)->void:
 			if packet.get("producer",false):
 				var produced:Dictionary=packet.result
 				if group.token.is_cancelled():
-					produced.erase("prepared_image");produced={"ok":false,"error":"贴图导入已取消"}
+					produced.erase("prepared_image");produced.erase("prepared_texture");produced={"ok":false,"error":"贴图导入已取消"}
 				elif produced.get("ok",false):
-					if produced.get("prepared_image") is Image:
+					if produced.get("prepared_image") is Image or produced.get("prepared_texture") is Texture2D:
 						if publication_observer.is_valid():publication_observer.call(group.job,_queue.ledger.reserved_bytes)
 						if produced.get("dds_ready",false):
 							var generation:=JSON.stringify([produced.texture_path,produced.dds_sha])
 							var changed:bool=not produced.get("dds_reused",false) and not _notified_content.has(generation)
 							_notified_content[generation]=true
 							preload("res://scripts/world3d/surface_materials.gd").refresh_texture_source_if_needed(produced.texture_path,produced.dds_path,produced.dds_sha,changed)
-						if not preload("res://scripts/world3d/surface_materials.gd").publish_import_texture(produced.texture_path,produced.prepared_image):
-							produced.erase("prepared_image");produced={"ok":false,"error":"贴图上传失败或不受当前渲染设备支持"}
+						if not preload("res://scripts/world3d/surface_materials.gd").publish_import_texture(produced.texture_path,produced.get("prepared_texture",produced.get("prepared_image"))):
+							produced.erase("prepared_image");produced.erase("prepared_texture");produced={"ok":false,"error":"贴图上传失败或不受当前渲染设备支持"}
 					else:produced={"ok":false,"error":"贴图像素准备失败"}
-				# Remove every CPU Image alias before returning its admission credit.
-				produced.erase("prepared_image");packet.erase("result")
+				# Remove resource aliases before returning credit or publishing metadata.
+				produced.erase("prepared_image");produced.erase("prepared_texture");packet.erase("result")
 				_queue.release(group.job);_queue.forget_terminal(group.job)
 				_broker.complete(packet.broker_key,produced)
 				group.state="waiting";group.broker_key=packet.broker_key

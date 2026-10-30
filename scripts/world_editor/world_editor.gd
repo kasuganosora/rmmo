@@ -20,6 +20,9 @@ var _query := ""
 var _pick := 0
 var _stroke = Paint.new()
 var _auto_stroke = preload("res://scripts/world_editor/auto_tile_stroke.gd").new()
+var _record_preview_root:Node3D
+var _auto_preview_outline:MeshInstance3D
+var _record_preview_hidden:Dictionary={}
 var _auto_cell_size := 4.0
 var _auto_height := 0.0
 var _auto_panel: VBoxContainer
@@ -88,6 +91,8 @@ var _asset_operations:Node
 var _gameplay = preload("res://scripts/world_editor/gameplay_tools.gd").new()
 var _event_panel: VBoxContainer
 var _environment_panel: VBoxContainer
+var _rendering_preferences:Node
+var _rendering_preferences_panel:AcceptDialog
 var _sun: DirectionalLight3D
 var _weather: Node3D
 var _wind_tools = preload("res://scripts/world_editor/wind_tools.gd").new()
@@ -131,6 +136,8 @@ func _ready() -> void:
 	_shared_preparation_ledger.byte_limit=preload("res://scripts/world3d/definition_cache_policy.gd").work_budget(_shared_preparation_ledger.byte_limit)
 	_surface_texture_imports=preload("res://scripts/world_editor/surface_texture_imports.gd").new()
 	add_child(_surface_texture_imports);_surface_texture_imports.configure(_shared_preparation_ledger)
+	_rendering_preferences=preload("res://scripts/world_editor/rendering_preferences.gd").new()
+	add_child(_rendering_preferences);_rendering_preferences.configure(_shared_preparation_ledger)
 	_workspace_preferences.setup(self)
 	var initial_path := ""
 	var dir := Paths.cache_directory("editor_yard")
@@ -183,7 +190,8 @@ func _ready() -> void:
 	_camera.position = Vector3(0, 8, 12)
 	_camera.rotation_degrees = Vector3(-35, 0, 0)
 	add_child(_camera)
-	_rebuild()
+	# Keep a valid empty host while initial dependency preparation is pending.
+	_view=_doc.export_root([]);add_child(_view);_authoring.refresh()
 	_hud()
 	_apply_environment()
 	_safety = preload("res://scripts/world_editor/document_safety.gd").new()
@@ -200,6 +208,7 @@ func _ready() -> void:
 	_asset_operations=preload("res://scripts/world_editor/prepared_asset_operation.gd").new()
 	_asset_operations.editor=self;add_child(_asset_operations)
 	if not initial_path.is_empty(): _load_job.start(initial_path,true)
+	else:_rebuild()
 	if _load_failed:
 		_status.text = "地图读取失败或格式不支持；已禁止覆盖保存"
 	if _mcp_autostart and (OS.get_environment("RMMO_EDITOR_MCP").strip_edges().to_lower() in ["1", "true", "yes", "on"] or "--mcp" in OS.get_cmdline_user_args()):
@@ -487,6 +496,7 @@ func _place(screen: Vector2, fresh: bool, erase_override: bool = false) -> void:
 		if point == null: return
 		if fresh:
 			_finish_auto_stroke()
+			_asset_operations.cancel_ui()
 			var options: Dictionary = _auto_panel.options(str(spec.auto_family))
 			if options.has("error"):
 				_status.text = options.error
@@ -650,15 +660,14 @@ func _begin_rebuild(timings: Dictionary = {}) -> void:
 	_view = null
 	timings.free_previous_ms = (Time.get_ticks_usec()-started)/1000.
 
-func _rebuild() -> void:
-	_begin_rebuild()
-	_view = _doc.build()
-	add_child(_view)
-	for record in _doc.records:
-		var visual := _view.get_node_or_null(NodePath(str(record.uuid))) as Node3D
-		if visual != null: _authoring.decorate(record,visual)
-	_add_bodies(_view)
-	_finish_rebuild()
+func _rebuild() -> Dictionary:
+	return _asset_operations.rebuild()
+
+func _replace_records(updates:Variant,removed:Variant=[],meta:Variant=null,result:Dictionary={},completed:Callable=Callable())->Dictionary:
+	return _asset_operations.replace(updates,removed,meta,result,completed)
+
+func _prepare_target(target:RefCounted,result:Dictionary={},full:bool=false,completed:Callable=Callable(),canvas:String="",coalesce:bool=false)->Dictionary:
+	return _asset_operations.commit_target(target,result,full,completed,canvas,coalesce)
 
 func _finish_rebuild() -> void:
 	if _selection_tools != null: _selection_tools.refresh()
@@ -735,9 +744,6 @@ func _add_bodies(node: Node, recursive:bool=true, picking_plan:Variant=null) -> 
 
 func _sync_selected_transform(live_records: Variant = null) -> void:
 	_selection_tools.invalidate_pivot()
-	if _authoring.settings.isolation and not _transform_drag.active and not _gravity.falling:
-		_rebuild()
-		return
 	_ground_sync_suspended = true
 	_ground_sync_pending = false
 	var selected: Array = _selection_tools.records() if live_records == null else live_records
@@ -785,8 +791,10 @@ func _sync_record_transform(record: Dictionary) -> void:
 		elif visual.has_meta("ground_batch_record"): visual.remove_meta("ground_batch_record")
 	visual.set_meta("editor_mesh_size",record.get("size",[]).duplicate())
 	visual.force_update_transform()
+	if _authoring.settings.isolation:_authoring.decorate(record,visual)
 	for body: StaticBody3D in _bodies_by_uuid.get(str(record.uuid), []):
 		var mesh: MeshInstance3D = body.get_meta("visual")
+		if _authoring.settings.isolation:body.collision_layer=_body_layers(mesh) if _body_node_enabled(mesh) else 0
 		body.transform = mesh.global_transform
 		var shape: CollisionShape3D = body.get_child(0)
 		if shape.shape is BoxShape3D:
@@ -926,11 +934,37 @@ func _finish_auto_stroke(cancel: bool = false) -> void:
 	if not _auto_stroke.active: return
 	var had_changes: bool = _auto_stroke.changed
 	if _auto_stroke.finish(cancel): _dirty = true
+	_asset_operations.cancel_ui()
+	_clear_private_preview()
 	if cancel and had_changes:
 		_rebuild()
 		_inspector.refresh()
 	if _object_list != null and had_changes: _object_list.refresh()
 	if _status != null: _status.text = "已取消自动铺设" if cancel else _hint()
+
+func _prepare_auto_preview()->void:
+	# Reserved for the staged preview experiment; the interactive brush still
+	# publishes through the synchronous per-cell refresh verified by the UI test.
+	pass
+
+func _private_preview_ready(preview_root:Node3D,ids:Array)->void:
+	_clear_private_preview()
+	_record_preview_root=preview_root;add_child(preview_root)
+	for id:String in ids:
+		var visual:Node3D=_view.get_node_or_null(NodePath(id))
+		if visual!=null:
+			_record_preview_hidden[id]={"node":weakref(visual),"visible":visual.visible};visual.visible=false
+	_status.text=_hint()
+
+func _clear_private_preview(_result:Dictionary={})->void:
+	for entry:Dictionary in _record_preview_hidden.values():
+		var node:Node3D=entry.node.get_ref()
+		if node!=null:node.visible=entry.visible
+	_record_preview_hidden.clear()
+	if is_instance_valid(_record_preview_root):preload("res://scripts/world3d/asset_worker_drainer.gd").dispose_scene(_record_preview_root)
+	_record_preview_root=null
+	if is_instance_valid(_auto_preview_outline):_auto_preview_outline.free()
+	_auto_preview_outline=null
 
 
 func _detach_selected_tile(refresh_inspector: bool=true) -> void:
@@ -952,7 +986,11 @@ func _building_area_busy() -> bool:
 	return _building_panel!=null and _building_panel.region!=null and _building_panel.region.drawing
 
 func _finish_edits() -> void:
-	if _asset_operations!=null:_asset_operations.cancel_all()
+	_finish_auto_stroke(true)
+	# Pending authored transactions are never cancelled here: a finished brush
+	# stroke may still be preparing its result, and dropping it would lose the
+	# only copy of that edit. Only presentation work is discarded.
+	if _asset_operations!=null:_asset_operations.cancel_presentation()
 	_gravity.complete()
 	if _terrain_panel!=null and _terrain_panel.rock_banks!=null:_terrain_panel.rock_banks.cancel()
 	_city.finish_draw(true)
@@ -1000,6 +1038,9 @@ func _save_async(path: String = "", overwrite: bool = false) -> bool:
 func _prepare_save(path: String, overwrite: bool = false) -> bool:
 	if saving(): return false
 	_finish_edits()
+	if _asset_operations!=null and _asset_operations.authored_pending()>0:
+		_status.text = "正在准备编辑结果，请稍候再保存"
+		return false
 	if _load_failed:
 		_report_error("读取失败的地图不能覆盖保存；请先恢复草稿或打开有效地图", "保存地图")
 		return false
@@ -1029,6 +1070,9 @@ func _finish_save(err: Error, path: String, previous_path: String) -> void:
 
 func _play() -> void:
 	_finish_edits()
+	if _asset_operations!=null and _asset_operations.authored_pending()>0:
+		_status.text="正在准备编辑结果，请稍候再试玩"
+		return
 	var result: Dictionary = _playtest.start()
 	_status.text = "正在准备临时试玩…" if result.ok else str(result.error)
 
@@ -1044,6 +1088,8 @@ func _record_editable(record: Dictionary) -> bool:
 
 func _hud() -> void:
 	preload("res://scripts/world_editor/workspace.gd").build(self)
+	_rendering_preferences_panel=preload("res://scripts/world_editor/rendering_preferences_panel.gd").new()
+	add_child(_rendering_preferences_panel);_rendering_preferences_panel.setup(self)
 
 
 func _file_dialog(save_as: bool) -> void:
@@ -1117,6 +1163,7 @@ func open_document(path: String) -> bool:
 
 
 func _on_search(text: String) -> void:
+	_finish_auto_stroke(true)
 	if _asset_operations!=null:_asset_operations.cancel_ui()
 	_query = text
 	_pick = 0
@@ -1182,6 +1229,7 @@ func _refresh_palette() -> void:
 
 
 func _on_palette_selected(index: int) -> void:
+	_finish_auto_stroke(true)
 	if _asset_operations!=null:_asset_operations.cancel_ui()
 	_pick = index
 	if _selected().has("prefab_path"): _preview.show_prefab(_selected())
@@ -1202,6 +1250,7 @@ func _apply_thumbnail(key: String, texture: Texture2D) -> void:
 
 
 func _set_mode(mode: int, reveal_panel: bool = true) -> void:
+	if mode!=_mode:_finish_auto_stroke(true)
 	if _asset_operations!=null and mode!=_mode:_asset_operations.cancel_ui()
 	if _ground_draw != null: _ground_draw.cancel()
 	if _terrain_brush != null: _terrain_brush.cancel()
@@ -1259,6 +1308,10 @@ func _update_space_button() -> void:
 
 
 func _undo() -> Dictionary:
+	_finish_auto_stroke(true)
+	# A finished brush stroke may still be publishing its result. Undoing now
+	# would cancel the only copy of that edit, so wait for it instead.
+	if _asset_operations.authored_pending()>0:return {"ok":false,"error":"正在准备编辑结果，请稍候再撤销"}
 	_asset_operations.cancel_all()
 	_city.finish_draw(true)
 	if _ground_draw != null: _ground_draw.cancel()
@@ -1280,6 +1333,8 @@ func _undo() -> Dictionary:
 
 
 func _redo() -> Dictionary:
+	_finish_auto_stroke(true)
+	if _asset_operations.authored_pending()>0:return {"ok":false,"error":"正在准备编辑结果，请稍候再重做"}
 	_asset_operations.cancel_all()
 	_city.finish_draw(true)
 	if _ground_draw != null: _ground_draw.cancel()
@@ -1430,10 +1485,13 @@ func _open_pack_maps() -> void:
 	_pack_map_dialog.show_maps(_path)
 
 
-func _duplicate_selected() -> void:
+func _duplicate_selected() -> Dictionary:
 	_transform_drag.finish()
 	_finish_auto_stroke()
-	_selection_tools.duplicate_selected()
+	var result:Dictionary=_selection_tools.duplicate_selected()
+	if result.get("pending",false):_status.text="正在准备复制模型…"
+	elif not result.ok:_status.text=str(result.get("error","复制失败"))
+	return result
 
 
 func _nudge_selected(direction: Vector3) -> void:
@@ -1451,8 +1509,13 @@ func _rotate_selected(direction: int) -> void:
 		return
 	var record: Dictionary = _doc._find(_inspector.selection)
 	if record.is_empty(): return
-	_doc.checkpoint()
 	var step := _rotation_snap if _rotation_snap > 0 else 1.0
+	if _selection_tools.needs_native_detach([record]):
+		var rotation:Array=record.rotation.duplicate()
+		rotation[1]=snappedf(float(rotation[1])+direction*step,step)
+		_selection_tools.set_object_transform(str(record.uuid),{"rotation":rotation})
+		return
+	_doc.checkpoint()
 	record.rotation[1] = snappedf(float(record.rotation[1]) + direction * step, step)
 	_detach_selected_tile()
 	_dirty = true
@@ -1668,29 +1731,16 @@ func _import_asset_into_pack(pack_root: String, relink: bool) -> void:
 	dialog.file_mode = FileDialog.FILE_MODE_OPEN_FILE
 	dialog.filters = PackedStringArray(["*.glb,*.gltf ; 3D 模型"])
 	dialog.file_selected.connect(func(path: String):
-		if _asset_pack_root != pack_root:
-			_asset_pack_root = pack_root
-			_assets = preload("res://scripts/world_editor/asset_library.gd").new(pack_root.path_join("assets"))
-			_shared_assets = _shared_assets.filter(func(library): return library.directory != _assets.directory)
-		var result: Dictionary = _assets.import_file(path)
+		# UI and MCP share the same import, pack membership, thumbnail and relink
+		# transaction; only the file picker belongs to the window.
+		var result: Dictionary = preload("res://scripts/world_editor/model_import_tools.gd").import_model(self,path,pack_root,true,true)
 		if not result.ok:
 			_status.text = result.error
+		elif relink:
+			var linked:Dictionary=preload("res://scripts/world_editor/model_import_tools.gd").relink_model(self,_inspector.selection,str(result.asset_id))
+			if linked.get("pending",false):_status.text="模型已导入，正在准备重新关联…"
+			else:_status.text="模型已导入并重新关联，可撤销" if linked.ok else "模型已导入，重新关联失败："+str(linked.error)
 		else:
-			if relink:
-				var record: Dictionary = _doc._find(_inspector.selection)
-				if record.get("kind") == "asset":
-					_doc.checkpoint()
-					record.merge(result.entry, true)
-					_dirty = true
-					_rebuild()
-			_query = ""
-			_asset_category = ""
-			_refresh_palette()
-			var all := _library_items()
-			for i in all.size():
-				if all[i].get("asset_path") == result.entry.asset_path: _pick = i
-			_refresh_palette()
-			_thumbnails.queue_import(result.entry)
 			_status.text = "模型已导入，正在生成资源包缩略图…"
 		dialog.queue_free()
 	)

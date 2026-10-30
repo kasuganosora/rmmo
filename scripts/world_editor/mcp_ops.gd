@@ -57,6 +57,10 @@ func execute(name: String, args: Dictionary) -> Dictionary:
 
 func _execute(name: String, args: Dictionary) -> Dictionary:
 	match name:
+		"get_rendering_preferences":return editor._rendering_preferences.state()
+		"set_rendering_preferences":return editor._rendering_preferences.apply(args)
+		"reset_rendering_preferences":return editor._rendering_preferences.reset_defaults()
+		"restore_rendering_preferences":return editor._rendering_preferences.restore_previous()
 		"list_terrain_rivers":return preload("res://scripts/world_editor/terrain_river_tools.gd").catalog(editor)
 		"remove_terrain_river":return preload("res://scripts/world_editor/terrain_river_tools.gd").apply(editor,args,false,true)
 		"generate_terrain_river":return preload("res://scripts/world_editor/terrain_river_tools.gd").apply(editor,args)
@@ -68,6 +72,8 @@ func _execute(name: String, args: Dictionary) -> Dictionary:
 		"move_editor_walk":return editor._walk_mode.move(args)
 		"set_editor_walk_view":return editor._walk_mode.set_view(args)
 		"repair_asset_thumbnails":return repair_thumbnails(args.asset_ids)
+		"import_model":return preload("res://scripts/world_editor/model_import_tools.gd").import_model(editor,args.path,args.pack_root)
+		"relink_model":return preload("res://scripts/world_editor/model_import_tools.gd").relink_model(editor,args.id,args.asset_id)
 		"move_editor_camera":return editor._city.move_camera(xyz(args.offset))
 		"set_editor_wind_preview":return editor._wind_tools.set_preview(args.enabled)
 		"set_tree_parameters":return preload("res://scripts/world_editor/tree_tools.gd").apply(editor,args.ids,args.settings)
@@ -210,7 +216,7 @@ func _execute(name: String, args: Dictionary) -> Dictionary:
 			var entries: Array = editor._material_tool.library.search(str(args.get("query", "")), str(args.get("category", "")))
 			return ok({"materials": page(entries, args), "total": entries.size(), "categories": editor._material_tool.library.categories()})
 		"import_surface_material":
-			return editor._surface_texture_imports.submit(editor._material_tool.library,args.path,args.get("name", ""),args.get("compression",editor._surface_texture_imports.DEFAULT_COMPRESSION))
+			return editor._surface_texture_imports.submit(editor._material_tool.library,args.path,args.get("name", ""),args.get("compression",editor._surface_texture_imports.DEFAULT_COMPRESSION),args.get("preserve_alpha_test_coverage",false),args.get("alpha_test_threshold",.5))
 		"list_object_surfaces": return editor._material_tool.list_faces(args.id, int(args.get("offset", 0)), int(args.get("limit", 50)))
 		"pick_surface": return editor._material_tool.pick(Vector2(args.screen[0], args.screen[1]))
 		"paint_surface": return editor._material_tool.paint(args.id, args.target, args.material_id, args)
@@ -287,6 +293,7 @@ func _execute(name: String, args: Dictionary) -> Dictionary:
 			changes.erase("id")
 			if changes.is_empty(): return error("At least one transform field is required")
 			if not editor._selection_tools.set_object_transform(args.id, changes): return error(editor._selection_tools.last_error)
+			if editor._selection_tools.last_operation.get("pending",false):return editor._selection_tools.last_operation
 			return state()
 		"transform_selection":
 			var valid := targets({})
@@ -300,6 +307,7 @@ func _execute(name: String, args: Dictionary) -> Dictionary:
 				var size_ := Geometry.vector(record, "size") * factor
 				if not position.is_finite() or not size_.is_finite() or position.abs()[position.abs().max_axis_index()] > 1000000 or size_[size_.min_axis_index()] < 0.001 or size_[size_.max_axis_index()] > 100000: return error("Resulting transform is outside supported bounds")
 			var applied: Dictionary = editor._selection_tools.apply_transform(delta, rotation, factor)
+			if applied.get("pending",false):return applied
 			return state() if applied.ok else applied
 		"drop_selection": return editor._placement_tools.drop_selection(args.get("align_normal", false), args.get("max_distance", 100.0), args.get("offset", 0.0))
 		"snap_selection_to_surface": return editor._placement_tools.snap_to_surface(Vector2(args.screen[0], args.screen[1]), args.get("align_normal", true), args.get("offset", 0.0))
@@ -324,8 +332,12 @@ func _execute(name: String, args: Dictionary) -> Dictionary:
 					for record in editor._selection_tools.records():
 						if record.has("editor_group") and editor._selection_tools.members(record.uuid).is_empty(): return error("Show and unlock every group member before ungrouping")
 					editor._selection_tools.ungroup()
-				"duplicate_selection": editor._duplicate_selected()
-				"delete_selection": editor._selection_tools.remove()
+				"duplicate_selection":
+					var copied:Dictionary=editor._duplicate_selected()
+					if copied.get("pending",false) or not copied.ok:return copied
+				"delete_selection":
+					var removed:Dictionary=editor._selection_tools.remove()
+					if removed.get("pending",false) or not removed.ok:return removed
 				"focus_selection": editor._focus_selected()
 			return state()
 		"set_object_properties":

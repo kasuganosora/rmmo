@@ -7,8 +7,9 @@ class TimedEditor extends "res://scripts/world_editor/world_editor.gd":
 		var start:=Time.get_ticks_usec();super._ready();startup.total_ms=(Time.get_ticks_usec()-start)/1000.
 	func _load_asset_scope()->void:
 		var start:=Time.get_ticks_usec();super._load_asset_scope();startup.asset_scope_ms=(Time.get_ticks_usec()-start)/1000.
-	func _rebuild()->void:
-		var start:=Time.get_ticks_usec();super._rebuild();startup.rebuild_ms=(Time.get_ticks_usec()-start)/1000.
+	func _rebuild()->Dictionary:
+		var start:=Time.get_ticks_usec();var result:=super._rebuild();startup.rebuild_ms=(Time.get_ticks_usec()-start)/1000.
+		return result
 	func _hud()->void:
 		var start:=Time.get_ticks_usec();super._hud();startup.hud_ms=(Time.get_ticks_usec()-start)/1000.
 	func _apply_environment()->void:

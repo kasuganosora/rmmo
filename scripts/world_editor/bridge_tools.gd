@@ -137,14 +137,11 @@ func generate(args: Dictionary) -> Dictionary:
 		for i in p.records.size():
 			if p.records[i].uuid==args.id:p.records[i]=p.record
 		preload("res://scripts/world3d/structure_prefab.gd").refresh_bindings({"editor_layout":p.layout},p.records)
-	clear_preview(); editor._doc.checkpoint_recovery(); editor._doc.records=editor._doc.records.filter(func(r):return r.uuid!=args.id); editor._doc.records.append(p.record)
-	if p.has("layout"): editor._doc.records=p.records; editor._doc.map_meta.editor_layout=p.layout
-	editor._dirty=true
-	var changed: Array[String]=[str(args.id)]
-	for id in p.get("trimmed_roads",[]): changed.append(str(id))
-	# A bridge edit must not rebuild all 49 terrain patches in a kilometre-scale town.
-	editor._refresh_records(changed); editor._city.refresh(); editor._selection_tools.refresh(); editor._object_list.refresh(); editor._refresh_selection()
-	return {"ok":true,"changed":true,"id":args.id,"arches":p.record.bridge_mesh.arches}
+	var target=preload("res://scripts/world3d/world_document.gd").new()
+	target.records=p.records if p.has("layout") else editor._doc.records.filter(func(r):return r.uuid!=args.id)+[p.record]
+	target.map_meta=editor._doc.map_meta.duplicate();target._next=editor._doc._next
+	if p.has("layout"):target.map_meta.editor_layout=p.layout
+	return editor._prepare_target(target,{"ok":true,"changed":true,"id":args.id,"arches":p.record.bridge_mesh.arches},false,_published)
 func save_prefab(id: String,label: String) -> Dictionary:
 	var ready: Dictionary=editor._city.guard()
 	if not ready.ok: return ready
@@ -166,8 +163,10 @@ func bake(id:String)->Dictionary:
 				if node.id in [edge.from,edge.to] and (node.get("locked",false) or node.get("hidden",false)):return Data.fail("桥头道路节点受保护")
 	var frozen:=preload("res://scripts/world3d/structure_prefab.gd").bridge(old)
 	if not frozen.ok:return frozen
-	editor._doc.checkpoint_recovery()
-	for i in editor._doc.records.size():
-		if editor._doc.records[i].uuid==id:editor._doc.records[i]=frozen.record
-	preload("res://scripts/world3d/structure_prefab.gd").refresh_bindings(editor._doc.map_meta,editor._doc.records)
-	editor._dirty=true;editor._rebuild();return {"ok":true,"id":id,"component_count":1}
+	var meta:Dictionary=editor._doc.map_meta.duplicate(true)
+	var records:Array=editor._doc.records.map(func(record):return frozen.record if record.uuid==id else record)
+	preload("res://scripts/world3d/structure_prefab.gd").refresh_bindings(meta,records)
+	return editor._replace_records({id:frozen.record},[],meta,{"ok":true,"id":id,"component_count":1},_published)
+
+func _published(_result:Dictionary)->void:
+	clear_preview();editor._city.refresh()

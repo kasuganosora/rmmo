@@ -167,13 +167,18 @@ static func retained_texture(key:String)->Texture2D:
 	if texture!=null and prepared!=null and not _same_prepared_texture(texture,prepared):return null
 	return texture
 
-static func publish_import_texture(path:String,image:Image)->bool:
-	# Called on main only after the import worker joined, while its CPU Image
-	# remains covered by the queue lease. No file read or hidden mesh prewarm.
-	if not Thread.is_main_thread() or path.is_empty() or image==null or image.is_empty():return false
+static func publish_import_texture(path:String,image:Resource)->bool:
+	# Joined import output remains charged through this main-thread handoff.
+	# Native streaming owners require no full readback or replacement upload.
+	if not Thread.is_main_thread() or path.is_empty() or not (image is Image or image is Texture2D):return false
+	if image is Image and image.is_empty():return false
 	var key:=texture_key(path)
 	var current:=retained_texture(key)
 	if current!=null and _same_prepared_texture(current,image):return true
+	if image is Texture2D:
+		_store_texture(key,image)
+		if texture_profile_enabled:TextureCache._profile_count("paint.texture.import_stream_handoffs")
+		return true
 	var began:=Time.get_ticks_usec() if texture_profile_enabled else 0
 	var texture:=ImageTexture.create_from_image(image)
 	if texture==null or texture.get_width()!=image.get_width() or texture.get_height()!=image.get_height():return false
@@ -287,6 +292,7 @@ static func refresh_texture_source_if_needed(path:String,sidecar:String,dds_sha:
 	if cached==null and _texture_refs.has(key):cached=_texture_refs[key].get_ref()
 	var negative:bool=_sidecar_cache.has(key) and str(_sidecar_cache[key])!=sidecar
 	var representation:String=cached.get_meta("runtime_texture_representation","") if cached!=null else ""
+	if cached!=null:representation=cached.get_meta("runtime_source_representation",representation)
 	# Direct runtime reads use their immutable sidecar path, while mutable editor
 	# preparation records a verified byte digest; both describe the same file.
 	if changed or negative or (cached!=null and representation not in ["dds:"+sidecar,"dds:"+dds_sha]):
@@ -359,6 +365,7 @@ static func material_valid(value: Variant, relative: bool = false, content_root:
 	if value.get("normal_format", "opengl") not in ["opengl", "directx"]: return false
 	if not numbers([value.get("normal_strength", 1.0)], 1, 0, 4): return false
 	if not numbers([value.get("metallic", 0.0)], 1, 0, 1): return false
+	if value.has("alpha_scissor_threshold") and not numbers([value.alpha_scissor_threshold],1,0,1):return false
 	if not numbers(value.get("tile_size", [1.0, 1.0]), 2, 0.01, 100): return false
 	for field in MAP_FIELDS:
 		var path: Variant = value.get(field, "")
@@ -614,6 +621,13 @@ static func _texture(material:Dictionary,field:String,path_checks:Variant)->Text
 			TextureCache._profile_elapsed("paint.texture.background_handoff",began,{"path":path,"flip":flip_normal,"texture_only":true})
 		return texture
 	if key!="checker" and not prepared_images.has(cache_key):
+		var streamed:=preload("res://scripts/world3d/streamed_texture_source.gd").plan_imported(path,flip_normal,field=="normal_path",Paths.external_root())
+		if not streamed.is_empty():
+			var owner:=preload("res://scripts/world3d/streamed_texture_source.gd").read(streamed,path.sha256_text())
+			if owner!=null:
+				_store_texture(cache_key,owner)
+				if texture_profile_enabled:TextureCache._profile_count("paint.texture.imported_stream_loads")
+				return owner
 		var side:=_load_compressed_sidecar(path,flip_normal,field=="normal_path")
 		if not side.is_empty():
 			var side_started:=Time.get_ticks_usec() if texture_profile_enabled else 0
@@ -755,6 +769,9 @@ static func _make_material(value:Dictionary,cull_mode:int)->StandardMaterial3D:
 	result.texture_repeat = true
 	result.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
 	if result.albedo_color.a < 1 or (result.albedo_texture != null and bool(result.albedo_texture.get_meta("surface_has_alpha",false))): result.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	if value.has("alpha_scissor_threshold"):
+		result.transparency=BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR
+		result.alpha_scissor_threshold=float(value.alpha_scissor_threshold)
 	if _materials.size() >= 128:
 		var oldest:String=_materials.keys()[0];_materials.erase(oldest);_cache_use.erase("m:"+oldest)
 	result.set_meta("runtime_paint_definition",value.duplicate(true))

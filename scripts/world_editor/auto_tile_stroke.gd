@@ -1,6 +1,7 @@
 extends RefCounted
 ## One brush transaction, indexed cells, cardinally connected interpolation.
 const Rules = preload("res://scripts/world3d/auto_tile_rules.gd")
+const Doc = preload("res://scripts/world3d/world_document.gd")
 var active := false
 var changed := false
 var doc
@@ -15,15 +16,27 @@ var touched := {}
 var error := ""
 var options := {}
 var editable: Callable
+var staged:=false
+var source_document:RefCounted
+var source_revision:=0
+var source_next:=0
+var generation:=0
+var preview_ids:Dictionary={}
+var _copied:Dictionary={}
+var _positions:Dictionary={}
+var _positions_dirty:=false
 
 
-func begin(document, selected_family: String, spacing: float, height: float, erasing: bool, settings: Dictionary = {}) -> void:
-	doc = document
+func begin(document, selected_family: String, spacing: float, height: float, erasing: bool, settings: Dictionary = {}, private:bool=false) -> void:
+	staged=private;source_document=document;source_revision=document.authoring_revision;source_next=document._next;generation+=1
+	doc=Doc.new() if staged else document
+	if staged:doc.records=document.records.duplicate();doc.map_meta=document.map_meta;doc._next=document._next
 	family = selected_family
 	cell_size = spacing
 	elevation = snappedf(height, 0.001)
 	erase = erasing
-	before = doc.records.duplicate(true)
+	before = [] if staged else doc.records.duplicate(true)
+	preview_ids.clear();_copied.clear();_positions.clear();_positions_dirty=true
 	index = Rules.index_records(doc.records)
 	last = null
 	touched.clear()
@@ -57,12 +70,15 @@ func paint(point: Vector3) -> Array[String]:
 			if record.is_empty() or record.tile3d.family != family: continue
 			changed_ids.append(str(record.uuid))
 			doc.remove(str(record.uuid))
+			_positions_dirty=true
 			index.erase(key)
 		else:
 			if not record.is_empty() and record.tile3d.family == family and float(record.tile3d.elevation) == elevation and record.tile3d.get("options", {}) == options: continue
 			if record.is_empty():
 				var uuid: String = doc.add_box_silent("ground", Vector3.ZERO, Vector3.ONE)
 				record = doc._find(uuid)
+				_copied[uuid]=true;_positions_dirty=true
+			else:record=_private_record(record,key)
 			Rules.configure(record, at, family, cell_size, elevation, options)
 			index[key] = record
 			changed_ids.append(str(record.uuid))
@@ -72,19 +88,59 @@ func paint(point: Vector3) -> Array[String]:
 		affected[at] = true
 	# A height change also affects bridge landings on other logical layers.
 	var surfaces := Rules.landing_index(index)
-	for record: Dictionary in index.values():
+	for key:String in index:
+		var record:Dictionary=index[key]
 		var tile: Dictionary = record.tile3d
 		if not affected.has(Vector2i(tile.cell[0], tile.cell[1])) or float(tile.cell_size) != cell_size: continue
+		record=_private_record(record,key)
 		if Rules.refresh(index, record, surfaces) and not changed_ids.has(str(record.uuid)):
 			changed_ids.append(str(record.uuid))
+	if not changed_ids.is_empty():generation+=1
+	for id:String in changed_ids:preview_ids[id]=true
 	return changed_ids
+
+func current()->bool:
+	return source_document!=null and source_document.authoring_revision==source_revision and source_document._next==source_next
+
+func _private_record(record:Dictionary,key:String)->Dictionary:
+	var id:=str(record.uuid)
+	if not staged or _copied.has(id):return record
+	if _positions_dirty:
+		_positions.clear()
+		for i:int in doc.records.size():_positions[str(doc.records[i].uuid)]=i
+		_positions_dirty=false
+	var next:=record.duplicate(true)
+	doc.records[_positions[id]]=next;index[key]=next;_copied[id]=true
+	return next
+
+## Recompute only records around detached/replaced cells. The caller owns the
+## document array; untouched record dictionaries remain immutable and shared.
+static func refresh_around(document:RefCounted,ids:Array)->Array[String]:
+	var affected:Dictionary={};var result:Array[String]=[]
+	for id:String in ids:
+		var record:Dictionary=document._find(id)
+		if not record.has("tile3d"):continue
+		var tile:Dictionary=record.tile3d;var cell:=Vector2i(tile.cell[0],tile.cell[1]);var spacing:=float(tile.cell_size)
+		affected[Vector3(cell.x,cell.y,spacing)]=true
+		for offset:Vector2i in Rules.OFFSETS:affected[Vector3(cell.x+offset.x,cell.y+offset.y,spacing)]=true
+	if affected.is_empty():return result
+	var neighbors:=Rules.index_records(document.records);var surfaces:=Rules.landing_index(neighbors)
+	for i:int in document.records.size():
+		var record:Dictionary=document.records[i]
+		if not Rules.attached(record):continue
+		var tile:Dictionary=record.tile3d
+		if not affected.has(Vector3(tile.cell[0],tile.cell[1],float(tile.cell_size))):continue
+		var next:=record.duplicate(true)
+		if Rules.refresh(neighbors,next,surfaces):
+			document.records[i]=next;neighbors[Rules.record_key(next)]=next;result.append(str(next.uuid))
+	return result
 
 
 func finish(cancel: bool = false) -> bool:
 	if not active: return false
 	active = false
 	var applied := changed and not cancel
-	if changed:
+	if changed and not staged:
 		if cancel: doc.records = before.duplicate(true)
 		else: doc.commit_change(before)
 	before.clear()

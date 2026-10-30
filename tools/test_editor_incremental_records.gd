@@ -4,16 +4,16 @@ class MeasuredEditor extends "res://scripts/world_editor/world_editor.gd":
 	var rebuilds:=0
 	var commits:Array=[]
 	var last_refresh_ms:=0.
-	func _rebuild()->void:
+	func _rebuild()->Dictionary:
 		rebuilds+=1
-		super._rebuild()
+		return super._rebuild()
 	func _commit_records(ids:Array)->void:
 		var started:=Time.get_ticks_usec()
 		super._commit_records(ids)
 		commits.append({"ids":ids.size(),"ms":(Time.get_ticks_usec()-started)/1000.,"view_ms":last_refresh_ms})
-	func _refresh_records(ids:Array[String])->void:
+	func _refresh_records(ids:Array[String],record_index:Variant=null)->void:
 		var started:=Time.get_ticks_usec()
-		super._refresh_records(ids)
+		super._refresh_records(ids,record_index)
 		last_refresh_ms=(Time.get_ticks_usec()-started)/1000.
 
 var sentinel:String
@@ -51,6 +51,12 @@ func run()->void:
 	var session=preload("res://scripts/net/net.gd").session();session.world3d_editor_doc=doc;session.world3d_editor_path=path
 	editor=MeasuredEditor.new();editor._mcp_autostart=false;editor._draft_directory=directory.path_join("drafts")
 	root.add_child(editor);editor._safety.enabled=false;await settle()
+	# The window now starts with an empty host and publishes the whole view from
+	# the load job. Wait for that load instead of mutating a document the editor
+	# is still reading, then rebuild once with the appended fixture records.
+	var load_deadline:=Time.get_ticks_msec()+120000
+	while editor.saving() and Time.get_ticks_msec()<load_deadline:await process_frame
+	check(not editor.saving(),"initial map load settles before incremental fixtures")
 	var probe:=TCPServer.new()
 	while probe.listen(port,"127.0.0.1")!=OK:port+=1
 	probe.stop();check(editor.start_mcp(port).ok,"HTTP MCP server starts")
@@ -61,7 +67,12 @@ func run()->void:
 	var wall:Dictionary=editor._fortifications.prepare({"id":"unchanged_wall","points":[[-20,90],[20,90]],"closed":false,"style":"plain","corner_towers":false,"battlements":true})
 	check(wall.get("ok",false),"prepare legacy unbaked fortification fixture")
 	if not wall.get("ok",false):quit(1);return
-	editor._doc.records.append_array(wall.records);editor._doc.map_meta.editor_layout=wall.metadata;editor._rebuild()
+	editor._doc.records.append_array(wall.records);editor._doc.map_meta.editor_layout=wall.metadata
+	var rebuilt:Dictionary=editor._rebuild()
+	if rebuilt.get("pending",false):
+		var rebuild_deadline:=Time.get_ticks_msec()+60000
+		while editor._asset_operations.snapshot().pending>0 and Time.get_ticks_msec()<rebuild_deadline:await process_frame
+	check(rebuilt.get("ok",false) and not editor.saving(),"fixture records rebuild the whole view without touching the load job")
 	await call_tool("select_objects",{"ids":[]});await batches();held=capture()
 	var unchanged_row:int=editor._object_list._items[sentinel].get_instance_id()
 	check(not held.forts.is_empty() and not held.batches.is_empty(),"fixture contains real render and collision fortification batches")
@@ -86,7 +97,11 @@ func run()->void:
 	var gltf:=GLTFDocument.new();var state:=GLTFState.new();var model_path:=directory.path_join("model.glb")
 	check(gltf.append_from_scene(model,state)==OK and gltf.write_to_filesystem(state,model_path)==OK,"create private static model");model.free()
 	var library=preload("res://scripts/world_editor/asset_library.gd").new(directory.path_join("assets"))
-	var imported:Dictionary=library.import_file(model_path);check(imported.ok,"import private model");editor._shared_assets.append(library)
+	var imported:Dictionary=library.import_file(model_path)
+	check(imported.ok,"import private model: "+str(imported.get("error","")))
+	if not imported.ok:
+		editor.free();editor=null;quit(1);return
+	editor._shared_assets.append(library)
 	placed=await call_tool("place_asset",{"asset_id":editor._mcp._ops.asset_id(imported.entry),"position":[8,0,0]});var asset:String=placed.ids[0]
 	await batches();retained("HTTP imported asset addition")
 	check(editor._bodies_by_uuid.has(asset),"imported asset keeps namespaced picking collision")
