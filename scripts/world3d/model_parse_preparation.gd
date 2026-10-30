@@ -394,7 +394,7 @@ func _candidate_stage(path:String,candidate:Dictionary,content_root:String)->Dic
 	# first scene and later PackedScene instances share the captured mesh owners.
 	if initial_native_cpu_preparation_enabled and require_native_products and prepare_static_scenes and initial_scene_preparation_enabled and candidate.get("direct_template_reuse_safe",false):
 		prepare_private=_prepare_initial_native.bind(path)
-	var raw:Variant=candidate_reader.call(path,candidate) if candidate_reader.is_valid() else preload("res://scripts/world3d/compiled_asset_preparation.gd").read(path,candidate,content_root,prepare_private,preload("res://scripts/world3d/runtime_package_policy.gd").trusted(),not require_native_products,"",require_native_products)
+	var raw:Variant=candidate_reader.call(path,candidate) if candidate_reader.is_valid() else preload("res://scripts/world3d/compiled_asset_preparation.gd").read(path,candidate,content_root,prepare_private,preload("res://scripts/world3d/runtime_package_policy.gd").trusted(),not require_native_products,"",require_native_products,true)
 	var result:Dictionary=raw if raw is Dictionary else {"error":ERR_INVALID_DATA}
 	if require_native_products and (result.get("fallback_required",false) or result.get("native_source_retry",false)):
 		# Keep any allocated native owners attached to the fatal result; the

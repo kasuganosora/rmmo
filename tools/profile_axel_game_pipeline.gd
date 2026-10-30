@@ -104,10 +104,17 @@ func runtime_frame_policy()->void:
 func runtime_observation_finished()->bool:
 	return false
 
+func observation_map()->Node:
+	# Full gameplay owns its map on World3D; mesh_map belongs to the isolated
+	# mesh fixture. Per-frame counters must observe the same map as 500ms rows.
+	var map:Node=current_scene.get("_map_root") if is_instance_valid(current_scene) and current_scene.has_method("is_world_ready") else mesh_map
+	return map if is_instance_valid(map) else null
+
 func observe()->void:
 	if not sampling:return
 	var now:=Time.get_ticks_usec()
-	var dqueue:Node=mesh_map.get_node_or_null("DeferredAssets") if is_instance_valid(mesh_map) else null
+	var observed_map:=observation_map()
+	var dqueue:Node=observed_map.get_node_or_null("DeferredAssets") if observed_map!=null else null
 	var dprof:Dictionary=dqueue.profile if dqueue!=null and dqueue.get("profile") is Dictionary else {}
 	frames.append({"at_ms":(now-began)/1000.,"ms":(now-last)/1000.,"phase":phase,
 		"process_ms":Performance.get_monitor(Performance.TIME_PROCESS)*1000.0,
@@ -130,7 +137,7 @@ func observe()->void:
 		elif scene.get("status_label")!=null:stage=str(scene.status_label.text)
 		if not stage.is_empty() and (report.stages.is_empty() or report.stages.back().stage!=stage):
 			report.stages.append({"at_ms":row.at_ms,"stage":stage});print("AXEL_STAGE ",stage)
-		var map:Node=scene.get("_map_root") if scene.has_method("is_world_ready") else mesh_map
+		var map:Node=observed_map
 		if map!=null:
 			var collision:Node=map.get_node_or_null("StreamCollisionPreparer")
 			if collision!=null:row.collision={"bvh_worker_shapes":collision.bvh_worker_shapes,"bvh_main_shapes":collision.bvh_main_shapes,"bvh_worker_face_vertices":collision.bvh_worker_face_vertices,"bvh_main_face_vertices":collision.bvh_main_face_vertices,"bvh_worker_slices":collision._terrain.bvh_worker_slices,"bvh_main_slices":collision._terrain.bvh_main_slices,"bvh_worker_installed_slices":collision._terrain.bvh_worker_installed_slices,"bvh_main_installed_slices":collision._terrain.bvh_main_installed_slices,"bvh_worker_slice_face_vertices":collision._terrain.bvh_worker_face_vertices,"bvh_main_slice_face_vertices":collision._terrain.bvh_main_face_vertices,"serial_face_workers":collision.face_worker_starts,"prepared_face_hits":collision.prepared_face_hits,"lookahead":collision._face_prefetch.profile.duplicate(true),"lookahead_work":collision._face_prefetch.work_snapshot()}

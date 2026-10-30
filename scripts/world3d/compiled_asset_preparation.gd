@@ -8,8 +8,9 @@ const Trace=preload("res://scripts/world3d/load_trace.gd")
 # Probe-only baseline. Immutable native geometry is bound to candidate.source_sha;
 # checking the source once after all private preparation accepts that geometry.
 static var source_precheck_enabled:=false
+static var native_cpu_handoff_enabled:=true # Runtime CPU consumers reuse exact native input; engines without the API retain readback.
 
-static func read(path:String,candidate:Dictionary,content_root:String,prepare_private:Callable=Callable(),trusted_package:bool=false,mutable_source:bool=false,expected_product_generator:String="",published_product:bool=false)->Dictionary:
+static func read(path:String,candidate:Dictionary,content_root:String,prepare_private:Callable=Callable(),trusted_package:bool=false,mutable_source:bool=false,expected_product_generator:String="",published_product:bool=false,capture_cpu:bool=false)->Dictionary:
 	var started:=Time.get_ticks_usec()
 	if not Compiled.enabled or candidate.is_empty():return {"error":OK,"fallback_required":true,"cache_reason":"candidate_disabled"}
 	for key in ["source_path","product","generator"]:
@@ -48,12 +49,26 @@ static func read(path:String,candidate:Dictionary,content_root:String,prepare_pr
 	# Never call Compiled.read here: a newer manifest could name a larger product
 	# than the one whose exact resource footprint was admitted.
 	phase=Time.get_ticks_usec()
-	var loaded:Resource=ResourceLoader.load(product,"PackedScene",ResourceLoader.CACHE_MODE_IGNORE_DEEP)
+	var cpu_context:RefCounted
+	var loaded:Resource
+	var native_read_error:=OK
+	# CPU handoff is bound to each mesh identity/revision, not the unrelated
+	# whole-template reuse audit. Old native products may omit that descriptor.
+	# Import/audit/export readers keep a plain resource graph. Only consumers
+	# that actually need CPU geometry request this transient ownership handoff.
+	if capture_cpu and native_cpu_handoff_enabled and ClassDB.class_has_method(&"ArrayMesh",&"load_native_scene_with_cpu_surfaces"):
+		var packet:Dictionary=ClassDB.class_call_static(&"ArrayMesh",&"load_native_scene_with_cpu_surfaces",product)
+		loaded=packet.get("resource");cpu_context=packet.get("capture")
+		native_read_error=int(packet.get("error",ERR_INVALID_DATA))
+	else:loaded=ResourceLoader.load(product,"PackedScene",ResourceLoader.CACHE_MODE_IGNORE_DEEP)
 	var packed:=loaded as PackedScene
 	Trace.elapsed("compiled.native_read",phase,{"path":path,"bytes":candidate.bytes})
 	var result:Dictionary={"error":ERR_INVALID_DATA,"packed":packed,"compiled":true,"source_digest":candidate.source_sha,"compiled_payload_bytes":int(candidate.bytes)}
 	if loaded!=null and packed==null:result.retained_resources=[loaded]
+	if native_read_error!=OK:result.error=native_read_error;return result
 	if packed==null or (not trusted_package and not Compiled._valid_packed(packed)):return result
+	if cpu_context!=null:
+		result.native_cpu_hint_meshes=preload("res://scripts/world3d/native_mesh_cpu_hint.gd").attach(packed,cpu_context)
 	if packed.has_meta(&"_rmmo_model_textures_bound_v1"):packed.remove_meta(&"_rmmo_model_textures_bound_v1")
 	if not prepare_private.is_null():
 		# Private instantiation accepts the authored package, or the explicit audit.

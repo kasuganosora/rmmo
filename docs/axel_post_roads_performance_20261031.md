@@ -57,3 +57,80 @@
 3. 原生公会仍是包含纹理的 281810329 字节 SCN；逻辑 GLB key 的 rawsource_reads=0，不能误称读取原 GLB。60 个内嵌图像 mip 数据约 563MB，后续考虑既有纹理拆分迁移，但需独立资源验收，尚未实施。
 
 保留地图/道路等其他会话工作区改动；本轮只提交自己验证完成的代码。目标仍在进行，尚未宣称大块头成本合理。
+
+## 继续定位：候选真实命中与后台提交边界
+
+已验证的目录/LOD/观察器修改在 `a25de942` 提交并推送；以下为后续未完成候选，不能混入该提交的验收范围。
+
+首版 `native_A1/B1/B2/A2` 正常完成，但公会 footprint 没有 `direct_template_reuse` 字段，候选错误地受该标记限制。公会始终 renderer=2099、native=0，入口 16.86–17.12s；因此这组不是 CPU handoff 对公会的有效对照。B2 期间另有一次约十余秒的目录枚举，已停止，保留其宿主干扰边界，不将该样本当严格时序证据。
+
+CPU handoff 已改为按具体 mesh 身份/几何版本生效，去掉与整模板复用无关的门槛。又把请求限定为实际 CPU 几何消费者的显式参数；离线 import/audit/export 继续返回普通资源图，避免瞬态 hint 污染后续 footprint 审计。独立 `native_handoff_legacy_descriptor_05`、`legacy_gpu_05` 各 33/33；加普通读者隔离后 `native_handoff_scoped_gpu_06` **35/35**。默认仍关闭。
+
+首个真实命中样本 `native_legacy_gate_B1`（显式调用范围收紧之前）：入口 **14.289s**、完整就绪 **74.670s**；2007 mesh / 2099 surfaces 全部由 native 输入交接，renderer_surfaces=0；capture 活跃 **254866us**、墙钟 **282085us**，此前 A1 对应 **2254467 / 2767299us**，collision faces 同为 16228944 字节。整图零失败/错误、其他引擎/编译器为空。它证明入口重复回读已去除；一对不同阶段代码样本不能用于宣称总加载 p95，收尾最大 **664.94ms** 仍未解决。
+
+测量器还发现完整游戏每帧 Deferred 统计错误地读了仅 mesh fixture 使用的 `mesh_map`，因而一直为零；500ms 队列快照是正确地图。已统一观察来源，后续样本不能再根据旧的每帧零值判定 Deferred 空闲。
+
+`probe_mesh_shader_submission.gd` 使用实际 terrain shader 和 `_surfaces` 接口，独立新 shader 变体仅用于诱发首次提交，不是相同内容的性能验收。`shader_submit_repro_01` 主线程调用 357–873ms；后台调用 732–790ms、主线程最终挂接约 0.06–0.10ms，但后台期间仍有 337–366ms 帧。不能直接把完整上传迁入后台当作问题解决。
+
+细分后的 `shader_submit_stages_02` 确认：后台准备期仍有 **346.108/379.838ms** 帧，挂接后的 12 帧最大 **3.610/2.095ms**，验证读回仅 **0.865/0.717ms**。当前主要疑点是后台构建与正在运行的渲染主线程之间的引擎同步；用带符号 GDB 单独抓这个缩小后的用例，正式流水线暂未改成后台 GPU 上传。
+
+`shader_worker_stacks_03` 正常结束，GDB 41 个样本、已 detach；主线程 **37–40** 明确为 `RtlEnterCriticalSection → recursive_mutex::lock → ShaderRD::version_get_shader → SceneShaderForwardClustered::MaterialData::update_parameters → MaterialStorage::_update_queued_materials → update_dirty_resources`。即使新 mesh 未挂接，全局 dirty material 队列也主动触碰仍在后台编译的 shader，并等待其版本锁。其余样本也出现驱动 Present/fence 等待及图形 hook，不能把所有帧归为同一原因。
+
+继续审查后，没有采用全局 dirty 队列延期：这可能让已进入实际绘制的新材质缺少首帧 uniform。当前 candidate09 只在后台创建新材质 RID 时，先完成其 3D shader 编译，再执行 material_set_shader 登记 dirty 队列；主线程创建、既有材质改参数、实际绘制顺序均保留。四文件候选位于 `P/engine_material_queue_candidate09`；原始文件与已发布 candidate08/官方归档 SHA 核对后，已在独立源码树开始编译，默认引擎未替换。须先用独立复现和首帧/更新/取消合同证明，再考虑正式后台提交。
+
+## CPU handoff 完整交错对照（仍待返回加载验证）
+
+`native_final_A1/B1/B2/A2` 同一冻结工程、地图、默认 candidate08 引擎，A 关闭/B 开启 handoff；四次源码和地图未变、其他引擎/编译器 PID 为空、错误/失败均为空。汇总 `P/native_final_abba.json`。
+
+| 样本 | 入口 s | 完整就绪 s | capture 活跃 ms | capture 墙钟 ms | native / renderer surfaces | 稳定段 p95 ms | 1% low FPS |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| A1 | 16.853 | 78.584 | 2301.696 | 2866.412 | 0 / 2099 | 28.706 | 24.45 |
+| B1 | 13.911 | 74.588 | 229.716 | 254.831 | 2099 / 0 | 28.947 | 24.73 |
+| B2 | 14.589 | 75.832 | 277.114 | 342.138 | 2099 / 0 | 28.652 | 24.37 |
+| A2 | 16.833 | 79.820 | 2309.355 | 2844.746 | 0 / 2099 | 28.637 | 24.58 |
+
+本组入口均值 **16.843→14.250s**，完整就绪 **79.202→75.210s**。仅两对，不声称总耗时 p95 已确定。2007 mesh、2099 surfaces、16228944 collision face 字节、2309 batch 来源、3314 来源 surfaces、358 render surfaces、2161253 来源 vertices、216 groups 均相同；调度相关重建/访问次数有波动。稳定段 low 基本不变，收益集中在去除 GPU 回读的入口关键路径。B 收尾仍有 **638.4/653.0ms** 最大帧。待真实远离/回收/返回流程验证后，才将 handoff 默认开启。
+
+## 原生交接的实际释放/返回与引擎候选09
+
+建筑可见距离为 1000m，城镇本身约 450×360m；仅传送到城镇另一端不能证明公会模板已释放。新增 `profile_axel_native_lifecycle.gd` 用正常游戏跨地图事务，进入外部临时落脚地图，验证旧地图/Deferred 的 WeakRef 失效，再回同一冻结城镇。没有改实际地图、放宽碰撞或强制驱逐。
+
+首次试跑 B1 在启动前发现测试脚本的 Variant 类型推断错误，日志保留；明确 Vector3 后 B2 正常退出、零引擎/脚本错误、零其他引擎/编译器进程。入口 13.785s，初次完整需求就绪 72.452s。旧地图/Deferred 实际释放；返回后的 2007 mesh / 2099 surfaces 仍 native=2099、renderer=0，capture 活跃 248.017ms、墙钟 312.711ms。往返后的碰撞支撑、玩家解锁、队列完成、源码/地图身份检查均通过。
+
+**遗留不能隐藏：**B2 跨地图卸载阶段最大帧 545.327ms；返回事务 6.343s、最大帧 295.799ms；事务后需求收尾 61.894s，最大帧 80.696ms，102 帧 >50ms；返回稳定段 p95 29.156ms、最大 70.216ms。传送阶段含正常 cover，不能直接冒充可见行走卡顿。下一对照补录完整计时原点，按 cover 里程碑拆分。该测试没有声称同地图区块移动已经覆盖。
+
+candidate09 在独立源码树编译成功（549.875s），`source_unchanged=true`、`default_unchanged=true`，可执行/符号留在 `P/engine_material_queue_candidate09/runtime_01/engine`，默认 candidate08 未替换。
+
+缩小复现 `shader_queue_A1` / `shader_queue_B1`：旧引擎后台准备期间主线程最大帧 **351.071/348.379ms**，候选 **11.123/12.992ms**；后台提交仍约 770–845ms，最后挂接 0.05–0.16ms，未偷掉准备工作。两者使用独立新 shader 变体诱发编译，因此只证明机制，不是相同内容的整图 A/B。候选第一次主线程 trial 存在 3.402s 帧，原主线程路径未改变，首个新可执行的缓存/驱动因素尚未细分；保留该样本，不用后台两项收益掩盖它。
+
+实际 GPU 材质首帧、uniform 修改、shader 修改、共享 shader/独立材质、取消释放、重建 StandardMaterial 的像素/身份检查：`shader_contract_A1/B1` 均 **18/18**；候选原生 handoff **35/35**。候选 GDB `shader_worker_engine09_stacks` 41 个样本，正常结束并 detach；旧样本在主线程 4 次看到 dirty queue → version_get_shader 锁等待，候选本次未采到该链，但两次都存在 swapchain/Present 等待。没有采到不能单独证明彻底消除，以独立正常复现与功能检查共同判断。
+
+下一步仍按证据链推进：先完成 CPU handoff 的卸载/返回对照并默认启用有效改动；再用候选引擎测正式加载链。若仍主要卡在合批主线程 `Geometry.upload`，将私有材质/mesh 构建迁入既有 worker，保留主线程 Node 挂接、代际检查、同结果复用和资源预算。必须先处理可变材质快照与废弃 worker 的资源归属，并测取消、重排、重返及编辑器同步路径，不能只删除主线程断言就当作完成。
+
+## CPU handoff 默认启用；后续问题分开保留
+
+补充的 `native_lifecycle_A1/B3` 两次均正常退出，零错误/失败，源码地图身份稳定、无其他引擎/编译器；两次都确认旧地图和 Deferred 已释放。与上述入口 ABBA、35 项 GPU 合同共同支持默认启用；诊断保留 `--without-native-cpu-handoff`。
+
+| 项目 | A1 旧回读 | B3 原生交接 |
+|---|---:|---:|
+| 初次入口 / 完整需求就绪 s | 16.307 / 78.855 | 13.684 / 73.885 |
+| 返回传送事务 s | 9.506 | 6.373 |
+| 返回 capture 活跃 / 墙钟 ms | 2414.765 / 3394.581 | 273.641 / 350.930 |
+| 返回 native / renderer surfaces | 0 / 2099 | 2099 / 0 |
+| 返回后需求收尾 s | 63.251 | 58.077 |
+| 卸载完全遮盖区间最大帧 ms | 540.887 | 537.960 |
+| 卸载未完全遮盖或边界帧最大 ms | 39.871 | 41.814 |
+| 返回完全遮盖区间最大帧 ms | 255.553 | 269.855 |
+| 返回未完全遮盖或边界帧最大 ms | 56.183 | 60.353 |
+
+数据和 cover 边界推导见 `P/native_lifecycle_comparison.json`。CPU 工作/碰撞字节不变；返回传送节省约 3.13s，卸载成本基本不变。本轮 **不是同地图区块往返验收**，后续仍须补齐。B3 返回收尾还保留一帧 **408.589ms**：附近 observer 1.154ms、Deferred stage 2.560ms、batch commit 0.677ms，现有脚本计时未解释其等待，证据 `long_frame_408.json`；不能直接标成 OS/GPU 空闲，也不声称 long frame 全部稳定。
+
+第二次独立材质复现 `shader_queue_B2/A2` 正常结束：候选后台期间主线程最大 **5.954/7.762ms**，旧引擎 **331.107/391.261ms**；候选首个主线程 trial 为 1.126s，旧为 1.239s，前一候选 3.402s 慢样本继续保留。候选仍未替换默认入口，正在进行首个完整地图样本；该样本是引擎范围验证，不与 CPU handoff 的 ABBA 混算。
+
+## 引擎候选整图首轮异常与复测边界
+
+`engine09_map_first` 正常结束且功能检查通过，但入口 **44.673s**、完整就绪 **118.960s**；native parse 活跃 **35.047s**，playable 最大 **3982.935ms**，人物窗口首次打开 **3796.1ms**。这证明独立 dirty queue 修复不能直接等同于整图优化完成。
+
+同源码、地图、候选引擎立即重复的 `engine09_map_second`：入口 **13.819s**、完整就绪 **75.975s**，playable 最大 **635.482ms**，稳定段 p95 **29.484ms**、1% low **24.29 FPS**。两次均零错误/失败、无其他引擎/编译器进程；首次慢样本完整保留。重复后恢复不能单独证明缓存归因，更不能与旧引擎的既有缓存样本直接对比。下一步用冻结测试工程的独立空 shader cache 分别测旧/新引擎，日常工程缓存和默认引擎保持原样。这里只隔离着色器缓存，不称作冷磁盘测试。
+
+原生 CPU handoff 的最终默认源码同步后，`native_handoff_default_final` Vulkan **35/35**，包括并行、取消、共享、变更回退与普通审计读者隔离。该生产改动依赖已经安装的 candidate08 API，不依赖尚未验收的 candidate09 引擎补丁。

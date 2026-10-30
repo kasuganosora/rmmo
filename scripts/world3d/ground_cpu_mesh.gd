@@ -106,6 +106,12 @@ static func capture(source: Mesh) -> Mesh:
 		var cached:Mesh=source.get_meta("ground_cpu_cache")
 		_inherit_prepared_owners(source,cached)
 		return cached
+	var native_hint:Resource=preload("res://scripts/world3d/native_mesh_cpu_hint.gd").of(source)
+	if native_hint!=null:
+		var captured:Mesh=native_hint.take_cpu(source)
+		if captured!=null:
+			_inherit_prepared_owners(source,captured)
+			return captured
 	var traced:bool=source is ArrayMesh and preload("res://scripts/world3d/load_trace.gd").enabled
 	var began:=Time.get_ticks_usec() if traced else 0
 	var result = load("res://scripts/world3d/ground_cpu_mesh.gd").new()

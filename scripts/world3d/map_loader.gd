@@ -1524,7 +1524,7 @@ func _build_records() -> void:
 					if not capture.profile.error.is_empty():
 						root.free();_prepared=null;_finish_error(str(capture.profile.error));return
 					_profile.asset_capture_wall_us=int(_profile.get("asset_capture_wall_us",0))+Time.get_ticks_usec()-capture_started
-					for field:String in ["elapsed_us","slices","captured_meshes","importer_surfaces","renderer_surfaces","face_bytes"]:_profile["asset_capture_"+field]=int(_profile.get("asset_capture_"+field,0))+int(capture.profile[field])
+					for field:String in ["elapsed_us","slices","captured_meshes","importer_surfaces","renderer_surfaces","native_surfaces","face_bytes"]:_profile["asset_capture_"+field]=int(_profile.get("asset_capture_"+field,0))+int(capture.profile.get(field,0))
 					_profile.asset_capture_max_slice_us=maxi(int(_profile.get("asset_capture_max_slice_us",0)),int(capture.profile.max_slice_us))
 				var parts:Array=preload("res://scripts/world3d/surface_materials.gd").meshes(instance)
 				for i in parts.size():parts[i].set_meta("map_draw_order",int(_record_order[records[cursor].uuid])*65536+i)

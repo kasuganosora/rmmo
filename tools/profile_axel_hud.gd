@@ -17,6 +17,9 @@ func _initialize()->void:
 	var scan_proxy:bool="--scan-proxy-sources" in OS.get_cmdline_user_args()
 	preload("res://scripts/world3d/distant_building_proxy.gd").source_catalog_enabled=not scan_proxy
 	report.proxy_source_catalog=not scan_proxy
+	if "--native-cpu-handoff" in OS.get_cmdline_user_args():preload("res://scripts/world3d/compiled_asset_preparation.gd").native_cpu_handoff_enabled=true
+	if "--without-native-cpu-handoff" in OS.get_cmdline_user_args():preload("res://scripts/world3d/compiled_asset_preparation.gd").native_cpu_handoff_enabled=false
+	report.native_cpu_handoff=preload("res://scripts/world3d/compiled_asset_preparation.gd").native_cpu_handoff_enabled
 	var copy:=OS.get_environment("RMMO_HUD_TEST_MAP").replace("\\","/").simplify_path()
 	if not preload("res://scripts/world3d/map_paths.gd").allowed(copy,TEST_ROOT) or not FileAccess.file_exists(copy):
 		printerr("HUD profile requires an existing temporary map under review_artifacts");quit(2);return
@@ -104,5 +107,5 @@ func finish(code:int)->void:
 			if proxies!=null:report.distant_proxy_profile=proxies.profile.duplicate(true)
 			report.collision_candidate_cache=preload("res://scripts/world3d/world_stream.gd").collision_candidate_cache_stats(_game_world._map_root)
 			report.hud_present=is_instance_valid(_game_world._hud)
-			report.actual_scope="Full game: avatar, navigation, weather, events and ordinary residency. Only HUD is controlled. Stationary baseline followed by ordinary map/inventory/skills/character/settings window opens; no claim of walking or far eviction."
+			if not report.has("actual_scope"):report.actual_scope="Full game: avatar, navigation, weather, events and ordinary residency. Only HUD is controlled. Stationary baseline followed by ordinary map/inventory/skills/character/settings window opens; no claim of walking or far eviction."
 	await super.finish(code)

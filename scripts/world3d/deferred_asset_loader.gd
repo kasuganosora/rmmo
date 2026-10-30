@@ -3120,7 +3120,7 @@ static func _prepare_fixed_scene(path:String,digest:String,token:RefCounted,mani
 	if not digest.is_empty() and (not Assets._valid_source_digest(digest) or candidate.get("source_sha")!=digest):return {"error":"素材已验证来源与原生候选不符："+path}
 	if (digest.is_empty() and manifest.is_empty()) or (not native_package and not _manifest_matches(path,manifest)):return {"error":"素材边界在后台准备前发生变化："+path}
 	var prepack:bool=worker_prepack and native_package
-	var packet:=CompiledPreparation.read(path,candidate,root,_native_private.bind(path,token,manifest,faces,geometry_mode,prepack,direct_material_plan and native_package and not prepack and bool(candidate.get("direct_template_reuse_safe",false)),native_only),preload("res://scripts/world3d/runtime_package_policy.gd").trusted(),not native_only,"",native_only)
+	var packet:=CompiledPreparation.read(path,candidate,root,_native_private.bind(path,token,manifest,faces,geometry_mode,prepack,direct_material_plan and native_package and not prepack and bool(candidate.get("direct_template_reuse_safe",false)),native_only),preload("res://scripts/world3d/runtime_package_policy.gd").trusted(),not native_only,"",native_only,true)
 	var result:Dictionary={"error":"","native_packet":packet,"elapsed_us":Time.get_ticks_usec()-began}
 	if token!=null and token.is_cancelled():result.error="素材准备已取消";result.cancelled=true;return result
 	if packet.get("fallback_required",false):return result # Main validates + re-admits raw.
@@ -3170,7 +3170,7 @@ static func prepare_scene(path:String,digest:String,token:RefCounted=null,expect
 		var candidate:Dictionary=expected_manifest.get("native_candidate",{})
 		if candidate.is_empty():candidate=preload("res://scripts/world3d/compiled_asset_footprint.gd").candidate(path,content_root,source_digest,true)
 		if candidate.is_empty() or (not source_digest.is_empty() and candidate.get("source_sha")!=source_digest):return {"error":preload("res://scripts/world3d/model_parse_preparation.gd").native_failure(path,"native_footprint_missing_or_stale").error_message}
-		var packet:=CompiledPreparation.read(path,candidate,content_root,Callable(),trusted_package,false,"",true)
+		var packet:=CompiledPreparation.read(path,candidate,content_root,Callable(),trusted_package,false,"",true,true)
 		if packet.get("error",FAILED)!=OK or packet.get("fallback_required",false):
 			return {"error":preload("res://scripts/world3d/model_parse_preparation.gd").native_failure(path,str(packet.get("cache_reason","invalid_product"))).error_message,"native_packet":packet}
 		compiled={"hit":true,"packed":packet.packed,"source_digest":packet.source_digest,"elapsed_us":int(packet.get("cache_us",0))}

@@ -29,7 +29,7 @@ static func _readback_sources(scene:Node,token:RefCounted,geometry_mode:int)->Ar
 		if not node is MeshInstance3D or not node.mesh is ArrayMesh or node.skin!=null:continue
 		if not node.has_meta("ground_batch_record") and not CollisionGeometry.needs_geometry(node.get_meta("extras",{}),geometry_mode):continue
 		var mesh:ArrayMesh=node.mesh;var id:int=mesh.get_instance_id()
-		if seen.has(id) or mesh.has_meta("ground_cpu_cache") or mesh.get_blend_shape_count()!=0 or _has_importer_arrays(mesh):continue
+		if seen.has(id) or mesh.has_meta("ground_cpu_cache") or mesh.get_blend_shape_count()!=0 or _has_importer_arrays(mesh) or preload("res://scripts/world3d/native_mesh_cpu_hint.gd").of(mesh)!=null:continue
 		seen[id]=true
 		var triangles:=true
 		for slot:int in mesh.get_surface_count():
@@ -42,6 +42,11 @@ static func _has_importer_arrays(mesh:ArrayMesh)->bool:
 	return hint!=null and hint.has_arrays(mesh)
 
 static func _capture(mesh:ArrayMesh,profile:Dictionary)->Mesh:
+	var native_hint:Resource=preload("res://scripts/world3d/native_mesh_cpu_hint.gd").of(mesh) if not mesh.has_meta("ground_cpu_cache") else null
+	if native_hint!=null:
+		var native_cpu:Mesh=native_hint.take_cpu(mesh)
+		if native_cpu!=null:
+			profile.native_surfaces=int(profile.get("native_surfaces",0))+mesh.get_surface_count();return native_cpu
 	var hint:Resource=preload("res://scripts/world3d/importer_lod_hint.gd").of(mesh)
 	var cpu:Mesh=hint.take_cpu(mesh) if hint!=null and not mesh.has_meta("ground_cpu_cache") else null
 	if cpu!=null:
