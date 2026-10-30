@@ -3,6 +3,9 @@ extends RefCounted
 
 var ctrl
 var _character_view:Node2D
+var _snapshot_applied:=false
+var _applied_slots:Array=[]
+var _applied_bonuses:Dictionary={}
 func _init(c):
 	ctrl = c
 
@@ -64,10 +67,15 @@ func _equip_compare_tip(item_id: String, base_lines: String, item_enhance: int =
 
 
 func apply_equipment_snapshot(slots: Array, bonuses: Dictionary = {}) -> void:
+	# Inventory/hotbar refresh can already have read the server's newest gear.
+	# Deduplicate against the last UI delivery, not that read-through cache.
+	if _snapshot_applied and slots==_applied_slots and bonuses==_applied_bonuses:return
 	ctrl._server_equipment = slots.duplicate(true)
 	ctrl._server_equip_bonuses = bonuses.duplicate(true)
-	if ctrl._windows.has("character") and ctrl._windows["character"].visible:
-		ctrl._refresh_window_contents()
+	_snapshot_applied=true
+	_applied_slots=ctrl._server_equipment;_applied_bonuses=ctrl._server_equip_bonuses
+	# Bag compare tips / equipped marks also depend on this snapshot.
+	ctrl._refresh_window_contents(["character","inventory"])
 	# Equipped gear may leave bag qty 0 — still show hotbar letter.
 	ctrl._refresh_hotbar_slot_visuals()
 

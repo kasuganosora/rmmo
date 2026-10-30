@@ -1078,11 +1078,15 @@ func apply_combat_stats(stats: Dictionary) -> void:
 	## Apply authoritative HP/MP/level/exp from MockServer actions / spawn.
 	if stats.is_empty():
 		return
+	var character_changed:=false
 	for k in stats.keys():
 		var v = stats[k]
 		# Skip sentinel -1 for numeric fields we treat as "unchanged".
 		if typeof(v) in [TYPE_INT, TYPE_FLOAT] and int(v) < 0 and str(k) in ["hp", "hp_max", "mp", "mp_max", "level", "exp", "exp_to_next"]:
 			continue
+		if str(k) in ["level","exp","exp_to_next","attrs","attr_points","atk","def"] and _server_combat.get(str(k))!=v:character_changed=true
+		if str(k)=="hp_max" and _hp_max!=float(v):character_changed=true
+		if str(k)=="mp_max" and _mp_max!=float(v):character_changed=true
 		_server_combat[str(k)] = v
 	var hp_max_v: int = int(stats.get("hp_max", -1))
 	var hp_v: int = int(stats.get("hp", -1))
@@ -1103,8 +1107,10 @@ func apply_combat_stats(stats: Dictionary) -> void:
 		if not _character.is_empty():
 			_character["level"] = lv
 	_refresh_bars()
-	if _windows.has("character") and _windows["character"].visible:
-		_refresh_window_contents()
+	if character_changed and _windows.has("character") and _windows["character"].visible:
+		_refresh_window_contents(["character"])
+	if stats.has("level") and int(stats.level)>=1:
+		_refresh_skills_learn_controls()
 
 
 func apply_inventory_snapshot(items: Array, gold: int = -1) -> void:
@@ -1709,8 +1715,8 @@ func _lock_window_size(panel: PanelContainer) -> void:
 func _close_top_window() -> bool:
 	return _window_manager_logic._close_top_window()
 
-func _refresh_window_contents() -> void:
-	_window_manager_logic._refresh_window_contents()
+func _refresh_window_contents(ids: Array = []) -> void:
+	_window_manager_logic._refresh_window_contents(ids)
 
 func _fill_window(id: String) -> void:
 	_window_manager_logic._fill_window(id)
@@ -1784,7 +1790,7 @@ func _fill_character(body: VBoxContainer, ch: Dictionary, use_server_eq: bool = 
 		_add_label(overview, "EXP  %d" % exp_cur, 12, L2Style.COL_TEXT)
 	_add_label(overview, "SP  %d" % int(st.get("sp", 0)), 12, L2Style.COL_TEXT)
 	var adena_v: int = maxi(_server_gold, 0) if _server_gold >= 0 else int(st.get("adena", 0))
-	_add_label(overview, "金币  %d" % adena_v, 12, L2Style.COL_GOLD)
+	_windows["character"].set_meta("gold_label",_add_label(overview, "金币  %d" % adena_v, 12, L2Style.COL_GOLD))
 	var _guild_chip := str(_guild_state.get("name", "")).strip_edges()
 	if _guild_chip.is_empty():
 		_guild_chip = str(st.get("clan", "无"))
@@ -1835,6 +1841,12 @@ func _fill_character(body: VBoxContainer, ch: Dictionary, use_server_eq: bool = 
 	if panel != null and bool(panel.get_meta("fixed_size", false)):
 		call_deferred("_lock_window_size", panel)
 
+
+func _refresh_character_gold_label()->void:
+	var panel:PanelContainer=_windows.get("character")
+	if not is_instance_valid(panel) or not panel.has_meta("gold_label"):return
+	var label:Variant=panel.get_meta("gold_label")
+	if is_instance_valid(label):label.text="金币  %d" % maxi(_server_gold,0)
 
 func _add_stat_line(parent: Node, k1: String, v1: int, k2: String, v2: int) -> void:
 	var row := HBoxContainer.new()
@@ -1926,7 +1938,7 @@ func apply_attr_update(action: Dictionary) -> void:
 	if typeof(combat_v) == TYPE_DICTIONARY and not (combat_v as Dictionary).is_empty():
 		apply_combat_stats(combat_v)
 	elif _windows.has("character") and _windows["character"].visible:
-		_refresh_window_contents()
+		_refresh_window_contents(["character"])
 
 
 func _sync_attr_cache_from_server() -> void:
@@ -2276,7 +2288,9 @@ func _fill_map(body: VBoxContainer, ch: Dictionary) -> void:
 		overview.set_pin_cell(_map_pin_cell)
 	_sync_map_poi_markers()
 	_refresh_map_window_info()
-	call_deferred("_sync_map_overview_layout", panel, mount, host)
+	# Rebinding twice in one frame can replace this host before deferred calls
+	# run. Resolve the current host at execution instead of retaining freed UI.
+	call_deferred("_on_map_panel_resized")
 	if panel and not panel.resized.is_connected(_on_map_panel_resized):
 		panel.resized.connect(_on_map_panel_resized)
 

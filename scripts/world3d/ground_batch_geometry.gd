@@ -66,13 +66,24 @@ static func candidate(record: Dictionary) -> bool:
 	if record.has("terrain_mesh") or record.has("terrain_volume") or record.has("road_mesh") or record.has("rock_bank"): return true
 	return record.get("surface_id", "") == "ground" and record.get("size", [1,1,1])[1] <= 2
 
+static func material_supported(material:Material,cutout_instances:bool=false)->bool:
+	# Eligibility needs no property serialization or hash. Keep this predicate
+	# shared with exact grouping so a cheap admission test cannot widen policy.
+	if material==null:return true
+	if material.next_pass!=null:return false
+	if material is ShaderMaterial:
+		return preload("res://scripts/world3d/streaming_surface_shader.gd").is_terrain(material.shader)
+	if not material is StandardMaterial3D:return false
+	if material.transparency!=BaseMaterial3D.TRANSPARENCY_DISABLED and not (static_scatter_instances_enabled and cutout_instances and material.transparency==BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR):return false
+	if material.billboard_mode!=BaseMaterial3D.BILLBOARD_DISABLED:return false
+	return not (material.uv1_triplanar or material.uv2_triplanar or material.grow or material.distance_fade_mode!=BaseMaterial3D.DISTANCE_FADE_DISABLED)
+
 static func material_key(material: Material,cutout_instances:bool=false) -> String:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.ground_batch_geometry.material_key") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	if material == null: return "default"
-	if material.next_pass != null: return ""
+	if not material_supported(material,cutout_instances):return ""
 	var values: Array = []
 	if material is ShaderMaterial:
-		if not preload("res://scripts/world3d/streaming_surface_shader.gd").is_terrain(material.shader): return ""
 		for entry:Array in _terrain_schema(material.shader):
 			var name:String=entry[0]
 			# Disabled layers are unused. Godot may lazily populate their defaults
@@ -82,10 +93,6 @@ static func material_key(material: Material,cutout_instances:bool=false) -> Stri
 			if value==null:value=entry[1]
 			values.append([name, value.get_instance_id() if value is Resource else value])
 	elif material is StandardMaterial3D:
-		if material.transparency != BaseMaterial3D.TRANSPARENCY_DISABLED and not (static_scatter_instances_enabled and cutout_instances and material.transparency==BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR):return ""
-		if material.billboard_mode != BaseMaterial3D.BILLBOARD_DISABLED: return ""
-		# Object-local procedural coordinates, growing and fading need separate draws.
-		if material.uv1_triplanar or material.uv2_triplanar or material.grow or material.distance_fade_mode != BaseMaterial3D.DISTANCE_FADE_DISABLED: return ""
 		if not preload("res://scripts/world3d/standard_material_schema.gd").enabled:
 			for property in material.get_property_list():
 				if property.usage & PROPERTY_USAGE_STORAGE and not str(property.name).begins_with("resource_") and property.name != "script":

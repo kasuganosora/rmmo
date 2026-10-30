@@ -10,7 +10,7 @@ const ENTER_M=240.
 const EXIT_M=200.
 const MAX_VERTICES=65536
 const MAX_PROXIES=32
-var profile:Dictionary={"prepared":0,"active":0,"invalidated":0,"source_draws":0,"proxy_draws":0,"last_wait":""}
+var profile:Dictionary={"prepared":0,"active":0,"invalidated":0,"source_draws":0,"proxy_draws":0,"last_wait":"","near_snapshot_skips":0,"snapshot_attempts":0}
 var _rows:Dictionary={}
 var _job:Dictionary={}
 var _cooldown:Dictionary={} # Scalar retry times, never rejected mesh owners.
@@ -59,6 +59,13 @@ func tick(origin:Vector3)->void:
 		var groups:Array=candidates[id]
 		if groups.size()<2:continue
 		if groups[0].visual.global_position.distance_to(origin)<ENTER_M-128.:continue
+		# A source node's origin only gives a conservative first filter. Check
+		# the complete cohort bounds before capturing arrays or material hashes.
+		var bounds:Variant=_candidate_bounds(groups)
+		if bounds==null:profile.last_wait="snapshot_rejected";_retry_later(id);continue
+		if bounds.get_center().distance_to(origin)<ENTER_M:
+			profile.near_snapshot_skips+=1;continue
+		profile.snapshot_attempts+=1
 		var row:=_snapshot(groups)
 		if row.is_empty():profile.last_wait="snapshot_rejected";_retry_later(id);continue
 		if row.bounds.get_center().distance_to(origin)<ENTER_M:continue
@@ -69,13 +76,24 @@ func tick(origin:Vector3)->void:
 		_job={"id":id,"thread":thread,"lease":lease,"row":row};return
 static func _eligible(visual:MeshInstance3D,keys:Dictionary={})->bool:
 	if visual.material_override!=null or visual.material_overlay!=null:return false
-	var cpu:Mesh=Cpu.capture(visual.mesh)
-	for material:Material in cpu.materials:
+	if visual.mesh==null:return false
+	for slot in visual.mesh.get_surface_count():
+		var material:Material=visual.mesh.surface_get_material(slot)
 		if not material is StandardMaterial3D:return false
 		var id:int=material.get_instance_id()
-		if not keys.has(id):keys[id]=Geometry.material_key(material)
-		if str(keys[id]).is_empty():return false
+		if not keys.has(id):keys[id]=Geometry.material_supported(material)
+		if not keys[id]:return false
 	return true
+
+static func _candidate_bounds(groups:Array)->Variant:
+	var bounds:=AABB();var first:=true
+	for group:Dictionary in groups:
+		var visual:MeshInstance3D=group.visual
+		if not is_instance_valid(visual) or not visual.visible or visual.mesh==null:return null
+		var box:AABB=visual.global_transform*visual.mesh.get_aabb()
+		bounds=box if first else bounds.merge(box);first=false
+		if maxf(bounds.size.x,bounds.size.z)>128.:return null
+	return null if first else bounds
 func _retry_later(id:String)->void:
 	if _cooldown.size()>=512:_cooldown.clear()
 	_cooldown[id]=Time.get_ticks_msec()+5000

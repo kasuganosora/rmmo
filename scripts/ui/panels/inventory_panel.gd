@@ -59,9 +59,11 @@ func _apply_inv_slot_compare_tip(cell: PanelContainer, item_id: String, locked: 
 
 
 func apply_inventory_snapshot(items: Array, gold: int = -1) -> void:
-	var prev_qty: Dictionary = _inv_qty_map(ctrl._server_inventory)
 	var had_inv: bool = ctrl._inv_qty_known
-	ctrl._server_inventory = items.duplicate(true)
+	var inventory_changed: bool = not had_inv or items != ctrl._server_inventory
+	var prev_qty: Dictionary = _inv_qty_map(ctrl._server_inventory) if had_inv and inventory_changed else {}
+	if inventory_changed:
+		ctrl._server_inventory = items.duplicate(true)
 	ctrl._inv_qty_known = true
 	var prev_gold: int = ctrl._server_gold
 	var had_wallet: bool = ctrl._gold_wallet_known
@@ -78,14 +80,16 @@ func apply_inventory_snapshot(items: Array, gold: int = -1) -> void:
 	if had_wallet and ctrl._server_gold > prev_gold:
 		ctrl.show_gold_gain_float(ctrl._server_gold - prev_gold)
 	# Item-gain floats: positive qty deltas only; ignore seed + removals.
-	if had_inv:
+	if had_inv and inventory_changed:
 		ctrl._emit_item_gain_floats_from_delta(prev_qty, _inv_qty_map(ctrl._server_inventory))
 	_refresh_inventory_gold_label()
+	ctrl._refresh_character_gold_label()
 	# Refresh open inventory window if present.
-	if ctrl._windows.has("inventory") and ctrl._windows["inventory"].visible:
-		ctrl._refresh_window_contents()
+	if inventory_changed and ctrl._windows.has("inventory") and ctrl._windows["inventory"].visible:
+		ctrl._refresh_window_contents(["inventory"])
 	# Update hotbar qty / letter avatars for item bindings.
-	ctrl._refresh_hotbar_slot_visuals()
+	if inventory_changed:
+		ctrl._refresh_hotbar_slot_visuals()
 	# Keep shop sell list / gold in sync while open.
 	if ctrl._shop_panel != null and ctrl._shop_panel.visible:
 		ctrl._fill_shop_panel()
@@ -187,7 +191,7 @@ func _fill_inventory(body: VBoxContainer, _ch: Dictionary) -> void:
 	## ScrollContainer fills window body; grid alone (no chrome labels). Rows > viewport → scrollbar.
 	var panel: PanelContainer = ctrl._windows.get("inventory") as PanelContainer
 	var items: Array = ctrl._server_inventory
-	if items.is_empty():
+	if not ctrl._inv_qty_known:
 		var srv0 = Net.server()
 		if srv0 != null and srv0.get("inventory") != null and srv0.inventory.has_method("snapshot"):
 			items = srv0.inventory.snapshot()
@@ -315,8 +319,9 @@ func _fill_inventory(body: VBoxContainer, _ch: Dictionary) -> void:
 	# Keep fixed window size even after content rebuild.
 	if panel != null and bool(panel.get_meta("fixed_size", false)):
 		ctrl.call_deferred("_lock_window_size", panel)
-	# Sync wallet from MockServer when opening bag (authoritative).
-	if srv != null and srv.get("inventory") != null and srv.inventory.has_method("get_gold"):
+	# Seed only before the first authoritative snapshot. Rebuilding a view must
+	# not replace a received wallet value (or a deliberately empty inventory).
+	if not ctrl._gold_wallet_known and srv != null and srv.get("inventory") != null and srv.inventory.has_method("get_gold"):
 		ctrl._server_gold = int(srv.inventory.get_gold())
 	_ensure_inventory_gold_bar(panel)
 	_refresh_inventory_gold_label(panel)

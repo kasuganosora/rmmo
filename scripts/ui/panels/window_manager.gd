@@ -315,10 +315,12 @@ func _close_top_window() -> bool:
 	return false
 
 
-func _refresh_window_contents() -> void:
-	for id in ctrl._windows.keys():
-		var p: PanelContainer = ctrl._windows[id]
-		if p.visible:
+func _refresh_window_contents(ids: Array = []) -> void:
+	# Snapshots name the views they affect. A character/session rebind can still
+	# refresh everything; unrelated map terrain and settings retain their state.
+	for id in (ctrl._windows.keys() if ids.is_empty() else ids):
+		var p: PanelContainer = ctrl._windows.get(id)
+		if is_instance_valid(p) and p.visible:
 			_fill_window(str(id))
 
 

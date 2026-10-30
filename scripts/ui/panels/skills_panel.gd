@@ -434,10 +434,11 @@ func _on_hotbar_pressed(page: int, slot: int, _key: String) -> void:
 
 
 func apply_skill_catalog(skills: Array) -> void:
+	if skills==ctrl._server_skills:return
 	ctrl._server_skills = skills.duplicate(true)
 	_refresh_hotbar_slot_visuals()
 	if ctrl._windows.has("skills") and ctrl._windows["skills"].visible:
-		ctrl._refresh_window_contents()
+		ctrl._refresh_window_contents(["skills"])
 
 
 
@@ -592,8 +593,6 @@ func note_skill_cooldown(skill_id: String, remaining: float, cooldown: float = 0
 		total = remaining
 	ctrl._skill_cd_hint[skill_id] = {"remaining": remaining, "cooldown": total}
 	_apply_hotbar_cooldown_for_id(skill_id, remaining, total)
-	if ctrl._windows.has("skills") and ctrl._windows["skills"].visible:
-		ctrl._refresh_window_contents()
 
 
 func hotbar_prev() -> void:

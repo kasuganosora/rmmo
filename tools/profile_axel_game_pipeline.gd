@@ -99,6 +99,9 @@ func runtime_frame_policy()->void:
 		Engine.max_fps=0
 		set_probe_vsync(DisplayServer.VSYNC_DISABLED)
 	report.runtime_frame_policy={"max_fps":Engine.max_fps,"vsync":DisplayServer.window_get_vsync_mode(root.get_window_id()),"screen_refresh_hz":DisplayServer.screen_get_refresh_rate(root.current_screen),"physics_ticks_per_second":Engine.physics_ticks_per_second}
+func runtime_observation_finished()->bool:
+	return false
+
 func observe()->void:
 	if not sampling:return
 	var now:=Time.get_ticks_usec()
@@ -507,7 +510,7 @@ func run()->void:
 	for node:Node in [world,world._camera,world._player,world._weather,world._outline,world._hud,world._player._model,world._weather.wind_objects]:
 		if is_instance_valid(node):node.set_meta("profile_frame",true)
 	report.runtime=[]
-	while Time.get_ticks_usec()<until:
+	while Time.get_ticks_usec()<until and not runtime_observation_finished():
 		await process_frame
 		var row:Dictionary={"at_ms":(Time.get_ticks_usec()-began)/1000.}
 		for key:String in ["frame_timings","traversal_timing"]:

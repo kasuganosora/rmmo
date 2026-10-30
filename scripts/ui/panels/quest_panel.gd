@@ -48,7 +48,7 @@ func apply_quest_snapshot(quests: Array) -> void:
 			ctrl._selected_quest_id = ""
 			_close_quest_drawer(false)
 	if ctrl._windows.has("quest") and ctrl._windows["quest"].visible:
-		ctrl._refresh_window_contents()
+		ctrl._refresh_window_contents(["quest"])
 		_refresh_quest_drawer_content()
 	_refresh_quest_tracker()
 
