@@ -312,7 +312,7 @@ static func _sync_work(map_root:Node,host:Node,origin:Vector3,budget:int,deadlin
 	var batch_started:=Time.get_ticks_usec()
 	var batcher: Node3D = map_root.get_node_or_null("GroundRenderBatches")
 	if batcher == null:
-		batcher = GroundBatcher.new(); batcher.name = "GroundRenderBatches"; batcher.set_meta("stream_instance",true); map_root.add_child(batcher)
+		batcher = GroundBatcher.new(); batcher.runtime_private_upload=true; batcher.name = "GroundRenderBatches"; batcher.set_meta("stream_instance",true); map_root.add_child(batcher)
 	batcher.work_budget_usec=24000 if budget>=LOAD_BUDGET else 2000
 	var revision:int=map_root.get_meta("stream_visibility_revision",0)
 	var sliced_loading:bool=budget>=LOAD_BUDGET and sliced_loading_batches_enabled
@@ -379,6 +379,17 @@ static func prepare_map_disposal(map_root:Node,tree:SceneTree=null)->void:
 		if outgoing==null:continue
 		outgoing.retire_workers(tree)
 		if service=="GroundRenderBatches":outgoing.clear(false)
+	# StreamIndex owns these exact scalar schemas: IDs, cell coordinates,
+	# membership/order and append bookkeeping. Unlike by_id/prop/collision
+	# indexes they never contain live specs or Resource owners. Retain them
+	# through exit callbacks, then drop their final refs on the existing CPU
+	# lane. No recursive copy/scan, no mutation of a surviving borrower's data.
+	if not map_root.get_meta("scalar_index_retiring",false):
+		var scalar_indexes:Array=[]
+		for field:StringName in [&"stream_append_state",&"stream_known",&"stream_index"]:
+			if map_root.has_meta(field):scalar_indexes.append(map_root.get_meta(field))
+		if preload("res://scripts/world3d/resource_retirement.gd").defer_cpu_values(scalar_indexes,0):
+			map_root.set_meta("scalar_index_retiring",true)
 	# MapLoader stores this exact raw JSON snapshot for building authority and
 	# cutaway lookup. It contains no Resource/Node/RID owners. Keep the metadata
 	# readable through exit callbacks, but let the existing CPU retirement lane

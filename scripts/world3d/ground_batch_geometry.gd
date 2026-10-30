@@ -1,6 +1,7 @@
 extends RefCounted
 ## Render-only conversion. Never changes authoring topology or collision meshes.
 const Cpu = preload("res://scripts/world3d/ground_cpu_mesh.gd")
+const Trace = preload("res://scripts/world3d/load_trace.gd")
 const TERRAIN_SHADER = preload("res://scripts/world3d/river_terrain.gdshader")
 const MAX_MEMBERS := 16
 const MAX_VERTICES := 65536
@@ -145,10 +146,12 @@ static func build(members: Array, origin: Vector3, defer_upload: bool = false) -
 		# These arrays feed layered terrain shaders only. Plain terrain batches
 		# need neither height textures nor region-mask metadata/material uploads.
 		if record.has("terrain_mesh") and source.materials.any(func(material):return material is ShaderMaterial):
-			images.append(source.materials[0].get_meta("terrain_height_image") if source.materials[0] is ShaderMaterial and source.materials[0].has_meta("terrain_height_image") else height_image(record))
+			if source.has("private_height_image"):
+				images.append(source.private_height_image if source.private_height_image!=null else height_image(record))
+			else:images.append(source.materials[0].get_meta("terrain_height_image") if source.materials[0] is ShaderMaterial and source.materials[0].has_meta("terrain_height_image") else height_image(record))
 			if record.has("terrain_regions"):
 				# Snapshot uses the cached image; never rerasterize on the batch worker.
-				masks.append(source.materials[0].get_meta("ground_mask_image"))
+				masks.append(source.private_ground_mask if source.has("private_ground_mask") else source.materials[0].get_meta("ground_mask_image"))
 		for slot in source.surfaces.size():
 			var material: Material = source.materials[slot]
 			var key: String = source.keys[slot]
@@ -240,28 +243,52 @@ static func prepare_upload(data:Dictionary)->void:
 
 static func upload(data: Dictionary) -> Dictionary:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.ground_batch_geometry.upload") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
-	# Only final resource installation happens here. Geometry workers have
-	# already packed the buffers on engines with the CPU preparation interface.
-	# Keeping RID creation here also avoids renderer waits during worker joins.
 	assert(Thread.is_main_thread())
+	return finish_upload(_upload_resources(data))
+
+static func upload_private(data:Dictionary)->Dictionary:
+	# Only the explicit layered-material snapshot path may call this. It owns
+	# its ShaderMaterials and retains the ordinary job's input/texture lease.
+	assert(not Thread.is_main_thread() and data.get("private_layered_materials",false))
+	var retained:Array=[]
+	var result:=_upload_resources(data,retained)
+	# Even a failed texture-array upload hands its private resources back to
+	# main for disposal. No scene-bound CPU-cache registration runs on a worker.
+	if result.is_empty():return {"upload_failed":true,"retained_resources":retained}
+	return result
+
+static func finish_upload(data:Dictionary)->Dictionary:
+	assert(Thread.is_main_thread())
+	if not data.has("mesh"):return {}
+	if data.has("upload_cpu_arrays"):
+		Cpu.remember(data.mesh,data.upload_cpu_arrays,data.upload_cpu_lods)
+		data.erase("upload_cpu_arrays");data.erase("upload_cpu_lods")
+	return data
+
+static func _upload_resources(data:Dictionary,retained:Variant=null)->Dictionary:
+	var stage_started:=Time.get_ticks_usec() if Trace.enabled else 0
 	var result:=ArrayMesh.new()
+	if retained!=null:retained.append(result)
 	var cpu_arrays:Array=[];var cpu_lods:Array=[]
 	var packed_surfaces:Array=[]
 	var prepared:bool=int(data.get("prepared_surface_count",0))==data.slots.size()
 	var height_array: Texture2DArray
 	if not data.images.is_empty():
 		height_array=Texture2DArray.new()
+		if retained!=null:retained.append(height_array)
 		if height_array.create_from_images(data.images)!=OK: return {}
 	var mask_array: Texture2DArray
 	if not data.masks.is_empty():
 		mask_array=Texture2DArray.new()
+		if retained!=null:retained.append(mask_array)
 		if mask_array.create_from_images(data.masks)!=OK: return {}
+	if Trace.enabled:Trace.elapsed("batch.upload.layer_arrays",stage_started,{"heights":data.images.size(),"masks":data.masks.size()});stage_started=Time.get_ticks_usec()
 	var origins: PackedVector4Array=data.origins; var spans: PackedVector4Array=data.spans
 	while origins.size()<MAX_MEMBERS: origins.append(Vector4.ZERO); spans.append(Vector4.ONE)
 	for row: Dictionary in data.slots:
 		var material: Material=row.material
 		if row.layered:
-			material=material.duplicate()
+			if not data.get("private_layered_materials",false):material=material.duplicate()
 			material.set_shader_parameter("batch_enabled",true)
 			material.set_shader_parameter("batch_heights",height_array)
 			material.set_shader_parameter("batch_ground_masks",mask_array)
@@ -275,10 +302,11 @@ static func upload(data: Dictionary) -> Dictionary:
 			result.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES,row.arrays,[],levels,surface_flags(row,data.get("compressed",false)))
 			result.surface_set_material(result.get_surface_count()-1,material)
 		cpu_arrays.append(row.arrays);cpu_lods.append(levels)
+	if Trace.enabled:Trace.elapsed("batch.upload.surface_descriptors",stage_started,{"surfaces":data.slots.size(),"prepared":prepared});stage_started=Time.get_ticks_usec()
 	if prepared:result.set("_surfaces",packed_surfaces)
-	Cpu.remember(result,cpu_arrays,cpu_lods)
+	if Trace.enabled:Trace.elapsed("batch.upload.install_surfaces",stage_started,{"surfaces":data.slots.size(),"vertices":data.render_vertices,"private":data.get("private_layered_materials",false)})
 	if data.get("terrain_lod",false) and cpu_lods.any(func(levels):return not levels.is_empty()):result.set_meta("terrain_render_lod",true)
-	return {"mesh":result,"source_surfaces":data.source_surfaces,"source_vertices":data.source_vertices,"render_vertices":data.render_vertices}
+	return {"mesh":result,"upload_cpu_arrays":cpu_arrays,"upload_cpu_lods":cpu_lods,"source_surfaces":data.source_surfaces,"source_vertices":data.source_vertices,"render_vertices":data.render_vertices}
 
 static func append_arrays(row: Dictionary, source: Array, transform: Transform3D, layer: int) -> void:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.ground_batch_geometry.append_arrays") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null

@@ -4,6 +4,9 @@ const Geometry = preload("res://scripts/world3d/ground_batch_geometry.gd")
 const FrameBudget = preload("res://scripts/world3d/frame_work_budget.gd")
 const Timeline = preload("res://scripts/world3d/ground_batch_timeline.gd")
 const WorkerRetirement=preload("res://scripts/world3d/cpu_worker_retirement.gd")
+const PrivateUpload=preload("res://scripts/world3d/ground_batch_private_upload.gd")
+static var private_layered_upload_enabled:=false # Candidate09 GPU/lifecycle evaluation.
+var runtime_private_upload:=false # Set by WorldStream, not generic editor batches.
 static var canonical_buildings_enabled:=true
 static var inflight_building_sharing_enabled:=true
 static var sliced_source_collection_enabled:=true
@@ -58,6 +61,12 @@ var completed_prefix_reuses:=0
 var completed_source_visits_avoided:=0
 var release_groups_visited:=0
 var live_worker_joins:=0
+var private_upload_jobs:=0
+var private_upload_snapshot_us:=0
+var private_upload_material_copies:=0
+var private_upload_worker_us:=0
+var private_upload_surfaces:=0
+var private_upload_failures:=0
 var live_worker_join_us:=0
 var _member_groups: Dictionary={}
 var _audit_cursor:=0
@@ -1049,9 +1058,19 @@ func _build_next(background: bool = false) -> void:
 		# Workers never own a Node callable. Keep GPU-linked input materials on a
 		# main-owned lease even if the entire source map is removed mid-build.
 		for source:Dictionary in snapshot:source.surfaces=WorkerRetirement.snapshot_surfaces(source.surfaces)
+		var private_snapshot:Array=[]
+		if private_layered_upload_enabled and runtime_private_upload and not group.get("private_upload_failed",false):
+			var snapshot_started:=Time.get_ticks_usec()
+			private_snapshot=PrivateUpload.snapshot(snapshot)
+			private_upload_snapshot_us+=Time.get_ticks_usec()-snapshot_started
+			if not private_snapshot.is_empty():
+				private_upload_material_copies+=int(private_snapshot[0].private_upload_material_copies);snapshot=private_snapshot
 		job.retirement=WorkerRetirement.watch(job.thread,get_tree(),[snapshot,group.cpu.duplicate()])
 		var build_call:Callable=Timeline.build.bind(snapshot,origin) if Timeline.enabled else Geometry.build.bind(snapshot,origin,true)
-		if not job.retirement.is_empty() and job.thread.start(build_call) == OK: _workers.append(job); return
+		if not private_snapshot.is_empty():build_call=PrivateUpload.build.bind(snapshot,origin)
+		if not job.retirement.is_empty() and job.thread.start(build_call) == OK:
+			if not private_snapshot.is_empty():private_upload_jobs+=1
+			_workers.append(job);return
 		WorkerRetirement.complete(job.retirement)
 	_commit(group,Geometry.build(snapshot,group.origin),started)
 
@@ -1131,6 +1150,9 @@ func _finish_worker(index: int) -> void:
 	var job: Dictionary=_workers[index]; _workers.remove_at(index)
 	var waiting:bool=job.thread.is_alive();var join_started:=Time.get_ticks_usec()
 	var data: Dictionary = job.thread.wait_to_finish()
+	if data.has("private_upload_info"):
+		var info:Dictionary=data.private_upload_info
+		private_upload_worker_us+=int(info.upload_us);private_upload_surfaces+=int(info.surfaces)
 	if Timeline.enabled:Timeline.record("join",job.generation,join_started,[data.get("batch_worker_interval",[]),waiting,job.get("reusers",[]).size()])
 	if waiting:live_worker_joins+=1;live_worker_join_us+=Time.get_ticks_usec()-join_started
 	var targets:Array=[{"key":job.key,"generation":job.generation,"started":job.started}]
@@ -1138,6 +1160,10 @@ func _finish_worker(index: int) -> void:
 	var shared:Dictionary={}
 	for target:Dictionary in targets:
 		if not groups.has(target.key) or groups[target.key].generation!=target.generation:continue
+		if data.get("upload_failed",false):
+			groups[target.key].private_upload_failed=true;private_upload_failures+=1
+			if not pending.has(target.key):pending.append(target.key)
+			continue
 		if shared.is_empty():
 			# The initiating group may have been removed while its worker ran.
 			# The first surviving equivalent group can install the same result.
@@ -1185,12 +1211,22 @@ func _commit(group: Dictionary, data: Dictionary, started: int) -> void:
 	for node in group.members:
 		if not is_instance_valid(node): return
 	var commit_started := Time.get_ticks_usec()
+	var trace_started:=Time.get_ticks_usec() if preload("res://scripts/world3d/load_trace.gd").enabled else 0
+	if data.has("private_upload_info"):
+		# Match the existing accepted-surface counter. Invalidated results still
+		# contribute to private worker work, but were never committed geometry.
+		worker_packed_surfaces+=int(data.private_upload_info.surfaces)
+		worker_surface_prepare_us+=int(data.private_upload_info.surface_prepare_us)
+		data.erase("private_upload_info")
 	if not data.has("mesh"):
 		var count:int=data.get("prepared_surface_count",0)
 		if count>0 and data.get("surface_prepare_thread",OS.get_main_thread_id())!=OS.get_main_thread_id():
 			worker_packed_surfaces+=count;worker_surface_prepare_us+=int(data.get("surface_prepare_us",0))
 		else:main_packed_surfaces+=data.get("slots",[]).size()
 		data=Geometry.upload(data)
+	else:data=Geometry.finish_upload(data)
+	if trace_started>0:
+		preload("res://scripts/world3d/load_trace.gd").elapsed("batch.commit.upload",trace_started,{"category":group.category,"members":group.members.size()});trace_started=Time.get_ticks_usec()
 	if data.is_empty() or data.mesh.get_surface_count()==0: return
 	if group.has("mesh_cache_key"):
 		var info:Dictionary=data.duplicate();info.erase("mesh");info.erase("slots")
@@ -1212,8 +1248,11 @@ func _commit(group: Dictionary, data: Dictionary, started: int) -> void:
 		watcher.changed=_sync_pose.bind(_member_groups[str(group.members[0].name)],group.generation)
 		group.pose_watcher=watcher;group.members[0].add_child(watcher)
 	visual.visible=group.members[0].is_visible_in_tree()
+	if trace_started>0:
+		preload("res://scripts/world3d/load_trace.gd").elapsed("batch.commit.attach",trace_started,{"category":group.category,"members":group.members.size()});trace_started=Time.get_ticks_usec()
 	for i in group.members.size(): freeze(group.members[i],group.cpu[i])
 	group.erase("cpu")
+	if trace_started>0:preload("res://scripts/world3d/load_trace.gd").elapsed("batch.commit.freeze",trace_started,{"category":group.category,"members":group.members.size()})
 	rebuild_count += 1
 	last_build_ms = (Time.get_ticks_usec()-started)/1000.; max_build_ms = maxf(max_build_ms,last_build_ms)
 	last_commit_ms = (Time.get_ticks_usec()-commit_started)/1000.
@@ -1223,6 +1262,10 @@ func _commit(group: Dictionary, data: Dictionary, started: int) -> void:
 func stats(category: String="") -> Dictionary:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.ground_batcher.stats") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	var result := {"enabled":enabled,"pending_groups":pending.size()+_workers.size()+(0 if _preparation.is_empty() else 1),"groups":0,"instanced_groups":0,"source_objects":0,"source_surfaces":0,"render_surfaces":0,"source_vertices":0,"render_vertices":0,"rebuild_count":rebuild_count,"last_build_ms":last_build_ms,"max_build_ms":max_build_ms,"last_commit_ms":last_commit_ms,"max_commit_ms":max_commit_ms,"last_sync_ms":last_sync_ms,"sync_profile_us":sync_profile.duplicate()}
+	result.private_upload_jobs=private_upload_jobs;result.private_upload_snapshot_us=private_upload_snapshot_us
+	result.private_upload_material_copies=private_upload_material_copies
+	result.private_upload_worker_us=private_upload_worker_us;result.private_upload_surfaces=private_upload_surfaces
+	result.private_upload_failures=private_upload_failures
 	result.worker_packed_surfaces=worker_packed_surfaces;result.main_packed_surfaces=main_packed_surfaces;result.worker_surface_prepare_us=worker_surface_prepare_us
 	result.sync_count=sync_count; result.release_groups_visited=release_groups_visited
 	result.resumed_collections=resumed_collections;result.reused_collection_roots=reused_collection_roots

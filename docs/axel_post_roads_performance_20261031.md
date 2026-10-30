@@ -496,3 +496,93 @@ GPU通用cursor回归 **15/15**，包括取消、局部碰撞顺序、真正释�
 确定收益是每次返回少创建、遍历和释放622个临时渲染节点，且实例、mesh投影和碰撞face准备顶点数9731922不变。完整就绪少4.999s、返回收尾少2.918s只属于这一对样本；spec累计少106.642ms不能直接解释全部墙钟差额。返回加载长帧数量反而增加，保留原结果，不能宣称low已改善。两份初次/返回稳定观察段均0帧>50ms，也不能替代加载/卸载验收。此前普通`pipe_capture_normal_01`完整就绪73.509s、返回57.969s同样保留；不挑最快结果作为收益。
 
 下一步针对仍有栈证据的材质编译与真实合批提交：`GroundBatchGeometry.build`已经后台准备CPU缓冲，`upload`仍在主线程创建分层纹理、派生材质和ArrayMesh。先用真实slot/material组合验证私有后台提交的首帧参数、共享纹理、输入变化、取消和拥有者释放；沿用现有worker/lease和代际检查，不扩队列或仅移除主线程断言。candidate09的独立shader等待修复尚未接入该正式路径，也未替换默认引擎。69s完整加载、58s返回收尾以及678ms/215ms尖峰仍待解决，不能将这轮工作量收益当作总体完成。
+
+## 分层地形的真实后台提交候选（默认尚未启用）
+
+上轮直接prefab投影已提交推送`45810861`。本轮按既有GDB证据拆分合批`upload`：共享的资源构建函数产生真正用于显示的ArrayMesh、分层纹理和材质，主线程单独执行`Cpu.remember`和Node挂接。新候选仅处理已有分层地形shader；主线程捕获私有ShaderMaterial参数，同一输入材质在一个现有任务内只复制一次，纹理、CPU packed数组和固定shader仍共享。沿用原3个worker、原输入lease、完成结果和group generation，不另建线程池/队列，不预热隐藏网格。StandardMaterial仍可能懒初始化共享shader/RID，尚未允许其跨worker竞态；该部分仍待解决。
+
+`ground_batch_private_upload.gd`将真实GPU资源构建放入既有batch worker，完成后主线程登记CPU拥有者、检查实际group generation，再提交Node；取消仍由现有drainer接手，失败结果将私有资源交回main后走一次旧路径。编辑器仍沿用原流程。候选开关`private_layered_upload_enabled=false`，整图probe显式`--private-layered-upload`，默认08引擎未替换；GPU合同使用隔离candidate09。
+
+独立证据保留：`layered_private_gpu_01`因新增测试的Variant推断错误在解析阶段退出；02–05的真实网格/像素检查通过，但取消时material WeakRef未失效。逐项排除后确认测试协程里的临时`Gate.work.bind(gate,copied)`仍持有参数，移到不暂停的小函数、让临时Callable退栈后，06的material/mesh WeakRef均失效，token、线程和输入lease结束。生产回收代码没有为通过测试而放宽判断或增加强制清理。
+
+`layered_private_dispatch_01`进一步发现泛用`stream_instance`元数据由GroundBatcher自身自动设置，不能作为运行模式依据。已改成只由WorldStream显式设置的`runtime_private_upload`；普通编辑器batch不会启用候选。`layered_private_dispatch_02` **41/41**，包括真实调度选择、精确顶点/索引/LOD/AABB、原纹理身份、两层height数据、首个已提交帧RGBA完全相同、原材质不被worker修改、取消期间帧继续、真实拥有者释放、源节点退出立即失效、晚到结果禁止提交和编辑器路径保留。微测首个同步上传约106ms、随后worker上传0.22–0.33ms使用已暖shader，**两者不能作为冷编译加速对照**。
+
+### 材质去重、缺失元数据与实际图层回归
+
+第一版snapshot按输入Material对象复制；同一个合批key来自不同源对象时仍重复复制。已复用分组阶段确定的key，一个实际批次材质只复制一次。height/mask是每个源对象的图层，必须另外保留各自Image，不能随材质一起合并。`layered_private_equivalence_red`42项中1项失败，green 42/42，顶点/图层/画面和取消语义不变。
+
+整图`layered_private_map_B2`暴露98条缺少ground_mask_image报错：Godot的`get_meta(key,null)`在缺失时仍报错，NIL不是有效的默认值。该样本退出0、完整需求就绪68.066s，但有引擎错误，**不纳入有效性能对照**。独立`layered_private_optional_red`46项中1项失败，准确复现高度和蒙版两个可选字段的报错。改为has_meta后读取，无高度时沿用原后台height_image生成，不增加校验地图或重建已有图层。
+
+`layered_private_optional_green` **52/52**：在已有首帧、CPU缓冲、取消和真实调度检查之外，加入缺失元数据、相同key但不同height和region-mask内容、实际Texture2DArray各层字节与同步oracle完全一致、含region的首帧RGBA一致。未降低错误检查或比较精度。
+
+默认08引擎的`layered_worker_retirement_regression` **49/49**；`layered_default_river_regression`首次发现旧测试仍调用单参数`Stream._spawn(spec)`，解析失败。仅将测试适配到现有`_spawn(viewport,spec)`接口，02 **138/138**，覆盖terrain、水面、CPU索引、编辑预览及真实GPU图像。默认生产引擎未修改。
+
+### 同一candidate09路径的正常整图记录
+
+以下均全部UI/HUD、固定地图、管道捕获、无profiler/GDB；空用户缓存、保留OS/驱动缓存。`layered_private_comparison.json`保存源码/地图SHA前后、实际资源释放、额外进程和工作量核对。A1、B1、B3均零错误/失败，旧地图与队列真实释放，返回前retirement排空；它们不是ABBA，也不是加载p95分布。
+
+| 项目 | A1关闭候选 | B1逐对象复制 | B3按key复制并修复缺失字段 |
+|---|---:|---:|---:|
+| 入口 / 完整需求就绪 s | 13.874 / 70.850 | 13.597 / 69.202 | 14.143 / 65.628 |
+| 返回事务后收尾 s | 58.178 | 61.701 | 53.411 |
+| 初始 / 返回private jobs | 0 / 0 | 27 / 28 | 27 / 28 |
+| 初始 / 返回主线程snapshot ms | 0 / 0 | 50.831 / 49.981 | 19.547 / 23.899 |
+| 初始 / 返回worker GPU构建 ms | 0 / 0 | 45.445 / 12.066 | 46.597 / 12.572 |
+| 初次最大batch commit ms | 453.587 | 454.885 | 459.540 |
+| 初次可玩段最大帧 ms | 658.726 | 667.086 | 740.812 |
+| 卸载 / 返回事务最大帧 ms | 224.428 / 275.073 | 1596.708 / 276.107 | 244.200 / 337.997 |
+| 返回加载p95 / 最大帧 ms | 52.526 / 76.008 | 52.646 / 69.728 | 51.185 / 72.896 |
+| 返回加载 >50ms帧数 | 155 | 159 | 100 |
+| 返回稳定段1% low FPS | 25.77 | 25.00 | 24.63 |
+
+B3每次实际复制27/28份材质，不重复复制同key的源材质；后台构建沿用原worker/预算。返回实例1505、引用读取1074、mesh投影2176、碰撞face准备顶点9731922、直接prefab742、临时节点释放1870均不变。最终返回batch观测的源对象2309、源顶点2161253、render顶点2095377、render surfaces358一致；batch重建次数与publication分片数受实际到达顺序影响，分别保留，不冒充减少地图内容。
+
+主线程snapshot比B1减少约26–31ms有对应的去重机制；不能用这几十毫秒解释数秒整图差值，也不能以B3的单次较快结果宣布FPS改善。B1的1596.708ms卸载样本保留，尚未归因。三份正常运行的初次/返回稳定观察段均无>50ms帧，不代表初始加载或地图切换无尖峰。该路径只覆盖27–28个地形批次，最大约450ms提交并未改善，候选继续默认关闭，candidate09不安装。
+
+新增仅LoadTrace开启时的资源图层创建、surface descriptor、实际surface安装、commit upload/attach/freeze分段时钟。`layered_private_attribution_01`使用官方profiler、LoadMonitor并在实际卸载处用新版GDB采栈，专门归因剩余大块头；调试器暂停不作为正常帧或加载验收数字。
+
+### 分段计时结论与卸载索引遗漏
+
+`layered_private_attribution_01`取得7123帧官方profiler、3805个signature，解码错误0；LoadTrace未丢事件。最大的主线程batch commit upload为486.271ms，其中`ArrayMesh._surfaces`安装485.891ms，3个surface、45264顶点、10个ground成员，属于旧的非private上传分支。全部582次commit的attach最大0.465ms、freeze最大5.604ms。**当前证据将该约450ms瓶颈收窄到实际surface安装，而非几何循环、Node挂接或源网格freeze**；还需捕获准确源对象及原生调用栈，不能把已完成的少量分层地形后台上传当作修复它。
+
+真实卸载GDB采7份栈，采集暂停累计11.953s，采样时长设置12s（并非12s纯运行）。栈包含Node退出、信号/Callable拆卸、Dictionary/Array释放和VisualInstance RID释放；最后一份明确记录正在销毁名为`stream_append_state`的Node metadata。没有在这7份中捕获shader等待，但样本很少，不能据此排除其他等待，更不能解释另一次B1的1596.708ms长帧。原始`unload_stacks.jsonl`、`unload_stack_analysis.json`和`attribution_analysis.json`保存于该目录。
+
+本诊断运行**退出1**：返回前12s固定观察窗口结束时retirement仍有53个ticket，违反drain检查；虽然旧地图/Deferred WeakRef已经释放、无引擎错误、返回最终就绪，仍保留失败，不算通过的生命周期样本。额外进程3704/6244为本轮profiler receiver/GDB。正常B3零错误且drain通过与此诊断失败分开记录，不用调试器样本的墙钟评估优化收益。
+
+代码核对确认`stream_append_state`、`stream_known`、`stream_index`仅包含编号、坐标、标志、空间成员关系和顺序，构造源为StreamIndex及对应增量准备；`stream_by_id`、prop/collision等其他索引包含真实spec/Resource，不能一起交给CPU销毁。此前整图永久卸载只转移author JSON和runtime records，漏掉了这三个纯数据索引。
+
+新增`test_map_index_retirement.gd`用实际`Index._append_state`生产32768条记录的索引，并在相邻metadata放置带主线程析构检查的Resource。`scalar_index_retirement_red`32项中8项失败，索引仍同步销毁约36.7–47.8ms。修复只在永久卸载时保留三个根引用，交给**一个**现有CPU回收ticket；无递归复制、无运行期全表类型校验、无新增线程池/每cell任务、不改退出回调看到的metadata，也不清空仍被借用的子容器。重复prepare幂等；CPU回收关闭/入队失败保留原同步路径。
+
+`scalar_index_retirement_green` **32/32**，同一测试ABBA的主线程prepare+destroy为旧38.103/45.942ms、新0.275/0.295ms；新worker实际释放49.742/50.582ms，说明移除了主线程同步负担，**没有宣称总CPU工作消失**。其他spec Resource仍恰好在main释放一次，退出时完整索引仍可读，外部借用的索引在回收后字节不变。runtime record回归 **9/9**，永久batch卸载/单源移除/临时重挂回归 **6/6**。固定地图默认08引擎、private上传关闭的整图结果见下文。
+
+本轮官方profiler还保留调用量候选：`Skeleton3D.get_bone_name`约278.7万次、相机`Time.get_ticks_usec`207.2万次、玩家`get_meta`201.6万次；调用次数高不等于独占大耗时，须分别核实不变量及每帧用途。它们不是本轮已修复项，也不替代当前surface安装与卸载的大块头。
+
+### 补充失败边界与共享next-pass检查
+
+候选review发现ShaderMaterial的next_pass仍可能引用一个共享的懒初始化StandardMaterial。只检查首层shader不足以证明整条RID创建链独占。`layered_private_next_pass_red`53项中1项失败；候选对有next_pass的材质保留原路径后，green **53/53**。只检查现有小材质列表，不复制纹理或扫描资源图；默认候选仍关闭。
+
+`scalar_index_map_A1`是只撤掉纯索引回收、private上传关闭、默认08引擎的旧路径对照。初始日志记完整需求就绪72.075s，卸载、回收排空、返回就绪检查均已输出PASS，但计时结束后的报告整理期间进程以`3221225477/0xC0000005`退出，最终profile未写完，**不是通过样本，不采用其残缺报告作性能比较**。不能据此认定游戏内必现，也不能再仅凭历史结论把所有此类崩溃限定为旧外部优先级夹具；这次没有使用该夹具。
+
+Windows Application 1000/1001确认故障PID15188（0x3B54）及默认引擎路径，模块unknown、偏移0，WER为BEX64/StackHash_ac46。完整`Report.wer`已复制到该样本目录；所列临时dump已被Windows移除，没有故障调用栈。host仅在末尾记录额外Godot PID13936（186.609–189.328s），cmdline不可读；不能凭此确定是外部测试、崩溃辅助进程或崩溃原因。没有改系统WER/驱动设置、没有终止用户应用。`scalar_index_map_A2`原参数重跑；外部`P/watch_owned_crash.py`已准备作为下一次异常专用GDB观察器，尚未执行，不声称已取得崩溃栈。
+
+### 纯索引回收：默认引擎完整生命周期对照
+
+实际顺序B1→A1崩溃→A2，保留全部样本；A2重跑正常退出。A2/B1仅`world_stream.gd`永久卸载中的三个纯索引引用转移不同，文件原始SHA（包括换行）记录在`scalar_index_variants.json`。共同采用默认08引擎，private layered候选关闭、全部UI/HUD、正常预算、无profiler/GDB、无其他引擎进程。两份地图和源码前后不变，旧地图/队列WeakRef释放、retirement排空、角色可用和完整需求就绪全部通过。比较保存在`scalar_index_comparison.json`，不会读取A1残缺报告来补数字。
+
+| 项目 | 旧路径A2 | 三个纯索引后台回收B1 |
+|---|---:|---:|
+| 入口 / 完整需求就绪 s | 13.224 / 71.931 | 14.514 / 69.127 |
+| 返回事务后收尾 s | 60.035 | 58.269 |
+| 卸载prepare_disposal ms | 33.062 | 33.111 |
+| 卸载outgoing_map ms | 105.524 | 94.112 |
+| 卸载整个同步commit ms | 209.437 | 196.364 |
+| 卸载最大帧 ms | 220.003 | 207.638 |
+| 初次可玩段最大帧 ms | 672.075 | 670.711 |
+| 返回事务最大帧 ms | 257.806 | 279.568 |
+| 返回加载p95 / 最大帧 ms | 51.814 / 74.134 | 53.012 / 80.247 |
+| 返回加载 >50ms帧数 | 142 | 156 |
+| 返回稳定最大帧 / 1% low | 44.895ms / 24.88FPS | 53.947ms / 21.48FPS |
+
+实例1505、引用读取1074、mesh投影2176、face准备顶点9731922、直接prefab742、临时节点释放1870完全相同。整图outgoing_map少11.412ms，与独立复现的释放机制一致；卸载尖峰仍207.638ms，不能称为已解决。初始加载发生在本改动触发之前，**71.931→69.127s不能归因于卸载修复**；返回耗时也只是一对观察，low指标反而较差，全部如实保留。主要确定收益是移走已确认的纯数据主线程释放，没有删除游戏工作或扩大队列。
+
+补充时钟对齐：diagnostic里485.891ms surface安装发生在地图计时16.651s、入口18.584s之前，处于遮罩阶段，**不能直接拿它解释入口后约670ms尖峰**。后续按两个窗口分别抓真实调用栈：先明确这3个surface的准确源/材质和原生安装等待，再定位入口后绘制/发布长帧；卸载约94ms地图析构和末尾access violation也保留为未解决项。当前候选和默认引擎不互换，测试工程已恢复累计实现，其他会话的道路/灯光/编辑器WIP继续保留。

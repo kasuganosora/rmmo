@@ -177,7 +177,7 @@ func image_delta(a:Image,b:Image)->Dictionary:
 	return {"mean":float(total)/maxi(1,left.size())/255.,"max":float(maximum)/255.}
 
 func capture(spec:Dictionary)->Image:
-	var node:=Stream._spawn(spec);viewport.add_child(node)
+	var node:=Stream._spawn(viewport,spec);viewport.add_child(node)
 	check(encloses_vertices(node.mesh.get_aabb(),Cpu.capture(node.mesh).surfaces),"spawned render AABB encloses all actual vertices")
 	check(node.mesh.get_aabb()==spec.mesh.get_aabb(),"CPU directory and spawned GPU mesh have identical tight culling bounds")
 	var world_bounds:AABB=node.transform*node.mesh.get_aabb()
