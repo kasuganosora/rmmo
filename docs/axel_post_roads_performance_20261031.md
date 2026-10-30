@@ -304,3 +304,49 @@ CPU移交的logical_bytes=0表示**此路径未测量字节数**，不是零占�
 1. 对齐普通返回收尾每帧的publication/acceptance/ready任务，拆出主线程重复检查、结果保留和实际有用工作。profiler02里`house_prefab.tickets_valid`4379次/719.659ms、`begin_texture_publication`2124次/727.512ms、`_texture_scope_current`2097次/358.354ms，存在包含关系，不能相加；检查是否同一不可变纹理世代被重复读取，保留实际世代变化、取消和共享去重语义。
 2. 复现4个已完成任务占槽但worker空闲的条件，查清限制的拥有者/字节含义和消费者推进；优先减少每个结果滞留的必要工作，不能只调大slot或重新读取相同模型。
 3. 天气PCM约31ms普通长帧、旧节点销毁约101ms、首次合批448ms以及绘图排序重复更新继续保留。candidate09、同地图行走和所有剩余low问题均未宣布完成。
+
+## 发布时合并同一纹理拥有者的重复读取
+
+沿上轮官方profiler证据检查`house_prefab`：同一次`begin_texture_publication`先在`tickets_valid`读ticket与hot catalogue，再在`_texture_scope_current`读同一个hot/weak owner。多数路径三次元数据读取落在同一个Texture2D上，并没有跨帧的新信息。本轮把它合并为一次同步检查，同时返回ticket有效和catalogue同代两个状态；不同对象仍单独读取。结果仅作为本次函数局部参数传递，**不缓存到下一调用/下一帧**，原地修改sources、资源metadata、hot/weak替换仍立即生效。材质池、实际prefab资源、纹理representation检查保留；未增加队列/worker/发布预算。
+
+独立复现`P/texture_checks_red_02`在96个key、500次publication下有1项预期工作量失败，读取owner 48000、catalogue 96000次，253287us；`texture_checks_green` **11/11**，分别48000/0次，222579us。首个`texture_checks_red`因测试常量表达式不合法未能运行，也保留，不冒充复现。测试还覆盖同一帧source/metadata替换、不同对象同SHA、weak-only新世代、LRU淘汰重装、借用packet不变及临时scope恢复。
+
+实际GPU回归`fused_prepared_material_regression` **97/97**、`fused_streamed_texture_regression` **16/16**，无引擎错误：一轮只做一个昂贵上传、材质RID/原像素/mip/alpha、零hot预算、交错世代、取消与原子组重试均通过。真实HTTP编辑器`fused_editor_texture_scope`最终`EDITOR_TERRAIN_TEXTURE_SCOPE_FAILED=0`，打开/保存/替换/损坏/修复/缺失源图的断言全通过；**通用GPU wrapper退出1**，因为用例故意写入broken_png触发PNG解码错误。该异常边界保留，不把这份运行写成“零引擎错误”；错误路径均为独立fixture，不修改正式地图。
+
+正常整图按B1→A1、同源码同冻结地图、默认08引擎和全部HUD进行，仅切换`--without-fused-texture-checks`。两个运行均正常退出、零错误/失败、无其他引擎/编译器，源码/地图身份稳定，旧地图释放且返回前回收排空。各自空用户缓存，但OS/驱动缓存保留；不是cold或p95。`P/fused_checks_comparison.json`：
+
+| 项目 | 旧路径 A1 | 合并检查 B1 |
+|---|---:|---:|
+| 初始入口 / 完整需求就绪 s | 14.107 / 73.108 | 14.641 / 73.622 |
+| 返回事务之后收尾 s | 60.202 | 62.227 |
+| 全程ticket owner读取 | 153010 | 151918 |
+| 全程catalogue额外读取 | 164566 | 0 |
+| 返回发布实例 / reference读取 | 1505 / 1074 | 1505 / 1074 |
+| 返回实例工作阶段 / direct prefab | 1884 / 116 | 1884 / 116 |
+| 返回publication单位 / spec推进 | 2638 / 2457 | 2579 / 2436 |
+| 返回加载最大帧 / >50ms帧数 | 77.787 / 97 | 85.620 / 94 |
+| 返回稳定段1% low FPS | 23.87 | 20.47 |
+
+结论仅是**重复工作减少**，不是总加载或low已改善。返回耗时与low较差的B1完整保留，不能从两个样本推断稳定提升或稳定退化；工作量收益满足用户独立收益维度，继续累计保留。为确认剩余约60s收尾的去向，下一步启用既有`CompletedTrace`与只读`completed_job_audit_probe`，按任务generation记录dispatch、worker结束、join、accept、私有实例准备、commit、slot和lease释放。HUD工具新增`--trace-completed-jobs`仅用于诊断，不改变生产调度；每500ms审计一次，结束后序列化，明确排除普通性能验收。
+
+### 已完成任务滞留的实际生命周期
+
+`P/publication_residence_trace_01`正常结束、零错误/失败、源与地图不变、回收排空。11262个事件、372个generation，dropped=0；初始/返回各186个任务，每个都有dispatch、worker_finished、joined、accepted、slot_released、lease_released；各1505个实例恰好private_started/private_finished/committed一次。带`.glb`的日志path是既有逻辑模型ID，实际仍走原生产品，不表示恢复GLB读取。
+
+返回侧等待（墙钟区间，跨任务重叠，不能相加为CPU工作）：
+
+| 区间 | 中位数 ms | p95 ms | 最大 ms |
+|---|---:|---:|---:|
+| worker执行 | 13.644 | 563.998 | 1483.746 |
+| worker结束→主线程join | 19.625 | 34.840 | 52.862 |
+| join→accept | 0.525 | 17.974 | 69.977 |
+| accept→首次实例准备 | 51.923 | 2636.022 | 7336.422 |
+| accept→最后实例commit | 138.114 | 4817.069 | 9438.660 |
+| 最后commit→释放slot | 1.324 | 10.388 | 14.911 |
+| slot→释放lease | 0.017 | 0.029 | 0.044 |
+
+116次返回收尾抽样中88次已有job而无活动worker；剩余成员的9089次重复观察全部为eligible，未观察到support/collision阻塞。观察器自身累计199244us、最大3824us，作为诊断成本保留，这份72.669s完整就绪不混进正常对照。
+
+最长持有者是34成员建筑：worker21.332ms，accept之后7079.700ms才首次实例准备，9438.660ms才最后commit；另一个34成员建筑首次准备等待7336.422ms。这与当前`_publication_ready`/`publication_order`只选择同优先级最早ready建筑的策略相符。另有58实例共享原生模型，首次准备74.229ms、最后commit8715.535ms。**不是后台未完成，也不是最后释放轮询**；当消费速度不足时，已完成且尚未消费的输出仍合法占用槽位。没有证据支持直接扩大队列或提前注销内存拥有者。
+
+后续需同时审查发布选择与主线程有用工作：普通B1返回发布3896863us、主线程Deferred合计6201710us分布在2547帧，同时还承受全游戏渲染/物理；该统计包括返回稳定观察段。官方profiler另有`world_map_data.visible_shapes`528次/1108.498ms，绘制顺序比较lambda 641717次/606.451ms，以及角色同帧两轮手部避让，均是可单独复现的重复工作候选；这些仍有包含关系，不能相加。先减少这些有证据的工作，保留建筑原子发布、近处优先与内存背压；未据当前诊断更改调度策略，未宣布60s收尾或low合理。

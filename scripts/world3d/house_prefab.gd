@@ -14,6 +14,10 @@ static var split_retirement_owner_units_enabled:=true # Diagnostic old compound 
 static var material_identity_reuses:=0
 static var material_identity_scans:=0
 static var texture_invalidation_material_scans:=0
+static var fused_texture_checks_enabled:=true # Diagnostic old repeated scan.
+static var texture_check_profile_enabled:=false
+static var texture_owner_reads:=0
+static var texture_catalog_reads:=0
 static var _decoded:Dictionary={}
 static var _decoded_bytes:=0
 static var _decode_mutex:=Mutex.new()
@@ -152,11 +156,41 @@ static func _material_texture_tickets(materials:Array,sources:Dictionary,result:
 		if result.size()==sources.size():return
 
 static func tickets_valid(tickets:Dictionary,sources:Dictionary)->bool:
+	if fused_texture_checks_enabled:return (_ticket_status(tickets,sources,false)&1)!=0
+	return _tickets_valid_legacy(tickets,sources)
+
+static func _ticket_status(tickets:Dictionary,sources:Dictionary,resolve_catalogue:bool)->int:
+	# Synchronous result only: bit 0 admits tickets, bit 1 also proves that the
+	# current hot/weak catalogue matches them. Never cache this across calls:
+	# metadata, sources and catalogue entries can change even in the same frame.
+	var status:=3
+	for key:String in tickets:
+		var ticket:Dictionary=tickets[key];var texture:Texture2D=ticket.get("texture")
+		if texture==null:return 0
+		var digest:Variant=ticket.get("source_sha")
+		if texture_check_profile_enabled:texture_owner_reads+=1
+		if texture.get_meta("runtime_source_sha256","")!=digest or sources.get(Cook.Paint.texture_source_path(key))!=digest:return 0
+		var current:Texture2D=Cook.Paint._textures.get(key)
+		if current!=null and current!=texture:
+			if texture_check_profile_enabled:texture_catalog_reads+=1
+			if current.get_meta("runtime_source_sha256","")!=digest:return 0
+		if resolve_catalogue and current==null:
+			var reference:WeakRef=Cook.Paint._texture_refs.get(key)
+			current=reference.get_ref() if reference!=null else null
+			if current==null:status=1
+			elif current!=texture:
+				if texture_check_profile_enabled:texture_catalog_reads+=1
+				if current.get_meta("runtime_source_sha256","")!=digest:status=1
+	return status
+
+static func _tickets_valid_legacy(tickets:Dictionary,sources:Dictionary)->bool:
 	for key:String in tickets:
 		var ticket:Dictionary=tickets[key];var texture:Texture2D=ticket.get("texture")
 		var path:String=Cook.Paint.texture_source_path(key)
+		if texture_check_profile_enabled:texture_owner_reads+=1
 		if texture==null or texture.get_meta("runtime_source_sha256","")!=ticket.get("source_sha") or sources.get(path)!=ticket.get("source_sha"):return false
 		var current:Texture2D=Cook.Paint._textures.get(key)
+		if texture_check_profile_enabled and current!=null:texture_catalog_reads+=1
 		if current!=null and current.get_meta("runtime_source_sha256","")!=ticket.source_sha:return false
 	return true
 
@@ -469,7 +503,11 @@ static func begin_texture_publication(record:Dictionary,material_pool:Variant,te
 	# slice. The matching end restores the prior scope; the job retains its lease.
 	var previous:Variant=null
 	var resident:Dictionary=texture_packet.get("resident_textures",{})
-	if not tickets_valid(resident,texture_packet.get("sources",{})):return {"ok":false}
+	var ticket_status:=-1
+	if fused_texture_checks_enabled:
+		ticket_status=_ticket_status(resident,texture_packet.get("sources",{}),state!=null)
+		if (ticket_status&1)==0:return {"ok":false}
+	elif not tickets_valid(resident,texture_packet.get("sources",{})):return {"ok":false}
 	var previous_uploaded:Dictionary=Cook.Paint.prepared_textures
 	Cook.Paint.prepared_textures=texture_packet.get("uploaded_textures",{})
 	var resources:Dictionary=texture_packet.get("images",{})
@@ -479,7 +517,7 @@ static func begin_texture_publication(record:Dictionary,material_pool:Variant,te
 			resources=resources.duplicate()
 			for key:String in Cook.Paint.prepared_textures:
 				if not resources.has(key):resources[key]=Cook.Paint.prepared_textures[key]
-	if state!=null and _texture_scope_current(record,texture_packet,state,material_pool,materials,resources):
+	if state!=null and _texture_scope_current(record,texture_packet,state,material_pool,materials,resources,ticket_status):
 		# The first slice already invalidated older generations. Missing GPU
 		# entries mean this packet has work left, not another source replacement.
 		# Keep only the synchronous Image handoff; do not sweep all render caches.
@@ -519,15 +557,19 @@ static func begin_texture_publication(record:Dictionary,material_pool:Variant,te
 		state.initialized=true;state.initializations=int(state.get("initializations",0))+1
 	return {"ok":true,"previous":previous,"previous_uploaded":previous_uploaded}
 
-static func _texture_scope_current(record:Dictionary,packet:Dictionary,state:Dictionary,material_pool:Variant,materials:Array,resources:Dictionary)->bool:
+static func _texture_scope_current(record:Dictionary,packet:Dictionary,state:Dictionary,material_pool:Variant,materials:Array,resources:Dictionary,ticket_status:int=-1)->bool:
 	if not state.get("initialized",false) or state.get("sources",{})!=packet.get("sources",{}):return false
 	# A resident-only packet has no Images to expose a changed weak-cache owner.
 	# Reinstall its valid immutable tickets if the catalogue no longer resolves
 	# to their generation; the ordinary hot-owner rejection still runs above.
-	for key:String in packet.get("resident_textures",{}):
-		var texture:Texture2D=Cook.Paint._textures.get(key)
-		if texture==null and Cook.Paint._texture_refs.has(key):texture=Cook.Paint._texture_refs[key].get_ref()
-		if texture==null or texture.get_meta("runtime_source_sha256","")!=packet.resident_textures[key].source_sha:return false
+	if ticket_status>=0:
+		if (ticket_status&2)==0:return false
+	else:
+		for key:String in packet.get("resident_textures",{}):
+			var texture:Texture2D=Cook.Paint._textures.get(key)
+			if texture==null and Cook.Paint._texture_refs.has(key):texture=Cook.Paint._texture_refs[key].get_ref()
+			if texture_check_profile_enabled and texture!=null:texture_catalog_reads+=1
+			if texture==null or texture.get_meta("runtime_source_sha256","")!=packet.resident_textures[key].source_sha:return false
 	# Another publication may have replaced a source between slices. Re-enter
 	# the full invalidation protocol only for an actually different live owner.
 	for key:String in resources:

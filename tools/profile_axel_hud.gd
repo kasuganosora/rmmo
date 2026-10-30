@@ -8,6 +8,8 @@ var _ui_step:=-1
 var _ui_finished:=false
 var _draw_frames:Dictionary={}
 var _replay_step:=0
+var _completed_audit:RefCounted
+var _completed_sample_count:=0
 const WINDOWS=["map","inventory","skills","character","system"]
 
 func runtime_observation_finished()->bool:
@@ -30,6 +32,16 @@ func _initialize()->void:
 	preload("res://scripts/world3d/building_cutaway.gd").incremental_catalog_enabled=not old_presentation
 	preload("res://scripts/ui/world_map_terrain_layer.gd").sliced_retirement_enabled=not old_presentation
 	report.presentation_retirement=not old_presentation
+	var prefab=preload("res://scripts/world3d/house_prefab.gd")
+	prefab.fused_texture_checks_enabled=not "--without-fused-texture-checks" in OS.get_cmdline_user_args()
+	prefab.texture_check_profile_enabled=true
+	report.fused_texture_checks=prefab.fused_texture_checks_enabled
+	if "--trace-completed-jobs" in OS.get_cmdline_user_args():
+		preload("res://scripts/world3d/completed_job_trace.gd").start()
+		_completed_audit=preload("res://tools/completed_job_audit_probe.gd").new()
+		report.completed_job_samples=[]
+		report.completed_job_diagnostic=true
+		report.normal_performance_sample=false
 	var copy:=OS.get_environment("RMMO_HUD_TEST_MAP").replace("\\","/").simplify_path()
 	if not preload("res://scripts/world3d/map_paths.gd").allowed(copy,TEST_ROOT) or not FileAccess.file_exists(copy):
 		printerr("HUD profile requires an existing temporary map under review_artifacts");quit(2);return
@@ -40,10 +52,16 @@ func source_snapshot(folder:String="res://scripts")->Dictionary:
 	var result:=super.source_snapshot(folder)
 	if folder=="res://scripts":
 		for path:String in ["res://tools/profile_axel_hud.gd","res://tools/profile_axel_game_pipeline.gd"]:result[path]=FileAccess.get_sha256(path)
+		if _completed_audit!=null:result["res://tools/completed_job_audit_probe.gd"]=FileAccess.get_sha256("res://tools/completed_job_audit_probe.gd")
 	return result
 
 func observe()->void:
 	super.observe()
+	if sampling and _completed_audit!=null and report.queues.size()!=_completed_sample_count:
+		_completed_sample_count=report.queues.size()
+		var observed:=observation_map()
+		var queue:Node=observed.get_node_or_null("DeferredAssets") if observed!=null else null
+		if queue!=null:report.completed_job_samples.append(_completed_audit.sample(queue,Time.get_ticks_usec()-began,phase,preload("res://scripts/world3d/completed_job_trace.gd").events))
 	if not frames.is_empty():frames.back().engine_frame=Engine.get_process_frames()
 	if not sampling or current_scene==null or not current_scene.has_method("is_world_ready"):return
 	var world:Node=current_scene
@@ -108,7 +126,17 @@ func _replay_update(hud:Control)->void:
 	report.ui_replay.append({"step":_replay_step,"call_ms":(Time.get_ticks_usec()-started)/1000.,"at_ms":(Time.get_ticks_usec()-began)/1000.,"map_rebuilt":map_id!=hud._map_overview.get_instance_id(),"scope":"controlled HUD-only snapshot replay; game server state unchanged"})
 	_replay_step+=1
 
+func save()->void:
+	# Optional main-thread journal; serialize only after timed observation, just
+	# like the existing frame/queue samples. Include lifecycle generation IDs so
+	# initial load and the later return cannot be confused as the same job.
+	if report.get("completed_job_diagnostic",false):
+		report.completed_job_trace=preload("res://scripts/world3d/completed_job_trace.gd").snapshot(began)
+	super.save()
+
 func finish(code:int)->void:
+	var prefab=preload("res://scripts/world3d/house_prefab.gd")
+	report.texture_check_work={"owner_reads":prefab.texture_owner_reads,"catalog_reads":prefab.texture_catalog_reads}
 	if code==0:
 		check(report.has("full_ready"),"full-game current demand settles within observation window")
 		if is_instance_valid(_game_world):
