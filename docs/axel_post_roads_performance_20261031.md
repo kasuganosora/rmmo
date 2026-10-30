@@ -667,3 +667,23 @@ B的主线程finish只有0.078/0.084ms，初始化还包括probe的值比较和�
 | 初次 / 返回稳定段 1% low | 26.66 / 24.29 FPS |
 
 这是正式默认入口的生效验证，未用单次69.434s宣称总加载收益或p95改善。道路提交的主线程负担已转移；完整加载约70s、入口后718ms、卸载199ms及返回持续长帧仍需处理。后续现有官方profiler记录将入口后最大帧收窄到`asset_library.cache_scene → PackedScene.pack`，其中一个原生模型的主线程cache_pack约595.5ms；新的GDB/独立复现继续核实内部调用，尚未宣布修复。
+
+### 入口后尖峰：独立 pack 未复现；捕获真实 shader 等待
+
+重新核对既有`layered_private_attribution_01`：官方profiler第576帧727.579ms，原生`PackedScene.pack`595.347ms；LoadTrace的`asset_library.cache_pack`595.514ms对应逻辑模型键`packs/default/assets/2abd3fe0f222d1e7cf69fa26eb5a6f05e21aca2cf041beb7301bd1847bd16c15.glb`。这里GLB后缀只是既有逻辑身份，读取的是native product，不是恢复GLB运行时回退。
+
+该模型既有native payload为`67d997c907631a231136c35b99e2a1f0a4bfabf38857fabbe1be369b4302cdef.scn`、25297056字节；历史footprint共4节点/3mesh/3surface、含3张嵌入式ImageTexture，没有texture_table/direct-template标记。仅只读观察，没有转换或修改正式资源。大耗时不能仅凭这些统计归咎于模型。
+
+`post_entry_pack_diag10`使用正常累计代码、官方profiler和新版GDB，仅在真实可玩入口后对main的PackedScene.pack设断点，捕获20次入口/退出间的40份栈。入口断点后每次继续25ms时已不在pack内部；未捕获595ms的实际阻塞链。LoadTrace包含断点暂停，不能把每次2–6s的pack时钟当作游戏成本。官方解码7309帧/3795个signature、零解码错误；运行退出1，唯一失败是返回前12s回收排空未满足。旧地图/队列WeakRef释放及其他检查通过不抵消该失败；原始数据保留，未用于正常性能对照。
+
+新增只读`probe_native_template_pack.gd`使用同一原生候选、真实后台`_prepare_fixed_scene`和主线程`AssetLibrary.cache_scene`，不加载整城、不导入GLB、不改产品。`native_pack_repro10_01`五项检查通过，保留完整4节点图；准备381.438ms、cache总2.857ms，其中pack仅0.453ms。**没有独立复现整图595ms，不能据此宣布修复或直接开启预打包候选。**该微测期间上一份官方报告的headless解码仍在收尾，因此仅用于“该路径能成功且未复现大阻塞”的判断，不作严格性能收益对照。
+
+全部诊断进程结束后补跑`native_pack_repro10_02`，五项检查再次通过；准备371.002ms、cache总3.052ms、pack0.420ms。没有其他测试引擎/GDB/报告解码并行，同样未复现大阻塞，不据此推算整图收益。
+
+随后`post_entry_sampling10`取消pack断点，入口后通过all-stop采样捕获61份栈，采集暂停累计43.551s。运行退出0、零错误/失败，旧owner与retirement检查全部通过，但依旧是诊断样本，125.835s完整就绪不是正常加载成绩。
+
+样本47/49/50/52/54的可信顶部链为`RenderForwardClustered::_geometry_instance_add_surface → ShaderData::is_valid → ShaderRD::version_is_valid → _compile_ensure_finished → _compile_version_end → WorkerThreadPool::wait_for_group_task_completion → Semaphore::wait`。样本48是`RenderingServerDefault::_draw → RendererSceneCull::update → Utilities::update_dirty_resources → MaterialStorage::_update_queued_materials → MaterialData::update_parameters → ShaderRD::version_get_shader → _compile_version_end → group wait`。部分栈在`_fill_render_list`以下展开失败，保留未知帧，不拿错误下层帧推导脚本调用。
+
+按`cpu_time_anchor`把GDB暂停前的Unix时钟映射到LoadTrace，以上六份均处于`monitor.render_frame_span`，并伴随surface pipeline计数变化；没有与`asset_library.cache_pack`重叠。这次pack也没有>30ms事件。由此可以确认入口后存在真实shader编译等待，但**尚不能把它直接等同于前一运行中的595ms pack**。断点/暂停改变了原本的并发时序，需保留两个问题的证据边界。
+
+下一步优先在这两条已捕获的原生等待链上读取具体shader路径/代码身份，关联真实材质及其发布阶段，再用同一材质/网格首次提交复现。已有candidate09只保护后台新建material RID，candidate10道路路径不会自动覆盖主线程新材质或既有材质修改，不能假设整个渲染队列已不再等待。外部`shader_identity_export_candidate.py`是待验证的只读GDB扩展草稿，未替换正式采栈工具、未修改引擎或启用新的生产优化。继续保留未复现pack、约200ms卸载、返回长帧、完整加载/返回收尾及同图走动覆盖缺口。
