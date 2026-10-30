@@ -11,12 +11,73 @@ import os
 from pathlib import Path
 import subprocess
 import tempfile
+import threading
 import time
 
 
-def run_background(command, *, cwd=None, timeout=360, on_start=None, on_poll=None):
+class _PipeCapture:
+    """Drain inherited stdout independently; never let the child fsync our file."""
+
+    def __init__(self, output):
+        import msvcrt
+        self.output = output
+        self.read_fd, self.write_fd = os.pipe()
+        self.handle = msvcrt.get_osfhandle(self.write_fd)
+        os.set_handle_inheritable(self.handle, True)
+        self.error = None
+        self.cancelled = threading.Event()
+        self.reader = threading.Thread(target=self._drain, name='RMMO output capture', daemon=True)
+        self.reader.start()
+
+    def _drain(self):
+        try:
+            while not self.cancelled.is_set():
+                data = os.read(self.read_fd, 65536)
+                if not data:
+                    break
+                self.output.write(data)
+        except OSError as error:
+            if not self.cancelled.is_set():
+                self.error = error
+        finally:
+            os.close(self.read_fd)
+
+    def close_parent_write(self):
+        if self.write_fd is not None:
+            os.close(self.write_fd)
+            self.write_fd = None
+
+    def finish(self):
+        self.close_parent_write()
+        self.reader.join(timeout=5)
+        if self.reader.is_alive():
+            # An unexpected descendant may keep the write handle open after
+            # the owned engine exits. Cancel our own reader, not that process.
+            # Cancellation is asynchronous: join before closing its output.
+            self.cancelled.set()
+            kernel = ctypes.WinDLL('kernel32', use_last_error=True)
+            kernel.OpenThread.argtypes = [w.DWORD, w.BOOL, w.DWORD]
+            kernel.OpenThread.restype = w.HANDLE
+            kernel.CancelSynchronousIo.argtypes = [w.HANDLE]
+            kernel.CloseHandle.argtypes = [w.HANDLE]
+            thread_handle = kernel.OpenThread(0x0001, False, self.reader.native_id)
+            if thread_handle:
+                try:
+                    kernel.CancelSynchronousIo(thread_handle)
+                finally:
+                    kernel.CloseHandle(thread_handle)
+            self.reader.join(timeout=5)
+            raise RuntimeError('Owned engine exited but its output pipe did not close; capture is incomplete')
+        if self.error is not None:
+            raise RuntimeError('Failed to capture engine output') from self.error
+
+
+def run_background(command, *, cwd=None, timeout=360, on_start=None, on_poll=None,
+                   capture_mode='pipe'):
     if os.name != 'nt':
         raise RuntimeError('Private-desktop GPU runner currently supports Windows only')
+    if capture_mode not in ('pipe', 'file'):
+        raise ValueError('Unknown output capture mode')
     import msvcrt
     user = ctypes.WinDLL('user32', use_last_error=True)
     kernel = ctypes.WinDLL('kernel32', use_last_error=True)
@@ -60,39 +121,52 @@ def run_background(command, *, cwd=None, timeout=360, on_start=None, on_poll=Non
         command[0] = str(gui)
     try:
         with tempfile.TemporaryFile() as output, open(os.devnull, 'rb') as null:
+            capture = _PipeCapture(output) if capture_mode == 'pipe' else None
             startup = Startup()
             startup.cb = ctypes.sizeof(startup)
             startup.lpDesktop = 'winsta0\\' + desktop_name
             startup.dwFlags = 0x100  # STARTF_USESTDHANDLES
             startup.hStdInput = msvcrt.get_osfhandle(null.fileno())
-            startup.hStdOutput = startup.hStdError = msvcrt.get_osfhandle(output.fileno())
+            # Debug Godot calls FlushFileBuffers(stdout) after every print.
+            # A disk handle forces a durable write in the scene thread; a pipe
+            # only waits for this independent reader. Preserve every byte/error.
+            startup.hStdOutput = startup.hStdError = capture.handle if capture else msvcrt.get_osfhandle(output.fileno())
             for handle in (startup.hStdInput, startup.hStdOutput):
                 os.set_handle_inheritable(handle, True)
             line = ctypes.create_unicode_buffer(subprocess.list2cmdline(command))
-            ok = kernel.CreateProcessW(command[0], line, None, None, True,
-                                       0x08000000, None, str(cwd) if cwd else None,
-                                       ctypes.byref(startup), ctypes.byref(process))
-            if not ok:
-                raise ctypes.WinError(ctypes.get_last_error())
-            if on_start is not None:
-                on_start(process.pid, process.tid)
-            deadline = time.monotonic() + timeout
-            # Short native waits also let KeyboardInterrupt cancel the owned engine.
-            while True:
-                wait = kernel.WaitForSingleObject(process.process, 200)
-                if on_poll is not None and wait == 258:
-                    on_poll()
-                if wait != 258 or time.monotonic() >= deadline:
-                    break
-            if wait != 0:
-                kernel.TerminateProcess(process.process, 124)
-                kernel.WaitForSingleObject(process.process, 5000)
-                output.seek(0)
-                raise subprocess.TimeoutExpired(command, timeout, output=output.read())
-            code = w.DWORD()
-            if not kernel.GetExitCodeProcess(process.process, ctypes.byref(code)):
-                raise ctypes.WinError(ctypes.get_last_error())
+            try:
+                ok = kernel.CreateProcessW(command[0], line, None, None, True,
+                                           0x08000000, None, str(cwd) if cwd else None,
+                                           ctypes.byref(startup), ctypes.byref(process))
+                if not ok:
+                    raise ctypes.WinError(ctypes.get_last_error())
+                if capture:
+                    capture.close_parent_write()
+                if on_start is not None:
+                    on_start(process.pid, process.tid)
+                deadline = time.monotonic() + timeout
+                # Short native waits also let KeyboardInterrupt cancel the owned engine.
+                while True:
+                    wait = kernel.WaitForSingleObject(process.process, 200)
+                    if on_poll is not None and wait == 258:
+                        on_poll()
+                    if wait != 258 or time.monotonic() >= deadline:
+                        break
+                code = w.DWORD()
+                if not kernel.GetExitCodeProcess(process.process, ctypes.byref(code)):
+                    raise ctypes.WinError(ctypes.get_last_error())
+            finally:
+                # Drain even after timeout, callback failure or startup error;
+                # the pipe reader must finish before its backing file closes.
+                status = w.DWORD()
+                if process.process and kernel.GetExitCodeProcess(process.process, ctypes.byref(status)) and status.value == 259:
+                    kernel.TerminateProcess(process.process, 124)
+                    kernel.WaitForSingleObject(process.process, 5000)
+                if capture:
+                    capture.finish()
             output.seek(0)
+            if wait != 0:
+                raise subprocess.TimeoutExpired(command, timeout, output=output.read())
             return subprocess.CompletedProcess(command, code.value, output.read())
     finally:
         if process.process:

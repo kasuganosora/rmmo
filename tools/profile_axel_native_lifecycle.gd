@@ -7,8 +7,13 @@ var _lifecycle_done:=false
 var _landing_map:=""
 var _landing_sha:=""
 var _diagnostic_phase_path:=""
+var _boundary_diagnostic:=false
 
 func _initialize()->void:
+	_boundary_diagnostic="--trace-lifecycle-boundaries" in OS.get_cmdline_user_args()
+	if _boundary_diagnostic:
+		report.lifecycle_boundaries=[]
+		report.normal_performance_sample=false
 	var destination:=""
 	for arg:String in OS.get_cmdline_user_args():
 		if arg.begins_with("--output="):destination=arg.trim_prefix("--output=").replace("\\","/")
@@ -49,12 +54,24 @@ func _settled(world:Node)->bool:
 
 func _wait_settled(world:Node,label:String)->void:
 	var start:=Time.get_ticks_msec();var stable:=0
+	var tail:Array=[]
 	while Time.get_ticks_msec()-start<180000:
 		await process_frame
+		var mark:=Time.get_ticks_usec() if _boundary_diagnostic else 0
 		stable=stable+1 if _settled(world) else 0
+		if _boundary_diagnostic:
+			tail.append({"start_us":mark,"end_us":Time.get_ticks_usec(),"frame":Engine.get_process_frames(),"stable":stable})
+			if tail.size()>8:tail.pop_front()
 		if stable>=3:break
+	var check_started:=Time.get_ticks_usec() if _boundary_diagnostic else 0
 	check(stable>=3,label+" current demand and publication settle")
+	_record_boundary(label+".settled_check_log",check_started,{"tail":tail})
 	report.lifecycle.append({"label":label,"settled":stable>=3,"wait_ms":Time.get_ticks_msec()-start,"at_ms":(Time.get_ticks_usec()-began)/1000.})
+
+func _record_boundary(label:String,start_us:int,details:Dictionary={})->void:
+	if not _boundary_diagnostic:return
+	var ended:=Time.get_ticks_usec()
+	report.lifecycle_boundaries.append({"label":label,"start_us":start_us,"end_us":ended,"elapsed_us":ended-start_us,"frame":Engine.get_process_frames(),"details":details})
 
 func _transfer(world:Node,path:String,destination:Vector3,label:String)->bool:
 	phase=label
@@ -96,11 +113,19 @@ func _round_trip(world:Node)->void:
 	check(report.retirement_before_return.pending==0 and report.retirement_before_return.known==0,"old resource retirement drains before return")
 	if not await _transfer(world,selected_map,original,"map_return"):_lifecycle_done=true;return
 	phase="return_loading"
+	if not _diagnostic_phase_path.is_empty():
+		FileAccess.open(_diagnostic_phase_path,FileAccess.WRITE).store_line("WHITE_TRAVERSAL return_loading")
 	await _wait_settled(world,"return")
+	var copy_started:=Time.get_ticks_usec() if _boundary_diagnostic else 0
 	report.return_map_profile=world._map_root.get_meta("load_profile",{}).duplicate(true)
+	_record_boundary("return.profile_copy",copy_started)
 	phase="return_steady"
+	if _boundary_diagnostic:report.return_steady_bounds={"start_us":Time.get_ticks_usec()}
 	await create_timer(15.).timeout
+	if _boundary_diagnostic:report.return_steady_bounds.end_us=Time.get_ticks_usec()
+	var check_started:=Time.get_ticks_usec() if _boundary_diagnostic else 0
 	check(FileAccess.get_sha256(_landing_map)==_landing_sha,"temporary landing remains unchanged")
+	_record_boundary("return.landing_identity_check_log",check_started)
 	_lifecycle_done=true
 
 func finish(code:int)->void:

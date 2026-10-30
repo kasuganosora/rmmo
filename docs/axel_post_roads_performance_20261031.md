@@ -383,3 +383,62 @@ CPU移交的logical_bytes=0表示**此路径未测量字节数**，不是零占�
 **B1仍有208.265ms长帧，未豁免**：位于第一个`return_steady`标记帧，区间155604.414–155812.679ms跨越return settled标记155776.495ms。`publication_residence_trace_01`也在同类边界出现191.092ms；因此不能把它简单说成长期静止时每帧退化，也不能凭发生在测试边界就排除。旧A1该阶段最大70.480ms。普通运行没有启用LoadMonitor，不具备这两帧的GPU耗时或OS等待原因；Performance的process/physics数据还是上一统计窗口值，不能据此判断当帧CPU空闲。
 
 下一轮先在诊断中给return settled检查、控制台输出及`return_map_profile.duplicate(true)`加边界时钟，同时启用现有LoadMonitor的viewport CPU/GPU时钟；需要时GDB抓main/render线程。确认宿主成本与真实等待后再处理，原样本保留。发布滞留最长约9.45s、剩余约59s返回收尾仍未解决；建筑顺序/原子提交、模型复用和字节背压不变。角色每帧重复骨骼扫描、天气PCM首次合成和地图节点集中销毁仍是后续已定位候选，不能把本轮约半秒的雷达工作减少当作总体目标完成。
+
+## 测试输出强制刷盘：先修正测量宿主
+
+`return_boundary_monitor_01`在原磁盘stdout捕获方式下启用`--trace-lifecycle-boundaries --monitor --trace-minimum-us=2000`，零错误/失败、完整就绪73.687s。主线程16172条trace，丢失0；LoadMonitor采样累计57175us、最大425us。它是诊断样本，不并入普通性能分布。此次未重现208ms：返回加载最大73.648ms、稳定标记段最大64.594ms。
+
+边界分解：实际就绪判断13–25us，`return_map_profile.duplicate(true)`154us；返回`check()`含打印31704us，落地含打印30576us，最终临时地图SHA检查含打印34675us。64.594ms帧与最后一项34.675ms及渲染19.350ms重叠。**复制统计不是本次大头；检查本身与输出日志必须分开。** 其他返回加载长帧仍有32–54ms渲染span；附近viewport GPU约2.3–3.9ms，采样间隔200ms且viewport值来自上一渲染帧，不能据此精确归因每个长帧或宣布GPU/OS空闲。
+
+源代码与GDB确认了测试stdout路径：`platform/windows/windows_terminal_logger.cpp:73`在DEBUG_ENABLED下每次输出后无条件`FlushFileBuffers(h)`；`run_godot_background.py`此前把磁盘TemporaryFile句柄直接继承为stdout/stderr。`log_capture_gdb_red`对独立打印用例取得78份主线程栈，65份包含`ZwFlushBuffersFile → FlushFileBuffers → WindowsTerminalLogger::logv → print → GDScriptFunction::call`。调试器样本仅证明调用链，不作为耗时成绩。引擎/游戏代码均未修改。
+
+后台runner默认改为匿名管道，由独立读取线程写入原捕获文件；仍使用不激活的私有桌面，保留每个stdout/stderr字节、退出码和超时输出。保留显式`capture_mode='file'`仅用于复现旧测量宿主。启动失败/回调失败/超时都关闭本机拥有的子进程和捕获句柄；若后代意外继承管道、原进程结束后仍不关闭，取消本机读取并明确报错，不静默截断或终止非本机拥有的后代。取消遵守[Windows同步IO取消合同](https://learn.microsoft.com/en-us/windows/win32/api/ioapiset/nf-ioapiset-cancelsynchronousio)，等待读取线程结束。
+
+独立GPU用例`test_background_log_capture.gd`每帧打印一次、共80次，只计输出调用；`log_capture_comparison.json`：
+
+| 捕获方式 | 输出调用中位数 / 最大 us | 80条输出、中文、stderr、最终标记 |
+|---|---:|---|
+| 旧磁盘句柄 `log_capture_file_red` | 31544 / 65017 | 字节完整 |
+| 管道 `log_capture_pipe_green` | 36 / 359 | 字节完整 |
+
+Python合同用例`tools/test_run_godot_background.py` **6/6**：1MiB二进制stdout与中文stderr字节精确、非零退出末尾字节、超时排空并结束拥有的进程、启动回调异常、无效EXE、意外继承写端；每项结束均无遗留捕获线程。输出`P/log_capture_contracts.txt`。
+
+这项属于**测量器修正，不是生产游戏性能收益**。旧208.265ms/191.092ms样本没有该边界分解，仍保留原因待核实，不能用独立打印复现替代它们。后续runner保存capture_mode与后台helper SHA，整图对照须明确测量宿主变化；新旧宿主数字不能直接作为生产改动的AB对照。
+
+### 相同边界诊断复测
+
+`return_boundary_monitor_02`换用管道，其他条件与01相同。两份均零错误/失败、无其他引擎/编译器，源码与地图不变、旧拥有者释放、回收排空；返回各1505实例、1074次reference读取。02有16211条trace、丢失0，监视采样累计54324us、最大720us。
+
+| 项目 | 旧磁盘宿主01 | 管道宿主02 |
+|---|---:|---:|
+| landing检查含打印 us | 30576 | 152 |
+| return检查含打印 us | 31704 | 165 |
+| profile复制 us | 154 | 211 |
+| 最终landing SHA检查含打印 us | 34675 | 261 |
+| 初始完整就绪 s | 73.687 | 72.561 |
+| 返回事务后收尾 s | 59.293 | 61.281 |
+| 返回加载最大帧 / >50ms帧数 | 73.648 / 92 | 73.583 / 88 |
+| 返回稳定标记段最大帧 / >50ms帧数 | 64.594 / 1 | 43.187 / 0 |
+
+仅日志边界的移除有直接复现证据；总加载没有据此稳定改善，较慢的02返回数据完整保留。02最大返回帧73.583ms同时有渲染32.719ms和66-spec提交22.750ms；其他长帧常有32–46ms渲染span，没有mesh/surface/draw pipeline编译增量。`P/log_host_map_comparison.json`与两份`boundary_analysis.json`保存逐帧和边界证据。继续按真实渲染/发布成本定位，不把稳定段这一次0帧>50ms推广为全部长帧已解决。
+
+### 返回渲染的GDB证据与边界
+
+`return_render_gdb_01`在返回事务完成、旧资源已经排空后附加，默认08引擎、管道捕获和LoadMonitor。43份主线程栈，定期同时采集其余线程；35s采样墙钟中，读取栈的暂停累计28.347s，覆盖的是返回早期的短执行窗口，**不是整个收尾的代表性CPU分布**。运行最终零错误/失败、退出0；host记录的额外PID9744正是该GDB。几秒的调试器长帧不纳入正常low数据。
+
+栈的存在次数（类别可重叠）为SceneTree处理26、ForwardClustered绘图6、swap_buffers6、提交present3。present样本之一在`SleepEx → AMD Vulkan驱动 → IcdPresentBuffers → we-graphics-hook64 → command_queue_execute_and_present`，另两个在同一提交链内。没有捕获到stdout强制刷盘；当前证据不足以把所有渲染span归为上传锁、脚本或GPU耗时，也不足以把208ms旧样本归因给某个外部程序。原始栈和`stack_summary.json`完整保留。
+
+只读检查确认该测试进程加载`C:/ProgramData/obs-studio-hook/we-graphics-hook64.dll`，292152字节，SHA-256 `6ab122945e5bbcca71313079bfeabb910d49e693b6798a42f67e41ed944b50f7`。文件描述OBS Graphics Hook、版本1.8.6.0、有效签名WeMod LLC。这只能证明外部图形hook存在，**不证明hook导致等待**；未关闭相关软件、未改系统/驱动/用户应用设置。后续需将纯游戏CPU工作和驱动present等待分开核实，保持这一证据边界。
+
+### 管道宿主下的正常运行与下一步
+
+`pipe_capture_normal_01`关闭GDB、LoadMonitor和边界时钟；默认08引擎、固定地图、全部UI/HUD，零错误/失败、无其他引擎/编译器。源码/地图不变、旧地图与队列真正释放、返回前回收排空，返回仍1505实例/1074次reference读取。外部只读模块清单检查确认同一图形hook存在，该次宿主检查耗时198.720ms，未暂停目标；不是关闭hook的对照。详细数据在`log_host_map_comparison.json`。
+
+- 初始入口13.523s，完整需求就绪73.509s；返回事务后收尾57.969s。
+- 初次稳定段最大36.437ms、0帧>50ms；返回稳定段最大45.815ms、0帧>50ms、1% low 24.82 FPS。
+- 返回加载p95 49.180ms、最大69.620ms、76帧>50ms、1% low 16.97 FPS。
+- 卸载/返回事务最大232.331/273.807ms；初次可玩但未完全就绪阶段仍有654.426ms长帧。保留这些慢样本，不以稳定段结果代替全生命周期。
+
+这是修正宿主后的一个正常基准，**不是p95分布，也不是新增游戏加速的证明**。本轮完成日志刷盘复现、捕获修正与生命周期验证；73.5s初始就绪、58s返回收尾、发布滞留和剩余长帧均未完成。
+
+下一轮继续以官方profiler的高调用量和正常长帧归因为依据：优先复现角色每帧重复骨骼名称/静态rest扫描，以及发布时临时Node构建→遍历→销毁，保留实际姿态修正、材质拥有者、原子发布和资源释放语义。驱动present等待另行取得无调试器的证据；不为排除第三方hook擅自关闭用户程序，不用加worker/预算或扩大队列掩盖消费者成本。candidate09仍仅有独立材质合同证据，尚未替换默认引擎；先明确同路径、相同缓存条件的整图比较，不能把初次654ms峰值凭推测标为已解决。
