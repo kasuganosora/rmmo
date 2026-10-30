@@ -2371,8 +2371,8 @@ func _publish_items(items:Array,specs:Array)->bool:
 			for item:Dictionary in items:
 				if item.get("native_reference",false) or item.record.has("house_prefab"):owned=false;break
 			if owned and private_publication_packet_enabled:packet.index_preparation.begin_runtime_owned(specs)
-			elif owned:packet.index_preparation.begin_owned(specs)
-			else:packet.index_preparation.begin(specs)
+			elif owned:packet.index_preparation.begin_owned(specs,true)
+			else:packet.index_preparation.begin(specs,true)
 			profile.index_preparation_instances=int(profile.get("index_preparation_instances",0))+1
 		if packet.has("index_preparation"):
 			preparation=packet.index_preparation
@@ -2409,7 +2409,7 @@ func _publish_items(items:Array,specs:Array)->bool:
 		return false
 	var publication_packet:RefCounted=preparation.publication_packet if preparation!=null else null
 	var append_started:=Time.get_ticks_usec()
-	var registered:Dictionary=Stream.append_specs(_map,specs,preparation)
+	var registered:Dictionary=Stream.append_specs(_map,specs,preparation,true)
 	var append_us:=Time.get_ticks_usec()-append_started
 	profile.publication_append_us=int(profile.get("publication_append_us",0))+append_us
 	if not registered.ok:

@@ -6,7 +6,9 @@ const Store=preload("res://scripts/world3d/map_resource_store.gd")
 const Trace=preload("res://scripts/world3d/load_trace.gd")
 static func prepare(library:Array,dependencies:Dictionary,path:String,content_root:String,worker_limit:int,trusted_package:bool=false)->Dictionary:
 	var index_started:=Time.get_ticks_usec()
-	var index:Dictionary=Index.build(library)
+	# These are private runtime specs. Build the fine collision broad phase in
+	# this existing worker; sync adopts the finished index without a second scan.
+	var index:Dictionary=Index.build(library,true)
 	var index_elapsed:=Time.get_ticks_usec()-index_started
 	var started:=Time.get_ticks_usec()
 	var valid:bool=trusted_package or Store.verify_dependencies(dependencies,path,content_root,worker_limit)

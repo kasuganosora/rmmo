@@ -286,6 +286,8 @@ func shared_near_far_model()->void:
 	var prepared_id:int=assets._scenes[asset].get_instance_id()
 	Stream.sync(map,host,Vector3(4,.9,4))
 	var near_specs:Array=map.get_meta("stream_library").filter(func(spec):return str(spec.uuid).begins_with(near_id+"__"))
+	var neighborhood:RefCounted=map.get_meta("stream_collision_neighborhood") if map.has_meta("stream_collision_neighborhood") else null
+	check(neighborhood!=null and near_specs.size()==1 and neighborhood.members.has(near_specs[0].uuid),"real MapLoader initial sync builds the fine collision neighborhood")
 	check(near_specs.size()==1 and map.get_meta("stream_meshes",{}).has(near_specs[0].uuid),"near imported instance is a real resident mesh")
 	if near_specs.size()==1:await ray({"host":host},Vector3(4,.5,4),near_specs[0].uuid)
 	service.activate(host)
@@ -297,6 +299,8 @@ func shared_near_far_model()->void:
 	check(assets._scenes[asset].get_instance_id()==prepared_id,"near and far instances retain the same immutable prepared scene")
 	Stream.sync(map,host,Vector3(304,.9,4))
 	var far_specs:Array=map.get_meta("stream_library").filter(func(spec):return str(spec.uuid).begins_with(far_id+"__"))
+	check(neighborhood!=null and far_specs.size()==1 and neighborhood.members.has(far_specs[0].uuid) and neighborhood.matches(map.get_meta("stream_collision_index"),map.get_meta("stream_collision_revision")),"real deferred publication updates the same fine index and revision")
+	check(neighborhood!=null and far_specs.size()==1 and neighborhood.members.has(far_specs[0].uuid) and neighborhood.members[far_specs[0].uuid].query_envelope.size.x<2.,"small deferred model also keeps narrow geometry bounds instead of its 32 m bucket")
 	var far_meshes:Dictionary=map.get_meta("stream_meshes",{})
 	var real_visual:bool=far_specs.size()==1 and far_meshes.has(far_specs[0].uuid)
 	if real_visual:

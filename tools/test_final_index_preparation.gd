@@ -22,7 +22,10 @@ func run()->void:
 	check(worker.start(preparation.prepare.bind(library,stored.dependencies,path,Paths.external_root(),4))==OK,"existing index worker runs complete spatial and resource verification")
 	while worker.is_alive():await process_frame
 	var result:Dictionary=worker.wait_to_finish();var trace:=Trace.stop()
-	check(result.dependencies_valid and same_contents(result.index,Index.build(library.duplicate(true))),"worker result matches the complete reference index and original resource SHA checks")
+	var ordinary:Dictionary=result.index.duplicate();ordinary.stream_collision_neighborhood=null
+	check(result.dependencies_valid and same_contents(ordinary,Index.build(library.duplicate(true))),"worker result matches the complete reference index and original resource SHA checks")
+	var nearby:RefCounted=result.index.stream_collision_neighborhood
+	check(nearby!=null and nearby.members.size()==256 and nearby.matches(result.index.stream_collision_index,result.index.stream_collision_revision),"existing worker also prepares the complete fine collision index")
 	check(is_same(result.index.stream_by_id.part0,library[0]),"worker preparation preserves original runtime source identity")
 	check(trace.stats.any(func(row):return row.label=="game.final_reference_dependencies" and row.thread_id!=OS.get_main_thread_id()),"full resource hashing executes away from the scene thread")
 	check(loader._final_index_integrity(result),"final main-thread map byte observation accepts an unchanged source")

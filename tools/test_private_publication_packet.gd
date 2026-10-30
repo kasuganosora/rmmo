@@ -48,9 +48,12 @@ func fixture_restart()->void:
 	var initial_index:=Index.build([])
 	for key:String in initial_index:map_root.set_meta(key,initial_index[key])
 	map_root.set_meta("stream_library",[]);map_root.set_meta("extras",{"rmmo_records":[]})
-	var queue:=Deferred.new();map_root.add_child(queue);queue._map=map_root
-	var source:=values(BoxMesh.new());var item:Dictionary={"record":{"uuid":"guild","kind":"asset","asset_path":"test"},"path":"test"}
-	queue._jobs.test={"accepted":true};queue.pending=[item]
+	var queue:=Deferred.new();map_root.add_child(queue);queue._map=map_root;queue.set_process(false)
+	var source:=values(BoxMesh.new());var item:Dictionary={"record":{"uuid":"guild","kind":"asset","asset_path":"test"},"path":"test","model_verified":true}
+	# The publication gate now reads live demand membership. Build the same
+	# admitted state as the loader instead of accidentally testing an early exit.
+	queue.pending=[item];queue._demanded=[item];queue._demanded_by_id={"guild":item};queue._demanded_rank={"guild":0};queue._demanded_by_path={"test":[item]}
+	queue._jobs.test={"accepted":true,"token":preload("res://scripts/world3d/asset_worker_drainer.gd").CancelToken.new()}
 	check(not queue._publish_items([item],source),"first large publication yields before commit")
 	var staged:Dictionary=queue._jobs.test.collision_staged.guild
 	var prep:RefCounted=staged.index_preparation

@@ -103,6 +103,7 @@ static func prepare_spec(spec: Dictionary) -> void:
 	var radius:=0.0
 	var bounds:AABB=spec.mesh.get_aabb()
 	for i in 8: radius=maxf(radius,(spec.closed_transform*bounds.get_endpoint(i)).distance_to(pivot))
+	spec.fixture_sweep_bounds=AABB(pivot-Vector3.ONE*radius,Vector3.ONE*(2.0*radius))
 	var Stream=load("res://scripts/world3d/world_stream.gd")
 	spec.chunk_min=Stream.chunk_key(pivot-Vector3.ONE*radius)
 	spec.chunk_max=Stream.chunk_key(pivot+Vector3.ONE*radius)

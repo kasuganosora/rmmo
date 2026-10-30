@@ -18,11 +18,12 @@ const CollisionGeometry = preload("res://scripts/world3d/model_collision_require
 const FortCollision = preload("res://scripts/world3d/fortification_collision_batcher.gd")
 const Landscape = preload("res://scripts/world3d/stream_landscape.gd")
 const FrameBudget = preload("res://scripts/world3d/frame_work_budget.gd")
-const APPEND_INDEX_FIELDS:Array[StringName]=[&"stream_by_id",&"stream_known",&"stream_index",&"stream_prop_index",&"stream_collision_index",&"stream_building_groups",&"stream_landscape",&"stream_append_state",&"stream_building_count",&"stream_collision_revision",&"stream_collision_candidate_cache"]
+const APPEND_INDEX_FIELDS:Array[StringName]=[&"stream_by_id",&"stream_known",&"stream_index",&"stream_prop_index",&"stream_collision_index",&"stream_building_groups",&"stream_landscape",&"stream_append_state",&"stream_building_count",&"stream_collision_revision",&"stream_collision_candidate_cache",&"stream_collision_neighborhood"]
 
 ## Validated query reuse with an A/B fallback. Only candidates/bounds are cached;
 ## bodies, collision modes, exact footprints and physics stamps remain live.
 static var collision_candidate_cache_enabled:=true
+static var collision_neighborhood_index_enabled:=true
 static var collision_priority_reuse_enabled:=true # Per reorder only; live geometry and collision checks are unchanged.
 static var bounded_collision_priority_enabled:=true
 static var incremental_collision_priority_enabled:=true
@@ -39,15 +40,7 @@ static var collision_readiness_profile_enabled:=false
 const COLLISION_CANDIDATE_RANGES:=8
 const COLLISION_CANDIDATE_CELLS:=64
 const COLLISION_CANDIDATE_LIMIT:=8192
-class CollisionCandidate:
-	extends RefCounted
-	var spec:Dictionary
-	var mesh:Mesh
-	var pose:=Transform3D.IDENTITY
-	var local_bounds:=AABB()
-	var area:=Rect2()
-	var initialized:=false
-	func _init(source:Dictionary)->void:spec=source
+const CollisionCandidate=preload("res://scripts/world3d/collision_query_candidate.gd")
 
 
 static func chunk_key(position: Vector3) -> Vector2i:
@@ -406,7 +399,7 @@ static func _finish_loading_sources(map_root:Node,batcher:Node,deadline:int,wait
 	return true
 
 
-static func append_specs(map_root:Node,additions:Array,preparation:RefCounted=null)->Dictionary:
+static func append_specs(map_root:Node,additions:Array,preparation:RefCounted=null,runtime_geometry:bool=false)->Dictionary:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.world_stream.append_specs") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	# Collision-only instances do not enter the visual index. Validate their full
 	# namespace before Index.append mutates its shared dictionaries, then transfer
@@ -424,9 +417,11 @@ static func append_specs(map_root:Node,additions:Array,preparation:RefCounted=nu
 	var data:Dictionary={}
 	# Index.append mutates these borrowed containers in place. Residency jobs,
 	# cursors and observer metadata are unrelated to an index transaction.
-	for key:StringName in APPEND_INDEX_FIELDS:data[str(key)]=map_root.get_meta(key,null)
+	for key:StringName in APPEND_INDEX_FIELDS:
+		if key==&"stream_collision_neighborhood" and not map_root.has_meta(key):continue
+		data[str(key)]=map_root.get_meta(key,null)
 	var index_started:=Time.get_ticks_usec()
-	var result:Dictionary=preload("res://scripts/world3d/stream_index.gd").append(data,additions,preparation)
+	var result:Dictionary=preload("res://scripts/world3d/stream_index.gd").append(data,additions,preparation,runtime_geometry)
 	var index_us:=Time.get_ticks_usec()-index_started
 	if not result.ok:return result
 	if collision_residency!=null:collision_residency.commit_promotion(promotion.token)
@@ -838,7 +833,10 @@ static func nearby_collision_ready(map_root:Node,origin:Vector3)->bool:
 		# of its distance. Check live ownership first; only missing colliders
 		# need current geometry/mode filtering. Never cache the ready result.
 		# Reuse the revision-owned candidates to visit cross-cell sources once.
-		for candidate:CollisionCandidate in _collision_candidates(map_root,index,low,high):
+		var nearby:RefCounted=map_root.get_meta("stream_collision_neighborhood") if collision_neighborhood_index_enabled and map_root.has_meta("stream_collision_neighborhood") else null
+		var candidates:Array=nearby.candidates(area) if nearby!=null and nearby.matches(index,int(map_root.get_meta("stream_collision_revision"))) else _collision_candidates(map_root,index,low,high)
+		for candidate:CollisionCandidate in candidates:
+			if candidate.has_query_envelope and not area.intersects(candidate.query_envelope,true):continue
 			var spec:Dictionary=candidate.spec
 			if is_instance_valid(bodies.get(spec.uuid)) or batched.has(spec.uuid):continue
 			var extra:Dictionary=spec.get("extras",{})
@@ -954,15 +952,20 @@ static func collision_candidate_cache_stats(map_root:Node)->Dictionary:
 	var cache:Dictionary=map_root.get_meta("stream_collision_candidate_cache",{})
 	var count:=0
 	for row:Dictionary in cache.get("ranges",{}).values():count+=row.items.size()
-	return {"enabled":collision_candidate_cache_enabled,"revision":int(map_root.get_meta("stream_collision_revision",0)),"hits":cache.get("hits",0),"misses":cache.get("misses",0),"ranges":cache.get("ranges",{}).size(),"candidate_references":count,"profile":map_root.get_meta("stream_collision_readiness_profile",{}).duplicate(true)}
+	var result:={"enabled":collision_candidate_cache_enabled,"revision":int(map_root.get_meta("stream_collision_revision",0)),"hits":cache.get("hits",0),"misses":cache.get("misses",0),"ranges":cache.get("ranges",{}).size(),"candidate_references":count,"profile":map_root.get_meta("stream_collision_readiness_profile",{}).duplicate(true)}
+	if map_root.has_meta("stream_collision_neighborhood"):result.neighborhood=map_root.get_meta("stream_collision_neighborhood").snapshot()
+	return result
 
 static func _cached_collision_readiness(map_root:Node,clip:AABB,index:Dictionary,low:Vector2i,high:Vector2i,result:Dictionary,profile:Dictionary)->Dictionary:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.world_stream._cached_collision_readiness") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	var bodies:Dictionary=map_root.get_meta("stream_bodies",{})
 	var fort:Node=map_root.get_node_or_null("FortificationCollisionBatches")
 	var area:=Rect2(clip.position.x,clip.position.z,clip.size.x,clip.size.z)
-	for candidate:CollisionCandidate in _collision_candidates(map_root,index,low,high):
+	var nearby:RefCounted=map_root.get_meta("stream_collision_neighborhood") if collision_neighborhood_index_enabled and map_root.has_meta("stream_collision_neighborhood") else null
+	var candidates:Array=nearby.candidates(area) if nearby!=null and nearby.matches(index,int(map_root.get_meta("stream_collision_revision"))) else _collision_candidates(map_root,index,low,high)
+	for candidate:CollisionCandidate in candidates:
 		if not profile.is_empty():profile.candidates+=1
+		if candidate.has_query_envelope and not area.intersects(candidate.query_envelope,true):continue
 		var spec:Dictionary=candidate.spec
 		var extra:Dictionary=spec.get("extras",{})
 		if spec.get("native_visual",false) or extra.get("hostile",false) or extra.get("ally",false) or extra.get("rmmo_collision","")=="none":continue
@@ -1309,7 +1312,9 @@ static func _index_buildings(map_root:Node,library:Array)->void:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.world_stream._index_buildings") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	if int(map_root.get_meta("stream_building_count",-1))==library.size():return
 	var started:=Time.get_ticks_usec()
-	var data:Dictionary=preload("res://scripts/world3d/stream_index.gd").build(library)
+	# Runtime specs own immutable geometry until replacement/retirement;
+	# hinges carry their full sweep. Public Index.build callers remain mutable.
+	var data:Dictionary=preload("res://scripts/world3d/stream_index.gd").build(library,true)
 	for key:String in data:map_root.set_meta(key,data[key])
 	preload("res://scripts/world3d/load_trace.gd").elapsed("stream.index_build",started,{"records":library.size()})
 

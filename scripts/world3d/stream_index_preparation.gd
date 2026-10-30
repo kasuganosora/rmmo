@@ -42,6 +42,7 @@ var owns_projection:=false
 var runtime_source:Array=[]
 var runtime_owned:=false
 var publication_packet:RefCounted
+var neighborhood:RefCounted
 var fixtures:Array=[]
 var owned_groups:Dictionary={}
 var owned_bounds:Dictionary={}
@@ -49,18 +50,21 @@ var owned_supports:Dictionary={}
 var validation_snapshot:Array=[]
 var snapshot_by_id:Dictionary={}
 var snapshot_bounds:Dictionary={}
-func begin(values:Array)->void:source=values.duplicate()
+func begin(values:Array,runtime_geometry:bool=false)->void:
+	source=values.duplicate()
+	if runtime_geometry:neighborhood=preload("res://scripts/world3d/collision_neighborhood_index.gd").new()
 ## Only for unpublished runtime specs exclusively owned by the calling job.
 ## Authored records/extras remain borrowed and untouched. Landscape uses the
 ## ordinary copied projection because it has mutable reverse dependency links.
-func begin_owned(values:Array)->void:
-	owns_projection=true;begin(values)
+func begin_owned(values:Array,runtime_geometry:bool=false)->void:
+	owns_projection=true;begin(values,runtime_geometry)
 ## The deferred loader owns these unpublished specs and immutable geometry
 ## exclusively until transfer. No external callback runs during preparation.
 ## Fixture pose updates are the sole writer and restart preparation on change.
 func begin_runtime_owned(values:Array)->void:
 	begin_owned(values);runtime_source=values;runtime_owned=true
 	publication_packet=preload("res://scripts/world3d/publication_metadata.gd").new();publication_packet.begin(values)
+	neighborhood=publication_packet.neighborhood
 func valid_runtime_owned(values:Array)->bool:
 	return runtime_owned and owns_projection and phase==7 and error.is_empty() and is_same(runtime_source,values) and source.size()==values.size() and publication_packet.ready(values)
 func accept()->void:owns_projection=false
@@ -168,7 +172,11 @@ func _step()->void:
 				publication_packet.add(value,mesh_bounds)
 				if not publication_packet.error.is_empty():error=publication_packet.error;phase=7;return
 				if value.get("extras",EMPTY_RECORD).has("fixture"):fixtures.append(value)
-			else:signatures.append(signature(value))
+			else:
+				var captured:=signature(value);signatures.append(captured)
+				# The loader also owns copied native/landscape projections. Reuse
+				# their already-read bounds while keeping original source identity.
+				if neighborhood!=null:neighborhood.add(value,value.transform*captured[5],true)
 			if owns_projection and native_snapshot_validation_enabled and not runtime_owned:
 				var snapshot:Dictionary=_validation_copy(value)
 				validation_snapshot.append(snapshot);snapshot_by_id[value.uuid]=snapshot
@@ -257,7 +265,7 @@ func _step()->void:
 			_start_cells(spec,[[append_state.ground_cells,spec.uuid]])
 		6:
 			if cursor>=group_ids.size():
-				result={"stream_index":spatial,"stream_by_id":by_id,"stream_known":known,"stream_landscape":land,"stream_building_groups":groups,"stream_prop_index":props,"stream_collision_index":collisions,"stream_collision_revision":1,"stream_collision_candidate_cache":{},"stream_building_count":projection.size(),"stream_append_state":append_state}
+				result={"stream_index":spatial,"stream_by_id":by_id,"stream_known":known,"stream_landscape":land,"stream_building_groups":groups,"stream_prop_index":props,"stream_collision_index":collisions,"stream_collision_revision":1,"stream_collision_candidate_cache":{},"stream_collision_neighborhood":null,"stream_building_count":projection.size(),"stream_append_state":append_state}
 				phase=7;return
 			var id:String=group_ids[cursor]
 			if subphase==0:
@@ -275,7 +283,7 @@ func advance(budget_usec:int)->bool:
 	return phase==7
 func dispose()->void:
 	_clear_owned_fields();owned_groups={};owned_bounds={};owned_supports={}
-	runtime_source=[];publication_packet=null;fixtures=[];runtime_owned=false
+	runtime_source=[];publication_packet=null;neighborhood=null;fixtures=[];runtime_owned=false
 	preload("res://scripts/world3d/resource_retirement.gd").defer_private_array(validation_snapshot)
 	validation_snapshot=[];snapshot_by_id={};snapshot_bounds={}
 	source=[];projection=[];signatures=[];result={};groups={};structures={};lamps={};by_id={};known={};spatial={};props={};collisions={};raw_bounds={};append_state={};cell={};binding={};attached=[];land=[];supports=[];group_ids=[];phase=7

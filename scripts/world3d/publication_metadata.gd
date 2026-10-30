@@ -2,6 +2,7 @@ extends RefCounted
 ## Private unpublished geometry and ownership metadata. The job advances this
 ## in preparation slices; it grants no navigation, scene or residency authority.
 const EMPTY:Dictionary={}
+var neighborhood=preload("res://scripts/world3d/collision_neighborhood_index.gd").new()
 var source:Array=[]
 var ids:Dictionary={}
 var doors:Array=[]
@@ -26,6 +27,7 @@ func add(value:Dictionary,local_bounds:AABB)->void:
 	# The private packet already owns source; share the same spec identities so
 	# streaming navigation can adopt an ordered catalog without a commit scan.
 	ids[id]=value
+	neighborhood.add(value,box,true)
 	var prefix:=id.get_slice("__",0)
 	if not namespaces.has(prefix):namespaces[prefix]={"ids":{},"order":[],"groups":{},"native_owner":false,"ordinary_pin":""}
 	var owner:Dictionary=namespaces[prefix]

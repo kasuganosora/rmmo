@@ -2,6 +2,7 @@ extends RefCounted
 ## Worker-owned immutable spatial data. No SceneTree or renderer calls.
 const Schema=preload("res://scripts/world3d/stream_spec_schema.gd")
 const Landscape=preload("res://scripts/world3d/stream_landscape.gd")
+const Neighborhood=preload("res://scripts/world3d/collision_neighborhood_index.gd")
 const EMPTY_RECORD:Dictionary={}
 const DICTIONARY_EXTRAS_FIELDS:Array=["fixture","building","fortification"]
 const SPATIAL_FIELDS:Array=["stream_index","stream_prop_index","stream_collision_index"]
@@ -18,19 +19,26 @@ static var reuse_owned_retirement_plan_enabled:=true
 static var ordered_retirement_catalog_enabled:=true
 static var append_dependency_delta_enabled:=true # Diagnostic old reverse-edge rebuild control.
 static var retirement_schema_workers:=4 # Pure reads, joined within the atomic transaction; 0 selects serial control.
-static func build(library:Array)->Dictionary:
+static func build(library:Array,runtime_geometry:bool=false)->Dictionary:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.stream_index.build") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	var result:Dictionary={}
 	var index:Dictionary={};var by_id:Dictionary={};var known:Dictionary={};var lamp_roots:Dictionary={}
 	var structures:Dictionary={}
+	var nearby:=Neighborhood.new() if runtime_geometry else null
 	for spec:Dictionary in library:
 		by_id[spec.uuid]=spec;known[spec.uuid]=true
+		var geometry_bounds:=AABB()
+		var imported:bool=str(spec.uuid).contains("__") and spec.get("mesh") is Mesh
+		if (nearby!=null and spec.get("extras",EMPTY_RECORD).get("rmmo_collision","")!="none") or imported:
+			var mesh:Mesh=spec.mesh
+			geometry_bounds=spec.transform*(AABB(-mesh.size*.5,mesh.size) if mesh is BoxMesh else mesh.get_aabb())
+		if nearby!=null:nearby.add(spec,geometry_bounds,true)
 		# Imported multi-mesh towers need whole-asset town visibility just as
 		# native houses do. Derive this from geometry, never from a display name.
 		# Foliage/cloth retain their own near residency and authored LOD policy.
-		if str(spec.uuid).contains("__") and spec.get("mesh") is Mesh:
+		if imported:
 			var asset_id:=str(spec.uuid).get_slice("__",0)
-			var bounds:AABB=spec.transform*spec.mesh.get_aabb()
+			var bounds:AABB=geometry_bounds
 			var extra:Dictionary=spec.get("extras",EMPTY_RECORD)
 			if not structures.has(asset_id):structures[asset_id]={"bounds":bounds,"wind":false,"solid":false}
 			var row:Dictionary=structures[asset_id]
@@ -92,6 +100,8 @@ static func build(library:Array)->Dictionary:
 	# A full rebuild also replaces the index identity and clears cached owners.
 	result.stream_collision_revision=1
 	result.stream_collision_candidate_cache={}
+	if nearby!=null:nearby.coarse_index=collisions;nearby.revision=1
+	result.stream_collision_neighborhood=nearby
 	result.stream_building_count=library.size()
 	result.stream_append_state=_append_state(library,groups,result.stream_landscape,group_bounds)
 	return result
@@ -696,6 +706,7 @@ static func retire(existing:Dictionary,library:Array,ids:Array)->Dictionary:
 static func _commit_retire(existing:Dictionary,library:Array,plan:Dictionary)->Dictionary:
 	var selected:Dictionary=plan.selected;var state:Dictionary=existing.stream_append_state
 	var sparse:bool=preload("res://scripts/world3d/source_list_retirement.gd").erase_small(library,existing.stream_by_id,selected)
+	if existing.get("stream_collision_neighborhood") is Neighborhood:existing.stream_collision_neighborhood.retire(selected)
 	for id:String in selected:
 		existing.stream_by_id.erase(id);existing.stream_known.erase(id)
 	for key:Vector2i in plan.cells:
@@ -721,13 +732,14 @@ static func _commit_retire(existing:Dictionary,library:Array,plan:Dictionary)->D
 
 static func _collision_membership_changed(existing:Dictionary)->void:
 	existing.stream_collision_revision=int(existing.get("stream_collision_revision",0))+1
+	if existing.get("stream_collision_neighborhood") is Neighborhood:existing.stream_collision_neighborhood.revision=existing.stream_collision_revision
 	# Drop retired specs/meshes immediately, even when no later query occurs.
 	if existing.get("stream_collision_candidate_cache") is Dictionary:existing.stream_collision_candidate_cache.clear()
 
 ## Atomic main-thread publication only: callers own the library append and
 ## residency dirty notification. Existing indexes must come from build/append.
 ## Every imported namespace, building and fixture must arrive as a whole batch.
-static func append(existing:Dictionary,additions:Array,preparation:RefCounted=null)->Dictionary:
+static func append(existing:Dictionary,additions:Array,preparation:RefCounted=null,runtime_geometry:bool=false)->Dictionary:
 	var phase_began:=preload("res://scripts/world3d/load_trace.gd").begin("stream.append_validate")
 	var append_timing:Dictionary={"specs":additions.size(),"validate_us":0,"fragment_us":0,"plan_us":0,"commit_us":0,"dependents_us":0}
 	var append_phase_started:=Time.get_ticks_usec()
@@ -783,7 +795,7 @@ static func append(existing:Dictionary,additions:Array,preparation:RefCounted=nu
 	else:
 		var projection:Array=[]
 		for spec:Dictionary in additions:projection.append(spec.duplicate())
-		fragment=build(projection)
+		fragment=build(projection,runtime_geometry)
 	var fresh:Dictionary=fragment.stream_append_state
 	preload("res://scripts/world3d/load_trace.gd").elapsed("stream.append_fragment",phase_began,{"specs":additions.size(),"groups":fragment.stream_building_groups.size()})
 	append_timing.fragment_us=Time.get_ticks_usec()-append_phase_started;append_phase_started=Time.get_ticks_usec()
@@ -818,15 +830,23 @@ static func append(existing:Dictionary,additions:Array,preparation:RefCounted=nu
 	phase_began=preload("res://scripts/world3d/load_trace.gd").begin("stream.append_index_commit")
 	# Commit has no await or fallible I/O. Preserve existing maps, buckets and
 	# spec objects; update only dependency groups intersected by new ground.
+	var nearby_fragment:RefCounted=preparation.neighborhood if preparation!=null else fragment.get("stream_collision_neighborhood")
 	if not owned_projection:
 		for uuid:String in originals:
 			var spec:Dictionary=originals[uuid];var prepared:Dictionary=fragment.stream_by_id[uuid]
+			# Small unsliced appends built from a copied projection. Donate the
+			# prepared envelope but rebind its source in this existing commit loop.
+			if preparation==null and nearby_fragment!=null and nearby_fragment.members.has(uuid):nearby_fragment.members[uuid].spec=spec
 			for field in ["render_building","render_bounds","render_supports","render_dependents"]:
 				spec.erase(field)
 				if prepared.has(field) and field not in ["render_supports","render_dependents"]:spec[field]=prepared[field]
 			if Landscape.landscape(spec):spec.render_dependents=[]
 	existing.stream_by_id.merge(originals,true)
 	existing.stream_known.merge(fragment.stream_known,true)
+	if existing.get("stream_collision_neighborhood") is Neighborhood:
+		if nearby_fragment!=null and (runtime_prepared or runtime_geometry):existing.stream_collision_neighborhood.merge_prepared(nearby_fragment)
+		else:
+			for spec:Dictionary in additions:existing.stream_collision_neighborhood.add(spec,AABB(),false)
 	for key in ["stream_index","stream_prop_index","stream_collision_index","stream_building_groups"]:
 		_merge_buckets(existing[key],fragment[key],{} if owned_projection else originals)
 	for spec:Dictionary in fragment.stream_landscape:existing.stream_landscape.append(originals[spec.uuid])
