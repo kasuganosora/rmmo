@@ -442,3 +442,57 @@ Python合同用例`tools/test_run_godot_background.py` **6/6**：1MiB二进制st
 这是修正宿主后的一个正常基准，**不是p95分布，也不是新增游戏加速的证明**。本轮完成日志刷盘复现、捕获修正与生命周期验证；73.5s初始就绪、58s返回收尾、发布滞留和剩余长帧均未完成。
 
 下一轮继续以官方profiler的高调用量和正常长帧归因为依据：优先复现角色每帧重复骨骼名称/静态rest扫描，以及发布时临时Node构建→遍历→销毁，保留实际姿态修正、材质拥有者、原子发布和资源释放语义。驱动present等待另行取得无调试器的证据；不为排除第三方hook擅自关闭用户程序，不用加worker/预算或扩大队列掩盖消费者成本。candidate09仍仅有独立材质合同证据，尚未替换默认引擎；先明确同路径、相同缓存条件的整图比较，不能把初次654ms峰值凭推测标为已解决。
+
+## 临时渲染节点释放为何等待着色器，以及带纹理交接的直接投影
+
+重新对齐`return_boundary_monitor_02`初次可玩段：661.231ms帧包含`deferred.instance_specs`481.192ms和render span152.699ms；507.714ms帧则包含render489.716ms和6次mesh pipeline编译。不能把两类都归到合批上传。新增仅在LoadTrace开启时记录的`instance_spec.project`/`instance_spec.release_node`，分别计投影与子节点优先释放，不改变预算或生命周期。
+
+`instance_projection_trace_01`整图诊断零错误/失败、源码地图稳定：投影4108次、累计342921us、最大688us；释放4980次、累计714774us、最大289827us（`arch_C_LOD2`），另一次65204us（路面）。本轮完整就绪73.667s、可玩段最大685.463ms；不能拿投影本身的小耗时宣称整个实例链已合理。逐项数据见`P/instance_projection_trace_01/projection_analysis.json`。
+
+引擎`VisualInstance3D`析构调用`RendererSceneCull::free`，后者调用全局`update_dirty_instances`，继而更新全局脏材质。独立`probe_private_instance_release.gd`先创建一个无关的新terrain ShaderMaterial，再释放从未挂进场景、甚至没有mesh的空节点，最后强制绘制并一起计费。`private_release_red`：
+
+| 节点 | 创建材质 us | 释放节点 us | 后续绘制 us | 合计 us |
+|---|---:|---:|---:|---:|
+| Node3D 0 | 28706 | 13 | 113210 | 141929 |
+| 空MeshInstance3D 1 | 12242 | 99179 | 269 | 111690 |
+| Node3D 2 | 13527 | 6 | 109869 | 123402 |
+| 空MeshInstance3D 3 | 12465 | 107732 | 262 | 120459 |
+
+每次shader代码刻意不同，只用于归因，不是相同资源的加速比较。它证明“释放”可以替别的材质付费，也证明取消该触发点可能只是把成本移到绘制，不能据此宣布FPS改善。
+
+`private_release_gdb_01`取得37份主线程栈，其中16份处于`VisualInstance3D::~VisualInstance3D → RendererSceneCull::free → Utilities::update_dirty_resources → MaterialStorage::_update_queued_materials → MaterialData::update_parameters → ShaderRD::version_get_shader → _compile_version_end → WorkerThreadPool::wait_for_group_task_completion → Semaphore::wait`。该独立运行零错误、退出0；栈与分析在该目录`stacks.jsonl`/`release_stack_analysis.json`。默认引擎未改，candidate09也未安装；这条链与此前脏材质队列证据相符，但本次并没有假定所有首帧编译均由后台上传引起。
+
+### 去除带纹理交接预制件的临时节点
+
+原来直接prefab投影仅接受不带`streamed_texture_owners`的job，带交接的一律走`_mesh → MeshInstance3D → _spec → free`，即使纹理与原生几何均已准备。现在先进入同一个`begin_record_scope`，保留票据/代际/缓存失效和交接流程，再读取当前canonical prefab。符合既有不可变、可信、box、未局部绘制等条件的记录直接投影；不符合或缓存被失效的继续旧路径。两支均关闭同步scope后才交回调度，不延长借用、不提前释放预算、不增加worker/队列。
+
+同时发现旧直接投影遗漏现有`fixture_sweep_bounds`字段。三个活动门窗模式的完整字段对照明确失败，补齐与`BuildingFixtures.prepare_spec`完全相同的边界；保留旋转、闭合变换、独立fixture元数据和碰撞拥有者。
+
+`scoped_prefab_direct_red` **54项中4项失败**：三个活动门窗字段缺失，以及带交接job仍选择临时节点。首个green已修复这四项，但新增替换用例缺少生产调度必需的CPU packet，导致预制件重新发布失败；该失败样本保留，补齐真正的准备包并允许原有有界材质步骤后再验。
+
+`scoped_prefab_direct_green_02` **68/68**，包括真实纹理拥有者交接、同代复用、过期票据拒绝、替换重建后采用新拥有者、早前活跃材质保持不变、scope恢复、逐字段oracle、实际GPU网格/材质/alpha/normal/roughness绑定。相同2048实例的ABBA投影微测：旧128944/131110us，新35019/42957us；投影数均2048，临时节点遍历/释放各2048→0。这是投影机制微测，不能当作本次整图时间差。
+
+GPU通用cursor回归 **15/15**，包括取消、局部碰撞顺序、真正释放；真实调度逻辑回归 **16/16**，保留建筑原子发布、独立物件公平推进、失败清理和占用槽位释放。尚须用正常整图确认本次范围扩展实际命中和累计工作量，之后才报告整图收益。
+
+### 带交接直接投影：正常整图对照
+
+`scoped_prefab_map_B1`→`scoped_prefab_map_A1`均正常退出、零错误/失败、无其他引擎/编译器。A仅在冻结测试工程恢复上一版loader和prefab字段投影；结束后还原候选，不改正式地图或其他会话文件。两份均默认08引擎、全部UI/HUD、管道捕获，无profiler/GDB；源码与地图各自前后不变，旧地图/Deferred确实释放，返回前retirement排空。变量SHA与比较在`P/scoped_prefab_variants.json`、`P/scoped_prefab_comparison.json`。仍是各自空用户缓存、保留OS/驱动缓存，非cold磁盘、非加载时间p95分布。
+
+| 项目 | 旧路径 A1 | 带交接直接投影 B1 |
+|---|---:|---:|
+| 初始入口 / 完整需求就绪 s | 14.647 / 74.427 | 13.544 / 69.429 |
+| 返回事务后收尾 s | 61.543 | 58.625 |
+| 返回直接prefab实例 | 120 | 742 |
+| 返回临时节点遍历 / 释放 | 2492 / 2492 | 1870 / 1870 |
+| 返回spec推进次数 / 累计 ms | 2413 / 410.597 | 1977 / 303.955 |
+| 返回publication单位 | 2551 | 2136 |
+| 返回实例 / 引用读取 / mesh投影 | 1505 / 1074 / 2176 | 1505 / 1074 / 2176 |
+| 初次可玩段最大帧 ms | 668.160 | 678.073 |
+| 卸载 / 返回事务最大帧 ms | 205.674 / 262.471 | 215.098 / 282.829 |
+| 返回加载p95 / 最大帧 ms | 50.689 / 72.257 | 51.741 / 74.300 |
+| 返回加载 >50ms 帧数 | 103 | 137 |
+| 返回稳定段1% low FPS | 24.42 | 25.37 |
+
+确定收益是每次返回少创建、遍历和释放622个临时渲染节点，且实例、mesh投影和碰撞face准备顶点数9731922不变。完整就绪少4.999s、返回收尾少2.918s只属于这一对样本；spec累计少106.642ms不能直接解释全部墙钟差额。返回加载长帧数量反而增加，保留原结果，不能宣称low已改善。两份初次/返回稳定观察段均0帧>50ms，也不能替代加载/卸载验收。此前普通`pipe_capture_normal_01`完整就绪73.509s、返回57.969s同样保留；不挑最快结果作为收益。
+
+下一步针对仍有栈证据的材质编译与真实合批提交：`GroundBatchGeometry.build`已经后台准备CPU缓冲，`upload`仍在主线程创建分层纹理、派生材质和ArrayMesh。先用真实slot/material组合验证私有后台提交的首帧参数、共享纹理、输入变化、取消和拥有者释放；沿用现有worker/lease和代际检查，不扩队列或仅移除主线程断言。candidate09的独立shader等待修复尚未接入该正式路径，也未替换默认引擎。69s完整加载、58s返回收尾以及678ms/215ms尖峰仍待解决，不能将这轮工作量收益当作总体完成。

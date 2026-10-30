@@ -44,6 +44,7 @@ static func project_fields(value:Dictionary,local_bounds:AABB,order:int)->Dictio
 		var pivot:Vector3=result.closed_transform*Fixtures.vec(fixture.pivot)
 		var radius:=0.0
 		for i:int in 8:radius=maxf(radius,(result.closed_transform*local_bounds.get_endpoint(i)).distance_to(pivot))
+		result.fixture_sweep_bounds=AABB(pivot-Vector3.ONE*radius,Vector3.ONE*(2.0*radius))
 		result.chunk_min=Stream.chunk_key(pivot-Vector3.ONE*radius)
 		result.chunk_max=Stream.chunk_key(pivot+Vector3.ONE*radius)
 	return result

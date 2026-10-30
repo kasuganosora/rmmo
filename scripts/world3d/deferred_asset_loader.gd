@@ -2947,12 +2947,15 @@ func _publish_ready(began:int,budget_usec:int=INTERACTIVE_BUDGET_US)->Dictionary
 			pixel_job.instance_preparation={"uuid":publication_id,"cursor":cursor,"phase":"asset","prefab_us":prefab_finished-unit_began,"instance_us":0,"prefab_parts_ms":prefab_parts,"instance_parts_ms":instance_parts,"worker_prepared":false}
 		else:
 			var cursor:RefCounted
+			var texture_scope:=_begin_record_texture_scope(item,pixel_job)
+			if not texture_scope.ok:
+				_instance_failed(publication_id,"区块纹理在实例化前改变："+publication_id)
+				if not str(item.get("group_id","")).is_empty():_stage_building(item,[])
+				_account_work_unit(timing,unit_began);continue
+			# Opening the ordinary generation scope may invalidate the former
+			# prefab owner. Read its canonical entry only after that handoff.
 			var entry:Dictionary=Prefab._meshes.get(item.record.house_prefab.sha256,{}) if item.record.has("house_prefab") else {}
-			# A job with a record-specific texture handoff must still open its
-			# existing scope and reacquire the resulting prefab owner through _mesh.
-			# The trusted immutable route with no such handoff has no texture
-			# validation or scope side effects to repeat after publication above.
-			var direct_textured:bool=item.record.has("house_prefab") and not pixel_job.has("streamed_texture_owners") and preload("res://scripts/world3d/runtime_package_policy.gd").trusted()
+			var direct_textured:bool=item.record.has("house_prefab") and preload("res://scripts/world3d/runtime_package_policy.gd").trusted()
 			if native_prefab_direct_specs_enabled and item.record.has("house_prefab") and PrefabSpecs.supports(item.record,entry,_local_collision_order(item),direct_textured) and _doc.load_immutable_records:
 				# Geometry publication above already chose the canonical shared owner.
 				# Project this instance directly instead of constructing, inspecting
@@ -2960,12 +2963,8 @@ func _publish_ready(began:int,budget_usec:int=INTERACTIVE_BUDGET_US)->Dictionary
 				cursor=PrefabSpecs.new();cursor.begin(item.record,entry,int(item.get("draw_order",0)))
 				profile.native_prefab_direct_instances=int(profile.get("native_prefab_direct_instances",0))+1
 				profile.instance_nodes_avoided=int(profile.get("instance_nodes_avoided",0))+1
+				preload("res://scripts/world3d/material_publication.gd").end_record_scope(texture_scope)
 			else:
-				var texture_scope:=_begin_record_texture_scope(item,pixel_job)
-				if not texture_scope.ok:
-					_instance_failed(publication_id,"区块纹理在实例化前改变："+publication_id)
-					if not str(item.get("group_id","")).is_empty():_stage_building(item,[])
-					_account_work_unit(timing,unit_began);continue
 				var holder:Node3D=_doc._mesh(item.record,true,instance_parts)
 				preload("res://scripts/world3d/material_publication.gd").end_record_scope(texture_scope)
 				if _instance_error(holder,item):_account_work_unit(timing,unit_began);continue

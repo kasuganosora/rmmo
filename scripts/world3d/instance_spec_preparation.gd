@@ -2,6 +2,7 @@ extends RefCounted
 ## Private, main-thread-only projection. Nothing is published until the whole
 ## namespace and disposal are complete; cancellation retains the old sync exit.
 const Stream=preload("res://scripts/world3d/world_stream.gd")
+const Trace=preload("res://scripts/world3d/load_trace.gd")
 var holder:Node3D
 var specs:Array=[]
 var nodes:Array=[]
@@ -26,6 +27,7 @@ func begin(value:Node3D,local_collision:bool,order:int)->void:
 func advance(budget_usec:int)->bool:
 	assert(Thread.is_main_thread())
 	var began:=Time.get_ticks_usec();var advanced:=false
+	var traced:bool=Trace.enabled
 	while stage<2 and (not advanced or budget_usec<=0 or Time.get_ticks_usec()-began<budget_usec):
 		advanced=true
 		if stage==0:
@@ -38,6 +40,7 @@ func advance(budget_usec:int)->bool:
 			var children:=node.get_children()
 			for i:int in range(children.size()-1,-1,-1):nodes.append({"node":children[i],"pose":pose})
 			if not node is MeshInstance3D:continue
+			var projected_at:=Time.get_ticks_usec() if traced else 0
 			var spec:Dictionary=Stream._spec(node,pose)
 			spec.rotation=pose.basis.get_euler()
 			spec.uuid=str(spec.extras.get("uuid",node.name))
@@ -48,13 +51,17 @@ func advance(budget_usec:int)->bool:
 				var bounds:AABB=pose*spec.mesh.get_aabb()
 				spec.chunk=Stream.chunk_key(pose.origin);spec.chunk_min=Stream.chunk_key(bounds.position);spec.chunk_max=Stream.chunk_key(bounds.end)
 			spec.map_draw_order=draw_order+specs.size();specs.append(spec);meshes_projected+=1
+			if traced:Trace.elapsed("instance_spec.project",projected_at,{"uuid":spec.uuid})
 		else:
 			if visited.is_empty():holder=null;stage=2;break
 			# Reverse traversal frees children before their parents, while specs
 			# retain the exact geometry/material owners needed for publication.
 			var node:Node=visited.pop_back()
+			var released_at:=Time.get_ticks_usec() if traced else 0
+			var released_name:String=str(node.name) if traced else ""
 			if node.get_parent()!=null:node.get_parent().remove_child(node)
 			node.free();nodes_freed+=1
+			if traced:Trace.elapsed("instance_spec.release_node",released_at,{"uuid":released_name})
 	var elapsed:=Time.get_ticks_usec()-began
 	profile.slices+=1;profile.elapsed_us+=elapsed;profile.max_slice_us=maxi(int(profile.max_slice_us),elapsed)
 	if stage==2:_snapshot_work()
