@@ -99,6 +99,7 @@ func finish(code:int)->void:
 			report.viewport_size=root.size
 			var proxies:Node=_game_world._map_root.get_node_or_null("DistantBuildingProxy")
 			if proxies!=null:report.distant_proxy_profile=proxies.profile.duplicate(true)
+			report.collision_candidate_cache=preload("res://scripts/world3d/world_stream.gd").collision_candidate_cache_stats(_game_world._map_root)
 			report.hud_present=is_instance_valid(_game_world._hud)
 			report.actual_scope="Full game: avatar, navigation, weather, events and ordinary residency. Only HUD is controlled. Stationary baseline followed by ordinary map/inventory/skills/character/settings window opens; no claim of walking or far eviction."
 	await super.finish(code)

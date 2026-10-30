@@ -259,6 +259,9 @@ func shared_near_far_model()->void:
 	var compiled:Dictionary=preload("res://scripts/world3d/compiled_asset_cache.gd").build(asset)
 	check(compiled.ok,"prepare the imported model's native product before entering the game")
 	if not compiled.ok:print(compiled);return
+	var footprint:Dictionary=preload("res://scripts/world3d/compiled_asset_footprint.gd").build(asset,paths.external_root())
+	check(footprint.ok,"publish native product metadata required by reference-map save")
+	if not footprint.ok:print(footprint);return
 	var doc=preload("res://scripts/world3d/world_document.gd").new()
 	var near_id:String=doc.add_asset({"asset_path":asset,"label":"Shared near"},Vector3(4,.5,4))
 	var far_id:String=doc.add_asset({"asset_path":asset,"label":"Shared far"},Vector3(304,.5,4))

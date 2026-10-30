@@ -833,6 +833,19 @@ static func nearby_collision_ready(map_root:Node,origin:Vector3)->bool:
 	var index:Dictionary=map_root.get_meta("stream_collision_index",{})
 	var bodies:Dictionary=map_root.get_meta("stream_bodies",{})
 	var batched:Dictionary=map_root.get_meta("fortification_collision_sources",{})
+	if collision_candidate_cache_enabled and map_root.has_meta("stream_collision_revision"):
+		# A resident collider cannot block this legacy presence query regardless
+		# of its distance. Check live ownership first; only missing colliders
+		# need current geometry/mode filtering. Never cache the ready result.
+		# Reuse the revision-owned candidates to visit cross-cell sources once.
+		for candidate:CollisionCandidate in _collision_candidates(map_root,index,low,high):
+			var spec:Dictionary=candidate.spec
+			if is_instance_valid(bodies.get(spec.uuid)) or batched.has(spec.uuid):continue
+			var extra:Dictionary=spec.get("extras",{})
+			if spec.get("native_visual",false) or extra.get("hostile",false) or extra.get("ally",false) or extra.get("rmmo_collision","")=="none":continue
+			var bounds:AABB=spec.transform*spec.mesh.get_aabb()
+			if area.intersects(Rect2(bounds.position.x,bounds.position.z,bounds.size.x,bounds.size.z)):return false
+		return true
 	for z in range(low.y,high.y+1):
 		for x in range(low.x,high.x+1):
 			for spec:Dictionary in index.get(Vector2i(x,z),[]):
