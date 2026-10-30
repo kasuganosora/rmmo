@@ -307,10 +307,14 @@ func run()->void:
 	var original_flag:=River.cpu_index_overrides_enabled
 	var original_water:=River.water_cpu_normals_enabled
 	var original_water_index:=River.water_cpu_index_enabled
+	# This suite checks the original CPU-index contract with identical slot
+	# layouts. Visible-only runtime projection has its own GPU/ownership suite.
+	var original_visible:=River.water_visible_surfaces_enabled
+	River.water_visible_surfaces_enabled=false
 	comparison_cases()
 	for case_name in ["saturation","depth","slope_regions"]:await terrain_case(case_name)
 	await water_cases();River.water_cpu_normals_enabled=original_water;River.water_cpu_index_enabled=original_water_index
-	excluded_cases();River.cpu_index_overrides_enabled=original_flag;River.cache.clear()
+	excluded_cases();River.cpu_index_overrides_enabled=original_flag;River.water_visible_surfaces_enabled=original_visible;River.cache.clear()
 	viewport.free();RenderingServer.force_sync()
 	print("CPU_RIVER_MATERIALS_GPU passed=",passed," failures=",failures)
 	quit(0 if failures==0 else 1)

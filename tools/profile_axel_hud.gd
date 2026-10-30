@@ -27,6 +27,8 @@ func _initialize()->void:
 	if "--private-road-upload" in OS.get_cmdline_user_args():preload("res://scripts/world3d/ground_batcher.gd").private_road_upload_enabled=true
 	elif "--without-private-road-upload" in OS.get_cmdline_user_args():preload("res://scripts/world3d/ground_batcher.gd").private_road_upload_enabled=false
 	report.private_road_upload=preload("res://scripts/world3d/ground_batcher.gd").private_road_upload_enabled
+	if "--without-water-surface-projection" in OS.get_cmdline_user_args():preload("res://scripts/world3d/river_materials.gd").water_visible_surfaces_enabled=false
+	report.water_visible_surfaces=preload("res://scripts/world3d/river_materials.gd").water_visible_surfaces_enabled
 	var old_disposal:bool="--without-source-retirement" in OS.get_cmdline_user_args()
 	preload("res://scripts/world3d/world_navigation.gd").sliced_source_disposal_enabled=not old_disposal
 	preload("res://scripts/world3d/dependency_index_proof.gd").cpu_snapshot_retirement_enabled=not old_disposal
@@ -145,6 +147,8 @@ func save()->void:
 func finish(code:int)->void:
 	var prefab=preload("res://scripts/world3d/house_prefab.gd")
 	report.texture_check_work={"owner_reads":prefab.texture_owner_reads,"catalog_reads":prefab.texture_catalog_reads}
+	var river=preload("res://scripts/world3d/river_materials.gd")
+	report.water_projection_work={"builds":river.water_projection_builds,"reuses":river.water_projection_reuses,"hidden_surface_skips":river.water_hidden_surface_skips,"discard_material_created":river.hidden_slab!=null}
 	if code==0:
 		check(report.has("full_ready"),"full-game current demand settles within observation window")
 		if is_instance_valid(_game_world):

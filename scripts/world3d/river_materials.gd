@@ -5,9 +5,14 @@ const Cpu=preload("res://scripts/world3d/ground_cpu_mesh.gd")
 const Trace=preload("res://scripts/world3d/load_trace.gd")
 const StreamingShader=preload("res://scripts/world3d/streaming_surface_shader.gd")
 const CPU_SURFACE_OVERRIDES_META=&"runtime_cpu_surface_overrides"
+const WATER_PROJECTIONS_META=&"runtime_water_projections"
 static var cpu_index_overrides_enabled:=true # Probe-only old/new comparison.
 static var water_cpu_normals_enabled:=true # Probe-only old/new comparison.
 static var water_cpu_index_enabled:=true # Keep water independent from ground batching.
+static var water_visible_surfaces_enabled:=true # Diagnostic legacy control.
+static var water_projection_builds:=0
+static var water_projection_reuses:=0
+static var water_hidden_surface_skips:=0
 static var water_cpu_normal_hits:=0
 # Main-thread runtime indexing counters; the entry probe resets between runs.
 static var cpu_index_override_count:=0
@@ -44,6 +49,7 @@ static func invalidate_texture_source(path:String)->void:
 static func reset_index_profile()->void:
 	cpu_index_override_count=0;cpu_index_legacy_restore_count=0
 	water_cpu_normal_hits=0
+	water_projection_builds=0;water_projection_reuses=0;water_hidden_surface_skips=0
 	region_mask_prepared_hits=0;region_mask_fallback_generations=0
 
 ## Main-thread publication borrows the private worker Image. Editing and other
@@ -254,7 +260,9 @@ static func apply(node: MeshInstance3D, record: Dictionary, context: Dictionary=
 			var source: Material=_active_material(node,slot,cpu_overrides)
 			if source is StandardMaterial3D: _set_override(node,slot,bank(record.bank_wetness,source),cpu_overrides)
 	if record.has("water_depth_effect"):
-		if hidden_slab==null:
+		var project_visible:bool=water_visible_surfaces_enabled and cpu_overrides is Array and node.mesh is Cpu and node.material_override==null and node.material_overlay==null
+		var visible_slots:Array[int]=[]
+		if not project_visible and hidden_slab==null:
 			hidden_slab=ShaderMaterial.new(); hidden_slab.shader=Shader.new()
 			hidden_slab.shader.code="shader_type spatial; void fragment() { discard; }"
 		node.cast_shadow=GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -268,8 +276,43 @@ static func apply(node: MeshInstance3D, record: Dictionary, context: Dictionary=
 			var water_started:=Time.get_ticks_usec() if Trace.enabled else 0
 			if water_top(record,slot,normals):
 				_set_override(node,slot,water(record.water_depth_effect,_active_material(node,slot,cpu_overrides)),cpu_overrides)
-			else: _set_override(node,slot,hidden_slab,cpu_overrides)
+				if project_visible:visible_slots.append(slot)
+			elif not project_visible: _set_override(node,slot,hidden_slab,cpu_overrides)
 			if Trace.enabled:Trace.elapsed("river.water_material",water_started,{"uuid":record.get("uuid",""),"slot":slot})
+		if project_visible:_project_water_surfaces(node,visible_slots,cpu_overrides)
+
+static func _project_water_surfaces(node:MeshInstance3D,slots:Array[int],overrides:Array)->void:
+	# Only an immutable runtime directory visual reaches this path. Preserve the
+	# authored solid for physics; discard-only surfaces never need a GPU mesh,
+	# material RID, shader compilation, pipeline or draw call.
+	var source:Mesh=node.mesh
+	var visible_overrides:Array=[]
+	var signature:Array=[]
+	for slot:int in slots:
+		visible_overrides.append(overrides[slot])
+		signature.append(slot);signature.append(overrides[slot].get_instance_id())
+	# A repeated placement must share the same CPU/GPU generation. Cache only
+	# weak owners and scalar material IDs so it cannot pin departed materials or
+	# meshes. The source is immutable; final material identity covers variants.
+	var projections:Dictionary=source.get_meta(WATER_PROJECTIONS_META,{})
+	var reference:WeakRef=projections.get(signature)
+	var projected:Mesh=reference.get_ref() if reference!=null else null
+	water_hidden_surface_skips+=source.get_surface_count()-slots.size()
+	if projected==null:
+		water_projection_builds+=1
+		for key:Array in projections.keys():
+			if projections[key].get_ref()==null:projections.erase(key)
+		projected=Cpu.new();projected.bounds=source.bounds
+		for slot:int in slots:
+			projected.surfaces.append(source.surfaces[slot])
+			projected.lods.append(source._surface_get_lods(slot))
+			projected.materials.append(overrides[slot])
+		preload("res://scripts/world3d/prepared_cpu_upload.gd").select_surfaces(source,projected,slots)
+		projections[signature]=weakref(projected)
+		source.set_meta(WATER_PROJECTIONS_META,projections)
+	else:water_projection_reuses+=1
+	if not node.has_meta("collision_solid"):node.set_meta("collision_solid",node.get_meta("paint_source",source))
+	node.mesh=projected;node.set_meta(CPU_SURFACE_OVERRIDES_META,visible_overrides)
 
 static func cached(key: String) -> ShaderMaterial:
 	var value: ShaderMaterial=cache[key]

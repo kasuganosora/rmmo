@@ -45,6 +45,18 @@ static func attach(cpu:Mesh,packet:Payload)->void:
 static func inherit(source:Mesh,target:Mesh)->void:
 	if source.has_meta(META):target.set_meta(META,source.get_meta(META))
 
+static func select_surfaces(source:Mesh,target:Mesh,slots:Array[int])->void:
+	if not source.has_meta(META):return
+	var original:Payload=source.get_meta(META)
+	var selected:=Payload.new()
+	for slot:int in slots:
+		var surface:Dictionary=original.surfaces[slot]
+		selected.surfaces.append(surface) # Borrow packed buffers, no repacking.
+		for field:String in ["vertex_data","attribute_data","skin_data","index_data"]:selected.bytes+=surface.get(field,PackedByteArray()).size()
+		var levels:Array=surface.get("lods",[])
+		for at:int in range(1,levels.size(),2):selected.bytes+=levels[at].size()
+	attach(target,selected)
+
 static func restore(cpu:Mesh,label:String="")->Mesh:
 	assert(Thread.is_main_thread())
 	var started:=Time.get_ticks_usec() if profile_enabled else 0
