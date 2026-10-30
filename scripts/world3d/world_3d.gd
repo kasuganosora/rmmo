@@ -306,11 +306,16 @@ func request_sit(on:Variant=null)->void:
 	apply_actions(Net.server().try_sit(true).get("actions",[]))
 
 func _refresh_world_map()->void:
+	var timing:Dictionary={"started_us":Time.get_ticks_usec(),"stages_us":{}} if has_meta("profile_frame") else {}
 	_map_data.build(_map_root)
 	_map_data.pins.assign(_map_pin_sets.get(_map_path,[]))
+	_transfer_commit_mark(timing,"projection")
 	if is_instance_valid(_hud):
 		_hud.bind_world_map_3d(self)
+		_transfer_commit_mark(timing,"radar")
 		if is_instance_valid(_hud._map_overview) and _hud._map_overview.has_method("bind_world"):_hud._map_overview.bind_world(self)
+	_transfer_commit_mark(timing,"overview")
+	if not timing.is_empty():set_meta("map_rebind_profile",timing)
 
 func toggle_world_map_pin(point:Vector2)->void:
 	if not point.is_finite() or not _map_data.bounds.has_point(point):return
@@ -1112,9 +1117,11 @@ func set_weather(kind: String, intensity := .7) -> Dictionary:
 	return _request_environment(changes)
 
 func _apply_map_environment() -> void:
+	var timing:Dictionary={"started_us":Time.get_ticks_usec(),"stages_us":{}} if has_meta("profile_frame") else {}
 	var settings = preload("res://scripts/world3d/environment_settings.gd")
 	var values: Dictionary = settings.resolve(GltfMapIo.extras_of(_map_root))
 	settings.apply(values, _sun, _env)
+	_transfer_commit_mark(timing,"settings")
 	if not is_instance_valid(_weather):
 		_weather = preload("res://scripts/world3d/weather_controller.gd").new()
 		add_child(_weather)
@@ -1124,15 +1131,21 @@ func _apply_map_environment() -> void:
 	var sky_server = Net.server()
 	if sky_server.has_method("mount_world3d_sky"): sky_server.mount_world3d_sky(_map_ref(),_map_path)
 	if sky_server.has_method("snapshot_world3d_sky"): _weather.bind_sky(_map_ref(),Callable(sky_server,"snapshot_world3d_sky").bind(_map_ref()))
+	_transfer_commit_mark(timing,"sky_binding")
 	_weather.configure(values, true)
+	_transfer_commit_mark(timing,"weather_configure")
 	if not is_instance_valid(_house_candles):
 		_house_candles=preload("res://scripts/world3d/house_candle_lights.gd").new();add_child(_house_candles)
 	_house_candles.bind_map(_map_root,_player,_weather)
+	_transfer_commit_mark(timing,"house_lights")
 	values = _weather.values
 	_night = values.preset == "night"
 	if is_instance_valid(_outline): _outline.configure(values)
 	if is_instance_valid(_camera):_camera.bind_map(_map_root,values)
+	_transfer_commit_mark(timing,"outline_camera")
 	_refresh_lamps()
+	_transfer_commit_mark(timing,"lamps")
+	if not timing.is_empty():set_meta("map_environment_profile",timing)
 
 func _refresh_lamps() -> void:
 	for lamp in _lamps:
@@ -1613,26 +1626,34 @@ func transfer_map(target: String, destination: Vector3, before_commit: Callable 
 		return await _transfer_failed(original,cover,"目标区块队列尚未安全停止；保留当前地图。",navigation,viewport)
 	# Commit after preparation. Save the outgoing mock map state before freeing it.
 	cover.update_progress("进入目标区域")
+	var commit_timing:Dictionary={"started_us":Time.get_ticks_usec(),"stages_us":{}} if has_meta("profile_frame") else {}
 	cancel_sit_preparation()
 	if Net.server().sitting:apply_actions(Net.server().try_sit(false).get("actions",[]))
 	furniture.cancel()
 	_combat.free()
+	_transfer_commit_mark(commit_timing,"outgoing_combat")
 	# Detached CPU workers retain their immutable inputs in the shared drainer;
 	# freeing the outgoing map must not synchronously join unfinished geometry.
 	Stream.prepare_map_disposal(_map_root,get_tree())
+	_transfer_commit_mark(commit_timing,"prepare_disposal")
 	for body in _map_root.get_meta("stream_bodies", {}).values():
 		if is_instance_valid(body): body.free()
+	_transfer_commit_mark(commit_timing,"outgoing_bodies")
 	# Clear presentation observers while outgoing meshes still have valid owners.
 	if is_instance_valid(_house_candles):_house_candles.bind_map(null)
 	if is_instance_valid(_camera):_camera.cutaway.bind(null)
 	if not building_entry_protocol_enabled() and _building_entry!=null:_building_entry.cancel("full_wait_handoff");_building_entry=null
+	_transfer_commit_mark(commit_timing,"presentation_observers")
 	_map_root.free()
+	_transfer_commit_mark(commit_timing,"outgoing_map")
 	if not _navigation.retire_background("map_replaced"):_navigation.free()
+	_transfer_commit_mark(commit_timing,"outgoing_navigation")
 	for lamp in _lamps: lamp.free()
 	_lamps.clear()
 	Net.server().world3d_release_actors()
 	if is_instance_valid(_actor_host): _actor_host.free()
 	_actor_host = null
+	_transfer_commit_mark(commit_timing,"outgoing_lamps_actors")
 	_map_root = prepared
 	_geometry_wait_locked=false
 	_player.geometry_blocked=false
@@ -1642,6 +1663,7 @@ func transfer_map(target: String, destination: Vector3, before_commit: Callable 
 		if is_instance_valid(body): body.reparent(self)
 	_navigation = navigation
 	viewport.queue_free()
+	_transfer_commit_mark(commit_timing,"target_adoption")
 	_map_path = target
 	Net.session().world3d_map_path = target
 	Net.session().world3d_spawn = destination
@@ -1658,12 +1680,21 @@ func transfer_map(target: String, destination: Vector3, before_commit: Callable 
 	add_child(_combat)
 	_combat.setup(self)
 	_combat.set_physics_process(false)
+	_transfer_commit_mark(commit_timing,"target_authority_combat")
 	remote_players.refresh()
+	_transfer_commit_mark(commit_timing,"target_remote_players")
 	_add_town_lamps(prepared)
 	_note_map(prepared)
+	_transfer_commit_mark(commit_timing,"target_lamps_note")
 	_mount_events()
+	_transfer_commit_mark(commit_timing,"target_events")
 	_refresh_world_map()
+	_transfer_commit_mark(commit_timing,"target_world_map")
 	_apply_map_environment()
+	_transfer_commit_mark(commit_timing,"target_environment")
+	if not commit_timing.is_empty():
+		commit_timing.elapsed_us=int(commit_timing.last_us)-int(commit_timing.started_us)
+		set_meta("transfer_commit_profile",commit_timing)
 	while is_instance_valid(_hud) and is_instance_valid(_hud._radar) and not _hud._radar.region_is_prepared(Vector2(destination.x,destination.z)):
 		var radar_progress:Vector2i=_hud._radar.terrain_preparation_progress()
 		cover.update_progress("准备目标区域地图显示",radar_progress.x,radar_progress.y)
@@ -1689,6 +1720,13 @@ func transfer_map(target: String, destination: Vector3, before_commit: Callable 
 	if prepared.has_meta("entry_plan"):Stream.clear_entry_scope(prepared)
 	_status.text = "已进入目标地图。"
 	return true
+
+func _transfer_commit_mark(timing:Dictionary,stage:String)->void:
+	# Opt-in clocks for the contiguous synchronous handoff; no awaits or graph
+	# inspection. Ordinary gameplay does not construct this timing dictionary.
+	if timing.is_empty():return
+	var now:=Time.get_ticks_usec()
+	timing.stages_us[stage]=now-int(timing.get("last_us",timing.started_us));timing.last_us=now
 
 func _hold_transfer_presentation(cover:CanvasLayer)->bool:
 	if not is_inside_tree() or not is_instance_valid(cover) or not cover.is_inside_tree():return false

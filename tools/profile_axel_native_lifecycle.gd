@@ -66,6 +66,8 @@ func _transfer(world:Node,path:String,destination:Vector3,label:String)->bool:
 		if label=="map_unload":world._combat.tree_exiting.connect(_mark_disposal,CONNECT_ONE_SHOT)
 	var started:=Time.get_ticks_usec()
 	var ok:bool=await world.transfer_map(path,destination)
+	if not report.has("commit_stages"):report.commit_stages=[]
+	report.commit_stages.append({"label":label,"timing":world.get_meta("transfer_commit_profile",{}).duplicate(true),"map_rebind":world.get_meta("map_rebind_profile",{}).duplicate(true),"environment":world.get_meta("map_environment_profile",{}).duplicate(true)})
 	report.lifecycle.append({"label":label,"ok":ok,"started_us":started,"finished_us":Time.get_ticks_usec(),"call_ms":(Time.get_ticks_usec()-started)/1000.,"at_ms":(Time.get_ticks_usec()-began)/1000.,"cover":world.get_meta("transfer_loading_profile",{}).duplicate(true)})
 	check(ok,label+" ordinary game transfer succeeds")
 	if not ok:return false
