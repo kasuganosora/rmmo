@@ -42,6 +42,7 @@ var measured_sources_us:=0
 var queue_observer_calls:=0
 var queue_observer_elapsed_us:=0
 var queue_observer_max_us:=0
+var deferred_snapshots:=preload("res://tools/deferred_profile_snapshot.gd").new()
 static func fixture_manifest_name(arguments:PackedStringArray)->String:
 	return "full_fixture_manifest.json" if "--full-material-stage" in arguments else "fixture_manifest.json"
 
@@ -67,6 +68,7 @@ func _initialize()->void:
 func source_snapshot(folder:String="res://scripts")->Dictionary:
 	var result:Dictionary={}
 	if folder=="res://scripts":result["res://tools/load_monitor.gd"]=FileAccess.get_sha256("res://tools/load_monitor.gd")
+	if folder=="res://scripts":result["res://tools/deferred_profile_snapshot.gd"]=FileAccess.get_sha256("res://tools/deferred_profile_snapshot.gd")
 	for entry:String in DirAccess.get_files_at(folder):
 		if entry.ends_with(".gd"):result[folder.path_join(entry)]=FileAccess.get_sha256(folder.path_join(entry))
 	for entry:String in DirAccess.get_directories_at(folder):result.merge(source_snapshot(folder.path_join(entry)))
@@ -143,7 +145,7 @@ func observe()->void:
 			row.stream.ready_bypass_max_scan_us=map.get_meta("stream_ready_bypass_max_scan_us",0)
 			var queue:Node=map.get_node_or_null("DeferredAssets")
 			if queue!=null:
-				row.deferred={"pending":queue.pending_count(),"demanded":queue._demanded_by_id.size(),"unpublished":queue.pending_demanded_count(),"admission":queue._admission.snapshot(),"profile":queue.profile.duplicate(true),"jobs":[]}
+				row.deferred={"pending":queue.pending_count(),"demanded":queue._demanded_by_id.size(),"unpublished":queue.pending_demanded_count(),"admission":queue._admission.snapshot(),"profile":deferred_snapshots.capture(queue.profile,queue.get_instance_id()),"jobs":[]}
 				if full_material_stage:row.deferred.shared_pixels=queue._shared_images.snapshot()
 				for path:String in queue._jobs:
 					var job:Dictionary=queue._jobs[path];var worker:RefCounted=job.get("worker")
@@ -162,6 +164,8 @@ func finish(code:int)->void:
 	sampling=false
 	if process_frame.is_connected(observe):process_frame.disconnect(observe)
 	report.frames=frames
+	report.observed_stage_rows=deferred_snapshots.stages
+	report.deferred_snapshot_contract={"captures":deferred_snapshots.captures,"copied_stage_rows":deferred_snapshots.copied_stage_rows,"scope":"Per-sample scalar counters and small main-thread budget ledger; each observed stage copied once. Full nested profile retained only after timed observation."}
 	report.prefab_material_identity={"reuses":preload("res://scripts/world3d/house_prefab.gd").material_identity_reuses,"scans":preload("res://scripts/world3d/house_prefab.gd").material_identity_scans}
 	if preload("res://scripts/world3d/runtime_texture_cache.gd").profile_enabled:
 		report.texture_stages=preload("res://scripts/world3d/runtime_texture_cache.gd").profile_snapshot()
@@ -192,6 +196,7 @@ func finish(code:int)->void:
 			report.render_sources.by_namespace[id]=int(report.render_sources.by_namespace.get(id,0))+1
 		var queue:Node=map.get_node_or_null("DeferredAssets")
 		if queue!=null:
+			report.deferred_profile=queue.profile.duplicate(true)
 			# Scalar-only cardinalities, collected after sampling stops.
 			report.support_set_snapshot=queue.support_set_snapshot()
 			report.index_classifications={}

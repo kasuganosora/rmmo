@@ -82,6 +82,16 @@ func run()->void:
 		if setting[0]=="far":
 			check(after.visible_draws<before.visible_draws,"actual far visible draw calls decrease")
 			check(after.visible_triangles<before.visible_triangles,"actual far rendered triangles use index LODs")
+			var submitted_match:=true
+			for row:Dictionary in service._rows.values():
+				var mesh:ArrayMesh=row.proxy.mesh
+				var actual:Array=[]
+				for slot:int in mesh.get_surface_count():
+					var counts:Array=[]
+					for indices:PackedInt32Array in Cpu.capture_lods(mesh,slot).values():counts.append(indices.size()/3)
+					actual.append(counts)
+				if actual!=row.get("lod",{}).get("triangles",[]):submitted_match=false
+			check(submitted_match,"actual proxy GPU buffers contain the worker's final LOD tables")
 		if setting[0]=="far":
 			var key:String=service._rows.keys()[0];var active:Node3D=service._rows[key].proxy
 			for i in 4:service.tick(camera.position);service._poll();await process_frame

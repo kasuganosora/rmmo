@@ -360,6 +360,7 @@ static func _sync_work(map_root:Node,host:Node,origin:Vector3,budget:int,deadlin
 	map_root.set_meta(&"stream_chunk", target)
 
 static func _track_deferred_source(map_root:Node,source:MeshInstance3D)->void:
+	preload("res://scripts/world3d/distant_proxy_sources.gd").track(map_root,source)
 	# Only _spawn creates this obligation. Track it at admission instead of
 	# scanning every resident mesh after every later publication burst.
 	if source.has_meta("deferred_gpu"):

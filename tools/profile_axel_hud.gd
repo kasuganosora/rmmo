@@ -1,6 +1,6 @@
 extends "res://tools/profile_axel_game_pipeline.gd"
 ## Full game comparison; the map is an immutable temporary copy, all gameplay
-## systems remain enabled and the existing --without-hud is the sole A/B switch.
+## systems remain enabled; diagnostic switches are recorded in the report.
 var _ready_frames:=0
 var _game_world:Node
 var _hud_probe_installed:=false
@@ -14,6 +14,9 @@ func runtime_observation_finished()->bool:
 	return _ui_finished
 
 func _initialize()->void:
+	var scan_proxy:bool="--scan-proxy-sources" in OS.get_cmdline_user_args()
+	preload("res://scripts/world3d/distant_building_proxy.gd").source_catalog_enabled=not scan_proxy
+	report.proxy_source_catalog=not scan_proxy
 	var copy:=OS.get_environment("RMMO_HUD_TEST_MAP").replace("\\","/").simplify_path()
 	if not preload("res://scripts/world3d/map_paths.gd").allowed(copy,TEST_ROOT) or not FileAccess.file_exists(copy):
 		printerr("HUD profile requires an existing temporary map under review_artifacts");quit(2);return

@@ -191,7 +191,7 @@ static func build(members: Array, origin: Vector3, defer_upload: bool = false) -
 	prepare_upload(data)
 	return data if defer_upload else upload(data)
 
-static func build_fortification(members: Array, origin: Vector3, defer_upload: bool) -> Dictionary:
+static func build_fortification(members: Array, origin: Vector3, defer_upload: bool, prepare_surfaces:bool=true) -> Dictionary:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.ground_batch_geometry.build_fortification") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	# Native append_from transforms positions/normals/tangents and rebases indices
 	# in C++, avoiding millions of interpreted per-vertex operations. The source
@@ -214,7 +214,9 @@ static func build_fortification(members: Array, origin: Vector3, defer_upload: b
 	for row: Dictionary in slots.values():
 		row.arrays=row.builder.commit_to_arrays(); row.erase("builder"); after+=row.arrays[Mesh.ARRAY_VERTEX].size()
 	var data:={"slots":slots.values(),"images":[],"masks":[],"origins":PackedVector4Array(),"spans":PackedVector4Array(),"source_surfaces":before,"source_vertices":vertices,"render_vertices":after,"compressed":true}
-	prepare_upload(data)
+	# A derived proxy may still add LODs/change packing flags. Its worker packs
+	# once after those edits, rather than submitting this premature snapshot.
+	if prepare_surfaces:prepare_upload(data)
 	return data if defer_upload else upload(data)
 
 static func surface_flags(row:Dictionary,compressed:bool)->int:

@@ -6,11 +6,12 @@ const Geometry=preload("res://scripts/world3d/ground_batch_geometry.gd")
 const Lod=preload("res://scripts/world3d/render_lod_preparation.gd")
 const Retirement=preload("res://scripts/world3d/cpu_worker_retirement.gd")
 static var enabled:=true
+static var source_catalog_enabled:=true # Diagnostic scan control, same eligibility.
 const ENTER_M=240.
 const EXIT_M=200.
 const MAX_VERTICES=65536
 const MAX_PROXIES=32
-var profile:Dictionary={"prepared":0,"active":0,"invalidated":0,"source_draws":0,"proxy_draws":0,"last_wait":"","near_snapshot_skips":0,"snapshot_attempts":0}
+var profile:Dictionary={"prepared":0,"active":0,"invalidated":0,"source_draws":0,"proxy_draws":0,"last_wait":"","near_snapshot_skips":0,"snapshot_attempts":0,"source_visits":0,"catalog_ticks":0,"fallback_ticks":0}
 var _rows:Dictionary={}
 var _job:Dictionary={}
 var _cooldown:Dictionary={} # Scalar retry times, never rejected mesh owners.
@@ -40,7 +41,12 @@ func tick(origin:Vector3)->void:
 		candidates[id].append(group)
 	# Frozen floor/roof meshes keep their authored LOD and selection semantics
 	# outside the ordinary batcher. Include opaque static nodes directly.
-	for node:Variant in get_parent().get_meta("stream_meshes",{}).values():
+	var directory:RefCounted=get_parent().get_meta(preload("res://scripts/world3d/distant_proxy_sources.gd").META) if source_catalog_enabled and get_parent().has_meta(preload("res://scripts/world3d/distant_proxy_sources.gd").META) else null
+	var sources:Dictionary=directory.sources if directory!=null else get_parent().get_meta("stream_meshes",{})
+	profile["catalog_ticks" if directory!=null else "fallback_ticks"]+=1
+	profile.source_visits+=sources.size()
+	for node:Variant in sources.values():
+		if not is_instance_valid(node):continue
 		if not node is MeshInstance3D or node.mesh==null or node.mesh is Cpu or node.has_meta("ground_render_batch"):continue
 		var record:Dictionary=node.get_meta("ground_batch_record",{})
 		if not record.has("building") or record.has("fixture") or not record.has("house_prefab"):continue
@@ -128,13 +134,14 @@ static func _snapshot(groups:Array)->Dictionary:
 		if group.visual.layers!=row.layers or group.visual.cast_shadow!=row.shadow:return {}
 	return row
 static func _prepare(sources:Array,origin:Vector3)->Dictionary:
-	var data:=Geometry.build_fortification(sources,origin,true);data.compressed=false
+	var data:=Geometry.build_fortification(sources,origin,true,false);data.compressed=false
 	var arrays:Array=[]
 	for slot:Dictionary in data.slots:arrays.append(slot.arrays)
 	var lod:=Lod.derive(arrays)
 	if not lod.is_empty():
 		for i in data.slots.size():data.slots[i].lods=lod.lods[i]
 	data.lod=lod
+	Geometry.prepare_upload(data)
 	return data
 func _current(row:Dictionary,groups:Array)->bool:
 	if groups.size()!=row.visuals.size():return false
