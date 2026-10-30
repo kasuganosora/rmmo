@@ -134,3 +134,19 @@ candidate09 在独立源码树编译成功（549.875s），`source_unchanged=tru
 同源码、地图、候选引擎立即重复的 `engine09_map_second`：入口 **13.819s**、完整就绪 **75.975s**，playable 最大 **635.482ms**，稳定段 p95 **29.484ms**、1% low **24.29 FPS**。两次均零错误/失败、无其他引擎/编译器进程；首次慢样本完整保留。重复后恢复不能单独证明缓存归因，更不能与旧引擎的既有缓存样本直接对比。下一步用冻结测试工程的独立空 shader cache 分别测旧/新引擎，日常工程缓存和默认引擎保持原样。这里只隔离着色器缓存，不称作冷磁盘测试。
 
 原生 CPU handoff 的最终默认源码同步后，`native_handoff_default_final` Vulkan **35/35**，包括并行、取消、共享、变更回退与普通审计读者隔离。该生产改动依赖已经安装的 candidate08 API，不依赖尚未验收的 candidate09 引擎补丁。
+
+### 缓存口径复核
+
+准备独立空 shader cache 对照时，前置检查发现冻结工程 `.godot/shader_cache` 实际不存在；检查中止在任何移动/删除之前。此前 runner 的“Project shader cache shared across samples”文字说明不准确。实际测试各自使用新的 `user://shader_cache` 和 Vulkan pipeline cache；OS 与驱动持久缓存没有隔离，所以仍不能称冷磁盘或冷驱动测试。新 runner 已记录启动前缓存是否存在；旧原始证据不改写，本段为更正。
+
+`native_final_B1`、`engine09_map_first`、`engine09_map_second` 各自产生 183 个 shader 缓存文件、34454292 字节；候选首轮与次轮所有文件路径、SHA 均相同，详见 `P/engine_shader_cache_inventory.json`。次轮 native parse 回到 **3.383s**。这排除了“两次最终 shader 种类/字节不同”，但不能凭此证明驱动归因。继续以 SHA 不变、位于新路径的旧/新引擎首次运行作诊断对照，不清理用户驱动缓存，不把复制可执行文件等同于已严格隔离驱动缓存。
+
+原生 CPU 交接已在 `2eb9912e` 提交推送。卸载约 540ms 与返回收尾 408.589ms 尚待栈归因；新增生命周期诊断参数只在抓栈时等待明确的卸载阶段，不计作正常性能样本。
+
+### 新可执行路径的首轮对照与卸载诊断
+
+`engine_path_new_A1/B1` 把旧08/候选09各复制到从未运行的新目录，文件 SHA 与各自原件一致，两者使用相同的新文件名、同一冻结工程/地图，空用户 shader/pipeline 缓存。旧引擎入口 **41.340s**、完整就绪 **112.420s**、native parse **30.901s**；候选对应 **43.209s / 113.151s / 31.991s**。playable 最大分别 **3196.099 / 3706.582ms**，人物窗口首次打开 **3514.044 / 3335.606ms**。两次均零失败/错误、源码地图未变、23 模型/1505 实例，无其他引擎/编译器。这种慢首轮可以在无候选补丁、字节不变的旧引擎上复现；支持继续检查可执行身份相关的首次驱动成本，但不是冷驱动隔离或驱动栈归因。候选不因此被宣称更快，默认引擎仍08。
+
+candidate09 四文件增量补丁、构建与验证清单已保存至 `tools/engine_patches/godot-4.8-beta1-material-queue-candidate09.*`。它应在08之上应用，不能直接用于官方原始源码；测试重放禁用 autocrlf 后4/4源码 SHA吻合。首次重放因机器 autocrlf 转为CRLF，SHA检查拒绝，证据保留。尚未替换默认引擎或启用生产合批后台上传。
+
+`native_unload_stacks_01` GDB 69样本、正常detach/退出，但人工SceneTreeTimer在all-stop暂停下推进太慢，采样都发生在卸载前等待，未命中真正释放；不作为释放成本归因。诊断工具改为监听旧combat主机的tree_exiting（紧接实际地图disposal之前），写阶段标记给外部sampler，不再加入人工等待。后续02使用该触发点。

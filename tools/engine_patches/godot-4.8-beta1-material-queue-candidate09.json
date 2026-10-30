@@ -1,0 +1,313 @@
+{
+  "schema_version": 1,
+  "candidate": "09",
+  "status": "isolated_candidate_not_installed",
+  "recorded_utc": "2026-10-30T17:44:01.699747+00:00",
+  "apply_after": {
+    "path": "tools/engine_patches/godot-4.8-beta1-runtime-candidate08.json",
+    "sha256": "6f2acac80b9cdb64f7be081531c9e03664cb6146327b04064329e14428df425f",
+    "instruction": "Apply candidate08 cumulative patch to official beta1, then this four-file incremental patch once. This patch is not cumulative."
+  },
+  "patch": {
+    "path": "tools/engine_patches/godot-4.8-beta1-material-queue-candidate09.patch",
+    "sha256": "031257264b70cd416663444726beb901e9b920ca1c7c22b4537d4b6e1143eb5f"
+  },
+  "files": [
+    {
+      "path": "servers/rendering/renderer_rd/storage_rd/material_storage.h",
+      "before_sha256": "2366d01a057d3926f9c7f42fc93a064e86bcae160800e5a7f3fd9986b1bce3d9",
+      "after_sha256": "cec3d806f6718dff3f6852a669d65d4fd57110a9bce43229def6921669939d70"
+    },
+    {
+      "path": "servers/rendering/renderer_rd/storage_rd/material_storage.cpp",
+      "before_sha256": "d525326498d08b9215e27c4acb2b89bf787cf326bbd28d170875d764b904891c",
+      "after_sha256": "ad97d86366610b87e952d842b4c04e32460ad0c844965503a0df36cc0478fae6"
+    },
+    {
+      "path": "servers/rendering/storage/material_storage.h",
+      "before_sha256": "f13c717835a7bb70aaf57b3bce19d94f4b3e16971c5880e3eacee073e313dd93",
+      "after_sha256": "a9e3fba28086d8e67bc0650aff53e7526af07d11b1f561b44effad1c05b0fb79"
+    },
+    {
+      "path": "servers/rendering/rendering_server_default.h",
+      "before_sha256": "e7f5bb6afae4e0f95d25e17f97dea6fe92f36b2eb12d2fd237ef9e310abd30fa",
+      "after_sha256": "edbb9868224ff8477879c82482613f9eb52c80c9d36bcd317357363471856086"
+    }
+  ],
+  "build": {
+    "receipt": "D:\\code\\rmmo_runtime\\review_artifacts\\axel_post_roads_perf_20261030_01\\engine_material_queue_candidate09\\runtime_01\\result.json",
+    "receipt_sha256": "17b732207dfe8554c7b56cc7ed2865860840450ca91f5ec260cd1b181f5bcf58",
+    "command": [
+      "D:/tools/godot-4.8-build/python-env/Scripts/python.exe",
+      "-m",
+      "SCons",
+      "platform=windows",
+      "arch=x86_64",
+      "target=editor",
+      "use_mingw=yes",
+      "debug_symbols=yes",
+      "separate_debug_symbols=yes",
+      "dev_build=no",
+      "optimize=speed",
+      "lto=none",
+      "d3d12=no",
+      "accesskit=no",
+      "angle=no",
+      "-j4",
+      "tests=no"
+    ],
+    "artifacts": {
+      "godot.windows.editor.x86_64.console.exe": {
+        "sha256": "3e9129e8bbade4dd9eb73eb7c991ef73f03676b20a23729ed39f3ef27090a388",
+        "bytes": 199477
+      },
+      "godot.windows.editor.x86_64.console.exe.debugsymbols": {
+        "sha256": "c1b237de19704c96cf630711b2f33f25369d982a44cc17195b6cfa2367931e7d",
+        "bytes": 78178
+      },
+      "godot.windows.editor.x86_64.exe": {
+        "sha256": "e888704c4a8ed2541d4d1fadf5c52047407e8626dd9940914777a209972abbbe",
+        "bytes": 163200906
+      },
+      "godot.windows.editor.x86_64.exe.debugsymbols": {
+        "sha256": "5218d5c58968ea974b415f6b9c3f54f0dd2ad67b415bdbafc5baf0b40f108eb8",
+        "bytes": 2167751495
+      }
+    },
+    "source_sha256": {
+      "core/io/image.cpp": "44377f62ef44c0dfeddfb485385882cacc79298f72f81d021ed6ff1634ace567",
+      "core/io/image.h": "bca1d81f891606d6027f1ad85c94242328f98d8f3c69fbb4a3cf9d784f77ee60",
+      "core/io/resource_loader.cpp": "fab4b31c6a29f6c63c4fb11be32b8ae985f92b9631b0dd88bc98857e8afd2af6",
+      "core/io/resource_loader.h": "e4d3b8b23d8259c534f0eb79f48f62740c4c190eac0ab69a903a79396a7ae4a5",
+      "core/object/worker_thread_pool.cpp": "7d8a76de17e61e87e00f312a0e4ddf1cb37e9af9932603f644e7d58259c2937a",
+      "core/object/worker_thread_pool.h": "ef18a6760d92936fc4c66443d87841183ff1fa4049d89a0f9318576bc7eb8099",
+      "doc/classes/Image.xml": "05fc4c7e9e5d5248ae05ff60887e72a5e426a98866650f03acf1b58a5cf5dc98",
+      "drivers/vulkan/rendering_device_driver_vulkan.cpp": "905e964ab728de0ff48df78d34f3a40e4c389a9df014d883edf86b320c87d9c7",
+      "drivers/windows/file_access_windows.cpp": "e8d5317ce6de06caf8e54e2a560cc121c7edefcdc6cdfe3a57e18ad740309a98",
+      "drivers/windows/file_access_windows.h": "93bbc7f17032278584ba506a82b2e0a81e6fba63982ddedb147d91f02e722767",
+      "modules/dds/texture_loader_dds.cpp": "20536e90fbf446236b48281b39f311c55ab1bafc2e8f6541b40fd8555bb5f807",
+      "modules/gdscript/gdscript.cpp": "0228a58e29bfeaedcf71f4ead0d8db841df49d3c4c98a6dc4e4e01c816239e67",
+      "modules/gdscript/gdscript_analyzer.cpp": "390dd6c8859c44b2eb2cba684881f7c2acc8520d09a7d99264f5db0ac41e0a59",
+      "modules/gdscript/gdscript_analyzer.h": "17654c94e2ff96499114f788366f033f5a75742e74463caec154e97718067910",
+      "modules/gdscript/gdscript_vm.cpp": "b23db431a4207d01019f8f091b35f01425c8418aefceafd21cc36e31f2c6fd35",
+      "modules/godot_physics_3d/godot_concave_prepared_data_3d.h": "025cd5391974eca045b15e564e6277282dad27a626049ae48e452949fd09da37",
+      "modules/godot_physics_3d/godot_shape_3d.cpp": "2ce14f50ae8afbeb0a13eaf4b127e505f79bb08adde7a26ce0fe353ac5cd2b73",
+      "modules/godot_physics_3d/register_types.cpp": "fd317a46deda9e0d40553c981db5907a363f81cfdb16b2e3bf244d023e0e04ec",
+      "modules/text_server_adv/text_server_adv.cpp": "342016316b18bd537edc48c052c886695c681a1f979bda747c038d01327f9ef9",
+      "modules/text_server_fb/text_server_fb.cpp": "5c348fd12e229464b76804e0350f323dd3620819abb6ff6948d2500610300f23",
+      "modules/texture_streaming/tests/test_texture_streaming_lifetime.h": "b8fa332201e435470ada42df02a7990e35f70f41460b3fa1d282e161ed8fe942",
+      "modules/texture_streaming/tests/test_texture_streaming_observation.h": "0a4731aa7b706ca3cb6a9deeb3525a3e9e62f7f42b7b006db920381fab062e53",
+      "modules/texture_streaming/texture_streaming.cpp": "6bbc2da186269135f16a1d1eeef8730e0b20ad1f9948b4ee2c23dd4cf08ede09",
+      "modules/texture_streaming/texture_streaming.h": "ef39404da1d41eaefb326749488c99dc0c3e2cde924387c51f14d88cf7f68fd3",
+      "platform/windows/godot_windows.cpp": "63c11eef5e93c43d24c78c246c3c0251863936f385ee1ea7f86447f8050392c1",
+      "scene/register_scene_types.cpp": "afc96c34d157fd767b3c704e204b38e5071334e755bdc750c7b1045348a6ee13",
+      "scene/resources/3d/concave_polygon_shape_3d.cpp": "90353f44745aa6d69bf150ff5677f0253626a064c4e8a63d407efccdc6b34a43",
+      "scene/resources/3d/concave_polygon_shape_3d.h": "3f927ea56ffd18b1ca4a82e7b6971cd5dce1530680cd3c8c6952ab29752192db",
+      "scene/resources/3d/shape_3d.cpp": "a7ae3b87c338df1f88d7a832322048e790231cd5e9163fb56dae6fdcaa3f29aa",
+      "scene/resources/material.cpp": "949511f4ead9358d3e7e83b9cbf7cc6cbb96000326884bdd87393ebd3be38150",
+      "scene/resources/material.h": "d406b4d8923f4dfdf75cf0dfe792cd78aca56b3e7877e520bb68b86bb7322330",
+      "scene/resources/mesh.cpp": "6e7c0f2652eb078c9bc4c4107e65c25c113b00c817d1684831e0693e12e75a52",
+      "scene/resources/mesh.h": "26185b2bd91c1c1627c57c6d04aebf1cd5558194875a4dc2a202f9ad5316af2f",
+      "scene/resources/native_mesh_cpu_capture.cpp": "1a202f5847a8248c82b5b4af0d237d310ec2679e0bf96f04971f0079b1d61bf3",
+      "scene/resources/native_mesh_cpu_capture.h": "4b094ccbe2a90945f960d50f7857cb2a23b29ec5d035c5356bfbfd260a8f1d98",
+      "scene/resources/streamed_texture.cpp": "26d5198f45b5f40734d1d3494cb0c1babdefe7bf92ce5bed6cb298f56040a80e",
+      "scene/resources/streamed_texture.h": "d6f2b0fcb4557d269378195cd7674d206c3a562bacd497aee04e69685580d18c",
+      "servers/physics_3d/physics_server_3d.cpp": "0774dea22786ea9eba6028c3d8deba463f6abb68d1cd177a94352b8e86e724c8",
+      "servers/physics_3d/physics_server_3d.h": "1af320d24d07af649bfc7200d76b75df4334a49d7209a1f40b1f3e9b58acb325",
+      "servers/rendering/renderer_rd/effects/copy_effects.cpp": "78999578aa5231cdc331d13c454370e100dd1893f0164c5c0e4fd40b8c5b563c",
+      "servers/rendering/renderer_rd/effects/copy_effects.h": "7900b758b943d8ef5355c756f220b6b47425b6337149a60b90053ee1d90eee9b",
+      "servers/rendering/renderer_rd/effects/taa.cpp": "f0915bece51f1bb8b53e179554ab62ddcf145d29a92b9add10e2d154ee9e81b0",
+      "servers/rendering/renderer_rd/forward_clustered/scene_shader_forward_clustered.cpp": "b88d75c4d937fbfee87cf3c8e8939efca5e1b660237e973d102a5bac4a5f364a",
+      "servers/rendering/renderer_rd/shaders/effects/copy.glsl": "1d4dd0f5cac3d6ecdf8b91d3aab2a8417540ad87904314b7f365232ab750a2c6",
+      "servers/rendering/renderer_rd/shaders/forward_clustered/scene_forward_clustered.glsl": "355129d48bce17056084331fde59d675fc741eb4e9521619bc4527c8f061773e",
+      "servers/rendering/rendering_device.cpp": "5adfdd46ed8b801cf7e530632f106cbf700370abea2d3dd1d920aa553e42dfa8",
+      "servers/rendering/rendering_server.cpp": "574569e6026bb35cacaff4f2706179b59ed054f6556d78e83afd4037e84bde40",
+      "servers/rendering/rendering_server.h": "86f82c8d4436dde6a49ed057c1dd4fad7c71e3fe1e4f75f7c67a4b7b258942d6",
+      "servers/rendering/rendering_server_default.cpp": "5e7d3fce189c0ecd35529145b85cdc2c255160fa928d771ed95107ff049fbb1e",
+      "servers/rendering/rendering_shader_container.cpp": "a813fbf5f420a851d658a17e8fa2d150f02ebc1b31024a16137ee207d3e8017a",
+      "thirdparty/re-spirv/re-spirv.cpp": "1d241d8f890d9ea78387dc382f9a6097d89036cb3520f3089ea8e7dd56de5d8a",
+      "servers/rendering/renderer_rd/storage_rd/material_storage.h": "cec3d806f6718dff3f6852a669d65d4fd57110a9bce43229def6921669939d70",
+      "servers/rendering/renderer_rd/storage_rd/material_storage.cpp": "ad97d86366610b87e952d842b4c04e32460ad0c844965503a0df36cc0478fae6",
+      "servers/rendering/storage/material_storage.h": "a9e3fba28086d8e67bc0650aff53e7526af07d11b1f561b44effad1c05b0fb79",
+      "servers/rendering/rendering_server_default.h": "edbb9868224ff8477879c82482613f9eb52c80c9d36bcd317357363471856086"
+    }
+  },
+  "evidence": {
+    "shader_queue_A1": [
+      {
+        "path": "D:\\code\\rmmo_runtime\\review_artifacts\\axel_post_roads_perf_20261030_01\\shader_queue_A1\\report.json",
+        "sha256": "779ab6a092366527bf2ad5c837046038223018a74bb40c137bae5696175f2ea3"
+      },
+      {
+        "path": "D:\\code\\rmmo_runtime\\review_artifacts\\axel_post_roads_perf_20261030_01\\shader_queue_A1\\launch.json",
+        "sha256": "5d1fe5311d1a6aa4fea7c03802eeca9e99251a636996ffd8f83fe627e78464f1"
+      },
+      {
+        "path": "D:\\code\\rmmo_runtime\\review_artifacts\\axel_post_roads_perf_20261030_01\\shader_queue_A1\\engine.log",
+        "sha256": "b5347c91089875438908671a723cc636744dbf2025431677d3632d5941890b36"
+      }
+    ],
+    "shader_queue_B1": [
+      {
+        "path": "D:\\code\\rmmo_runtime\\review_artifacts\\axel_post_roads_perf_20261030_01\\shader_queue_B1\\report.json",
+        "sha256": "dfef9aa9c374c2032a6756fe6ab96debe13d74f0e3034a2f93b3d2438eea7f11"
+      },
+      {
+        "path": "D:\\code\\rmmo_runtime\\review_artifacts\\axel_post_roads_perf_20261030_01\\shader_queue_B1\\launch.json",
+        "sha256": "cf03303bb34b1507c718570636347c02d135ee23f994e196b7a3af5ed6a35860"
+      },
+      {
+        "path": "D:\\code\\rmmo_runtime\\review_artifacts\\axel_post_roads_perf_20261030_01\\shader_queue_B1\\engine.log",
+        "sha256": "a3a55bdb2e7c33db5e07c72d36b98f1dfb0624a396febd8dc3b1a2fb0083606e"
+      }
+    ],
+    "shader_queue_B2": [
+      {
+        "path": "D:\\code\\rmmo_runtime\\review_artifacts\\axel_post_roads_perf_20261030_01\\shader_queue_B2\\report.json",
+        "sha256": "3c6e9f9faef45be69c17620651a1f711d2bb86195dac3a0129557c2600d1e2bc"
+      },
+      {
+        "path": "D:\\code\\rmmo_runtime\\review_artifacts\\axel_post_roads_perf_20261030_01\\shader_queue_B2\\launch.json",
+        "sha256": "97f1622dd7975ad330696cff5dd4d92375873b229d51931f9b04c72a9619ec6f"
+      },
+      {
+        "path": "D:\\code\\rmmo_runtime\\review_artifacts\\axel_post_roads_perf_20261030_01\\shader_queue_B2\\engine.log",
+        "sha256": "663f577ec8708f55f500fe0b0e3a3d32c84098bd41707955d3e4f48c46d0ac02"
+      }
+    ],
+    "shader_queue_A2": [
+      {
+        "path": "D:\\code\\rmmo_runtime\\review_artifacts\\axel_post_roads_perf_20261030_01\\shader_queue_A2\\report.json",
+        "sha256": "3cc39983cc3322f8d37215f5ec8425c36873c18addba02a5c57bec0ab3a225f8"
+      },
+      {
+        "path": "D:\\code\\rmmo_runtime\\review_artifacts\\axel_post_roads_perf_20261030_01\\shader_queue_A2\\launch.json",
+        "sha256": "54e2e25d01335095fda132ab04ac80e3f08cd96f26e9ab6b039854788ac6ff4b"
+      },
+      {
+        "path": "D:\\code\\rmmo_runtime\\review_artifacts\\axel_post_roads_perf_20261030_01\\shader_queue_A2\\engine.log",
+        "sha256": "6996e29d70b58f0aec3a0e13bbd234308b3cb8be4fefa111ffeae3c97c234ae1"
+      }
+    ],
+    "shader_contract_A1": [
+      {
+        "path": "D:\\code\\rmmo_runtime\\review_artifacts\\axel_post_roads_perf_20261030_01\\shader_contract_A1\\report.json",
+        "sha256": "0a6f6bcd797e2dcab5abb1c77b56d515b1df0bb4c3f76a13c53bcb292591191a"
+      },
+      {
+        "path": "D:\\code\\rmmo_runtime\\review_artifacts\\axel_post_roads_perf_20261030_01\\shader_contract_A1\\launch.json",
+        "sha256": "3ab6b052ff0230d2b48d2acb08df00028487885d285f115cd37332a6d6c14ee5"
+      },
+      {
+        "path": "D:\\code\\rmmo_runtime\\review_artifacts\\axel_post_roads_perf_20261030_01\\shader_contract_A1\\engine.log",
+        "sha256": "4f5dfc99d856182055cf1611fafc61a1f9aa2611ecdffee7e123551dc0ce15b8"
+      }
+    ],
+    "shader_contract_B1": [
+      {
+        "path": "D:\\code\\rmmo_runtime\\review_artifacts\\axel_post_roads_perf_20261030_01\\shader_contract_B1\\report.json",
+        "sha256": "0a6f6bcd797e2dcab5abb1c77b56d515b1df0bb4c3f76a13c53bcb292591191a"
+      },
+      {
+        "path": "D:\\code\\rmmo_runtime\\review_artifacts\\axel_post_roads_perf_20261030_01\\shader_contract_B1\\launch.json",
+        "sha256": "806460b92bc279bd0a6de2eaa21f188d7ea6616b93a4305f49f4bef96b51f05c"
+      },
+      {
+        "path": "D:\\code\\rmmo_runtime\\review_artifacts\\axel_post_roads_perf_20261030_01\\shader_contract_B1\\engine.log",
+        "sha256": "4f5dfc99d856182055cf1611fafc61a1f9aa2611ecdffee7e123551dc0ce15b8"
+      }
+    ],
+    "native_handoff_engine09": [
+      {
+        "path": "D:\\code\\rmmo_runtime\\review_artifacts\\axel_post_roads_perf_20261030_01\\native_handoff_engine09\\report.json",
+        "sha256": "4861518f64846b7e6523f54edc836b2c769a6282e34e4a1d11c1b3175ac63bd6"
+      },
+      {
+        "path": "D:\\code\\rmmo_runtime\\review_artifacts\\axel_post_roads_perf_20261030_01\\native_handoff_engine09\\launch.json",
+        "sha256": "6c49d04946885065de90d2981fa456f8df5538bba5f1e4d012025ca52cb80fc2"
+      },
+      {
+        "path": "D:\\code\\rmmo_runtime\\review_artifacts\\axel_post_roads_perf_20261030_01\\native_handoff_engine09\\engine.log",
+        "sha256": "50113c2b63c74b5b48939dbfc947afbdcfc1611c3022c5481beefd0a106924e1"
+      }
+    ],
+    "engine09_map_first": [
+      {
+        "path": "D:\\code\\rmmo_runtime\\review_artifacts\\axel_post_roads_perf_20261030_01\\engine09_map_first\\summary.json",
+        "sha256": "ef90723c62a176574ca87a0b5ef740f78cc07f9a1e6c353685e5b3f95c654fc2"
+      },
+      {
+        "path": "D:\\code\\rmmo_runtime\\review_artifacts\\axel_post_roads_perf_20261030_01\\engine09_map_first\\launch.json",
+        "sha256": "67ef9d04aae6070007dda811cc3f63b506d2139fe9133110dffc4935ec815acb"
+      },
+      {
+        "path": "D:\\code\\rmmo_runtime\\review_artifacts\\axel_post_roads_perf_20261030_01\\engine09_map_first\\engine.log",
+        "sha256": "49aa90d70735028c0dbefa148a7bc4afa667783946a72d099f74e4ad72771b3a"
+      }
+    ],
+    "engine09_map_second": [
+      {
+        "path": "D:\\code\\rmmo_runtime\\review_artifacts\\axel_post_roads_perf_20261030_01\\engine09_map_second\\summary.json",
+        "sha256": "f520162518eaa05ddc116082bb2041e4a20f590e0e2718852a7d2fc3996b74d5"
+      },
+      {
+        "path": "D:\\code\\rmmo_runtime\\review_artifacts\\axel_post_roads_perf_20261030_01\\engine09_map_second\\launch.json",
+        "sha256": "5e0fc52e433b7a2f9593e79719be6c73e9b6e9f3bfbf7dadedfd3e613940f001"
+      },
+      {
+        "path": "D:\\code\\rmmo_runtime\\review_artifacts\\axel_post_roads_perf_20261030_01\\engine09_map_second\\engine.log",
+        "sha256": "95927108f44420ab38ca2dba516f951cab32e204026ad20cfe24bc7f7fd39c71"
+      }
+    ],
+    "engine_path_new_A1": [
+      {
+        "path": "D:\\code\\rmmo_runtime\\review_artifacts\\axel_post_roads_perf_20261030_01\\engine_path_new_A1\\summary.json",
+        "sha256": "8742d2b5db4381763ef8d3956f0ec46d7ae0e13c4969baf74f7cd9cf57782f8d"
+      },
+      {
+        "path": "D:\\code\\rmmo_runtime\\review_artifacts\\axel_post_roads_perf_20261030_01\\engine_path_new_A1\\launch.json",
+        "sha256": "1dc41299e3b431417f7b657aebde384a4ce3e55c73bfd839a097d7f7ef1862c6"
+      },
+      {
+        "path": "D:\\code\\rmmo_runtime\\review_artifacts\\axel_post_roads_perf_20261030_01\\engine_path_new_A1\\engine.log",
+        "sha256": "b5fe006fa33fa88a54426dd2601c0cf6703409167e6872cee456a41906b89f6c"
+      }
+    ],
+    "engine_path_new_B1": [
+      {
+        "path": "D:\\code\\rmmo_runtime\\review_artifacts\\axel_post_roads_perf_20261030_01\\engine_path_new_B1\\summary.json",
+        "sha256": "30bbd0450699c00b6b23b9665938a018110b2603b901989412f42b8fd9e00ea0"
+      },
+      {
+        "path": "D:\\code\\rmmo_runtime\\review_artifacts\\axel_post_roads_perf_20261030_01\\engine_path_new_B1\\launch.json",
+        "sha256": "cb6b5f42a3370c58f8a541a523a6b090405d4d3e0fa3bb0f8911cddfec27d189"
+      },
+      {
+        "path": "D:\\code\\rmmo_runtime\\review_artifacts\\axel_post_roads_perf_20261030_01\\engine_path_new_B1\\engine.log",
+        "sha256": "53efd6584822a2748f60b66f7065c26f5bc3de9a0595e0cc47f0b5e1fdbbced1"
+      }
+    ]
+  },
+  "installation": {
+    "installed": false,
+    "default_candidate": "08",
+    "default_executable_sha256": "69fccbed237845e578fdb279d9951ac92c71a29d2a1c7c660903064296cb3303"
+  },
+  "limitations": [
+    "Independent Vulkan repro proves dirty material queue blocking is removed for private worker creation; full-map main-thread uploads remain unchanged.",
+    "First fresh executable-path map runs are slow on both old/new engines. No cold-driver or cold-disk acceptance claim; first slow candidate samples are retained.",
+    "Mobile/OpenGL not separately rendered; main-thread creation and existing-material updates retain their original ordering. Editor streaming/cancellation regression suite still pending before any default installation.",
+    "No production background batch upload switch is enabled by this engine patch. Geometry/material snapshot and retirement ownership must be validated separately."
+  ],
+  "verification": {
+    "directory": "D:\\code\\rmmo_runtime\\review_artifacts\\axel_post_roads_perf_20261030_01\\engine_material_queue_candidate09\\delta_replay_02",
+    "command": "git -c core.autocrlf=false apply --check, then apply incremental patch against four exact candidate08 LF inputs",
+    "replayed_sha256": {
+      "servers/rendering/renderer_rd/storage_rd/material_storage.h": "cec3d806f6718dff3f6852a669d65d4fd57110a9bce43229def6921669939d70",
+      "servers/rendering/renderer_rd/storage_rd/material_storage.cpp": "ad97d86366610b87e952d842b4c04e32460ad0c844965503a0df36cc0478fae6",
+      "servers/rendering/storage/material_storage.h": "a9e3fba28086d8e67bc0650aff53e7526af07d11b1f561b44effad1c05b0fb79",
+      "servers/rendering/rendering_server_default.h": "edbb9868224ff8477879c82482613f9eb52c80c9d36bcd317357363471856086"
+    },
+    "earlier_attempt": "delta_replay_01 used machine autocrlf and produced CRLF; rejected by SHA. Preserve LF bytes."
+  }
+}

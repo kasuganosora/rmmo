@@ -13,6 +13,28 @@ The [4.8 adoption record](../../docs/godot_4_8_adoption_20261029.md) tracks
 runtime/editor integration and remaining boundaries. The 4.7.2 sections below
 are historical experiments, not instructions to downgrade or resume 4.7 work.
 
+## Candidate09 material queue experiment (not installed)
+
+The [four-file incremental patch](godot-4.8-beta1-material-queue-candidate09.patch)
+applies **after candidate08**, not directly to the official archive. Its
+[manifest](godot-4.8-beta1-material-queue-candidate09.json) records exact input/output
+hashes, all 55 compiled source hashes, the isolated executable/symbols and tests.
+The installed default remains candidate08.
+
+A private worker completes its new spatial shader before registering a material
+in the global dirty-uniform queue. This prevents the render thread from finding
+an unfinished material and blocking on the worker's shader-version lock. Main
+thread creation and updates to existing materials keep their original ordering.
+Independent Vulkan tests reduce worker-phase main-frame maxima from 331–391 ms
+to 6–13 ms; first-frame/update/cancellation checks pass 18/18 and native CPU
+handoff passes 35/35. Those results are not a whole-map loading/FPS claim.
+
+Fresh executable paths produce slow first map runs on both engines (112.42 /
+113.15 seconds full readiness). Driver/OS caches are not isolated. The slow
+samples are retained; production batch uploads still occur on main, and editor
+streaming regressions remain required before installation. See the
+[performance record](../../docs/axel_post_roads_performance_20261031.md).
+
 ## Reproducible 4.8 beta1 candidate08
 
 Apply [`godot-4.8-beta1-runtime-candidate08.patch`](godot-4.8-beta1-runtime-candidate08.patch)
