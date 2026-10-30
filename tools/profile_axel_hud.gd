@@ -36,6 +36,9 @@ func _initialize()->void:
 	prefab.fused_texture_checks_enabled=not "--without-fused-texture-checks" in OS.get_cmdline_user_args()
 	prefab.texture_check_profile_enabled=true
 	report.fused_texture_checks=prefab.fused_texture_checks_enabled
+	var map_data=preload("res://scripts/world3d/world_map_data.gd")
+	map_data.native_visible_order_enabled=not "--scripted-map-query-order" in OS.get_cmdline_user_args()
+	report.native_map_query_order=map_data.native_visible_order_enabled
 	if "--trace-completed-jobs" in OS.get_cmdline_user_args():
 		preload("res://scripts/world3d/completed_job_trace.gd").start()
 		_completed_audit=preload("res://tools/completed_job_audit_probe.gd").new()

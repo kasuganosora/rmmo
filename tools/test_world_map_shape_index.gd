@@ -17,7 +17,19 @@ func check(ok:bool,label:String)->void:
 	if not ok:failed+=1
 func shape(rect:Rect2,id:int)->Dictionary:
 	return {"bounds":rect,"polygon":PackedVector2Array([rect.position,Vector2(rect.end.x,rect.position.y),rect.end,Vector2(rect.position.x,rect.end.y),rect.position]),"color":Color.from_hsv(fposmod(id*.037,1),.5,.8),"height":id/3,"id":id}
+func settle_draw(view:Control)->void:
+	# Footprints now record through a bounded multi-frame queue. Two frames can
+	# capture different partial overviews even when the query paths are equal.
+	for i in 240:
+		await process_frame;await RenderingServer.frame_post_draw
+		if view._terrain.is_prepared():
+			view.queue_redraw()
+			await process_frame;await RenderingServer.frame_post_draw
+			check(true,"complete footprint preparation before pixel comparison")
+			return
+	check(false,"complete footprint preparation before pixel comparison")
 func run()->void:
+	Data.native_visible_order_enabled=not "--scripted-map-query-order" in OS.get_cmdline_user_args()
 	create_timer(120).timeout.connect(func():quit(2))
 	var data:=Data.new();var rng:=RandomNumberGenerator.new();rng.seed=972801
 	for i in 1600:
@@ -44,10 +56,10 @@ func run()->void:
 		for mode in 3:
 			view.radar=mode<2;view.center=Vector2(-12,8) if mode==0 else Vector2(-80,-64);view.radius=48 if mode==0 else 120;view.span=4000
 			data._indexed_shape_count=-1;view.queue_redraw()
-			await process_frame;await process_frame;await RenderingServer.frame_post_draw
+			await settle_draw(view)
 			var before:=root.get_texture().get_image()
 			data.rebuild_shape_index();view.queue_redraw()
-			await process_frame;await process_frame;await RenderingServer.frame_post_draw
+			await settle_draw(view)
 			check(before.get_data()==root.get_texture().get_image().get_data(),"pixel-identical radar/overview mode "+str(mode))
 	world.free()
 	# Real document replacement rebuilds the index even when shape count matches.

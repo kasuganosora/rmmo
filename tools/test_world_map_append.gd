@@ -71,7 +71,8 @@ func run()->void:
 	check(footprints(data)==footprints(built(initial+additions+extra)),"repeated append retains complete-build order")
 	for i in old_items.size():check(view._terrain._items[i]==old_items[i],"resize after append preserves prior RID "+str(i))
 	if DisplayServer.get_name()!="headless":
-		var prefix:="D:/code/rmmo_runtime/review_artifacts/world_map_append_20261008"
+		var prefix:=OS.get_environment("RMMO_MAP_APPEND_CAPTURE_PREFIX")
+		if prefix.is_empty():prefix="D:/code/rmmo_runtime/review_artifacts/world_map_append_20261008"
 		view.queue_redraw();await process_frame;await RenderingServer.frame_post_draw
 		var incremental:Image=root.get_texture().get_image();incremental.save_png(prefix+"_incremental.png")
 		world._map_data=built(initial+additions+extra);world._map_data.pins.assign(data.pins)

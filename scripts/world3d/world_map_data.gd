@@ -12,6 +12,9 @@ var _large_shapes:Array[int]=[]
 var _indexed_shape_count:=-1
 var last_query_candidates:=0
 var last_query_indexed:=false
+static var native_visible_order_enabled:=true # Diagnostic scripted-sort baseline.
+var query_profile_enabled:=false
+var query_sort_comparisons:=0
 var shape_revision:=0
 
 var order_revision:=0
@@ -70,12 +73,27 @@ func visible_shapes(rect:Rect2)->Array:
 		for x in range(low.x,high.x+1):
 			for i in _shape_cells.get(Vector2i(x,y),[]):candidates[i]=true
 	last_query_candidates=candidates.size()
-	var ordered:Array=candidates.keys();ordered.sort_custom(func(a,b):return int(shapes[a].get("draw_order",a))<int(shapes[b].get("draw_order",b)))
+	if native_visible_order_enabled:
+		# Rebuild/append already assign each shape a unique rank and maintain
+		# the inverse storage mapping. Sort only intersecting numeric ranks in
+		# native code, without re-reading Dictionaries in a script comparator.
+		var ranks:=PackedInt32Array()
+		for i:int in candidates:
+			if rect.intersects(shapes[i].bounds):ranks.append(int(shapes[i].draw_order))
+		ranks.sort()
+		var visible:Array=[]
+		for rank:int in ranks:visible.append(shapes[_paint_order[rank]])
+		return visible
+	var ordered:Array=candidates.keys();ordered.sort_custom(_query_rank_less)
 	var result:Array=[]
 	# Stable storage IDs are separate from painter order after lazy additions.
 	for i:int in ordered:
 		if rect.intersects(shapes[i].bounds):result.append(shapes[i])
 	return result
+
+func _query_rank_less(a:int,b:int)->bool:
+	if query_profile_enabled:query_sort_comparisons+=1
+	return int(shapes[a].get("draw_order",a))<int(shapes[b].get("draw_order",b))
 
 func _project_specs(specs:Array)->Dictionary:
 	var first:=true;var projected_bounds:=Rect2();var projected_shapes:Array=[];var projected_markers:Array=[];var seen:Dictionary={}
