@@ -1,4 +1,6 @@
 extends Node2D
+const Retirement=preload("res://scripts/world3d/resource_retirement.gd")
+static var sliced_retirement_enabled:=true # Diagnostic synchronous baseline.
 ## Retain each footprint's fill/outline commands in original painter order.
 ## Panning only changes visibility and the parent transform, never tessellation.
 var shapes:Array=[]
@@ -7,6 +9,7 @@ var timing:Dictionary={}
 var commands_recorded:=0
 var prepared_width:=-1.0
 var _items:Array[RID]=[]
+var _canvas_group:=RID()
 var _widths:Array[float]=[]
 var _orders:Array[int]=[]
 var _order_revision:=-1
@@ -81,7 +84,15 @@ func _process(_delta:float)->void:
 func _record(i:int,width:float)->void:
 	if not _items[i].is_valid():
 		var item:=RenderingServer.canvas_item_create()
-		RenderingServer.canvas_item_set_parent(item,get_canvas_item())
+		var parent:=get_canvas_item()
+		if sliced_retirement_enabled:
+			if not _canvas_group.is_valid():
+				_canvas_group=RenderingServer.canvas_item_create()
+				RenderingServer.canvas_item_set_parent(_canvas_group,parent)
+				# Create the shared service while alive, before exit propagation.
+				Retirement._service()
+			parent=_canvas_group
+		RenderingServer.canvas_item_set_parent(item,parent)
 		RenderingServer.canvas_item_set_draw_index(item,_orders[i])
 		RenderingServer.canvas_item_set_visible(item,false)
 		_items[i]=item
@@ -119,9 +130,14 @@ func show_shapes(visible_shapes:Array,width:float)->void:
 
 func clear()->void:
 	set_process(false)
-	for item in _items:
-		if item.is_valid():RenderingServer.free_rid(item)
-	_items.clear();_widths.clear();_orders.clear();_visible.clear();_source=[];shapes=[];_data=null;_revision=-1;prepared_width=-1.;_warm_cursor=0
+	# Freeing our parent detaches every child from the live canvas immediately;
+	# it does not destroy their RIDs. The shared queue owns that bounded work.
+	var detached:=_canvas_group.is_valid()
+	if detached:RenderingServer.free_rid(_canvas_group);_canvas_group=RID()
+	if not detached or not Retirement.defer_canvas_items(_items):
+		for item in _items:
+			if item.is_valid():RenderingServer.free_rid(item)
+	_items=[];_widths.clear();_orders.clear();_visible.clear();_source=[];shapes=[];_data=null;_revision=-1;prepared_width=-1.;_warm_cursor=0
 	_order_revision=-1;_priority.clear();_priority_cursor=0;_queued.clear()
 
 func _exit_tree()->void:clear()

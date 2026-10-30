@@ -2,6 +2,7 @@ extends RefCounted
 ## Per-camera presentation only. Never edits records, collision layers or navmesh.
 const Blueprint=preload("res://scripts/world3d/building_blueprint.gd")
 const CELL:=32.0
+static var incremental_catalog_enabled:=true # Diagnostic legacy-work control.
 var map_root:Node
 var buildings:Dictionary={}
 var _part_buildings:Dictionary={}
@@ -16,12 +17,27 @@ var applied_key:=""
 var applied_revision:=-1
 
 func _instances(root:Node)->Dictionary:
+	return _instances_for(root,{})
+
+func _instances_for(root:Node,wanted:Dictionary)->Dictionary:
 	var meta:Dictionary=preload("res://scripts/world3d/gltf_map_io.gd").extras_of(root)
-	var result:Dictionary=meta.get("building_instances",{}).duplicate()
+	var native:Dictionary=meta.get("building_instances",{})
+	var result:Dictionary={}
+	if wanted.is_empty():result=native.duplicate()
+	else:
+		for id:String in wanted:
+			if native.has(id):result[id]=native[id]
 	var author:Dictionary=root.get_meta("author_reference_extras",meta)
+	# The mounted package producer already owns the authored model contract.
+	# A camera needs rooms/poses, not a repeated audit of thousands of members.
+	var trusted:bool=incremental_catalog_enabled and root.has_meta("source_map_sha256") and root.has_meta("author_reference_extras") and preload("res://scripts/world3d/runtime_package_policy.gd").trusted()
 	for raw:Dictionary in author.get("rmmo_records",[]):
-		var record:Dictionary=raw.duplicate();record.merge(raw.get("rmmo_state",{}),true)
-		if record.has("model_building") and preload("res://scripts/world3d/imported_building.gd").valid_record(record):result[str(record.uuid)]={"imported_record":record}
+		var state:Dictionary=raw.get("rmmo_state",{})
+		if incremental_catalog_enabled:
+			if not raw.has("model_building") and not state.has("model_building"):continue
+			if not wanted.is_empty() and not wanted.has(str(state.get("uuid",raw.get("uuid","")))):continue
+		var record:Dictionary=raw.duplicate();record.merge(state,true)
+		if record.has("model_building") and (trusted or preload("res://scripts/world3d/imported_building.gd").valid_record(record)):result[str(record.uuid)]={"imported_record":record}
 	return result
 
 func bind(root:Node)->void:
@@ -30,12 +46,13 @@ func bind(root:Node)->void:
 	var meta:Dictionary=preload("res://scripts/world3d/gltf_map_io.gd").extras_of(root)
 	var instances:=_instances(root)
 	for id:String in instances:_sync_building(id,instances[id])
-	append_records(root,meta.get("rmmo_records",[]))
+	var shared:Variant=instances if incremental_catalog_enabled else null
+	append_records(root,meta.get("rmmo_records",[]),shared)
 	# Imported author records describe the whole resource. Its already loaded
 	# presentation members are in the streaming library, including on a rebind.
-	append_specs(root,root.get_meta("stream_library",[]))
+	append_specs(root,root.get_meta("stream_library",[]),shared)
 
-func append_specs(root:Node,specs:Array)->void:
+func append_specs(root:Node,specs:Array,catalog:Variant=null)->void:
 	if root!=map_root or not is_instance_valid(map_root):return
 	var records:Array=[]
 	for spec:Dictionary in specs:
@@ -48,11 +65,20 @@ func append_specs(root:Node,specs:Array)->void:
 			var center:=bounds.get_center();var size:=bounds.size
 			record={"uuid":str(spec.uuid),"building":extra.building,"position":[center.x,center.y,center.z],"size":[size.x,size.y,size.z]}
 		if record.has("building"):records.append(record)
-	append_records(root,records)
+	append_records(root,records,catalog)
 
-func append_records(root:Node,records:Array)->void:
+func append_records(root:Node,records:Array,catalog:Variant=null)->void:
 	if root!=map_root or not is_instance_valid(map_root) or records.is_empty():return
-	var instances:=_instances(root)
+	var instances:Dictionary
+	if catalog is Dictionary:instances=catalog
+	elif incremental_catalog_enabled:
+		var wanted:Dictionary={}
+		for record:Dictionary in records:
+			var id:=str(record.get("building",{}).get("id",""))
+			if not id.is_empty():wanted[id]=true
+		if wanted.is_empty():return
+		instances=_instances_for(root,wanted)
+	else:instances=_instances(root)
 	var changed:Dictionary={};var touched:Dictionary={}
 	for record:Dictionary in records:
 		var id:=str(record.get("building",{}).get("id",""))
@@ -115,7 +141,9 @@ func _sync_building(id:String,instance:Dictionary)->bool:
 
 func _sync_imported(id:String,record:Dictionary)->bool:
 	var Imported=preload("res://scripts/world3d/imported_building.gd")
-	var header:={"model_building":record.model_building,"position":record.position,"rotation":record.rotation,"size":record.size}
+	# Member annotations arrive through append_specs. They do not change room
+	# cells; retaining/copying them here also duplicates a potentially huge table.
+	var header:={"regions":record.model_building.regions,"position":record.position,"rotation":record.rotation,"size":record.size} if incremental_catalog_enabled else {"model_building":record.model_building,"position":record.position,"rotation":record.rotation,"size":record.size}
 	if buildings.has(id) and buildings[id].header==header:return false
 	var parts:Dictionary=buildings[id].parts if buildings.has(id) else {}
 	if buildings.has(id):_remove_cells(id)

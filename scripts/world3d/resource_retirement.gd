@@ -58,6 +58,17 @@ func _enqueue_private_array(values:Array)->Dictionary:
 	var ticket:Dictionary={"kind":"private_array","source_id":id,"values":values}
 	pending.append(ticket);known[id]=true;profile.private_arrays+=1;set_process(true)
 	return ticket
+static func defer_canvas_items(items:Array[RID])->bool:
+	# The producer first detaches its exclusive canvas parent. These children
+	# cannot render or be reused, but native destruction still belongs on main.
+	# Transfer the private outer array; do not clear it at the call site.
+	if items.is_empty() or not Thread.is_main_thread():return false
+	var service:Node=_service()
+	if service==null:return false
+	service.serial+=1;var id:="canvas:%d"%service.serial
+	service.pending.append({"kind":"canvas_items","source_id":id,"items":items})
+	service.known[id]=true;service.set_process(true)
+	return true
 static func defer_terrain_shape_owners(shapes:Variant,basis_entries:Variant)->bool:
 	# Exact producer schema only: flat Shape refs from identity and <=8 basis
 	# sets. Snapshot outer refs; never mutate borrowed arrays or send RIDs to CPU.
@@ -256,6 +267,7 @@ func _advance(ticket:Dictionary,budget_usec:int)->bool:
 	_advancing_ticket=previous
 	return complete
 func _advance_ticket(ticket:Dictionary,budget_usec:int)->bool:
+	if ticket.get("kind","")=="canvas_items":return _advance_canvas_items(ticket,budget_usec)
 	if ticket.get("kind","")=="pixel_buffers":return _advance_pixel_buffers(ticket,budget_usec)
 	if ticket.get("kind","")=="cpu_geometry":return _advance_cpu_geometry(ticket,budget_usec<=0)
 	if ticket.get("kind","")=="model":return _advance_model(ticket,budget_usec)
@@ -289,6 +301,19 @@ func _advance_ticket(ticket:Dictionary,budget_usec:int)->bool:
 	var elapsed:=Time.get_ticks_usec()-began
 	profile.slices+=1;profile.max_slice_us=maxi(int(profile.max_slice_us),elapsed)
 	return ticket.phase==2
+func _advance_canvas_items(ticket:Dictionary,budget_usec:int)->bool:
+	var began:=Time.get_ticks_usec();var progressed:=false;var released:=0
+	while not ticket.items.is_empty() and (not progressed or budget_usec<=0 or Time.get_ticks_usec()-began<budget_usec):
+		progressed=true
+		var item:RID=ticket.items.pop_back()
+		if item.is_valid():RenderingServer.free_rid(item);released+=1
+	profile.canvas_items=int(profile.get("canvas_items",0))+released
+	profile.canvas_slices=int(profile.get("canvas_slices",0))+1
+	var elapsed:=Time.get_ticks_usec()-began
+	profile.canvas_release_us=int(profile.get("canvas_release_us",0))+elapsed
+	profile.canvas_max_slice_us=maxi(int(profile.get("canvas_max_slice_us",0)),elapsed)
+	return ticket.items.is_empty()
+
 func _advance_private_array(ticket:Dictionary,budget_usec:int)->bool:
 	var began:=Time.get_ticks_usec();var progressed:=false
 	var trace=preload("res://scripts/world3d/load_trace.gd")

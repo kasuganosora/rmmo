@@ -4,6 +4,7 @@ const Components=preload("res://scripts/world3d/model_components.gd")
 const Fixtures=preload("res://scripts/world3d/building_fixtures.gd")
 const Settings=preload("res://scripts/world3d/editor_view_settings.gd")
 const Bounds=preload("res://scripts/world3d/asset_bounds_manifest.gd")
+var output_dir:=OS.get_environment("RMMO_COMPONENT_TEST_OUT") if not OS.get_environment("RMMO_COMPONENT_TEST_OUT").is_empty() else "D:/code/rmmo_runtime/review_artifacts/axel_landmarks_20261016/pipeline"
 var checks:Array=[]
 var failed:=0
 
@@ -89,7 +90,7 @@ func run()->void:
 	source_contract()
 	view_collision_policy()
 	map.free();model.free()
-	var directory:="D:/code/rmmo_runtime/review_artifacts/axel_landmarks_20261016/pipeline"
+	var directory:=output_dir
 	DirAccess.make_dir_recursive_absolute(directory)
 	var file:=FileAccess.open(directory+"/component_logic.json",FileAccess.WRITE)
 	file.store_string(JSON.stringify({"checks":checks,"passed":checks.size()-failed,"failed":failed},"\t"));file.close()
@@ -101,16 +102,17 @@ func source_contract()->void:
 	var data:Dictionary=maker.data()
 	data.nodes[0].extras={"rmmo_model_components":{"version":1},"rmmo_building":{"version":1,"regions":[{"id":"interior","floor":0,"min":[-3,0,-3],"max":[3,5,3]}]}}
 	data.nodes[1].extras={"uuid":"front_leaf","rmmo_part":{"floor":0,"floor_y":0,"role":"door","part":"front"},"rmmo_hinge":{"id":"front","pivot":[-1,0,-2],"angle":100,"open":0}}
-	var directory:="D:/code/rmmo_runtime/review_artifacts/axel_landmarks_20261016/pipeline"
+	var directory:=output_dir
 	DirAccess.make_dir_recursive_absolute(directory)
 	var path:=directory+"/source_contract_fixture.glb"
 	maker.write(path,data);maker.free()
 	var digest:=FileAccess.get_sha256(path);var descriptor:=Imported.source_descriptor(path,digest)
 	check(Imported.valid_descriptor(descriptor),"source JSON float version yields complete bounded descriptor")
 	var record:={"uuid":"fixture","kind":"asset","position":[0,0,0],"rotation":[0,0,0],"size":[1,1,1],"asset_path":path,"model_building":descriptor}
-	check(Imported.verify_source(record),"actual source bytes certify declared rooms, members and fixtures")
+	check(Imported.same(Imported.read_import_source_descriptor(path,digest),record.model_building),"import-only source bytes certify declared rooms, members and fixtures")
+	check(not Imported.verify_source(record),"published runtime descriptor never falls back to raw GLB")
 	var changed:=record.duplicate(true);changed.model_building.regions[0].max[0]+=10
-	check(not Imported.verify_source(changed),"valid source SHA does not authorize a forged room")
+	check(not Imported.same(Imported.read_import_source_descriptor(path,digest),changed.model_building),"valid source SHA does not authorize a forged room")
 	var manifest:=Bounds.read(path);var contained:bool=manifest.known
 	if manifest.known:
 		var row:Dictionary=manifest.mesh_nodes[0]
@@ -122,7 +124,7 @@ func source_contract()->void:
 	data.nodes[0].extras.rmmo_model_components="bad"
 	check(Bounds.from_json(data,36).known,"malformed unrelated opt-in marker cannot crash static bounds parser")
 	FileAccess.open(path,FileAccess.WRITE).store_string("changed")
-	check(not Imported.verify_source(record),"cached descriptor cannot hide changed source bytes")
+	check(Imported.read_import_source_descriptor(path,digest).is_empty(),"cached import descriptor cannot hide changed source bytes")
 	DirAccess.remove_absolute(path)
 
 func view_collision_policy()->void:
@@ -187,6 +189,6 @@ func audit_candidates()->void:
 		check(Imported.valid_descriptor(descriptor),"complete exported source descriptor "+entry[0])
 		var row:={"asset":entry[0],"path":path,"sha256":digest,"ok":not descriptor.is_empty(),"member_count":descriptor.get("members",{}).size(),"fixtures":descriptor.get("fixtures",{}).size(),"rooms":descriptor.get("regions",[]).size()}
 		result.append(row);print(JSON.stringify(row))
-	var file:=FileAccess.open("D:/code/rmmo_runtime/review_artifacts/axel_landmarks_20261016/pipeline/source_contracts.json",FileAccess.WRITE)
+	var file:=FileAccess.open(output_dir.path_join("source_contracts.json"),FileAccess.WRITE)
 	file.store_string(JSON.stringify({"candidates":result,"failed":failed},"\t"));file.close()
 	quit(0 if failed==0 else 1)

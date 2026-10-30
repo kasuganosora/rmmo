@@ -26,6 +26,10 @@ func _initialize()->void:
 	preload("res://scripts/world3d/world_stream.gd").cpu_author_retirement_enabled=not old_disposal
 	preload("res://scripts/world3d/world_stream.gd").sliced_record_disposal_enabled=not old_disposal
 	report.source_owner_retirement=not old_disposal
+	var old_presentation:bool="--without-presentation-retirement" in OS.get_cmdline_user_args()
+	preload("res://scripts/world3d/building_cutaway.gd").incremental_catalog_enabled=not old_presentation
+	preload("res://scripts/ui/world_map_terrain_layer.gd").sliced_retirement_enabled=not old_presentation
+	report.presentation_retirement=not old_presentation
 	var copy:=OS.get_environment("RMMO_HUD_TEST_MAP").replace("\\","/").simplify_path()
 	if not preload("res://scripts/world3d/map_paths.gd").allowed(copy,TEST_ROOT) or not FileAccess.file_exists(copy):
 		printerr("HUD profile requires an existing temporary map under review_artifacts");quit(2);return
