@@ -28,7 +28,14 @@ func sync_remote()->void:
 		if actors.has(selected) and Net.server().combat_stats.npcs.has(selected):
 			var stats:Dictionary=Net.server().combat_stats.npcs[selected]
 			world._hud.show_target(str(stats.get("name",selected)),float(stats.hp)/maxi(1,int(stats.hp_max)))
+		elif Net.is_real_server() and not selected.is_empty() and not Net.server().gameplay.projection.target(selected).is_empty():
+			world._hud.show_target("玩家 "+selected,1.,null,false)
 		else:world._hud.clear_target()
+
+func select_remote_actor(id:String)->void:
+	if not Net.is_real_server() or Net.server().gameplay.projection.target(id).is_empty():return
+	selected=id
+	sync_remote()
 
 func apply_remote_event(event:Dictionary)->void:
 	if not Net.is_real_server():return
@@ -138,7 +145,12 @@ func attack(id: String) -> Dictionary:
 	return _apply(result)
 
 func use_skill(id: String, ground: Variant = null) -> Dictionary:
-	if Net.is_real_server():return Net.server().request_cast(id,selected,ground)
+	if Net.is_real_server():
+		var yaw:Variant=null
+		if ground is Vector3:
+			var origin:Vector3=world._player.global_position
+			yaw=preload("res://scripts/net/remote/combat_contract.gd").aim_yaw(origin,ground,world._player.rotation.y)
+		return Net.server().request_cast(id,selected,ground,yaw)
 	if world._transfer_pending: return {"ok": false, "actions": []}
 	var engine = Net.server().combat_engine
 	var definition: Dictionary = Net.server().skill_catalog.get_skill(id)

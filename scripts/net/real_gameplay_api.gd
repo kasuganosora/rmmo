@@ -7,10 +7,20 @@ func try_attack(npc_id:String,_player_x:int,_player_y:int)->Dictionary:
 func try_use_skill(skill_id:String,target_npc_id:String="",_player_x:int=-9999,_player_y:int=-9999,_ground_x:int=-9999,_ground_y:int=-9999)->Dictionary:
 	if skill_id=="basic_attack":return gameplay.dispatch("attack",[target_npc_id])
 	return gameplay.dispatch("skill",[skill_id,target_npc_id])
-func request_cast(skill_id:String,target_id:String="",ground:Variant=null)->Dictionary:
+func request_cast(skill_id:String,target_id:String="",ground:Variant=null,yaw:Variant=null)->Dictionary:
 	if skill_id=="basic_attack":return gameplay.dispatch("attack",[target_id])
-	return gameplay.dispatch("skill",[skill_id,target_id,ground])
+	if ground is Vector3 and yaw==null:
+		var position:Dictionary=gameplay.transport.self_actor.get("location",{}).get("position_m",{})
+		var origin:=Vector3(position.get("x",0.),position.get("y",0.),position.get("z",0.))
+		yaw=preload("res://scripts/net/remote/combat_contract.gd").aim_yaw(origin,ground,float(gameplay.transport.self_actor.get("facing_radians",0.)))
+	return gameplay.dispatch("skill",[skill_id,target_id,ground,yaw])
 func try_cancel_cast()->Dictionary:return gameplay.dispatch("cancel_cast")
+func try_cancel_status(status_id:String)->Dictionary:return gameplay.dispatch("cancel_status",[status_id])
+func try_learn_skill(skill_id:String)->Dictionary:return gameplay.dispatch("skill_learn",[skill_id])
+func try_skill_respec()->Dictionary:return gameplay.dispatch("skill_respec")
+func try_attr_respec()->Dictionary:return gameplay.dispatch("attribute_respec")
+func try_skill_training_refresh()->Dictionary:return gameplay.dispatch("skill_training_view")
+func snapshot_skill_training()->Dictionary:return gameplay.projection.training_view()
 func try_use_item(item_id:String)->Dictionary:return gameplay.dispatch("item",[item_id])
 func try_equip_item(item_id:String,_slot:String="")->Dictionary:return gameplay.dispatch("inventory",[{"action":"equip","reference":item_id}])
 func try_unequip_item(slot:String)->Dictionary:
@@ -39,6 +49,7 @@ func try_accept_quest(quest_id:String)->Dictionary:return gameplay.dispatch("que
 func try_turn_in_quest(quest_id:String)->Dictionary:return gameplay.dispatch("quest",["complete",quest_id])
 func try_abandon_quest(quest_id:String)->Dictionary:return gameplay.dispatch("abandon_quest",[quest_id])
 func try_respawn(_where:String="town")->Dictionary:return gameplay.dispatch("respawn")
+func try_resurrection_respond(offer_id:String,accept:bool)->Dictionary:return gameplay.dispatch("resurrection_resolve",[offer_id,accept])
 func try_shop_buy(_shop_id:String,item_id:String,qty:int=1)->Dictionary:return gameplay.dispatch("shop",[{"action":"buy","item":item_id,"quantity":qty}])
 func try_shop_sell(item_id:String,qty:int=1)->Dictionary:return gameplay.dispatch("shop",[{"action":"sell","reference":item_id,"quantity":qty}])
 func try_shop_buyback(index:int,_qty:int=-1)->Dictionary:

@@ -100,7 +100,9 @@ func _step(dt: float) -> void:
 		if Input.is_key_pressed(KEY_SHIFT):
 			speed = Motion.RUN_MPS
 	elif click_target is Vector3:
-		var multiplier := clampf(float(Net.server().player_move_speed_mul()), 0.0, 3.0)
+		var remote:=Net.is_real_server()
+		var multiplier := clampf(float(Net.server().player_move_speed_mul()), 0.0, 4.0 if remote else 3.0)
+		var intent_interval:=1./clampf(float(ProjectSettings.get_setting("rmmo/network/movement_hz",20.)),5.,30.)
 		# Consume only points already reached by the actual body. An authority
 		# rejection or a blocked/partial slide cannot advance the route cursor.
 		while click_target is Vector3:
@@ -108,12 +110,17 @@ func _step(dt: float) -> void:
 			var flat := Vector3(target.x - global_position.x, 0, target.z - global_position.z)
 			var length := flat.length()
 			var reached:=WAYPOINT_REACHED_M
-			if Net.is_real_server():reached=maxf(.02,Motion.WALK_MPS/clampf(float(ProjectSettings.get_setting("rmmo/network/movement_hz",20.)),5.,30.)+.015)
+			if remote:reached=maxf(.02,Motion.WALK_MPS*multiplier*intent_interval+.015)
 			if length > reached:
 				# One intent follows one straight path segment. Carrying unused
 				# distance around the next corner would cut across that corner.
 				var distance:=minf(length,Motion.RUN_MPS*multiplier*dt)
 				wish=flat.normalized()*distance/maxf(dt*multiplier,0.00001)
+				if remote and multiplier>0.:
+					# The server keeps one intent between network updates. Walk
+					# the final segment so haste cannot alternate across its end.
+					var terminal:=length<=Motion.RUN_MPS*multiplier*intent_interval+reached
+					wish=flat.normalized()*(Motion.WALK_MPS if terminal else Motion.RUN_MPS)
 				break
 			click_target = _route[0] if not _route.is_empty() else null
 			if not _route.is_empty():

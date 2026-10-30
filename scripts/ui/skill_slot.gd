@@ -10,6 +10,7 @@ const CdChrome = preload("res://scripts/ui/cd_chrome.gd")
 var skill_id: String = ""
 var display_name: String = ""
 var category: String = ""
+var description_text: String = ""
 var slot_index: int = -1
 var icon_index: int = -1
 var icon_ref: String = ""
@@ -38,12 +39,13 @@ func _ready() -> void:
 	_apply_visual()
 
 
-func setup(p_skill_id: String, p_display_name: String, p_category: String = "", p_index: int = -1, p_icon_index: int = -1, p_icon_ref: String = "") -> void:
+func setup(p_skill_id: String, p_display_name: String, p_category: String = "", p_index: int = -1, p_icon_index: int = -1, p_icon_ref: String = "", p_description: String = "") -> void:
 	skill_id = p_skill_id.strip_edges()
 	display_name = p_display_name.strip_edges()
 	if display_name.is_empty():
 		display_name = skill_id
 	category = p_category.strip_edges()
+	description_text=p_description
 	slot_index = p_index
 	icon_index = p_icon_index
 	icon_ref = p_icon_ref.strip_edges()
@@ -70,6 +72,7 @@ func set_icon_ref(ref: String) -> void:
 func clear_slot() -> void:
 	skill_id = ""
 	display_name = ""
+	description_text = ""
 	category = ""
 	icon_index = -1
 	icon_ref = ""
@@ -180,7 +183,8 @@ func _apply_visual() -> void:
 			add_theme_stylebox_override("panel", _passive_sb)
 		else:
 			add_theme_stylebox_override("panel", _filled_sb)
-		var tip := "%s\n%s" % [display_name, skill_id]
+		var tip := display_name
+		if not description_text.is_empty():tip+="\n"+description_text
 		if category == "passive":
 			tip += "\n（被动）"
 		if not known:

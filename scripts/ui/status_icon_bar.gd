@@ -87,7 +87,7 @@ func _rebuild() -> void:
 				continue
 			_buff_row.add_child(slot)
 			buff_n += 1
-		if allow_cancel and not _is_debuff_kind(kind):
+		if allow_cancel and not _is_debuff_kind(kind) and (not d.get("authoritative",false) or d.get("can_cancel",false)):
 			slot.cancelable = true
 			if not slot.cancel_requested.is_connected(_on_slot_cancel_requested):
 				slot.cancel_requested.connect(_on_slot_cancel_requested)

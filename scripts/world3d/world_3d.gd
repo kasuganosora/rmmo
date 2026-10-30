@@ -225,6 +225,8 @@ var _map_pin_sets:Dictionary={}
 var _sit_revision:=0
 var _sit_preparing:=false
 var furniture=preload("res://scripts/world3d/world_furniture.gd").new(self)
+var _resurrection_prompt:ConfirmationDialog
+var _resurrection_offer:=""
 var remote_players=preload("res://scripts/world3d/world_remote_players.gd").new(self)
 
 func facial_expression_catalog()->Array:
@@ -611,6 +613,12 @@ func _unhandled_input(event: InputEvent) -> void:
 		var button := event as InputEventMouseButton
 		if button.pressed and button.button_index == MOUSE_BUTTON_LEFT and not _camera.captured:
 			var hit := _pick(button.position)
+			if Net.is_real_server() and _pending_ground_skill.is_empty():
+				var peer_id:String=remote_players.pick(button.position,hit)
+				if not peer_id.is_empty():
+					_combat.select_remote_actor(peer_id)
+					get_viewport().set_input_as_handled()
+					return
 			if not hit.is_empty():
 				if _pending_ground_skill != "":
 					_combat.use_skill(_pending_ground_skill, hit.position)
@@ -1363,8 +1371,15 @@ func apply_actions(actions: Array) -> void:
 				_revive.hide()
 				_player.input_locked=not is_world_ready()
 				_player.get_node("CharacterModel3D").play("idle","front")
+			"resurrection_update":_show_resurrection_offer(action.get("resurrection",{}))
 			"status_update":
 				if _hud!=null:_hud.apply_status_chips(action.get("statuses",[]))
+			"skill_catalog_update":
+				if _hud!=null:_hud.apply_skill_catalog(action.get("skills",[]))
+			"skill_book_update":
+				if _hud!=null:_hud.apply_skill_book(action)
+			"skill_respec":
+				if _hud!=null:_hud.apply_skill_respec(action)
 			"remote_entities":
 				if _combat!=null:_combat.sync_remote()
 			"remote_combat_event":
@@ -1498,6 +1513,34 @@ func request_use_skill(skill_id: String) -> void:
 
 func request_use_item(item_id: String) -> void:
 	_combat.use_item(item_id)
+
+func _show_resurrection_offer(snapshot:Dictionary)->void:
+	var offer:Dictionary=snapshot.get("offer",{})
+	var id:=str(offer.get("offer_id",""))
+	if snapshot.get("alive",true):id=""
+	if id==_resurrection_offer:return
+	_resurrection_offer=id
+	if is_instance_valid(_resurrection_prompt):_resurrection_prompt.queue_free()
+	if id.is_empty():return
+	_resurrection_prompt=ConfirmationDialog.new()
+	_resurrection_prompt.title="队友复活邀请"
+	_resurrection_prompt.dialog_text="队友提供了复活，接受后恢复 %.0f%% 生命。" % (float(offer.get("hp_bp",0))/100.)
+	_resurrection_prompt.ok_button_text="接受复活"
+	_resurrection_prompt.cancel_button_text="拒绝"
+	_resurrection_prompt.confirmed.connect(func():apply_actions(Net.server().try_resurrection_respond(id,true).get("actions",[])))
+	_resurrection_prompt.canceled.connect(func():apply_actions(Net.server().try_resurrection_respond(id,false).get("actions",[])))
+	add_child(_resurrection_prompt)
+	_resurrection_prompt.popup_centered()
+
+
+func request_learn_skill(skill_id:String)->void:
+	apply_actions(Net.server().try_learn_skill(skill_id).get("actions",[]))
+
+func request_skill_respec()->void:
+	apply_actions(Net.server().try_skill_respec().get("actions",[]))
+
+func request_cancel_status(status_id:String)->void:
+	apply_actions(Net.server().try_cancel_status(status_id).get("actions",[]))
 
 
 func transfer_map(target: String, destination: Vector3, before_commit: Callable = Callable()) -> bool:

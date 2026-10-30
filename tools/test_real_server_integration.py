@@ -19,10 +19,11 @@ def main():
     parser.add_argument('--gameplay', action='store_true', help='Exercise real gameplay with disposable synthetic records and policy')
     parser.add_argument('--quest-social', action='store_true', help='Extend gameplay with new quest objectives, history pages and guild management')
     parser.add_argument('--instance-quest', action='store_true', help='Exercise a real instance encounter, quest completion and reward replay in temporary content')
+    parser.add_argument('--skill-system', action='store_true', help='Exercise two actual clients with learning, friendly healing, resurrection and status cancellation')
     parser.add_argument('--stream', action='store_true', help='Verify actual WebSocket gameplay and absence of HTTP polling')
     parser.add_argument('--aoi', action='store_true', help='Exercise two real clients crossing distance visibility boundaries')
     args = parser.parse_args()
-    if args.quest_social or args.instance_quest:
+    if args.quest_social or args.instance_quest or args.skill_system:
         args.gameplay = True
     with tempfile.TemporaryDirectory(prefix='rmmo-network-') as temporary:
         directory = Path(temporary)
@@ -40,6 +41,10 @@ def main():
             command += configure(content,directory,quest_social=args.quest_social,instance_quest=args.instance_quest)
         script='res://tools/test_real_gameplay.gd' if args.gameplay else 'res://tools/test_real_server.gd'
         marker='REAL_GAMEPLAY_TESTS failures=0' if args.gameplay else 'REAL_SERVER_TESTS failures=0'
+        if args.skill_system:
+            from real_skill_fixture import configure as configure_skills
+            command += configure_skills(content,directory)
+            script, marker = 'res://tools/test_real_skill_system.gd', 'REAL_SKILL_SYSTEM_TESTS failures=0'
         if args.instance_quest:
             marker='REAL_INSTANCE_QUEST_TESTS failures=0'
         if args.stream:

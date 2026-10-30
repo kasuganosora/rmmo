@@ -1,5 +1,6 @@
 extends RefCounted
 ## Convert modern server identities to the existing HUD's read-only vocabulary.
+const Contract=preload("res://scripts/net/remote/combat_contract.gd")
 const SLOTS={"weapon":"weapon_main","offhand":"weapon_off","neck":"necklace","ring1":"ring_l","ring2":"ring_r"}
 var transport:Node
 var definitions:Dictionary={}
@@ -10,15 +11,31 @@ var last_dialogue:Dictionary={}
 var shop:Dictionary={}
 var shop_revision:=0
 var _revision:=0
+var _definition_version:=""
+var _skill_catalog_stamp:=""
+var _skill_book_stamp:=""
+var _resurrection_stamp:=""
 
 func _init(owner:Node)->void:transport=owner
 
 func reset()->void:
 	_revision+=1;shop_revision+=1
 	definitions.clear();entities.clear();items.clear();quests.clear();last_dialogue.clear();shop.clear()
+	_definition_version="";_skill_catalog_stamp="";_skill_book_stamp="";_resurrection_stamp=""
+
+func _sync_definition_version()->void:
+	var training:Dictionary=transport.business_snapshots.get("skills",{}).get("training",{})
+	var stamp:=JSON.stringify([transport.context(),training.get("version",0)])
+	if stamp!=_definition_version:
+		_definition_version=stamp;_revision+=1;definitions.clear()
 
 func definition(kind:String,id:String)->Dictionary:
-	var key:=kind+":"+id
+	_sync_definition_version()
+	if kind=="skills":
+		for entry:Dictionary in training_view().get("entries",[]):
+			if entry.get("skill_uuid","")==id and entry.get("definition") is Dictionary:
+				return entry.definition.duplicate(true)
+	var key:=kind+":"+id+":"+_definition_version
 	if definitions.has(key):return definitions[key]
 	var revision:=_revision
 	var result:Dictionary=await transport.request_api("/v1/gameplay/definition?kind="+kind.uri_encode()+"&uuid="+id.uri_encode())
@@ -31,6 +48,7 @@ func definition(kind:String,id:String)->Dictionary:
 	return definitions[key]
 
 func hydrate()->Dictionary:
+	_sync_definition_version()
 	var scope:Dictionary=transport.context()
 	var publication:int=transport._snapshot_published_serial
 	var snapshots:Dictionary=transport.business_snapshots.duplicate(true)
@@ -51,19 +69,18 @@ func hydrate()->Dictionary:
 		if scope!=transport.context() or publication!=transport._snapshot_published_serial:return {"ok":false,"error":"stale_projection"}
 		if data.is_empty():return {"ok":false,"error":"missing_item_definition","item":id}
 		pending_items.append({"id":id,"data":data})
+	var skill_ids:Dictionary={}
+	var training_entries:Dictionary={}
 	for skill:String in snapshots.get("skills",{}).get("grants",{}):
-		if not snapshots.skills.grants[skill]:continue
+		if snapshots.skills.grants[skill]:skill_ids[skill]=true
+	for entry:Dictionary in snapshots.get("skills",{}).get("training",{}).get("entries",[]):
+		var skill:=str(entry.get("skill_uuid",""))
+		if not skill.is_empty():skill_ids[skill]=true;training_entries[skill]=entry
+	for skill:String in skill_ids:
 		var data:Dictionary=await definition("skills",skill)
 		if scope!=transport.context() or publication!=transport._snapshot_published_serial:return {"ok":false,"error":"stale_projection"}
 		if data.is_empty():return {"ok":false,"error":"missing_skill_definition","skill":skill}
-		var row:=data.duplicate(true);row.id=skill
-		row.cooldown=float(data.get("timing",{}).get("cooldown_ms",0))/1000.
-		row.cast_time=float(data.get("timing",{}).get("cast_ms",0))/1000.
-		row.mp_cost=data.get("cost",{}).get("mp",0)
-		row.range=data.get("target",{}).get("range_m",0)
-		row.requires_target=data.get("target",{}).get("mode","")=="unit"
-		row.target_mode="ground" if data.get("target",{}).get("mode","")=="area" else data.get("target",{}).get("mode","self")
-		pending_skills.append(row)
+		pending_skills.append(Contract.skill_row(skill,data,training_entries.get(skill,{})))
 	for entity:Dictionary in snapshots.get("entities",[]):
 		var id:=str(entity.get("uuid",""))
 		if id.is_empty():continue
@@ -73,6 +90,8 @@ func hydrate()->Dictionary:
 		var row:=entity.duplicate(true);row["details"]=data;pending_entities[id]=row
 	if scope!=transport.context() or publication!=transport._snapshot_published_serial:return {"ok":false,"error":"stale_projection"}
 	for item:Dictionary in pending_items:register_item(str(item.id),item.data)
+	transport.skill_catalog._by_id.clear()
+	transport.skill_catalog.register_skill({"id":"basic_attack","name":"普通攻击","requires_target":true,"starter":true,"category":"physical"})
 	for skill:Dictionary in pending_skills:transport.skill_catalog.register_skill(skill)
 	entities=pending_entities
 	apply()
@@ -115,9 +134,38 @@ func instance(reference:String,include_equipped:bool=false)->Dictionary:
 	return found[0].duplicate(true) if found.size()==1 else {}
 
 func target(id:String)->Dictionary:
-	if not entities.has(id):return {}
-	var row:Dictionary=entities[id]
-	return {"id":id,"map":row.get("map",""),"generation":int(row.get("state",{}).get("generation",0))}
+	if id.is_empty():return {}
+	var map_ref:=str(transport.world_session.get("map_ref",""))
+	var row:Dictionary={}
+	var generation:Variant=null
+	if transport.actors.has(id):
+		if entities.has(id):return {}
+		row=transport.actors[id]
+		if row.get("location",{}).get("map_ref","")!=map_ref:return {}
+		generation=row.get("generation")
+	elif id==transport._session_character_id and not transport.self_actor.is_empty():
+		row=transport.self_actor
+		if row.get("location",{}).get("map_ref","")!=map_ref:return {}
+		generation=row.get("generation")
+	elif entities.has(id):
+		row=entities[id]
+		if row.get("map","")!=map_ref:return {}
+		generation=row.get("state",{}).get("generation")
+	else:return {}
+	if not generation is int and not generation is float:return {}
+	if not is_finite(float(generation)) or float(generation)!=floor(float(generation)) or float(generation)<0 or float(generation)>9007199254740991:return {}
+	return {"id":id,"map":map_ref,"generation":int(generation)}
+
+func training_view()->Dictionary:
+	return transport.business_snapshots.get("skills",{}).get("training",{}).duplicate(true)
+
+func training_entry(id:String)->Dictionary:
+	for entry:Dictionary in training_view().get("entries",[]):
+		if str(entry.get("skill_uuid",""))==id:return entry.duplicate(true)
+	return {}
+
+func statuses_snapshot()->Dictionary:
+	return Contract.status_state(transport.business_snapshots.get("statuses",{}))
 
 func acceptance(quest_id:String)->Dictionary:
 	for quest:Dictionary in transport.business_snapshots.get("progression",{}).get("quests",[]):
@@ -153,6 +201,13 @@ func apply()->void:
 	var progression:Dictionary=transport.business_snapshots.get("progression",{})
 	var inventory:Dictionary=transport.business_snapshots.get("inventory",{})
 	var attributes:Dictionary=inventory.get("stats",{})
+	var vitals:Dictionary=transport.business_snapshots.get("combat-state",{})
+	transport.combat_stats.player={"authoritative":true}
+	for key:String in ["hp","hp_max","mp","mp_max"]:
+		if vitals.has(key):transport.combat_stats.player[key]=int(vitals[key])
+	for key:String in ["level","experience","experience_to_next","exp_to_next"]:
+		if progression.has(key):transport.combat_stats.player[{"experience":"exp","experience_to_next":"exp_to_next"}.get(key,key)]=progression[key]
+	transport.combat_stats.player.attributes=attributes.duplicate(true)
 	for key:String in attributes.get("effective",{}):
 		transport.combat_stats.player[{"attack":"atk","defense":"def"}.get(key,key)]=attributes.effective[key]
 	transport.combat_stats.player.attrs=attributes.get("points",{}).duplicate(true)
@@ -170,7 +225,10 @@ func apply()->void:
 	var known:Array=[]
 	for id:String in skills.get("grants",{}):
 		if skills.grants[id]:known.append(id)
-	transport.combat_stats.skill_book.apply_snapshot({"known":known,"skill_points":0})
+	var training:Dictionary=skills.get("training",{})
+	for entry:Dictionary in training.get("entries",[]):
+		if (int(entry.get("rank",0))>0 or entry.get("granted",false)) and str(entry.get("skill_uuid","")) not in known:known.append(str(entry.skill_uuid))
+	transport.combat_stats.skill_book.apply_snapshot({"known":known,"skill_points":int(training.get("skill_points",0))})
 	quests=[]
 	for raw:Dictionary in progression.get("quests",[]):
 		var definition:Dictionary=raw.get("definition",{})
@@ -190,8 +248,13 @@ func apply()->void:
 	transport.combat_stats.clear_npcs()
 	for id:String in entities:
 		var row:Dictionary=entities[id];var data:Dictionary=row.details
-		var stats:Dictionary=transport.combat_stats.ensure_npc(id,bool(row.get("combat_enabled",false)))
-		stats.hp=int(row.get("state",{}).get("hp",0));stats.hp_max=int(data.get("hp_max",1));stats.name=str(data.get("name",id));stats.level=int(data.get("level",1))
+		var state:Dictionary=row.get("state",{})
+		var stats:Dictionary={"authoritative":true,"hp":int(state.get("hp",0)),"hp_max":int(data.get("hp_max",1)),"name":str(data.get("name",id)),"level":int(data.get("level",1)),"hostile":bool(row.get("combat_enabled",false))}
+		var effective:Dictionary=row.get("stats",{}).get("effective",{})
+		for key:String in effective:stats[{"attack":"atk","defense":"def"}.get(key,key)]=effective[key]
+		if state.has("mp"):stats.mp=int(state.mp)
+		if data.has("mp_max"):stats.mp_max=int(data.mp_max)
+		transport.combat_stats.npcs[id]=stats
 
 func equipment_bonuses()->Dictionary:
 	var value:Dictionary=transport.business_snapshots.get("inventory",{}).get("stats",{}).get("equipment",{})
@@ -204,15 +267,32 @@ func actions()->Array:
 		{"type":"remote_entities"},
 		{"type":"remote_combat_state","stats":transport.combat_stats.snapshot_player_stats()}]
 	result.append_array(transport.gameplay.social.actions())
+	var resurrection:Dictionary=transport.business_snapshots.get("resurrection",{})
+	var resurrection_stamp:=JSON.stringify(resurrection)
+	if resurrection_stamp!=_resurrection_stamp:
+		_resurrection_stamp=resurrection_stamp;result.append({"type":"resurrection_update","resurrection":resurrection.duplicate(true)})
+	var skill_rows:Array=transport.skill_catalog.list_all()
+	var catalog_stamp:=JSON.stringify(skill_rows)
+	if catalog_stamp!=_skill_catalog_stamp:
+		_skill_catalog_stamp=catalog_stamp;result.append({"type":"skill_catalog_update","skills":skill_rows})
+	var book:Dictionary=transport.combat_stats.skill_book.snapshot()
+	var book_stamp:=JSON.stringify([book,training_view()])
+	if book_stamp!=_skill_book_stamp:
+		_skill_book_stamp=book_stamp;result.append(dict_with_book(book))
 	var statuses:Array=[]
-	var now_game:=float(transport.business_snapshots.get("combat-state",{}).get("server_elapsed",0))
-	for status:Dictionary in transport.business_snapshots.get("statuses",{}).get("active",[]):
-		var spec:Dictionary=status.get("definition",{})
-		statuses.append({"id":status.get("status_id",""),"name":spec.get("key",""),"kind":spec.get("kind",""),"stacks":status.get("stacks",1),"remaining_sec":maxf(0.,float(status.get("expires_game_us",0))/1000000.-now_game),"duration_max":float(spec.get("duration_ms",0))/1000.})
+	var snapshot:Dictionary=transport.business_snapshots.get("statuses",{})
+	var now_game:=float(snapshot.get("game_time_us",0))/1000000.
+	if not snapshot.has("game_time_us"):now_game=float(transport.business_snapshots.get("combat-state",{}).get("server_elapsed",0))
+	for status:Dictionary in statuses_snapshot().get("active",[]):
+		statuses.append(Contract.status_row(status,now_game,snapshot.get("cancelable",[])))
 	result.append({"type":"status_update","statuses":statuses})
 	for id:String in transport.combat_stats.skill_ready_at:
 		result.append({"type":"skill_cd","skill_id":id,"remaining":transport.combat_stats.skill_cd_remaining(id),"cooldown":float(transport.skill_catalog.get_skill(id).get("cooldown",0))})
 	return result
+
+func dict_with_book(book:Dictionary)->Dictionary:
+	var action:=book.duplicate(true);action.type="skill_book_update";action.training=training_view()
+	return action
 
 func dialogue(data:Dictionary)->Array:
 	last_dialogue=data.duplicate(true)

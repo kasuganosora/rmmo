@@ -402,11 +402,25 @@ func refresh_world_snapshots()->Dictionary:
 		# Publish the newest accepted cache, never the earlier local batch copy.
 		var published:Dictionary=_publish_runtime_cache(scope,serial)
 		if not published.ok:return published
-	return await gameplay.projection.hydrate()
+	return await _hydrate_authoritative_projection(scope)
+
+func _hydrate_authoritative_projection(scope:Dictionary)->Dictionary:
+	# Stream publication can supersede a definition read while HTTP yields.
+	# Retry only the read-only projection; never replay the committed action.
+	var result:Dictionary={"ok":false,"error":"stale_projection"}
+	for attempt in 3:
+		if scope!=context():return {"ok":false,"error":"stale_gameplay_snapshot"}
+		result=await gameplay.projection.hydrate()
+		if result.get("error","")!="stale_projection":return result
+	return result
 
 func gameplay_command(kind:String,body:Dictionary)->Dictionary:
 	var result:Dictionary=await rpc_call("gameplay_command",{"kind":kind,"json":JSON.stringify(body)})
-	if not result.get("ok",false):return result
+	if not result.get("ok",false):
+		# Protobuf omits the false default on rejected RPC replies. Normalize
+		# the adapter contract so callers never access a missing ok field.
+		result.ok=false
+		return result
 	var envelope:Variant=JSON.parse_string(str(result.get("gameplay_result_json","")))
 	if not envelope is Dictionary:return {"ok":false,"error":"invalid_gameplay_result"}
 	return {"ok":envelope.get("ok",false),"body":envelope,"error":envelope.get("error","")}
@@ -419,7 +433,7 @@ func refresh_gameplay_snapshots()->Dictionary:
 	_snapshot_read_serial+=1
 	var published:Dictionary=_publish_runtime_cache(scope,_snapshot_read_serial)
 	if not published.ok:return published
-	return await gameplay.projection.hydrate()
+	return await _hydrate_authoritative_projection(scope)
 
 func _publish_runtime_cache(scope:Dictionary,serial:int)->Dictionary:
 	if scope!=context() or _runtime_snapshot.scope!=scope:return {"ok":false,"error":"stale_gameplay_snapshot"}
@@ -748,7 +762,14 @@ func snapshot_remote_players()->Array:
 	for id:String in actors:
 		if id!=_session_character_id:result.append(_peer_row(actors[id]))
 	return result
-func player_move_speed_mul()->float:return 1.
+func player_move_speed_mul()->float:
+	var control:Variant=business_snapshots.get("statuses",{}).get("control",{})
+	if not control is Dictionary:return 1.
+	if not control.get("can_move",true):return 0.
+	var speed:Variant=control.get("speed_bp",10000)
+	if not speed is int and not speed is float:return 1.
+	if not is_finite(float(speed)):return 1.
+	return clampf(float(speed)/10000.,0.,4.)
 func player_is_mounted()->bool:return false
 func player_in_safe_zone()->bool:return false
 func load_world_pack(_pack:String,_map:String="",_cell:Vector2i=Vector2i(-1,-1))->bool:return false

@@ -1078,6 +1078,7 @@ func apply_combat_stats(stats: Dictionary) -> void:
 	## Apply authoritative HP/MP/level/exp from MockServer actions / spawn.
 	if stats.is_empty():
 		return
+	if stats.get("authoritative",false):_server_combat.clear()
 	for k in stats.keys():
 		var v = stats[k]
 		# Skip sentinel -1 for numeric fields we treat as "unchanged".
@@ -1729,8 +1730,10 @@ func _fill_character(body: VBoxContainer, ch: Dictionary, use_server_eq: bool = 
 	if use_server_eq:
 		_sync_equipment_cache()
 	_sync_attr_cache_from_server()
-	var st: Dictionary = L2Mock.char_stats(ch)
-	var bon: Dictionary = _server_equip_bonuses
+	var authoritative:=Net.is_real_server()
+	var st:Dictionary={"class_label":str(ch.get("class_label",ch.get("class","")))} if authoritative else L2Mock.char_stats(ch)
+	# Remote atk/def already include equipment and statuses.
+	var bon:Dictionary={} if authoritative else _server_equip_bonuses
 	var show_lv: int = int(_server_combat.get("level", ch.get("level", 1)))
 	var main := HBoxContainer.new()
 	main.name = "CharMain"
@@ -1782,7 +1785,10 @@ func _fill_character(body: VBoxContainer, ch: Dictionary, use_server_eq: bool = 
 		_add_label(overview, "EXP  %d / %d" % [exp_cur, exp_next], 12, L2Style.COL_TEXT)
 	else:
 		_add_label(overview, "EXP  %d" % exp_cur, 12, L2Style.COL_TEXT)
-	_add_label(overview, "SP  %d" % int(st.get("sp", 0)), 12, L2Style.COL_TEXT)
+	if authoritative:
+		var training:Dictionary=Net.server().snapshot_skill_training()
+		_add_label(overview,"技能点  "+(str(int(training.skill_points)) if training.has("skill_points") else "未提供"),12,L2Style.COL_TEXT)
+	else:_add_label(overview, "SP  %d" % int(st.get("sp", 0)), 12, L2Style.COL_TEXT)
 	var adena_v: int = maxi(_server_gold, 0) if _server_gold >= 0 else int(st.get("adena", 0))
 	_add_label(overview, "金币  %d" % adena_v, 12, L2Style.COL_GOLD)
 	var _guild_chip := str(_guild_state.get("name", "")).strip_edges()
@@ -1800,8 +1806,13 @@ func _fill_character(body: VBoxContainer, ch: Dictionary, use_server_eq: bool = 
 	_add_attr_row(attributes, "智力", "intel", int(attrs.get("intel", 0)), unspent_ap)
 	var respec_btn := Button.new()
 	respec_btn.text = "重置属性（30金）"
+	if authoritative:
+		var training:Dictionary=Net.server().snapshot_skill_training()
+		respec_btn.text="重置属性（%d 金币）" % int(training.get("attribute_respec_gold",0))
+		respec_btn.visible=training.get("enabled",false)
 	respec_btn.focus_mode = Control.FOCUS_NONE
 	respec_btn.disabled = (int(attrs.get("str", 0)) + int(attrs.get("agi", 0)) + int(attrs.get("vit", 0)) + int(attrs.get("intel", 0))) <= 0
+	if authoritative:respec_btn.disabled=not Net.server().snapshot_skill_training().get("attribute_respec_allowed",false)
 	respec_btn.pressed.connect(_on_attr_respec_pressed)
 	attributes.add_child(respec_btn)
 	_add_label(overview, "— 战斗 —", 11, L2Style.COL_MUTED)
@@ -1811,10 +1822,29 @@ func _fill_character(body: VBoxContainer, ch: Dictionary, use_server_eq: bool = 
 	var m_atk := int(st.get("m_atk", 0)) + int(bon.get("m_atk", 0))
 	var p_def := base_pdef + int(bon.get("p_def", 0))
 	var m_def := int(st.get("m_def", 0)) + int(bon.get("m_def", 0))
-	_add_stat_line(overview, "物攻", p_atk, "魔攻", m_atk)
-	_add_stat_line(overview, "物防", p_def, "魔防", m_def)
-	_add_label(overview, "CP / HP / MP", 11, L2Style.COL_MUTED)
-	_add_label(overview, "%d  /  %d  /  %d" % [int(_cp_max), int(_hp_max), int(_mp_max)], 12, L2Style.COL_VALUE)
+	if authoritative:
+		var contract=preload("res://scripts/net/remote/combat_contract.gd")
+		var effective:Dictionary=_server_combat.get("attributes",{}).get("effective",{}).duplicate(true)
+		if int(_server_combat.get("attributes",{}).get("rules_version",0))>=1:
+			for key:String in ["magic_attack","magic_defense","crit_chance_bp","crit_damage_bp","accuracy_bp","evasion_bp","control_hit_bp","control_resist_bp","attack_speed_bp","cast_speed_bp","heal_power_bp"]:
+				if not effective.has(key):effective[key]=0
+		_add_label(overview,"物攻  %s    魔攻  %s" % [contract.attribute_text(effective,"attack"),contract.attribute_text(effective,"magic_attack")],12,L2Style.COL_VALUE)
+		_add_label(overview,"物防  %s    魔防  %s" % [contract.attribute_text(effective,"defense"),contract.attribute_text(effective,"magic_defense")],12,L2Style.COL_VALUE)
+		for stat in [["crit_chance_bp","暴击率"],["crit_damage_bp","额外暴击倍率"],["accuracy_bp","命中"],["evasion_bp","闪避"],["control_hit_bp","控制命中"],["control_resist_bp","控制抗性"],["attack_speed_bp","攻击速度加成"],["cast_speed_bp","施法速度加成"],["heal_power_bp","治疗加成"]]:
+			if effective.has(stat[0]):_add_label(overview,"%s  %.2f%%" % [stat[1],float(effective[stat[0]])/100.],12,L2Style.COL_TEXT)
+		var element_names:={"fire":"火","water":"水","wind":"风","earth":"土","holy":"圣","dark":"暗"}
+		for element:String in element_names:
+			var attack:Dictionary=effective.get("element_attack",{})
+			var resist:Dictionary=effective.get("element_resist",{})
+			if int(_server_combat.get("attributes",{}).get("rules_version",0))>=1 or attack.has(element) or resist.has(element):
+				_add_label(overview,"%s属性攻击  %d    抗性  %.2f%%" % [element_names[element],int(attack.get(element,0)),float(resist.get(element,0))/100.],12,L2Style.COL_TEXT)
+		_add_label(overview,"HP / MP",11,L2Style.COL_MUTED)
+		_add_label(overview,"%d  /  %d" % [int(_hp_max),int(_mp_max)],12,L2Style.COL_VALUE)
+	else:
+		_add_stat_line(overview, "物攻", p_atk, "魔攻", m_atk)
+		_add_stat_line(overview, "物防", p_def, "魔防", m_def)
+		_add_label(overview, "CP / HP / MP", 11, L2Style.COL_MUTED)
+		_add_label(overview, "%d  /  %d  /  %d" % [int(_cp_max), int(_hp_max), int(_mp_max)], 12, L2Style.COL_VALUE)
 	if not bon.is_empty():
 		_add_label(overview, "— 装备加成 —", 11, L2Style.COL_MUTED)
 		var parts: Array[String] = []
@@ -1881,7 +1911,12 @@ func _on_attr_plus_pressed(stat_key: String) -> void:
 
 
 func _on_attr_respec_pressed() -> void:
-	preload("res://scripts/ui/game_window.gd").confirm_action(_windows["character"], "花费 30 金币重置已分配属性并返还属性点？", "确认重置属性", _confirm_attr_respec)
+	var cost:=30
+	if Net.is_real_server():
+		var training:Dictionary=Net.server().snapshot_skill_training()
+		if not training.get("attribute_respec_allowed",false):return
+		cost=int(training.get("attribute_respec_gold",0))
+	preload("res://scripts/ui/game_window.gd").confirm_action(_windows["character"],"花费 %d 金币重置已分配属性并返还属性点？" % cost,"确认重置属性",_confirm_attr_respec)
 
 
 func _confirm_attr_respec() -> void:
@@ -2112,6 +2147,7 @@ func _player_level_for_skills() -> int:
 	return _skills_panel_logic._player_level_for_skills()
 func _can_learn_selected() -> bool:
 	var sid := _selected_skill_id.strip_edges()
+	if Net.is_real_server():return bool(Net.server().gameplay.projection.training_entry(sid).get("learnable",false))
 	if sid.is_empty() or _is_skill_known(sid):
 		return false
 	var def := _skill_def(sid)

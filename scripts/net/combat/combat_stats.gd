@@ -968,6 +968,7 @@ func spend_rested_for_kill(base_amount: int) -> int:
 
 
 func snapshot_player_stats() -> Dictionary:
+	if player.get("authoritative",false):return player.duplicate(true)
 	ensure_attrs()
 	ensure_rested()
 	var snap: Dictionary = player.duplicate(true)

@@ -775,6 +775,7 @@ func _normalize_skill_category(def: Dictionary) -> String:
 	var cat = str(def.get("category", "")).strip_edges()
 	if cat == "physical" or cat == "magic" or cat == "passive":
 		return cat
+	if def.has("effects"):return preload("res://scripts/net/remote/combat_contract.gd").category(def,def.get("training",{}))
 	var eff = str(def.get("effect", ""))
 	if eff.begins_with("passive"):
 		return "passive"
@@ -829,7 +830,11 @@ func _fill_skills(body: VBoxContainer, _ch: Dictionary) -> void:
 	respec_btn.name = "RespecSkillButton"
 	respec_btn.text = "重置技能"
 	respec_btn.focus_mode = Control.FOCUS_NONE
-	respec_btn.tooltip_text = "重置已学技能并返还技能点（花费 50 金币）。保留普通攻击。"
+	if Net.is_real_server():
+		var training:Dictionary=Net.server().snapshot_skill_training()
+		respec_btn.disabled=not training.get("respec_allowed",false)
+		respec_btn.tooltip_text="重置已学技能并返还技能点（%d 金币）" % int(training.get("respec_gold",0)) if training.get("enabled",false) else "此服务器尚未开放技能学习"
+	else:respec_btn.tooltip_text = "重置已学技能并返还技能点（花费 50 金币）。保留普通攻击。"
 	respec_btn.pressed.connect(_on_respec_skill_pressed)
 	head.add_child(respec_btn)
 	var sel_lbl = Label.new()
@@ -895,7 +900,7 @@ func _fill_skills(body: VBoxContainer, _ch: Dictionary) -> void:
 			caption.tooltip_text = sname
 			entry.add_child(caption)
 			grid.add_child(entry)
-			cell.setup(sid, sname, cat, i, six, sref)
+			cell.setup(sid, sname, cat, i, six, sref, str(sdef.get("desc",sdef.get("description",""))))
 			var known = ctrl._is_skill_known(sid)
 			if cell.has_method("set_known"):
 				cell.set_known(known)
@@ -979,6 +984,20 @@ func _update_skills_learn_row(learn_btn: Button, sel_lbl: Label) -> void:
 		return
 	var def = _skill_def(sid)
 	var sname = str(def.get("name", _skill_display_name(sid)))
+	if Net.is_real_server():
+		var entry:Dictionary=Net.server().gameplay.projection.training_entry(sid)
+		if entry.is_empty():
+			sel_lbl.text="%s · 无可学习等级" % sname;learn_btn.disabled=true;return
+		var next:Dictionary=entry.get("next",{})
+		learn_btn.text="升级" if int(entry.get("rank",0))>0 else "学习"
+		learn_btn.disabled=not entry.get("learnable",false)
+		sel_lbl.text="%s · Lv.%d / %d" % [sname,int(entry.get("rank",0)),int(entry.get("max_rank",0))]
+		if not next.is_empty():sel_lbl.text+=" · 需要角色 Lv.%d · %d 技能点 · %d 金币" % [int(next.get("level",1)),int(next.get("sp",0)),int(next.get("gold",0))]
+		for requirement:Dictionary in next.get("requires",[]):
+			sel_lbl.text+=" · 前置 %s Lv.%d" % [_skill_display_name(str(requirement.get("skill_uuid",""))),int(requirement.get("rank",1))]
+		var reason:=str(entry.get("reason",""))
+		if learn_btn.disabled and not reason.is_empty():sel_lbl.text+=" · "+training_reason(reason)
+		return
 	if ctrl._is_skill_known(sid):
 		sel_lbl.text = "已学会：%s" % sname
 		learn_btn.disabled = true
@@ -1032,7 +1051,15 @@ func _on_learn_skill_pressed() -> void:
 
 
 func _on_respec_skill_pressed() -> void:
-	preload("res://scripts/ui/game_window.gd").confirm_action(ctrl._windows["skills"], "花费 50 金币重置已学技能并返还技能点，保留普通攻击。", "确认重置技能", _confirm_skill_respec)
+	var text:="花费 50 金币重置已学技能并返还技能点，保留普通攻击。"
+	if Net.is_real_server():
+		var training:Dictionary=Net.server().snapshot_skill_training()
+		if not training.get("respec_allowed",false):ctrl.append_system(training_reason(str(training.get("respec_reason","技能暂不可重置"))));return
+		text="花费 %d 金币重置已学等级并返还技能点，保留服务器授予的能力。" % int(training.get("respec_gold",0))
+	preload("res://scripts/ui/game_window.gd").confirm_action(ctrl._windows["skills"],text,"确认重置技能",_confirm_skill_respec)
+
+static func training_reason(reason:String)->String:
+	return str({"level":"等级不足","skill_points":"技能点不足","gold":"金币不足","prerequisite":"前置技能等级不足","max_rank":"已达最高等级","not_trainable":"此技能不可学习","combat_busy":"战斗中暂不可操作","disabled":"技能学习尚未开放","nothing_to_respec":"没有可重置的学习等级","nothing_to_reset":"没有可重置的学习等级","unavailable":"此技能暂不可学习","level_required":"等级不足","prerequisite_required":"前置技能等级不足","insufficient_skill_points":"技能点不足","insufficient_gold":"金币不足"}.get(reason,reason))
 
 
 func _confirm_skill_respec() -> void:

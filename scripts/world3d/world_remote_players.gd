@@ -5,6 +5,26 @@ var world
 var models:Dictionary={}
 var states:Dictionary={}
 func _init(owner):world=owner
+
+func pick(screen:Vector2,terrain_hit:Dictionary)->String:
+ if not world.Net.is_real_server():return ""
+ var camera:Camera3D=world._camera.get_node("Camera3D")
+ var origin:=camera.project_ray_origin(screen)
+ var direction:=camera.project_ray_normal(screen)
+ var limit:=origin.distance_to(terrain_hit.position) if terrain_hit.has("position") else 80.
+ var chosen:=""
+ for id:String in models:
+  if not world.Net.server().actors.has(id) or world.Net.server().gameplay.projection.target(id).is_empty():continue
+  var actor:Dictionary=world.Net.server().actors[id]
+  var feet:Vector3=models[id].global_position
+  var radius:=clampf(float(actor.get("body_radius",.3)),.1,2.)
+  var height:=clampf(float(actor.get("body_height",1.8)),.2,5.)
+  var bounds:=AABB(feet-Vector3(radius,0,radius),Vector3(radius*2,height,radius*2))
+  var point:Variant=bounds.intersects_ray(origin,direction)
+  if point is Vector3:
+   var distance:=origin.distance_to(point)
+   if distance<limit or is_equal_approx(distance,limit) and (chosen.is_empty() or id<chosen):limit=distance;chosen=id
+ return chosen
 func receive(action:Dictionary)->void:
  var id:=str(action.get("actor_id",""))
  var weights:Variant=action.get("weights",{})
