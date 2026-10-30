@@ -24,6 +24,8 @@ func _initialize()->void:
 	report.native_cpu_handoff=preload("res://scripts/world3d/compiled_asset_preparation.gd").native_cpu_handoff_enabled
 	preload("res://scripts/world3d/ground_batcher.gd").private_layered_upload_enabled="--private-layered-upload" in OS.get_cmdline_user_args()
 	report.private_layered_upload=preload("res://scripts/world3d/ground_batcher.gd").private_layered_upload_enabled
+	preload("res://scripts/world3d/ground_batcher.gd").private_road_upload_enabled="--private-road-upload" in OS.get_cmdline_user_args()
+	report.private_road_upload=preload("res://scripts/world3d/ground_batcher.gd").private_road_upload_enabled
 	var old_disposal:bool="--without-source-retirement" in OS.get_cmdline_user_args()
 	preload("res://scripts/world3d/world_navigation.gd").sliced_source_disposal_enabled=not old_disposal
 	preload("res://scripts/world3d/dependency_index_proof.gd").cpu_snapshot_retirement_enabled=not old_disposal

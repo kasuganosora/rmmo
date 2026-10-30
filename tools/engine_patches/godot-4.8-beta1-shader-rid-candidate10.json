@@ -1,0 +1,80 @@
+{
+  "schema_version": 1,
+  "candidate": "10",
+  "status": "isolated_candidate_not_installed",
+  "apply_after": {
+    "path": "tools/engine_patches/godot-4.8-beta1-material-queue-candidate09.json",
+    "sha256": "6fabcd1b8e02e28d6caeffe835a86daf413b696d9c582aa3516ba7cdfdd402ea",
+    "instruction": "Apply candidate08 cumulative patch, candidate09 incremental patch, then this single-file binding patch. Preserve LF."
+  },
+  "patch": {
+    "path": "tools/engine_patches/godot-4.8-beta1-shader-rid-candidate10.patch",
+    "sha256": "32eda6560f6e28bc38bd283a346d15d3ca90a87ff6bfaab8b78938199862b206"
+  },
+  "files": [
+    {
+      "path": "scene/resources/material.cpp",
+      "before_sha256": "949511f4ead9358d3e7e83b9cbf7cc6cbb96000326884bdd87393ebd3be38150",
+      "after_sha256": "d0f395748262d75fad22797650f60e5c9735b17948af0065b02f8aa289500948"
+    }
+  ],
+  "build": {
+    "receipt": "D:\\code\\rmmo_runtime\\review_artifacts\\axel_post_roads_perf_20261030_01\\engine_shader_rid_candidate10\\result.json",
+    "receipt_sha256": "85d0728229eff3bf7a97b25336539c489e1c6ebc9f6ced484589c9fe912db900",
+    "command": [
+      "D:/tools/godot-4.8-build/python-env/Scripts/python.exe",
+      "-m",
+      "SCons",
+      "platform=windows",
+      "arch=x86_64",
+      "target=editor",
+      "use_mingw=yes",
+      "debug_symbols=yes",
+      "separate_debug_symbols=yes",
+      "dev_build=no",
+      "optimize=speed",
+      "lto=none",
+      "d3d12=no",
+      "accesskit=no",
+      "angle=no",
+      "-j4",
+      "tests=no"
+    ],
+    "seconds": 432.0,
+    "artifacts": {
+      "godot.windows.editor.x86_64.console.exe": {
+        "sha256": "ef5208bb2bc0e714b94009a08195a07029175e0ce586f1bb58ca958ac8b54699",
+        "bytes": 199477
+      },
+      "godot.windows.editor.x86_64.console.exe.debugsymbols": {
+        "sha256": "45983be73b2b80cc356e65f521eee8bb0a66c97c14f5fe8542a077fd8dc07bc0",
+        "bytes": 78178
+      },
+      "godot.windows.editor.x86_64.exe": {
+        "sha256": "7a8029a67b0e0bbc442c12f5ebf0aa67baf2e53f65c8750dd5fbb6b4adabdb53",
+        "bytes": 163200906
+      },
+      "godot.windows.editor.x86_64.exe.debugsymbols": {
+        "sha256": "bd2749d59db19ef16b32351530922b81af52e7a6372a238a1331f0131b52c7c7",
+        "bytes": 2167773287
+      }
+    },
+    "source_unchanged": true,
+    "default_unchanged": true
+  },
+  "behavior": "Expose the existing virtual Material.get_shader_rid native method. No render ordering/wait is removed by the binding. Main prepares the immutable private StandardMaterial shader key; existing leased batch worker then creates the actual material/mesh using candidate09 dirty-queue ordering. Ordinary main creation and shared materials are unchanged.",
+  "verification": {
+    "functional": "road_private_contract10: 81 checks, zero failures, actual first-draw pixels, source mutation isolation, cancellation/drain, stale source rejection and editor exclusion. Default08 regression: 55/55 including absent-API fallback.",
+    "real_batch": "road_install_A1/B1/B2/A2: exact 10 pavement identities, 3 surfaces/45264 vertices, packed bytes and CPU source identity; B pixel A/B/A equality. road_install_pixel_final additionally proves nonblank varied pavement pixels. A1 slow first draw retained; no p95 claim.",
+    "map": "road_map10_A1/B1/B2/A2: all normal full-HUD lifecycle checks pass with identical source/map SHA. A2 max main batch commit 430.629ms; B1/B2 15.619/24.033ms. Full readiness 70.245s versus 68.732/70.201s does not establish a large loading gain. Default engine and both private upload flags remain unchanged/off.",
+    "map_evidence": "D:\\code\\rmmo_runtime\\review_artifacts\\axel_post_roads_perf_20261030_01\\road_map10_comparison.json",
+    "patch_replay": "D:\\code\\rmmo_runtime\\review_artifacts\\axel_post_roads_perf_20261030_01\\engine_shader_rid_candidate10\\delta_replay_02\\result.json"
+  },
+  "limitations": [
+    "Candidate09 prerequisites still apply. This patch is not a universal thread-safety guarantee for mutable materials.",
+    "New private material owners per unique batch key are intentional; textures and geometry are not copied or decoded again.",
+    "Readiness and cancellation remain governed by the existing worker lease and group generation.",
+    "Access violation and separate post-entry ~670ms spike remain unresolved.",
+    "Real content-editor rendering/native-import regression remains pending before default engine replacement."
+  ]
+}

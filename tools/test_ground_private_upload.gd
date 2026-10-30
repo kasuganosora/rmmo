@@ -65,16 +65,16 @@ func capture(mesh:Mesh)->Image:
 	await Presented.drawn()
 	return viewport.get_texture().get_image()
 
-func execute(source:Array,background:bool)->Dictionary:
+func execute(source:Array,background:bool,plain_roads:bool=false)->Dictionary:
 	var began:=Time.get_ticks_usec();var data:Dictionary
 	if background:
-		var copied:=Upload.snapshot(source)
+		var copied:=Upload.snapshot(source,plain_roads)
 		var snap:=Time.get_ticks_usec()
 		var worker:=Thread.new();var ticket:=Retirement.watch(worker,self,[copied])
 		check(worker.start(Upload.build.bind(copied,Vector3.ZERO))==OK,"existing leased worker starts private upload")
 		while worker.is_alive():await process_frame
 		data=worker.wait_to_finish()
-		check(data.private_upload_info.thread!=OS.get_main_thread_id(),"actual layered texture/material/mesh submission runs off main")
+		check(data.private_upload_info.thread!=OS.get_main_thread_id(),"actual texture/material/mesh submission runs off main")
 		check(not data.mesh.has_meta("ground_cpu_cache"),"worker does not register scene-owned CPU cache")
 		var finish:=Time.get_ticks_usec();Geometry.finish_upload(data)
 		rows.append({"background":true,"snapshot_us":snap-began,"worker":data.private_upload_info,"finish_us":Time.get_ticks_usec()-finish,"wall_us":Time.get_ticks_usec()-began})
@@ -143,7 +143,7 @@ func dispatch_case(source:Array,runtime:bool,withdraw:bool)->void:
 	while not batcher._preparation.is_empty():batcher._prepare_step(0)
 	check(batcher.groups.size()==1 and batcher.pending.size()==1,"real batch source collection creates one expected group")
 	batcher._build_next(true)
-	check(batcher._workers.size()==1 and batcher.private_upload_jobs==(1 if runtime else 0),"actual dispatch selects private upload only for runtime layered sources")
+	check(batcher._workers.size()==1 and batcher.private_upload_jobs==(1 if runtime else 0),"actual dispatch selects private upload only for eligible runtime sources")
 	if withdraw:
 		# The ordinary source lifetime signal invalidates its complete group
 		# before the finished result is consumed, regardless of worker timing.
@@ -164,8 +164,8 @@ func dispatch_case(source:Array,runtime:bool,withdraw:bool)->void:
 	batcher.clear();host.free()
 	await process_frame
 
-func cancel_case(source:Array)->void:
-	var copied:=Upload.snapshot(source);var reference:WeakRef=first_material_reference(copied)
+func cancel_case(source:Array,plain_roads:bool=false)->void:
+	var copied:=Upload.snapshot(source,plain_roads);var reference:WeakRef=first_material_reference(copied)
 	var gate:=Gate.new();var worker:=Thread.new();var ticket:=Retirement.watch(worker,self,[copied])
 	var token:RefCounted=ticket.token
 	check(start_gate(worker,gate,copied)==OK,"cancellation worker starts")
@@ -180,6 +180,41 @@ func cancel_case(source:Array)->void:
 	while token.has_meta("admission_owner") and Time.get_ticks_msec()<deadline:await process_frame
 	print("CANCEL_STATE ",JSON.stringify({"token_owner":token.has_meta("admission_owner"),"material_alive":retained(reference),"mesh_alive":retained(gate.mesh),"worker_alive":worker.is_alive(),"worker_started":worker.is_started()}))
 	check(not token.has_meta("admission_owner") and not retained(reference) and not retained(gate.mesh),"abandoned result and material lease really release after join")
+
+func road_case()->void:
+	var source:=members()
+	for member:Dictionary in source:
+		# The upload contract consumes arrays, not a road authoring recipe. Keep
+		# this compact synthetic geometry; the real 10-road probe covers records.
+		member.record.erase("terrain_mesh");member.record.road_mesh={}
+		var material:=StandardMaterial3D.new();material.albedo_color=Color(.7,.6,.4)
+		material.albedo_texture=member.materials[0].get_shader_parameter("base_albedo")
+		member.materials=[];member.keys=[]
+		for slot in member.surfaces.size():member.materials.append(material);member.keys.append(Geometry.material_key(material))
+	if not source[0].materials[0].has_method("get_shader_rid"):
+		check(Upload.snapshot(source,true).is_empty(),"engine without preparation API retains old road upload")
+		check(not "--require-native-road" in OS.get_cmdline_user_args(),"requested candidate engine API is available")
+		return
+	var copied:=Upload.snapshot(source,true);var original:StandardMaterial3D=source[0].materials[0]
+	check(copied.size()==2 and copied[0].materials[0]!=original and copied[0].materials[0]==copied[1].materials[0],"road snapshot copies one material per batch key")
+	check(copied[0].materials[0].albedo_texture==original.albedo_texture,"road snapshot shares the actual texture without upload or decode")
+	original.roughness=.123
+	check(copied[0].materials[0].roughness!=.123,"road private material is isolated from source parameter changes")
+	original.roughness=1.
+	var bad:Dictionary=source[0].duplicate();bad.record=bad.record.duplicate();bad.record.erase("road_mesh")
+	check(Upload.snapshot([bad],true).is_empty(),"road candidate cannot admit unrelated Standard material batches")
+	bad=source[0].duplicate();bad.materials=[original.duplicate()];bad.materials[0].next_pass=StandardMaterial3D.new()
+	check(Upload.snapshot([bad],true).is_empty(),"road candidate rejects a shared next pass")
+	var oracle:=await execute(source,false);var expected:=await capture(oracle.mesh)
+	var uploaded:=await execute(source,true,true);var image:=await capture(uploaded.mesh)
+	check(image.get_data()==expected.get_data(),"road private material first draw matches synchronous pixels")
+	check(var_to_bytes(Cpu.capture(uploaded.mesh).surfaces)==var_to_bytes(Cpu.capture(oracle.mesh).surfaces),"road upload retains exact geometry and work")
+	await cancel_case(source,true)
+	Ground.private_road_upload_enabled=true
+	await dispatch_case(source,true,false)
+	await dispatch_case(source,true,true)
+	await dispatch_case(source,false,false)
+	Ground.private_road_upload_enabled=false
 
 func run()->void:
 	for arg:String in OS.get_cmdline_user_args():
@@ -230,6 +265,7 @@ func run()->void:
 	await dispatch_case(source,true,true)
 	await dispatch_case(source,false,false)
 	Ground.private_layered_upload_enabled=false
+	await road_case()
 	viewport.free();oracle={};copied=[];source=[];River.cache.clear()
 	await process_frame
 	OS.remove_logger(logger);check(logger.errors.is_empty(),"no engine or script errors")

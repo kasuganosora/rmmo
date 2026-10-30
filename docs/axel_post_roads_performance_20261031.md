@@ -586,3 +586,60 @@ Windows Application 1000/1001确认故障PID15188（0x3B54）及默认引擎路�
 实例1505、引用读取1074、mesh投影2176、face准备顶点9731922、直接prefab742、临时节点释放1870完全相同。整图outgoing_map少11.412ms，与独立复现的释放机制一致；卸载尖峰仍207.638ms，不能称为已解决。初始加载发生在本改动触发之前，**71.931→69.127s不能归因于卸载修复**；返回耗时也只是一对观察，low指标反而较差，全部如实保留。主要确定收益是移走已确认的纯数据主线程释放，没有删除游戏工作或扩大队列。
 
 补充时钟对齐：diagnostic里485.891ms surface安装发生在地图计时16.651s、入口18.584s之前，处于遮罩阶段，**不能直接拿它解释入口后约670ms尖峰**。后续按两个窗口分别抓真实调用栈：先明确这3个surface的准确源/材质和原生安装等待，再定位入口后绘制/发布长帧；卸载约94ms地图析构和末尾access violation也保留为未解决项。当前候选和默认引擎不互换，测试工程已恢复累计实现，其他会话的道路/灯光/编辑器WIP继续保留。
+
+## 真实道路批次：身份、独立复现与原生等待链
+
+累计代码`4d0364bf`后的`surface_identity_exception_01`开启边界Trace，并在返回阶段附加异常专用GDB观察器。地图、源码和释放检查通过，进程正常退出；观察器没有收到SIGSEGV/SIGABRT，**不能据此宣布上一轮access violation已解决**。GDB附加本身产生约2832ms返回帧，整份样本仅用于诊断，73.902s完整加载不参与正常性能比较。
+
+新增诊断只在Trace开启时记录字符串身份：`batch.commit.begin`保留group类别及源节点名，超过20ms的`batch.upload.slow_materials`保留材质类、名称和路径，不查询lazy RID、不额外持有Resource。最大安装479.480ms再次对应3个surface、45264顶点，10个源均为`pavement_*`，不是此前private layered候选覆盖的ShaderMaterial地形。准确ID及3个StandardMaterial3D描述见`P/road_install_comparison.json`；这次仍发生在遮罩内，与入口后674.657ms峰值分开。
+
+`tools/probe_road_batch_install.gd`只读同一固定地图的这10个资源引用，使用实际`Road.arrays → WorldDocument._mesh(CPU index) → GroundBatchGeometry.build → upload`，无GLB回退、无简化材质、无额外地图写入。独立重现准确3个surface/45264顶点。首次`road_install_red01`安装1157.192ms、后续首帧9.975ms；其三个解码浮点逐字节断言失败，样本保留，不作为通过样本。改为逐项检查引擎打包的vertex/attribute/skin/index字节及保留的原始CPU数组后全部通过；解码的量化法线/UV不应冒充原始浮点字节合同。
+
+第一次`road_install_gdb01`用SceneTree计时器等待观察器，all-stop暂停扭曲simulation delta，97个样本错过安装窗口。这次只证明测试通过，不作为安装归因。`road_install_gdb02`改用文件握手和`ArrayMesh::_set_surfaces`实际入口断点；第1–5个主线程样本一致为：
+
+`ArrayMesh::_set_surfaces → RenderingServerDefault::mesh_create_from_surfaces → RenderForwardClustered::mesh_generate_pipelines → ShaderData::is_valid → ShaderRD::version_is_valid → _compile_ensure_finished → _compile_version_end → WorkerThreadPool::wait_for_group_task_completion → Semaphore::wait`。
+
+这将先前整图同类栈落实到一组可独立复现的真实道路数据。`mesh_generate_pipelines(..., background=true)`只取消最后的pipeline等待，前面的shader有效性检查仍同步等待。GDB暂停下的14.171s安装不算性能；正常独立测试与整图结果另行记录。早期probe帧采样未覆盖首次安装间隔，不能用其`max_frame`声称没有尖峰；已将起始时钟移到安装开始，后续版本同时记录整个安装到首帧的墙钟。
+
+### 隔离candidate10与真实道路后台提交候选
+
+没有简单跳过引擎的shader有效性检查：第一次实际绘制仍需可用shader，跳过可能只是把停顿移到下一帧。candidate10在09之上仅向脚本绑定已有原生`Material.get_shader_rid()`。主线程对每个批次唯一材质复制一次，调用getter完成私有StandardMaterial的shader key初始化，但不创建材质RID。这样main flush与worker后续getter都走相同key的只读早退；worker依托09的“先等shader、再进入dirty material队列”顺序创建**最终实际使用的**材质和网格。没有隐藏网格，没有重复纹理加载，几何准备仍用既有3个batch worker/lease/队列及generation检查。新增私有材质拥有者的成本明确计入snapshot，不能宣称总工作量零增长。
+
+`private_road_upload_enabled=false`保持候选关闭，只有运行期全road_mesh且全为受支持StandardMaterial、无next_pass、有原生getter的批次才能显式启用；无API的默认08引擎、编辑器和其他类型保留原路径。layered候选仍独立开关。原生绑定的增量patch、源码SHA、432.0s构建回执、可执行及符号SHA存入`tools/engine_patches/godot-4.8-beta1-shader-rid-candidate10.*`。构建来源是原隔离09源码树，未替换`D:/tools/godot`，未改官方地图/素材/其他会话WIP。
+
+`road_private_contract10` Vulkan **81/81**，覆盖原layered合同和新增道路合同：唯一key共享、纹理identity不变、源材质修改隔离、真实首帧像素一致、既有worker派发、取消不阻塞、lease与结果真正释放、源退出后拒绝迟到发布、编辑器排除，零引擎/脚本错误。
+
+独立真实10-road实验按A1→B1→B2→A2串行、相同candidate10路径、每次新进程/用户缓存执行，均无调试器；OS/driver缓存保留，不宣称冷盘/冷driver。所有packed geometry与原始CPU数组合同通过，B两次实际画面A/B/A字节一致。
+
+| 样本 | 安装/等待墙钟 ms | 初始化主线程 ms | worker上传 ms | 首帧绘制 ms | 安装至首帧 ms | 最大帧 ms / >50ms |
+|---|---:|---:|---:|---:|---:|---:|
+| A1主线程 | 193.448 | — | — | 1510.991 | 1704.539 | 1704.830 / 1 |
+| B1后台 | 177.438 | 13.443 | 160.531 | 1.266 | 178.786 | 16.416 / 0 |
+| B2后台 | 178.728 | 13.184 | 127.960 | 1.612 | 180.422 | 15.256 / 0 |
+| A2主线程 | 165.546 | — | — | 4.336 | 169.992 | 170.390 / 1 |
+
+B的主线程finish只有0.078/0.084ms，初始化还包括probe的值比较和输出。A1首次较慢绘制完整保留，不能挑它宣布十倍总加载收益；与后续A2相比，B墙钟略慢，确定收益是主线程等待被移走，实际首帧也没有重新出现长等待。只对这组独立批次成立，不用两份B估计p95，也不代表整图入口后尖峰和low已修复。正常整图关闭/开启对照继续，默认开关与引擎不变。
+
+### candidate10正常整图ABBA：主线程提交改善，总加载尚无明确大幅改善
+
+`road_map10_A1 → B1 → B2 → A2`已全部串行跑完。共同采用同一隔离candidate10路径、固定地图SHA、全UI/HUD、正常预算、无profiler/GDB或其他引擎/编译进程，唯一运行参数差异是`--private-road-upload`，layered始终关闭。四份源码前后SHA相同、地图不变、旧地图/队列owner释放、回收排空、返回完整需求就绪检查全部通过，进程正常退出、零错误。`P/road_map10_comparison.json`包含全部样本、阶段帧分布、工作量和提交分解。
+
+| 项目 | A1关闭（首次慢样本） | B1开启 | B2开启 | A2关闭 |
+|---|---:|---:|---:|---:|
+| 入口 / 完整就绪 s | 39.377 / 106.822 | 13.178 / 68.732 | 13.442 / 70.201 | 13.326 / 70.245 |
+| 返回收尾 s | 60.219 | 61.170 | 57.484 | 61.201 |
+| 初次main batch最大commit ms | 637.224 | 15.619 | 24.033 | 430.629 |
+| 初次可玩段最大帧 ms | 3429.965 | 685.326 | 657.869 | 629.135 |
+| 卸载最大帧 ms | 1598.737 | 229.609 | 216.176 | 214.316 |
+| 返回加载p95 / 最大帧 ms | 52.445 / 75.075 | 51.238 / 72.732 | 52.008 / 67.692 | 52.445 / 77.105 |
+| 返回加载 >50ms帧数 | 148 | 122 | 137 | 154 |
+| 初次稳定1% low FPS | 27.19 | 25.74 | 26.51 | 26.68 |
+| 返回稳定1% low FPS | 24.71 | 24.73 | 25.51 | 25.15 |
+
+不能用A1首次路径慢样本宣称38秒收益，也不能删掉它。A2对比两份B，约431ms的合批主线程提交降到16–24ms，与独立复现一致；68.732–70.201s完整加载与70.245s对照仍不足以证明明显总耗时收益，稳定low也未形成确定改善。入口后的约658–685ms和卸载约216–230ms继续存在，没有被道路提交修复覆盖。
+
+四份返回实例1505、引用读取1074、直接prefab742、临时节点访问/释放1870、mesh投影2176、face准备顶点9731922相同。初次最后一份500ms合批观察中，A2准备访问30538行、重建291次，B1/B2为30512/30523行、289/290次；未因私有道路上传产生整批工作膨胀。B初次实际执行68/69个道路GPU任务，创建203/205个私有材质副本，snapshot累计53.927/58.977ms；返回61/46任务、182/137副本、50.878/35.629ms，均零fallback。副本用于独占初始化并共享纹理，成本保留；这些是最后一次周期观察，动态源/批次统计存在时序差异，不能当作每帧完全相同的最终census。
+
+补验`road_private_default08` **55/55**，包括没有原生getter时回到旧路径；`road_install_pixel_final`确认真实道路画面包含足够多不同颜色，且候选/原材质/候选A/B/A像素完全一致，避免空画面假通过。candidate10增量patch经`git -c core.autocrlf=false apply --check`及真实重放，源码SHA与编译输入一致。
+
+本切片保留默认关闭的已验证候选和复现工具；**默认引擎仍为08，没有声称已在日常游戏启用收益**。在替换默认引擎前继续补真实内容编辑器渲染/native导入的09/10兼容验证。下一主性能窗口仍是入口后约670ms，需按实际帧时钟用profiler/GDB抓栈；随后处理约210ms卸载和返回50–77ms长帧，以及约70s完整加载/58–61s返回收尾。此前access violation没有新栈，单独保留。同地图区块走动/返回还不能用本轮整图切换替代验收。不得以候选收益宣布目标完成或调整就绪边界。

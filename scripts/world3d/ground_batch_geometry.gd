@@ -247,8 +247,9 @@ static func upload(data: Dictionary) -> Dictionary:
 	return finish_upload(_upload_resources(data))
 
 static func upload_private(data:Dictionary)->Dictionary:
-	# Only the explicit layered-material snapshot path may call this. It owns
-	# its ShaderMaterials and retains the ordinary job's input/texture lease.
+	# Only the explicit private-material snapshot path may call this. It owns
+	# its materials and retains the ordinary job's input/texture lease. The flag
+	# also suppresses a second clone if any slots use layered ShaderMaterials.
 	assert(not Thread.is_main_thread() and data.get("private_layered_materials",false))
 	var retained:Array=[]
 	var result:=_upload_resources(data,retained)
@@ -304,7 +305,18 @@ static func _upload_resources(data:Dictionary,retained:Variant=null)->Dictionary
 		cpu_arrays.append(row.arrays);cpu_lods.append(levels)
 	if Trace.enabled:Trace.elapsed("batch.upload.surface_descriptors",stage_started,{"surfaces":data.slots.size(),"prepared":prepared});stage_started=Time.get_ticks_usec()
 	if prepared:result.set("_surfaces",packed_surfaces)
-	if Trace.enabled:Trace.elapsed("batch.upload.install_surfaces",stage_started,{"surfaces":data.slots.size(),"vertices":data.render_vertices,"private":data.get("private_layered_materials",false)})
+	if Trace.enabled:
+		Trace.elapsed("batch.upload.install_surfaces",stage_started,{"surfaces":data.slots.size(),"vertices":data.render_vertices,"private":data.get("private_layered_materials",false)})
+		# Strings only, after the measured installation. Never query a lazy RID
+		# or retain live resource owners solely for a diagnostic observer.
+		if Time.get_ticks_usec()-stage_started>=20000:
+			var materials:Array=[]
+			for row:Dictionary in data.slots:
+				var material:Material=row.material
+				var description:={"class":material.get_class() if material!=null else "null","name":material.resource_name if material!=null else "","path":material.resource_path if material!=null else ""}
+				if material is ShaderMaterial and material.shader!=null:description.shader_path=material.shader.resource_path
+				materials.append(description)
+			Trace.instant("batch.upload.slow_materials",{"upload_started_us":stage_started,"materials":materials})
 	if data.get("terrain_lod",false) and cpu_lods.any(func(levels):return not levels.is_empty()):result.set_meta("terrain_render_lod",true)
 	return {"mesh":result,"upload_cpu_arrays":cpu_arrays,"upload_cpu_lods":cpu_lods,"source_surfaces":data.source_surfaces,"source_vertices":data.source_vertices,"render_vertices":data.render_vertices}
 

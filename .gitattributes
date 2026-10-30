@@ -43,3 +43,5 @@
 /tools/engine_patches/godot-4.8-beta1-runtime-candidate06.json text eol=lf
 /tools/engine_patches/godot-4.8-beta1-runtime-candidate07.json text eol=lf
 /tools/engine_patches/godot-4.8-beta1-runtime-candidate08.json text eol=lf
+/tools/engine_patches/godot-4.8-beta1-material-queue-candidate09.json text eol=lf
+/tools/engine_patches/godot-4.8-beta1-shader-rid-candidate10.json text eol=lf

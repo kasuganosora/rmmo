@@ -1,0 +1,13 @@
+--- a/scene/resources/material.cpp
++++ b/scene/resources/material.cpp
+@@ -161,5 +161,10 @@
+ }
+ 
+ void Material::_bind_methods() {
++	// Expose the existing native getter independently of the material RID.
++	// Standard materials can finalize their shader key on main before a
++	// private immutable owner is handed to a resource-loading worker.
++	ClassDB::bind_method(D_METHOD("get_shader_rid"), &Material::get_shader_rid);
++
+ 	ClassDB::bind_method(D_METHOD("set_next_pass", "next_pass"), &Material::set_next_pass);
+ 	ClassDB::bind_method(D_METHOD("get_next_pass"), &Material::get_next_pass);

@@ -6,6 +6,7 @@ const Timeline = preload("res://scripts/world3d/ground_batch_timeline.gd")
 const WorkerRetirement=preload("res://scripts/world3d/cpu_worker_retirement.gd")
 const PrivateUpload=preload("res://scripts/world3d/ground_batch_private_upload.gd")
 static var private_layered_upload_enabled:=false # Candidate09 GPU/lifecycle evaluation.
+static var private_road_upload_enabled:=false # Candidate10, exact road batch evaluation.
 var runtime_private_upload:=false # Set by WorldStream, not generic editor batches.
 static var canonical_buildings_enabled:=true
 static var inflight_building_sharing_enabled:=true
@@ -1059,9 +1060,10 @@ func _build_next(background: bool = false) -> void:
 		# main-owned lease even if the entire source map is removed mid-build.
 		for source:Dictionary in snapshot:source.surfaces=WorkerRetirement.snapshot_surfaces(source.surfaces)
 		var private_snapshot:Array=[]
-		if private_layered_upload_enabled and runtime_private_upload and not group.get("private_upload_failed",false):
+		var private_roads:bool=private_road_upload_enabled and snapshot.all(func(source):return source.record.has("road_mesh"))
+		if (private_layered_upload_enabled or private_roads) and runtime_private_upload and not group.get("private_upload_failed",false):
 			var snapshot_started:=Time.get_ticks_usec()
-			private_snapshot=PrivateUpload.snapshot(snapshot)
+			private_snapshot=PrivateUpload.snapshot(snapshot,private_roads)
 			private_upload_snapshot_us+=Time.get_ticks_usec()-snapshot_started
 			if not private_snapshot.is_empty():
 				private_upload_material_copies+=int(private_snapshot[0].private_upload_material_copies);snapshot=private_snapshot
@@ -1212,6 +1214,10 @@ func _commit(group: Dictionary, data: Dictionary, started: int) -> void:
 		if not is_instance_valid(node): return
 	var commit_started := Time.get_ticks_usec()
 	var trace_started:=Time.get_ticks_usec() if preload("res://scripts/world3d/load_trace.gd").enabled else 0
+	if trace_started>0:
+		var source_names:Array=[]
+		for node:Node in group.members:source_names.append(str(node.name))
+		preload("res://scripts/world3d/load_trace.gd").instant("batch.commit.begin",{"category":group.category,"sources":source_names})
 	if data.has("private_upload_info"):
 		# Match the existing accepted-surface counter. Invalidated results still
 		# contribute to private worker work, but were never committed geometry.
