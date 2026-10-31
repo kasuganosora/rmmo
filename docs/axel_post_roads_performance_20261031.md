@@ -1798,3 +1798,9 @@ map.free的样本68为`SceneTree::remove_from_group → Vector.erase/find`，尚
 标量索引32项、运行记录9项、文档/批次缓存18项、碰撞邻域54项回归全部通过。新34引擎另外通过256资源24项组合功能检查；该小样本只验语义，不作为第二组性能对照。证据`P/spatial_retirement35/qualification.json`、`component_comparison.json`和`engine34_smoke/`。
 
 真实地图`spatial_retirement35_trace_01`已启动：固定34引擎、累计33加35候选，使用原生时间线，不附加GDB；新增方法范围只记录浅层索引快照。`P/spatial_retirement35_trace_setup/manifest.json`记录原/插桩源码SHA，结束恢复冻结33工程（新增临时helper也恢复为原先不存在），不改用户地图/主工作区其他会话文件。先确认prepare、map.free和后续释放的实际分布，再决定正常对照及Loader成员采样；此刻尚未拿到35整图收益，候选代码仍未提交。
+
+35首份真实地图诊断完成：exit0、功能/引擎错误0，6,580,469事件、零事件/注册丢失、导出错误及孤立end/交叉span/任务名冲突；旧owner已释放、返回前pending/known均0，冻结33工程按SHA恢复。诊断完整需求就绪52.638s；卸载最大161.217ms，提交147.099ms，其中prepare33.733、body.free31.343、map.free70.795ms。返回最大166.118ms、返回加载66.233ms、空场55.817ms继续保留，private最大slice仍45.272ms；当前一次trace不足以证明整图收益或解决剩余释放长帧。初次30秒/返回15秒诊断low33.31/35.52不能作为正常验收成绩。
+
+首轮新增快照范围有采集缺口：接入的是未启用的LoadTrace方法计时，未进入原生时间线，因此**没有单独的owners()耗时**；上述已有整体提交范围仍有效。保留原setup及capture，v2改在实际调用两侧使用明确注册的NativeMapTrace begin/end。小型真实34引擎测试通过：非零span、2个配对事件、实际begin标签为disposal35.spatial_snapshot，零丢失/导出错误；没有据此补造首轮缺失的耗时。二进制核对首轮误要求end重复label，按协议修正为用token配对（end的label为0），错误及修正保留在result.json，不是引擎故障。`spatial_retirement35_trace_setup_v2`及`native_scope_smoke`保留修正证据，v2整图尚未运行。
+
+已接续启动35正常ABBAAB：固定34引擎、相同35源码，仅sliced_index_disposal_enabled开关不同，完整HUD/纹理及同一冻结地图；正常计时不启用trace/GDB。三次/组同时检查卸载、返回前排空、后续private最大slice、加载和low，结束恢复33工程。入口`P/run_spatial_retirement35_maps.py`，状态`P/spatial_retirement35_map/state.json`；当前未完成，不将首份trace当作三次正常验收。默认引擎未替换、候选代码未提交、夜间未开始。
