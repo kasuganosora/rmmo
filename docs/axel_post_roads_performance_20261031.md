@@ -1804,3 +1804,43 @@ map.free的样本68为`SceneTree::remove_from_group → Vector.erase/find`，尚
 首轮新增快照范围有采集缺口：接入的是未启用的LoadTrace方法计时，未进入原生时间线，因此**没有单独的owners()耗时**；上述已有整体提交范围仍有效。保留原setup及capture，v2改在实际调用两侧使用明确注册的NativeMapTrace begin/end。小型真实34引擎测试通过：非零span、2个配对事件、实际begin标签为disposal35.spatial_snapshot，零丢失/导出错误；没有据此补造首轮缺失的耗时。二进制核对首轮误要求end重复label，按协议修正为用token配对（end的label为0），错误及修正保留在result.json，不是引擎故障。`spatial_retirement35_trace_setup_v2`及`native_scope_smoke`保留修正证据，v2整图尚未运行。
 
 已接续启动35正常ABBAAB：固定34引擎、相同35源码，仅sliced_index_disposal_enabled开关不同，完整HUD/纹理及同一冻结地图；正常计时不启用trace/GDB。三次/组同时检查卸载、返回前排空、后续private最大slice、加载和low，结束恢复33工程。入口`P/run_spatial_retirement35_maps.py`，状态`P/spatial_retirement35_map/state.json`；当前未完成，不将首份trace当作三次正常验收。默认引擎未替换、候选代码未提交、夜间未开始。
+
+### 36：按用户要求先用原生 CSV 查长帧，不再用猜测推进
+
+35正常六份已结束。期间一条范围过大的外部源码搜索可能与A1/B2重叠，按保守边界标记两份受外部工作影响，不能据此归因某帧；记录在`spatial_retirement35_map/external_search_overlap.json`。补充A7完成；用户要求先分析后，核对PID/创建时间/完整命令行，仅终止本轮B8测试并保留中断记录，runner恢复冻结33工程。B8不是完整样本；补充runner因人为取消exit1，不记成游戏崩溃。六份及补充原始结果全部保留，尚未据此验收35整图收益。
+
+直接复用下午原生时间线工具导出的`spans.csv`，对35首份真实地图capture逐帧裁剪范围、扣除直接子span，得到`spatial_retirement35_trace_01/critical_frames.json`。嵌套inclusive耗时不能相加；CPU取自Windows粗粒度GetThreadTimes，短span可能量化为0或高于wall，不按比例补造CPU占比。
+
+| 实际帧 | 原生范围证据 | 已记录的WorkerThreadPool等待 |
+|---|---|---:|
+| 卸载5070，161.217ms | prepare33.719、body.free31.322、map.free70.762ms；map.free的CPU读数62.5ms | 0.119ms |
+| 空场5541，55.817ms | main.scene_process自身45.712ms，与private最大slice45.272ms相符；旧采集没有单个回收对象身份 | 0.467ms |
+| 返回7759，123.496ms | loader.process112、records prefix101.293ms；内含cooked restore43.903ms和instantiate50.359ms | 0.011ms |
+| 返回7898，166.118ms | entry_scope_ready45.321ms，其中候选收集8.674ms；其余105.266ms仍未细分 | 0.025ms |
+| 返回7946，163.046ms | 同步commit121.886ms；接管45.417、环境37.039（相机/轮廓35.357）、地图显示24.820（投影23.931）ms | 0.131ms |
+
+这些证据支持继续查主线程实际销毁和同步回调，**没有证明本轮200ms主要在等待后台上传**；但worker.wait并不覆盖所有原生mutex/驱动等待，不能写成“全部锁已排除”。weather.process在卸载帧仅0.248ms，不等于排除所有时间、所有场景的天气/风成本。旧352ms主循环外尖峰仍未复现。
+
+新增的36外部诊断夹具补齐：实际空间快照、ResourceRetirement调度/票据/单个private值完整函数返回（覆盖VM临时引用析构）、卸载缓存准备、目标地图/碰撞体reparent、相机绑定及地图投影。单值身份只存类名、ObjectID、脚本路径、大小和最多4个字典键；超过1ms才登记任务描述，不持有Resource、不递归扫描、不在帧内落盘。自动登记本夹具所有字面量begin标签，修复旧capture内部一次21.515ms未注册标签被显示为unknown的采集缺口；不倒填历史耗时。
+
+真实34引擎独立scope用例验证：主动制造3ms的最终RefCounted析构，原生span捕获3.071ms、销毁恰好一次、票据排空、结构错误/丢失为0。前两份工具失败保留：smoke01为测试变量类型推断错误；smoke02错误要求匿名内类必须有非空resource_path，实际内类路径合法为空，已修正断言。不是游戏修复或性能收益。证据`critical_trace36_smoke_03/result.json`。36真实地图诊断使用相同34引擎及35候选代码，未修改默认引擎，未作为正常性能评分。
+
+36无GDB真实capture完成（`critical_trace36_01`）：exit0、功能/引擎错误0，6,534,037事件、丢失/导出错误/结构错误0，返回前旧owner释放且pending=known=0；冻结33工程按SHA恢复。抓到卸载**246.957ms**，因此并非只用较短的161ms替代用户追问的200ms。直接CSV归因：
+
+- 卸载4689帧：map.free **105.992ms**（粗CPU109.375ms）、body.free **44.043ms**、prepare **50.342ms**；prepare内部ground_batcher.clear **38.351ms**、空间所有权快照 **3.595ms**、Loader缓存快照 **0.413ms**。已记录worker.wait合计 **0.112ms**，vulkan.fence_wait约 **0.898ms**。这些范围按包含关系解读，不能再次累加prepare和其子调用。
+- 空场5314帧58.846ms：private最终引用释放单项 **48.393ms**、粗CPU46.875ms。对象为18项Dictionary，UUID **`pavement_f509bb1a2beae384e9f4`**，前四字段为`native_visual/uuid/position/rotation`，票据`private:376`、单位18154。这已定位到运行时道路spec，尚不能只凭顶层字段数断言具体嵌套成员或驱动责任。其余private单位最大2.977ms，下一名为邻域对象2.827ms；不能把48ms统称为整个索引快照/队列等待。
+- 返回7221帧182.120ms：loader.process163.755ms；records prefix130.490ms内部instantiate85.094ms（包含model_texture_runtime.apply **32.824ms**）、cooked mesh restore37.097ms，entry prefetch33.124ms。旧unknown标签已经对应到实际纹理运行时apply，新旧样本耗时不互相倒填。
+- 返回7412帧156.348ms：地图reparent **39.967ms**、碰撞体reparent4.756ms；camera.bind_map **39.766ms**，configure_environment仅0.022ms、outline.configure全程最大0.051ms。世界地图build19.735ms，内部投影11.813ms、重建索引4.058ms。相机绑定的主体进入building_cutaway.bind，后续仍需细分，不能把这一段写成轮廓shader编译。
+- 返回7368帧127.444ms仍有main.scene_process未标注 **92.056ms**，entry_scope_ready23.567ms（候选5.661ms）；缺口保留，不臆造来源。返回加载71–72ms的帧有真实draw-list及主线程加载并存，仍与卸载销毁分开处理。
+
+原始范围/父子关系、CPU和任务身份见`critical_trace36_01/critical_frames.json`，单值前40名及36全部范围次数/总时长也保留。当前结论是**已定位真实大段及一个具体慢spec，未修复这些残余长帧**。下一步先用匹配34符号的GDB补map.free析构成员/SceneTree组信息，并为该唯一慢spec补只读浅层字段类型；不扩大队列，不调整worker数，不开始夜间。
+
+36 GDB补充完成（`critical_gdb36_01`，141份栈）：使用同一34引擎，真实独立用例先验证`payload`成员地址匹配及2048项SceneTree组的完整64位长度/组名读取。保留preflight01无对应行机器码、02未解引用StringName参数导致筛选失败的工具错误；03/04通过，未把工具失败当引擎故障。仓库中另一会话的`tools/gdb_export_callstacks.py`未修改。
+
+按实际commit调用顺序和OS/Godot时钟锚点对齐，50–51在prepare，52–53在body.free，54在presentation，55–61在map.free，62在world-map重建。map.free抓到：55退出信号传播，56Object信号断开，57渲染实例DependencyTracker/HashSet销毁，58子Node递归销毁，59`asset_residency.gd`（21成员）的嵌套字典/字符串析构，61根metadata的`extras`数组析构。59没有足够可用的Variant地址，成员名仍明确为`destructor_address_unavailable`，不根据成员声明顺序猜字段。完整栈见`commit_attribution.json`。
+
+60确实在`RtlEnterCriticalSection → recursive_mutex::lock → RID_Alloc<Viewport>::owns → RendererViewport::free → RenderingServerDefault::_free → VisualInstance3D::~`。源码显示通用RID释放依次询问utilities/canvas/viewport/scene。因此这是**具体锁路径的证据，不是锁等待时长或后台上传持锁的证据**，更不能用一份栈解释全部106ms。该轮未在SceneTree组删除中取到实际地图样本，组件2048项用例通过不等于真实地图组扫描已定位/修复。
+
+GDB轮的字段清单确认原UUID的spec包含两个`ground_cpu_mesh.gd`对象（mesh/collision_mesh）、3项surface_overrides、4项extras、14项ground_batch_record；只读浅层采集没有保留这些对象。原UUID最终释放本轮**0.760ms**，而41.796ms的单值释放出现在另一19项spec **`pavement_a12cd37d1ad64985e096`**。慢点没有固定在第一条道路，不能按UUID认定素材复杂或直接优化其几何；下一轮应在独立诊断中按实际字段释放顺序保留/逐项放开浅层所有者，分别记录mesh、collision_mesh、材质数组、记录的最终析构，再根据实测建立组件复现。此诊断会改变引用释放粒度，必须标为归因实验，不能算正常帧收益。
+
+GDB轮旧map/deferred owner确实已释放，但12秒排空断言失败（pending=known=33），原始游戏exit1保留；4,433,816原生事件无丢失/导出/结构错误，所有sources已恢复冻结33。无GDB轮同断言通过，当前只能说明全停诊断下未按时排空，不声称已经证明失败仅由调试器造成。脚本trigger内`before_debugger_attach:true`是历史夹具标签，不能代替实际MI附加时间，**本轮不据此宣称又出现附加前的OS空闲长帧**。GDB期间的墙钟/FPS不进入正常成绩。默认引擎及生产算法本轮未变，35候选代码仍待正常整图验收；白天门槛仍未通过，夜间未启动。
