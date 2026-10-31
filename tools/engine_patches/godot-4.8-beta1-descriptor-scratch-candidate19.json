@@ -1,0 +1,26 @@
+{
+  "candidate": "19r2",
+  "inherits": "18",
+  "status": "six_component_processes_verified_map_pending",
+  "purpose": "Replace per-draw TLS vector scratch with bounded stack storage; command recorder synchronously copies IDs",
+  "engine": "D:\\code\\rmmo_runtime\\review_artifacts\\axel_post_roads_perf_20261030_01\\engine_descriptor_scratch_candidate19r2\\engine\\godot.windows.editor.x86_64.exe",
+  "engine_sha256": "b3e939a9932560c1f0fcc848e305cca476f3c3863c2d7cf168abb3818e5c8c76",
+  "default_engine_changed": false,
+  "source_changes": [
+    {
+      "path": "servers/rendering/rendering_device.cpp",
+      "before_sha256": "62706fcd591787c578e3dedaa90cf0951b378b11e36b19e1a19b6ff2acb90cf0",
+      "after_sha256": "c41debbae1e24ff559b22181e8ae0a8bcea5755bcd6093c26d974a1970bfd6b7"
+    }
+  ],
+  "component_evidence": "D:\\code\\rmmo_runtime\\review_artifacts\\axel_post_roads_perf_20261030_01\\descriptor_abba19_summary.json",
+  "checks_each": 53,
+  "sequence": "ABBAAB",
+  "same_work_and_pixel_sha": true,
+  "map_improvement_proven": false,
+  "patch_sha256": "b6d5d856ef9ced6ceff95b7e176e1766401438e8929401a821b5e99ad114e00c",
+  "known_failures_preserved": [
+    "candidate19 initial build attempted to write through read-only VectorView; corrected in 19r2",
+    "slow individual component medians retained, including B reuse 1044us and A pipeline 2408us"
+  ]
+}

@@ -93,3 +93,11 @@ runner 默认三次 CPU 合同/压测加一次独立桌面 Vulkan；`--no-gpu` �
 
 
 基础能力完成后，下一步只在冻结的 axel_town 测试副本补业务边界：需求/任务创建→网格/纹理准备→完成结果→主线程发布→回收。使用稳定任务 ID 连通上下游，做三次全局捕获；按排队、执行、等待和重复次数倒序选择独立复现对象。尚未用这些组件数据解释或关闭 100 秒加载问题。
+
+### 渲染阶段细分 candidate18
+
+三次真实地图和三次保留shader/pipeline缓存的重启已完成，见[整图日志](axel_post_roads_performance_20261031.md)。缓存命中后仍以`render.draw`为大头，因此新增独立候选18：在17r3上增加40个固定原生标签，细分begin/end frame、场景与脏资源更新、材质/骨架/实例数据、视口、剔除、阴影、绘制列表和主循环消息队列。没有逐顶点/逐draw写事件，也没有改变画质或调度。
+
+新标签仍用原CSV格式。`render.viewport`/`viewport_3d`的task是视口RID；`render.cull_range`的task/context是区间起止；`render.draw_list`是候选列表元素数/pass mode，可能被内部过滤或实例化合并，不能直接当实际draw call；`render.rd_scene`是实例/灯光数量；`render.shadow_pass`是候选实例数量/阴影pass。这些字段是工作量描述，不是WorkerThreadPool任务ID。记录的CPU调用范围不等于GPU硬件执行时间。
+
+补丁及源码SHA见`tools/engine_patches/godot-4.8-beta1-render-trace-candidate18.json`。候选独立入口位于外部证据根的`engine_render_trace_candidate18/engine/`，未替换任何默认入口。CPU合同88/88、固定工作量组件和真实Vulkan像素一致性通过；GPU854条、13线程、零丢失/孤立结束/交叉范围，3个停止边界未闭合span保留。旧标签ID不变，解码器无需升级。三次真实地图渲染细分及一次41份栈的GDB诊断已完成：绘制列表和帧末处理反复居前，见整图日志及`render_trace18_three_samples.json`。这仍是定位证据，不能以此宣称总加载或low优化通过。

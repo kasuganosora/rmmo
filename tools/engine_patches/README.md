@@ -648,3 +648,39 @@ offline decoder described in [debug timeline](../../docs/debug_timeline.md).
 Three 88-check contracts, equal-work benchmarks, private-desktop Vulkan,
 offline decoding and CSV dependency checks passed. No map loading improvement
 is claimed by this instrumentation delivery.
+
+## Render phase timeline, candidate18 (2026-10-31)
+
+Apply `godot-4.8-beta1-render-trace-candidate18.patch` after candidate17r3.
+It adds 40 fixed labels beneath rendering and the main loop: scene/resource
+updates, viewports, culling, shadows, instance data and draw lists. It changes
+no rendering, quality, cache or scheduling policy. Draw-list task/context
+fields are candidate element count and pass mode, not worker IDs or actual
+draw-call counts; viewport scopes use the viewport RID as a scalar identity.
+
+The manifest records the isolated executable, source hashes and validation.
+One 88-check CPU contract, equal-work probe and private-desktop Vulkan probe
+passed; 854 GPU events had no drops, orphan ends or crossing scopes, and the
+rendered pixels matched. Three boundary spans were left incomplete. The
+existing decoder accepts the added labels without an update. The full-map
+diagnosis and retained cache restart evidence are tracked in
+[the performance log](../../docs/axel_post_roads_performance_20261031.md).
+Default candidate10 and the installed candidate17 diagnostic entry remain
+unchanged. This instrumentation is not a claimed performance optimization.
+
+## Per-draw descriptor scratch, candidate19r2 (2026-10-31)
+
+Apply `godot-4.8-beta1-descriptor-scratch-candidate19.patch` after candidate18.
+`RenderingDevice::draw_list_draw` uses a bounded stack array instead of a TLS
+vector that was cleared/resized for every draw. The existing recorder copies
+the IDs synchronously; binding order, resource lifetimes and checks are retained.
+The patch reproduces the saved build source after newline normalization.
+
+`tools/test_draw_descriptor_scratch.gd` exercises sparse bindings, material and
+pipeline switches on a real local RD. Four visible stripes verify earlier queued
+bindings survive scratch reuse. Six private-desktop processes in ABBAAB order
+passed 53 checks each with equal draw/binding work and pixel hashes. Per-process
+encoding medians and all slower samples are retained in the linked performance
+log. This candidate has not replaced the default engine; component gains are not
+a claim of full-map loading or low-frame gains. See its JSON manifest for the
+exact executable, parent source and external evidence.

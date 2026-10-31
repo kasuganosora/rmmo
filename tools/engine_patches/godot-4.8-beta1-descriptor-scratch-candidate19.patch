@@ -1,0 +1,34 @@
+--- a/servers/rendering/rendering_device.cpp
++++ b/servers/rendering/rendering_device.cpp
+@@ -6167,9 +6167,10 @@
+ 		}
+ 	}
+ #endif
+-	thread_local LocalVector<RDD::UniformSetID> valid_descriptor_ids;
+-	valid_descriptor_ids.clear();
+-	valid_descriptor_ids.resize(draw_list.state.set_count);
++	// Draw-list state already caps descriptor sets at MAX_UNIFORM_SETS.
++	// The command recorder copies these IDs synchronously; no cross-draw
++	// storage, TLS lookup or dynamic vector reset is required.
++	RDD::UniformSetID valid_descriptor_ids[MAX_UNIFORM_SETS];
+ 	uint32_t valid_set_count = 0;
+ 	uint32_t first_set_index = 0;
+ 	uint32_t last_set_index = 0;
+@@ -6202,7 +6203,7 @@
+ 				// All good, see if this requires re-binding.
+ 				if (i - last_set_index > 1) {
+ 					// If the descriptor sets are not contiguous, bind the previous ones and start a new batch.
+-					draw_graph.add_draw_list_bind_uniform_sets(draw_list.state.pipeline_shader_driver_id, valid_descriptor_ids, first_set_index, valid_set_count);
++					draw_graph.add_draw_list_bind_uniform_sets(draw_list.state.pipeline_shader_driver_id, VectorView<RDD::UniformSetID>(valid_descriptor_ids, valid_set_count), first_set_index, valid_set_count);
+ 
+ 					first_set_index = i;
+ 					valid_set_count = 1;
+@@ -6230,7 +6231,7 @@
+ 
+ 	// Bind the remaining batch.
+ 	if (descriptor_set_batching && valid_set_count > 0) {
+-		draw_graph.add_draw_list_bind_uniform_sets(draw_list.state.pipeline_shader_driver_id, valid_descriptor_ids, first_set_index, valid_set_count);
++		draw_graph.add_draw_list_bind_uniform_sets(draw_list.state.pipeline_shader_driver_id, VectorView<RDD::UniformSetID>(valid_descriptor_ids, valid_set_count), first_set_index, valid_set_count);
+ 	}
+ 
+ 	if (p_use_indices) {

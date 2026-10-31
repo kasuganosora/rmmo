@@ -1,0 +1,121 @@
+{
+  "candidate": "18",
+  "purpose": "Native render-phase CSV diagnosis, no rendering or budget policy change",
+  "inherits": "17r3",
+  "status": "component_and_three_map_captures_verified",
+  "engine": "D:\\code\\rmmo_runtime\\review_artifacts\\axel_post_roads_perf_20261030_01\\engine_render_trace_candidate18\\engine\\godot.windows.editor.x86_64.exe",
+  "engine_sha256": "9a9f77222525bbc1f2853365d81834c6bc4c4ea8348319dc50ab06fb6d189ae0",
+  "default_engine_changed": false,
+  "source_changes": [
+    {
+      "path": "servers/rendering/rendering_server_default.cpp",
+      "before_sha256": "3c9d74fbe2464b65ff831156ed3dcacec43f30b6c65c9651f8ed6f25e99149ca",
+      "after_sha256": "b2fb5fb12dc4d5d358d7fdd7db4f03d8b6e95fa2668557a0683f6864e63d12eb"
+    },
+    {
+      "path": "servers/rendering/renderer_viewport.cpp",
+      "before_sha256": "bf312db3fe5a9653ecef7954113c7c22f27528e60ec5d931abc7c18598714bf7",
+      "after_sha256": "3c99dcb1f51a37174b2840e916d8ccba5cbab9c7c6d39dfc76da4d8ad56f1357"
+    },
+    {
+      "path": "servers/rendering/renderer_scene_cull.cpp",
+      "before_sha256": "5873421351c9e03bef86d54ad0f013cba8499bd39d328bfbf47a74f678eaf129",
+      "after_sha256": "12c2327a083ffc186e084315518eebf9e1d7957c322ba3eed61db8dbd81635d1"
+    },
+    {
+      "path": "servers/rendering/renderer_rd/renderer_scene_render_rd.cpp",
+      "before_sha256": "cef86af654adbbb2525e5b9983c96359c87db6a96c48e77ed4dd11028b6de1ed",
+      "after_sha256": "79c5a91984d7a2f6cc8628fa2e8d93c9ee6389414925925916d1c13d108b9e27"
+    },
+    {
+      "path": "servers/rendering/renderer_rd/forward_clustered/render_forward_clustered.cpp",
+      "before_sha256": "c42fb3a40e39cf71007c8b6a0c9d0a6ebf520bd8d598dd3c4492f7aa4a19ff1e",
+      "after_sha256": "a4e4b0ead6a2afa58e9ed0af314f010075a0b5bb5a7587aae75ca99f801735e1"
+    },
+    {
+      "path": "servers/rendering/renderer_rd/storage_rd/utilities.cpp",
+      "before_sha256": "5fe59923a78d936d7d4024ecc2ff031e3e8d287db49a117de82733f4582310f7",
+      "after_sha256": "f986c6df5a87b6f6b83df7907fcdaa69b19acb236b5303e46e2ac2f94b3f775f"
+    },
+    {
+      "path": "main/main.cpp",
+      "before_sha256": "350c801bf65a04ef4d516db8e26f7abe19292674e1ebd442376f8d0f6230bcc7",
+      "after_sha256": "ff8835f02d7dfd53bb778f67e9a7284d1af190101f6e5425611a5c2fb90e1cf3"
+    },
+    {
+      "path": "core/debugger/rmmo_debug_trace_render.h",
+      "before_sha256": null,
+      "after_sha256": "ccceba62af42989402683bc37d4ce39fa5b839667e8fecc69c2ab5ada36968c8"
+    },
+    {
+      "path": "core/debugger/rmmo_debug_trace.cpp",
+      "before_sha256": "1a4c65f5e7a4683701ecb5f5ef53362307ca2e68a351e969fe7066a1f2ea164e",
+      "after_sha256": "cf76b92fb895a43be7d2622941aa7fb9239208f1357c6d1537751e49e0602c0c"
+    }
+  ],
+  "labels": {
+    "14": "render.begin_frame",
+    "15": "render.scene_update",
+    "16": "render.canvas_update",
+    "17": "render.particles",
+    "18": "render.probes",
+    "19": "render.viewports",
+    "20": "render.canvas_renderer_update",
+    "21": "render.end_frame",
+    "22": "render.canvas_notifiers",
+    "23": "render.scene_notifiers",
+    "24": "render.memory_info",
+    "25": "render.post_draw",
+    "26": "render.viewport",
+    "27": "render.viewport_3d",
+    "28": "render.dirty_instances",
+    "29": "render.cull_scene",
+    "30": "render.cull_range",
+    "31": "render.particle_colliders",
+    "32": "render.rd_scene",
+    "33": "render.rd_update",
+    "34": "render.forward_scene",
+    "35": "render.instance_data",
+    "36": "render.fill_list",
+    "37": "render.draw_list",
+    "38": "render.dirty_geometry",
+    "39": "render.dirty_pipelines",
+    "40": "render.shadow_pass",
+    "41": "render.shadow_process",
+    "42": "render.shadow_end",
+    "43": "render.contact_shadows",
+    "44": "render.global_uniforms",
+    "45": "render.material_updates",
+    "46": "render.multimesh_updates",
+    "47": "render.skeleton_updates",
+    "48": "render.decal_redraw",
+    "49": "render.decal_atlas",
+    "50": "render.area_light_atlas",
+    "51": "main.scene_process",
+    "52": "main.audio",
+    "53": "main.message_queue"
+  },
+  "validation": "D:\\code\\rmmo_runtime\\review_artifacts\\axel_post_roads_perf_20261030_01\\render_trace18_validation\\validation_index.json",
+  "evidence": "D:\\code\\rmmo_runtime\\review_artifacts\\axel_post_roads_perf_20261030_01\\engine_render_trace_candidate18",
+  "command": [
+    "D:/tools/godot-4.8-build/python-env/Scripts/python.exe",
+    "-m",
+    "SCons",
+    "platform=windows",
+    "arch=x86_64",
+    "target=editor",
+    "use_mingw=yes",
+    "debug_symbols=yes",
+    "separate_debug_symbols=yes",
+    "dev_build=no",
+    "optimize=speed",
+    "lto=none",
+    "d3d12=no",
+    "accesskit=no",
+    "angle=no",
+    "-j4",
+    "tests=no"
+  ],
+  "map_evidence": "D:/code/rmmo_runtime/review_artifacts/axel_post_roads_perf_20261030_01/render_trace18_three_samples.json",
+  "gdb_evidence": "D:/code/rmmo_runtime/review_artifacts/axel_post_roads_perf_20261030_01/render18_return_gdb_01/stack_render_analysis.json"
+}

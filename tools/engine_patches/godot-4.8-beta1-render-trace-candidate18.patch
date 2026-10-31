@@ -1,0 +1,407 @@
+--- a/servers/rendering/rendering_server_default.cpp
++++ b/servers/rendering/rendering_server_default.cpp
+@@ -28,6 +28,7 @@
+ /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                 */
+ /**************************************************************************/
+ 
++#include "core/debugger/rmmo_debug_trace_render.h"
+ #include "core/debugger/rmmo_debug_trace.h"
+ #include "rendering_server_default.h"
+ 
+@@ -77,7 +78,7 @@
+ void RenderingServerDefault::_draw(bool p_swap_buffers, double frame_step) {
+ 	RmmoDebugTrace::Scope debug_scope(RmmoDebugTrace::RENDER_DRAW, 0);
+ 	GodotProfileZoneGroupedFirst(_profile_zone, "rasterizer->begin_frame");
+-	RSG::rasterizer->begin_frame(frame_step);
++	{ RmmoDebugTrace::Scope render_trace(RmmoDebugTrace::RENDER_BEGIN_FRAME); RSG::rasterizer->begin_frame(frame_step); }
+ 
+ 	TIMESTAMP_BEGIN()
+ 
+@@ -95,26 +96,26 @@
+ #endif // XR_DISABLED
+ 
+ 	GodotProfileZoneGrouped(_profile_zone, "scene->update");
+-	RSG::scene->update(); //update scenes stuff before updating instances
++	{ RmmoDebugTrace::Scope render_trace(RmmoDebugTrace::RENDER_SCENE_UPDATE); RSG::scene->update(); } //update scenes stuff before updating instances
+ 	GodotProfileZoneGrouped(_profile_zone, "canvas->update");
+-	RSG::canvas->update();
++	{ RmmoDebugTrace::Scope render_trace(RmmoDebugTrace::RENDER_CANVAS_UPDATE); RSG::canvas->update(); }
+ 
+ 	frame_setup_time = double(OS::get_singleton()->get_ticks_usec() - time_usec) / 1000.0;
+ 
+ 	GodotProfileZoneGrouped(_profile_zone, "particles_storage->update_particles");
+-	RSG::particles_storage->update_particles(); //need to be done after instances are updated (colliders and particle transforms), and colliders are rendered
++	{ RmmoDebugTrace::Scope render_trace(RmmoDebugTrace::RENDER_PARTICLES); RSG::particles_storage->update_particles(); } //need to be done after instances are updated (colliders and particle transforms), and colliders are rendered
+ 
+ 	GodotProfileZoneGrouped(_profile_zone, "scene->render_probes");
+-	RSG::scene->render_probes();
++	{ RmmoDebugTrace::Scope render_trace(RmmoDebugTrace::RENDER_PROBES); RSG::scene->render_probes(); }
+ 
+ 	GodotProfileZoneGrouped(_profile_zone, "viewport->draw_viewports");
+-	RSG::viewport->draw_viewports(p_swap_buffers);
++	{ RmmoDebugTrace::Scope render_trace(RmmoDebugTrace::RENDER_VIEWPORTS); RSG::viewport->draw_viewports(p_swap_buffers); }
+ 
+ 	GodotProfileZoneGrouped(_profile_zone, "canvas_render->update");
+-	RSG::canvas_render->update();
++	{ RmmoDebugTrace::Scope render_trace(RmmoDebugTrace::RENDER_CANVAS_RENDERER_UPDATE); RSG::canvas_render->update(); }
+ 
+ 	GodotProfileZoneGrouped(_profile_zone, "rasterizer->end_frame");
+-	RSG::rasterizer->end_frame(p_swap_buffers);
++	{ RmmoDebugTrace::Scope render_trace(RmmoDebugTrace::RENDER_END_FRAME); RSG::rasterizer->end_frame(p_swap_buffers); }
+ 
+ #ifndef XR_DISABLED
+ 	if (xr_server != nullptr) {
+@@ -125,8 +126,8 @@
+ #endif // XR_DISABLED
+ 
+ 	GodotProfileZoneGrouped(_profile_zone, "update_visibility_notifiers");
+-	RSG::canvas->update_visibility_notifiers();
+-	RSG::scene->update_visibility_notifiers();
++	{ RmmoDebugTrace::Scope render_trace(RmmoDebugTrace::RENDER_CANVAS_NOTIFIERS); RSG::canvas->update_visibility_notifiers(); }
++	{ RmmoDebugTrace::Scope render_trace(RmmoDebugTrace::RENDER_SCENE_NOTIFIERS); RSG::scene->update_visibility_notifiers(); }
+ 
+ 	GodotProfileZoneGrouped(_profile_zone, "post_draw_steps");
+ 	if (create_thread) {
+@@ -211,10 +212,11 @@
+ 	}
+ 
+ 	GodotProfileZoneGrouped(_profile_zone, "memory_info");
+-	RSG::utilities->update_memory_info();
++	{ RmmoDebugTrace::Scope render_trace(RmmoDebugTrace::RENDER_MEMORY_INFO); RSG::utilities->update_memory_info(); }
+ }
+ 
+ void RenderingServerDefault::_run_post_draw_steps() {
++	RmmoDebugTrace::Scope render_trace(RmmoDebugTrace::RENDER_POST_DRAW);
+ 	while (frame_drawn_callbacks.front()) {
+ 		Callable c = frame_drawn_callbacks.front()->get();
+ 		Variant result;
+--- a/servers/rendering/renderer_viewport.cpp
++++ b/servers/rendering/renderer_viewport.cpp
+@@ -28,6 +28,7 @@
+ /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                 */
+ /**************************************************************************/
+ 
++#include "core/debugger/rmmo_debug_trace_render.h"
+ #include "renderer_viewport.h"
+ 
+ #include "core/config/engine.h"
+@@ -313,6 +314,7 @@
+ }
+ 
+ void RendererViewport::_draw_3d(Viewport *p_viewport) {
++	RmmoDebugTrace::Scope render_trace(RmmoDebugTrace::RENDER_VIEWPORT_3D, p_viewport->self.get_id());
+ #ifndef _3D_DISABLED
+ 	RENDER_TIMESTAMP("> Render 3D Scene");
+ 
+@@ -339,6 +341,7 @@
+ }
+ 
+ void RendererViewport::_draw_viewport(Viewport *p_viewport) {
++	RmmoDebugTrace::Scope render_trace(RmmoDebugTrace::RENDER_VIEWPORT, p_viewport->self.get_id());
+ 	if (p_viewport->measure_render_time) {
+ 		String rt_id = "vp_begin_" + itos(p_viewport->self.get_id());
+ 		RSG::utilities->capture_timestamp(rt_id);
+--- a/servers/rendering/renderer_scene_cull.cpp
++++ b/servers/rendering/renderer_scene_cull.cpp
+@@ -28,6 +28,7 @@
+ /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                 */
+ /**************************************************************************/
+ 
++#include "core/debugger/rmmo_debug_trace_render.h"
+ #include "renderer_scene_cull.h"
+ 
+ #include "core/config/engine.h"
+@@ -2918,6 +2919,7 @@
+ }
+ 
+ void RendererSceneCull::_scene_cull(CullData &cull_data, InstanceCullResult &cull_result, uint64_t p_from, uint64_t p_to) {
++	RmmoDebugTrace::Scope render_trace(RmmoDebugTrace::RENDER_CULL_RANGE, p_from, p_to);
+ 	uint64_t frame_number = RSG::rasterizer->get_frame_number();
+ 	float lightmap_probe_update_speed = RSG::light_storage->lightmap_get_probe_capture_update_speed() * RSG::rasterizer->get_frame_delta_time();
+ 
+@@ -3324,6 +3326,7 @@
+ }
+ 
+ void RendererSceneCull::_render_scene(const RendererSceneRender::CameraData *p_camera_data, const Ref<RenderSceneBuffers> &p_render_buffers, RID p_environment, RID p_force_camera_attributes, RID p_compositor, uint32_t p_visible_layers, RID p_scenario, RID p_viewport, RID p_shadow_atlas, RID p_reflection_probe, int p_reflection_probe_pass, float p_screen_mesh_lod_threshold, float p_window_output_max_value, bool p_using_shadows, RenderingServerTypes::RenderInfo *r_render_info) {
++	RmmoDebugTrace::Scope render_trace(RmmoDebugTrace::RENDER_CULL_SCENE, p_viewport.get_id());
+ 	Instance *render_reflection_probe = instance_owner.get_or_null(p_reflection_probe); //if null, not rendering to it
+ 
+ 	// Prepare the light - camera volume culling system.
+@@ -4137,6 +4140,7 @@
+ }
+ 
+ void RendererSceneCull::render_particle_colliders() {
++	RmmoDebugTrace::Scope render_trace(RmmoDebugTrace::RENDER_PARTICLE_COLLIDERS);
+ 	while (heightfield_particle_colliders_update_list.begin()) {
+ 		Instance *hfpc = *heightfield_particle_colliders_update_list.begin();
+ 
+@@ -4384,6 +4388,7 @@
+ }
+ 
+ void RendererSceneCull::update_dirty_instances() const {
++	RmmoDebugTrace::Scope render_trace(RmmoDebugTrace::RENDER_DIRTY_INSTANCES);
+ 	while (_instance_update_list.first()) {
+ 		_update_dirty_instance(_instance_update_list.first()->self());
+ 	}
+--- a/servers/rendering/renderer_rd/renderer_scene_render_rd.cpp
++++ b/servers/rendering/renderer_rd/renderer_scene_render_rd.cpp
+@@ -28,6 +28,7 @@
+ /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                 */
+ /**************************************************************************/
+ 
++#include "core/debugger/rmmo_debug_trace_render.h"
+ #include "renderer_scene_render_rd.h"
+ 
+ #include "core/config/project_settings.h"
+@@ -1362,6 +1363,7 @@
+ }
+ 
+ void RendererSceneRenderRD::render_scene(const Ref<RenderSceneBuffers> &p_render_buffers, const CameraData *p_camera_data, const CameraData *p_prev_camera_data, const PagedArray<RenderGeometryInstance *> &p_instances, const PagedArray<RID> &p_lights, const PagedArray<RID> &p_reflection_probes, const PagedArray<RID> &p_voxel_gi_instances, const PagedArray<RID> &p_decals, const PagedArray<RID> &p_lightmaps, const PagedArray<RID> &p_fog_volumes, RID p_environment, RID p_camera_attributes, RID p_compositor, RID p_shadow_atlas, RID p_occluder_debug_tex, RID p_reflection_atlas, RID p_reflection_probe, int p_reflection_probe_pass, float p_screen_mesh_lod_threshold, const RenderShadowData *p_render_shadows, int p_render_shadow_count, const RenderSDFGIData *p_render_sdfgi_regions, int p_render_sdfgi_region_count, float p_window_output_max_value, const RenderSDFGIUpdateData *p_sdfgi_update_data, RenderingServerTypes::RenderInfo *r_render_info) {
++	RmmoDebugTrace::Scope render_trace(RmmoDebugTrace::RENDER_RD_SCENE, p_instances.size(), p_lights.size());
+ 	RendererRD::LightStorage *light_storage = RendererRD::LightStorage::get_singleton();
+ 	RendererRD::TextureStorage *texture_storage = RendererRD::TextureStorage::get_singleton();
+ 
+@@ -1563,6 +1565,7 @@
+ }
+ 
+ void RendererSceneRenderRD::update() {
++	RmmoDebugTrace::Scope render_trace(RmmoDebugTrace::RENDER_RD_UPDATE);
+ 	sky.update_dirty_skys();
+ }
+ 
+--- a/servers/rendering/renderer_rd/forward_clustered/render_forward_clustered.cpp
++++ b/servers/rendering/renderer_rd/forward_clustered/render_forward_clustered.cpp
+@@ -28,6 +28,7 @@
+ /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                 */
+ /**************************************************************************/
+ 
++#include "core/debugger/rmmo_debug_trace_render.h"
+ #include "render_forward_clustered.h"
+ 
+ #include "core/os/os.h"
+@@ -314,6 +315,7 @@
+ 
+ template <RenderForwardClustered::PassMode p_pass_mode, uint32_t p_color_pass_flags>
+ void RenderForwardClustered::_render_list_template(RenderingDevice::DrawListID p_draw_list, RenderingDevice::FramebufferFormatID p_framebuffer_Format, RenderListParameters *p_params, uint32_t p_from_element, uint32_t p_to_element) {
++	RmmoDebugTrace::Scope render_trace(RmmoDebugTrace::RENDER_DRAW_LIST, p_to_element - p_from_element, p_pass_mode);
+ 	RendererRD::MeshStorage *mesh_storage = RendererRD::MeshStorage::get_singleton();
+ 	RendererRD::ParticlesStorage *particles_storage = RendererRD::ParticlesStorage::get_singleton();
+ 	RD::DrawListID draw_list = p_draw_list;
+@@ -818,6 +820,7 @@
+ }
+ 
+ void RenderForwardClustered::_fill_instance_data(RenderListType p_render_list, int *p_render_info, uint32_t p_offset, int32_t p_max_elements, bool p_update_buffer) {
++	RmmoDebugTrace::Scope render_trace(RmmoDebugTrace::RENDER_INSTANCE_DATA, p_render_list);
+ 	RenderList *rl = &render_list[p_render_list];
+ 	uint32_t element_total = p_max_elements >= 0 ? uint32_t(p_max_elements) : rl->elements.size();
+ 
+@@ -942,6 +945,7 @@
+ 	return (p_indices - subtractor[p_primitive]) / divisor[p_primitive];
+ }
+ void RenderForwardClustered::_fill_render_list(RenderListType p_render_list, const RenderDataRD *p_render_data, PassMode p_pass_mode, bool p_using_sdfgi, bool p_using_opaque_gi, bool p_using_motion_pass, bool p_append) {
++	RmmoDebugTrace::Scope render_trace(RmmoDebugTrace::RENDER_FILL_LIST, p_render_list, p_pass_mode);
+ 	RendererRD::MeshStorage *mesh_storage = RendererRD::MeshStorage::get_singleton();
+ 	uint64_t frame = RSG::rasterizer->get_frame_number();
+ 
+@@ -1540,6 +1544,7 @@
+ }
+ 
+ void RenderForwardClustered::_process_sscs(Ref<RenderSceneBuffersRD> p_render_buffers, const Projection *p_projections, const Transform3D &p_transform, const LocalVector<int> &p_contact_shadows, const RenderShadowData *p_render_shadows, const float p_taa_frame_count) {
++	RmmoDebugTrace::Scope render_trace(RmmoDebugTrace::RENDER_CONTACT_SHADOWS);
+ 	ERR_FAIL_NULL(ss_effects);
+ 	ERR_FAIL_COND(p_render_buffers.is_null());
+ 
+@@ -1783,6 +1788,7 @@
+ }
+ 
+ void RenderForwardClustered::_render_scene(RenderDataRD *p_render_data, const Color &p_default_bg_color) {
++	RmmoDebugTrace::Scope render_trace(RmmoDebugTrace::RENDER_FORWARD_SCENE);
+ 	scene_state.used_uniform_buffer_count = 0;
+ 
+ 	RendererRD::LightStorage *light_storage = RendererRD::LightStorage::get_singleton();
+@@ -2702,6 +2708,7 @@
+ }
+ 
+ void RenderForwardClustered::_render_shadow_pass(RID p_light, RID p_shadow_atlas, int p_pass, const PagedArray<RenderGeometryInstance *> &p_instances, float p_lod_distance_multiplier, float p_screen_mesh_lod_threshold, bool p_open_pass, bool p_close_pass, bool p_clear_region, RenderingServerTypes::RenderInfo *p_render_info, const Size2i &p_viewport_size, const Transform3D &p_main_cam_transform) {
++	RmmoDebugTrace::Scope render_trace(RmmoDebugTrace::RENDER_SHADOW_PASS, p_instances.size(), p_pass);
+ 	RendererRD::LightStorage *light_storage = RendererRD::LightStorage::get_singleton();
+ 
+ 	ERR_FAIL_COND(!light_storage->owns_light_instance(p_light));
+@@ -2979,6 +2986,7 @@
+ }
+ 
+ void RenderForwardClustered::_render_shadow_process() {
++	RmmoDebugTrace::Scope render_trace(RmmoDebugTrace::RENDER_SHADOW_PROCESS);
+ 	RenderingDevice *rd = RenderingDevice::get_singleton();
+ 	if (scene_state.instance_buffer[RENDER_LIST_SECONDARY].get_size(0u) > 0u) {
+ 		rd->buffer_flush(scene_state.instance_buffer[RENDER_LIST_SECONDARY]._get(0u));
+@@ -2995,6 +3003,7 @@
+ 	RD::get_singleton()->draw_command_end_label();
+ }
+ void RenderForwardClustered::_render_shadow_end() {
++	RmmoDebugTrace::Scope render_trace(RmmoDebugTrace::RENDER_SHADOW_END);
+ 	RD::get_singleton()->draw_command_begin_label("Shadow Render");
+ 
+ 	for (SceneState::ShadowPass &shadow_pass : scene_state.shadow_passes) {
+@@ -4968,6 +4977,7 @@
+ }
+ 
+ void RenderForwardClustered::_update_dirty_geometry_instances() {
++	RmmoDebugTrace::Scope render_trace(RmmoDebugTrace::RENDER_DIRTY_GEOMETRY);
+ 	while (geometry_instance_dirty_list.first()) {
+ 		_geometry_instance_update(geometry_instance_dirty_list.first()->self());
+ 	}
+@@ -4976,6 +4986,7 @@
+ }
+ 
+ void RenderForwardClustered::_update_dirty_geometry_pipelines() {
++	RmmoDebugTrace::Scope render_trace(RmmoDebugTrace::RENDER_DIRTY_PIPELINES);
+ 	if (global_pipeline_data_required.key != global_pipeline_data_compiled.key) {
+ 		// Go through the entire list of surfaces and compile pipelines for everything again.
+ 		for (GeometryInstanceSurfaceDataCache &surface_cache : geometry_surface_compilation_all_list) {
+--- a/servers/rendering/renderer_rd/storage_rd/utilities.cpp
++++ b/servers/rendering/renderer_rd/storage_rd/utilities.cpp
+@@ -28,6 +28,7 @@
+ /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                 */
+ /**************************************************************************/
+ 
++#include "core/debugger/rmmo_debug_trace_render.h"
+ #include "utilities.h"
+ 
+ #include "servers/rendering/renderer_rd/environment/fog.h"
+@@ -250,13 +251,13 @@
+ /* MISC */
+ 
+ void Utilities::update_dirty_resources() {
+-	MaterialStorage::get_singleton()->_update_global_shader_uniforms(); //must do before materials, so it can queue them for update
+-	MaterialStorage::get_singleton()->_update_queued_materials();
+-	MeshStorage::get_singleton()->_update_dirty_multimeshes();
+-	MeshStorage::get_singleton()->_update_dirty_skeletons();
+-	TextureStorage::get_singleton()->decal_atlas_redraw_textures();
+-	TextureStorage::get_singleton()->update_decal_atlas();
+-	TextureStorage::get_singleton()->update_area_light_atlas();
++	{ RmmoDebugTrace::Scope render_trace(RmmoDebugTrace::RENDER_GLOBAL_UNIFORMS); MaterialStorage::get_singleton()->_update_global_shader_uniforms(); } //must do before materials, so it can queue them for update
++	{ RmmoDebugTrace::Scope render_trace(RmmoDebugTrace::RENDER_MATERIAL_UPDATES); MaterialStorage::get_singleton()->_update_queued_materials(); }
++	{ RmmoDebugTrace::Scope render_trace(RmmoDebugTrace::RENDER_MULTIMESH_UPDATES); MeshStorage::get_singleton()->_update_dirty_multimeshes(); }
++	{ RmmoDebugTrace::Scope render_trace(RmmoDebugTrace::RENDER_SKELETON_UPDATES); MeshStorage::get_singleton()->_update_dirty_skeletons(); }
++	{ RmmoDebugTrace::Scope render_trace(RmmoDebugTrace::RENDER_DECAL_REDRAW); TextureStorage::get_singleton()->decal_atlas_redraw_textures(); }
++	{ RmmoDebugTrace::Scope render_trace(RmmoDebugTrace::RENDER_DECAL_ATLAS); TextureStorage::get_singleton()->update_decal_atlas(); }
++	{ RmmoDebugTrace::Scope render_trace(RmmoDebugTrace::RENDER_AREA_LIGHT_ATLAS); TextureStorage::get_singleton()->update_area_light_atlas(); }
+ }
+ 
+ bool Utilities::has_os_feature(const String &p_feature) const {
+--- a/main/main.cpp
++++ b/main/main.cpp
+@@ -28,6 +28,7 @@
+ /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                 */
+ /**************************************************************************/
+ 
++#include "core/debugger/rmmo_debug_trace_render.h"
+ #include "core/debugger/rmmo_debug_trace.h"
+ #include "main.h"
+ 
+@@ -5055,7 +5056,7 @@
+ 		navigation_process_ticks = MAX(navigation_process_ticks, OS::get_singleton()->get_ticks_usec() - navigation_begin); // keep the largest one for reference
+ 		navigation_process_max = MAX(OS::get_singleton()->get_ticks_usec() - navigation_begin, navigation_process_max);
+ 
+-		message_queue->flush();
++		{ RmmoDebugTrace::Scope render_trace(RmmoDebugTrace::MAIN_MESSAGE_QUEUE); message_queue->flush(); }
+ #endif // !defined(NAVIGATION_2D_DISABLED) || !defined(NAVIGATION_3D_DISABLED)
+ 
+ #ifndef PHYSICS_3D_DISABLED
+@@ -5070,7 +5071,7 @@
+ 		PhysicsServer2D::get_singleton()->step(physics_step * time_scale);
+ #endif // PHYSICS_2D_DISABLED
+ 
+-		message_queue->flush();
++		{ RmmoDebugTrace::Scope render_trace(RmmoDebugTrace::MAIN_MESSAGE_QUEUE); message_queue->flush(); }
+ 
+ 		GodotProfileZoneGrouped(_profile_zone, "main loop iteration end");
+ 		OS::get_singleton()->get_main_loop()->iteration_end();
+@@ -5088,10 +5089,13 @@
+ 	uint64_t process_begin = OS::get_singleton()->get_ticks_usec();
+ 
+ 	GodotProfileZoneGrouped(_profile_zone, "process");
++	{
++		RmmoDebugTrace::Scope render_trace(RmmoDebugTrace::MAIN_SCENE_PROCESS);
+ 	if (OS::get_singleton()->get_main_loop()->process(process_step * time_scale)) {
+ 		exit = true;
+ 	}
+-	message_queue->flush();
++	}
++	{ RmmoDebugTrace::Scope render_trace(RmmoDebugTrace::MAIN_MESSAGE_QUEUE); message_queue->flush(); }
+ 
+ #ifndef NAVIGATION_2D_DISABLED
+ 	GodotProfileZoneGrouped(_profile_zone, "process 2D navigation");
+@@ -5142,7 +5146,7 @@
+ 	}
+ 
+ 	GodotProfileZoneGrouped(_profile_zone, "AudioServer::update");
+-	AudioServer::get_singleton()->update();
++	{ RmmoDebugTrace::Scope render_trace(RmmoDebugTrace::MAIN_AUDIO); AudioServer::get_singleton()->update(); }
+ 
+ 	if (EngineDebugger::is_active()) {
+ 		EngineDebugger::get_singleton()->iteration(frame_time, process_ticks, physics_process_ticks, physics_step);
+--- /dev/null
++++ b/core/debugger/rmmo_debug_trace_render.h
+@@ -0,0 +1,48 @@
++#pragma once
++#include "core/debugger/rmmo_debug_trace.h"
++
++namespace RmmoDebugTrace {
++// Keep existing native label IDs (including worker.name = 13) stable.
++enum RenderLabel {
++	RENDER_BEGIN_FRAME = 14,
++	RENDER_SCENE_UPDATE,
++	RENDER_CANVAS_UPDATE,
++	RENDER_PARTICLES,
++	RENDER_PROBES,
++	RENDER_VIEWPORTS,
++	RENDER_CANVAS_RENDERER_UPDATE,
++	RENDER_END_FRAME,
++	RENDER_CANVAS_NOTIFIERS,
++	RENDER_SCENE_NOTIFIERS,
++	RENDER_MEMORY_INFO,
++	RENDER_POST_DRAW,
++	RENDER_VIEWPORT,
++	RENDER_VIEWPORT_3D,
++	RENDER_DIRTY_INSTANCES,
++	RENDER_CULL_SCENE,
++	RENDER_CULL_RANGE,
++	RENDER_PARTICLE_COLLIDERS,
++	RENDER_RD_SCENE,
++	RENDER_RD_UPDATE,
++	RENDER_FORWARD_SCENE,
++	RENDER_INSTANCE_DATA,
++	RENDER_FILL_LIST,
++	RENDER_DRAW_LIST,
++	RENDER_DIRTY_GEOMETRY,
++	RENDER_DIRTY_PIPELINES,
++	RENDER_SHADOW_PASS,
++	RENDER_SHADOW_PROCESS,
++	RENDER_SHADOW_END,
++	RENDER_CONTACT_SHADOWS,
++	RENDER_GLOBAL_UNIFORMS,
++	RENDER_MATERIAL_UPDATES,
++	RENDER_MULTIMESH_UPDATES,
++	RENDER_SKELETON_UPDATES,
++	RENDER_DECAL_REDRAW,
++	RENDER_DECAL_ATLAS,
++	RENDER_AREA_LIGHT_ATLAS,
++	MAIN_SCENE_PROCESS,
++	MAIN_AUDIO,
++	MAIN_MESSAGE_QUEUE,
++};
++}
+--- a/core/debugger/rmmo_debug_trace.cpp
++++ b/core/debugger/rmmo_debug_trace.cpp
+@@ -114,7 +114,8 @@
+ void initialize_labels() {
+ 	if (!labels.is_empty()) return;
+ 	for (const char *name : {"unknown", "main.iteration", "render.sync", "render.draw", "worker.execute", "worker.wait",
+-			"resource.load", "mesh.surface_material", "pipeline.wait", "device.stall", "vulkan.fence_wait", "vulkan.submit_present", "worker.enqueue", "worker.name"}) labels.push_back(name);
++			"resource.load", "mesh.surface_material", "pipeline.wait", "device.stall", "vulkan.fence_wait", "vulkan.submit_present", "worker.enqueue", "worker.name",
++			"render.begin_frame", "render.scene_update", "render.canvas_update", "render.particles", "render.probes", "render.viewports", "render.canvas_renderer_update", "render.end_frame", "render.canvas_notifiers", "render.scene_notifiers", "render.memory_info", "render.post_draw", "render.viewport", "render.viewport_3d", "render.dirty_instances", "render.cull_scene", "render.cull_range", "render.particle_colliders", "render.rd_scene", "render.rd_update", "render.forward_scene", "render.instance_data", "render.fill_list", "render.draw_list", "render.dirty_geometry", "render.dirty_pipelines", "render.shadow_pass", "render.shadow_process", "render.shadow_end", "render.contact_shadows", "render.global_uniforms", "render.material_updates", "render.multimesh_updates", "render.skeleton_updates", "render.decal_redraw", "render.decal_atlas", "render.area_light_atlas", "main.scene_process", "main.audio", "main.message_queue"}) labels.push_back(name);
+ }
+ Slot *enter_writer(uint64_t p_epoch) {
+ 	if (!local.slot) {
