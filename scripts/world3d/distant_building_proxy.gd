@@ -8,11 +8,12 @@ const Retirement=preload("res://scripts/world3d/cpu_worker_retirement.gd")
 static var enabled:=true
 static var source_catalog_enabled:=true # Diagnostic scan control, same eligibility.
 static var tick_local_reuse_enabled:=true # Diagnostic repeated-query control.
+static var early_distance_admission_enabled:=true # Isolate material-cache tests.
 const ENTER_M=240.
 const EXIT_M=200.
 const MAX_VERTICES=65536
 const MAX_PROXIES=32
-var profile:Dictionary={"prepared":0,"active":0,"invalidated":0,"source_draws":0,"proxy_draws":0,"last_wait":"","near_snapshot_skips":0,"snapshot_attempts":0,"source_visits":0,"catalog_ticks":0,"fallback_ticks":0,"eligibility_mesh_evaluations":0,"cohort_key_builds":0}
+var profile:Dictionary={"prepared":0,"active":0,"invalidated":0,"source_draws":0,"proxy_draws":0,"last_wait":"","near_snapshot_skips":0,"snapshot_attempts":0,"source_visits":0,"catalog_ticks":0,"fallback_ticks":0,"eligibility_mesh_evaluations":0,"cohort_key_builds":0,"early_near_mesh_skips":0,"single_source_skips":0}
 var _rows:Dictionary={}
 var _job:Dictionary={}
 var _cooldown:Dictionary={} # Scalar retry times, never rejected mesh owners.
@@ -40,7 +41,9 @@ func tick(origin:Vector3)->void:
 		var record:Dictionary=group.members[0].get_meta("ground_batch_record",{})
 		if not record.has("building") or record.has("fixture"):continue
 		if group.visual.global_position.distance_to(origin)<EXIT_M-128.:continue
-		if not _eligible(group.visual,material_keys,mesh_keys):continue
+		if early_distance_admission_enabled:
+			if group.visual.material_override!=null or group.visual.material_overlay!=null:continue
+		elif not _eligible(group.visual,material_keys,mesh_keys):continue
 		var id:String=_cohort(record,group.visual,cohort_keys)
 		if not candidates.has(id):candidates[id]=[]
 		candidates[id].append(group)
@@ -56,10 +59,13 @@ func tick(origin:Vector3)->void:
 		var record:Dictionary=node.get_meta("ground_batch_record",{})
 		if not record.has("building") or record.has("fixture") or not record.has("house_prefab"):continue
 		if node.global_position.distance_to(origin)<EXIT_M-128.:continue
-		if not _eligible(node,material_keys,mesh_keys):continue
+		if early_distance_admission_enabled:
+			if node.material_override!=null or node.material_overlay!=null:continue
+		elif not _eligible(node,material_keys,mesh_keys):continue
 		var id:String=_cohort(record,node,cohort_keys)
 		if not candidates.has(id):candidates[id]=[]
 		candidates[id].append({"visual":node,"members":[node]})
+	var candidate_bounds:Dictionary=_filter_candidates(candidates,origin,material_keys,mesh_keys) if early_distance_admission_enabled else {}
 	profile.eligibility_mesh_evaluations+=int(mesh_keys.get(&"evaluations",0))
 	profile.cohort_key_builds+=int(cohort_keys.builds)
 	for id:String in _rows.keys():
@@ -74,7 +80,7 @@ func tick(origin:Vector3)->void:
 		if groups[0].visual.global_position.distance_to(origin)<ENTER_M-128.:continue
 		# A source node's origin only gives a conservative first filter. Check
 		# the complete cohort bounds before capturing arrays or material hashes.
-		var bounds:Variant=_candidate_bounds(groups)
+		var bounds:Variant=candidate_bounds[id] if candidate_bounds.has(id) else _candidate_bounds(groups)
 		if bounds==null:profile.last_wait="snapshot_rejected";_retry_later(id);continue
 		if bounds.get_center().distance_to(origin)<ENTER_M:
 			profile.near_snapshot_skips+=1;continue
@@ -87,8 +93,38 @@ func tick(origin:Vector3)->void:
 		var task:=_prepare.bind(row.sources,row.origin)
 		if thread.start(task)!=OK:Retirement.complete(lease);return
 		_job={"id":id,"thread":thread,"lease":lease,"row":row};return
-static func _eligible(visual:MeshInstance3D,keys:Dictionary={},meshes:Dictionary={})->bool:
-	if visual.material_override!=null or visual.material_overlay!=null:return false
+func _filter_candidates(candidates:Dictionary,origin:Vector3,material_keys:Dictionary,mesh_keys:Dictionary)->Dictionary:
+	var checked_bounds:Dictionary={}
+	for id:String in candidates.keys():
+		var groups:Array=candidates[id]
+		var bounds_checked:=false;var bounds:Variant=null
+		# Active proxies still need live eligibility checks throughout the
+		# ENTER/EXIT hysteresis band, including removal of a changed material.
+		if not _rows.has(id):
+			if groups.size()<2:
+				profile.single_source_skips+=groups.size();candidates.erase(id);continue
+			bounds=_candidate_bounds(groups);bounds_checked=true
+			if bounds!=null:
+				# Every possible eligible subset has its center inside this box.
+				# Its farthest corner must be near; the unfiltered center alone
+				# could conceal far eligible parts beside an unsupported material.
+				var farthest:Vector3=(bounds.position-origin).abs().max((bounds.end-origin).abs())
+				if farthest.length_squared()<ENTER_M*ENTER_M:
+					profile.near_snapshot_skips+=1;profile.early_near_mesh_skips+=groups.size()
+					candidates.erase(id);continue
+		var changed:=false;var kept:Array=[]
+		for i in groups.size():
+			if not _eligible(groups[i].visual,material_keys,mesh_keys,true):
+				if not changed:kept=groups.slice(0,i);changed=true
+			elif changed:kept.append(groups[i])
+		if changed:candidates[id]=kept
+		elif bounds_checked:checked_bounds[id]=bounds
+	# Reuse this tick's bounds if filtering did not change its members. Never
+	# scan an unchanged far cohort twice, and never persist poses across frames.
+	return checked_bounds
+
+static func _eligible(visual:MeshInstance3D,keys:Dictionary={},meshes:Dictionary={},instance_checked:bool=false)->bool:
+	if not instance_checked and (visual.material_override!=null or visual.material_overlay!=null):return false
 	var mesh:Mesh=visual.mesh
 	if mesh==null:return false
 	var mesh_id:=mesh.get_instance_id()

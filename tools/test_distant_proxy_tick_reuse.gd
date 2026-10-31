@@ -12,6 +12,9 @@ func check(ok:bool,message:String)->void:
 	if not ok:failures.append(message);printerr("FAIL ",message)
 func run()->void:
 	var proxy_script:Variant=Proxy
+	# Exercise the material/cohort reuse stage even when the earlier spatial
+	# admission can avoid it entirely. Default admission has its own live test.
+	if proxy_script.get("early_distance_admission_enabled")!=null:proxy_script.set("early_distance_admission_enabled",false)
 	if "--legacy-tick" in OS.get_cmdline_user_args():proxy_script.set("tick_local_reuse_enabled",false)
 	var scene:=Node3D.new();root.add_child(scene)
 	var batches:=Batches.new();batches.name="GroundRenderBatches";scene.add_child(batches)
