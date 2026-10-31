@@ -358,6 +358,7 @@ func _loop(player: AudioStreamPlayer, volume: float, kind: String, gain: float) 
 		if player.playing: player.stop()
 		return
 	if player.stream==null:
-		player.stream=preload("res://scripts/map/map_sfx.gd").ambient("rain") if kind=="rain" else preload("res://scripts/world3d/weather_sound.gd").stream(kind)
+		player.stream=preload("res://scripts/map/map_sfx.gd").ambient("rain") if kind=="rain" else preload("res://scripts/world3d/weather_sound.gd").request_stream(kind)
+		if player.stream==null:return
 	player.volume_db=linear_to_db(volume)+gain
 	if not player.playing: player.play()
