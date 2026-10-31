@@ -37,6 +37,7 @@ static var incremental_adoption_enabled:=true # A/B control for root-child adopt
 static var owned_removal_accounting_enabled:=true # Preserve the residency plan across a slow removal's early yield.
 static var cpu_author_retirement_enabled:=true
 static var sliced_record_disposal_enabled:=true
+static var sliced_cache_disposal_enabled:=true # Diagnostic control for bulk cache destruction.
 ## Opt-in diagnostics add per-candidate clocks; leave off for timing A/B runs.
 static var collision_readiness_profile_enabled:=false
 const COLLISION_CANDIDATE_RANGES:=8
@@ -374,11 +375,20 @@ static func prepare_map_disposal(map_root:Node,tree:SceneTree=null)->void:
 	# exit callbacks before ANY source exits. Otherwise the first dying member
 	# restores all surviving CPU sources just before the whole map is destroyed.
 	# Temporary tree detach and individual source removal keep their restore path.
+	var deferred:Node=map_root.get_node_or_null("DeferredAssets")
+	if deferred!=null:deferred._retire_document_cache_owners()
 	for service:String in ["GroundRenderBatches","StreamCollisionPreparer"]:
 		var outgoing:Node=map_root.get_node_or_null(service)
 		if outgoing==null:continue
 		outgoing.retire_workers(tree)
-		if service=="GroundRenderBatches":outgoing.clear(false)
+		if service=="GroundRenderBatches":
+			# clear() disconnects and removes visuals immediately, but its temporary
+			# groups.values() used to destroy all group.data.mesh owners on return.
+			# Retain individual groups, not one outer dictionary, on the MAIN lane.
+			# The snapshot never mutates groups retained by another borrower.
+			if sliced_cache_disposal_enabled:
+				preload("res://scripts/world3d/resource_retirement.gd").defer_private_array(outgoing.groups.values(),true)
+			outgoing.clear(false)
 	# StreamIndex owns these exact scalar schemas: IDs, cell coordinates,
 	# membership/order and append bookkeeping. Unlike by_id/prop/collision
 	# indexes they never contain live specs or Resource owners. Retain them

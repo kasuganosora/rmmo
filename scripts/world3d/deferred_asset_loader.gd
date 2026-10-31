@@ -145,6 +145,7 @@ var _pending_native_index:Dictionary={}
 var _large_native_pending:Dictionary={}
 var _indexed:=false
 var _doc=preload("res://scripts/world3d/world_document.gd").new()
+var _document_cache_owners_retiring:=false
 var _reference_index:Dictionary={}
 var _reference_map_path:=""
 var _reference_root:=""
@@ -4248,3 +4249,18 @@ func _exit_tree()->void:
 		else:_discard_job(path)
 	_jobs.clear()
 	_runtime_record_ids.clear()
+
+func _retire_document_cache_owners()->void:
+	# Explicit permanent map disposal only. A temporary detach/handoff can
+	# outlive a retirement ticket, so _exit_tree must not initiate this snapshot.
+	if not Stream.sliced_cache_disposal_enabled or _document_cache_owners_retiring:return
+	# These load-scope caches outlive every accepted job. Their KEYS include
+	# entire road records; values hold CPU meshes/materials. Preserve both sides
+	# through exit callbacks, then drop individual owners in bounded main slices.
+	# No nested mutation, recursive ownership scan or Resource release on workers.
+	var owners:Array=[]
+	for cache:Variant in [_doc.load_box_meshes,_doc.load_material_pool,_doc.load_paint_validation]:
+		if not cache is Dictionary:continue
+		owners.append_array(cache.keys());owners.append_array(cache.values())
+	if preload("res://scripts/world3d/resource_retirement.gd").defer_private_array(owners,true):
+		_document_cache_owners_retiring=true

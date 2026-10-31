@@ -16,6 +16,8 @@ func runtime_observation_finished()->bool:
 	return _ui_finished
 
 func _initialize()->void:
+	preload("res://scripts/world3d/world_stream.gd").sliced_cache_disposal_enabled=not "--legacy-cache-disposal" in OS.get_cmdline_user_args()
+	report.sliced_cache_disposal=preload("res://scripts/world3d/world_stream.gd").sliced_cache_disposal_enabled
 	preload("res://scripts/world3d/world_3d.gd").incremental_warp_candidates_enabled=not "--legacy-warp-candidates" in OS.get_cmdline_user_args()
 	report.incremental_warp_candidates=preload("res://scripts/world3d/world_3d.gd").incremental_warp_candidates_enabled
 	var scan_proxy:bool="--scan-proxy-sources" in OS.get_cmdline_user_args()
