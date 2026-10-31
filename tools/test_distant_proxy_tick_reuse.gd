@@ -11,7 +11,8 @@ func check(ok:bool,message:String)->void:
 	checks+=1
 	if not ok:failures.append(message);printerr("FAIL ",message)
 func run()->void:
-	if "--legacy-tick" in OS.get_cmdline_user_args():Proxy.tick_local_reuse_enabled=false
+	var proxy_script:Variant=Proxy
+	if "--legacy-tick" in OS.get_cmdline_user_args():proxy_script.set("tick_local_reuse_enabled",false)
 	var scene:=Node3D.new();root.add_child(scene)
 	var batches:=Batches.new();batches.name="GroundRenderBatches";scene.add_child(batches)
 	var service:=Proxy.new();scene.add_child(service);service.set_process(false)
@@ -55,12 +56,13 @@ func run()->void:
 		if visual.get_meta("ground_batch_record").building.id=="house_0":visual.material_override=null;visual.cast_shadow=GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	prior=service.profile.near_snapshot_skips;service.tick(Vector3.ZERO)
 	check(service.profile.near_snapshot_skips-prior==31,"next-tick shadow changes rebuild cohort identities")
-	var identities:Dictionary={"values":{},"builds":0}
-	var sample:MeshInstance3D=visuals[0];var record:Dictionary=sample.get_meta("ground_batch_record")
 	for layer:int in [1,2,2147483648,4294967295]:
 		for shadow:int in [0,1,2,3]:
-			sample.layers=layer;sample.cast_shadow=shadow
-			check(Proxy._cohort(record,sample,identities)==str([record.building.id,layer,shadow]),"cached identity preserves complete layer mask and shadow mode")
+			# Two parts split off only when their complete layer/shadow identity
+			# differs from the remaining five; both groups must coexist in a tick.
+			for sample:MeshInstance3D in [visuals[0],visuals[1]]:sample.layers=layer;sample.cast_shadow=shadow
+			prior=service.profile.near_snapshot_skips;service.tick(Vector3.ZERO)
+			check(service.profile.near_snapshot_skips-prior==(31 if layer==1 and shadow==0 else 32),"same-tick cohorts preserve complete layer mask and shadow mode")
 	times.sort();var result:={"checks":checks,"failures":failures,"ticks":64,"source_count":217,"unique_meshes":117,"surfaces_per_mesh":8,"cohorts":31,"tick_median_us":times[32],"tick_p95_us":times[60],"tick_max_us":times[-1],"tick_total_us":times.reduce(func(a,b):return a+b,0),"profile":measured}
 	for arg:String in OS.get_cmdline_user_args():
 		if arg.begins_with("--output="):FileAccess.open(arg.trim_prefix("--output="),FileAccess.WRITE).store_string(JSON.stringify(result,"\t"))
