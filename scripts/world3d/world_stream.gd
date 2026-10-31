@@ -389,6 +389,20 @@ static func prepare_map_disposal(map_root:Node,tree:SceneTree=null)->void:
 			if sliced_cache_disposal_enabled:
 				preload("res://scripts/world3d/resource_retirement.gd").defer_private_array(outgoing.groups.values(),true)
 			outgoing.clear(false)
+	# Runtime specs may own CPU projections while each restored drawing mesh is
+	# owned only by its live MeshInstance3D. Freeing the map otherwise destroys
+	# all those ArrayMeshes (and native renderer dependencies) in one callback.
+	# Retain unique actual draw owners on MAIN slices; nodes still exit/free now.
+	# CPU-only meshes already retire their buffers and need no additional owner.
+	if sliced_cache_disposal_enabled and not map_root.has_meta("render_mesh_owners_retiring"):
+		var draw_owners:Array=[];var draw_ids:Dictionary={}
+		for source:Variant in map_root.get_meta("stream_meshes",{}).values():
+			if not is_instance_valid(source) or not source is MeshInstance3D:continue
+			var mesh:Mesh=source.mesh
+			if mesh==null or mesh is CpuMesh or draw_ids.has(mesh.get_instance_id()):continue
+			draw_ids[mesh.get_instance_id()]=true;draw_owners.append(mesh)
+		if preload("res://scripts/world3d/resource_retirement.gd").defer_private_array(draw_owners,true):
+			map_root.set_meta("render_mesh_owners_retiring",draw_owners.size())
 	# StreamIndex owns these exact scalar schemas: IDs, cell coordinates,
 	# membership/order and append bookkeeping. Unlike by_id/prop/collision
 	# indexes they never contain live specs or Resource owners. Retain them

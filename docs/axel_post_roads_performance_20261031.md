@@ -1584,4 +1584,34 @@ PCM计算将种类判断提到循环外，以`PackedByteArray.encode_s16`取代�
 2. 稳定段主要low成本仍在`render.draw_list`（慢帧约8–14ms）和代理候选收集/分组（约4–10.6ms）；材质资格检查已归零，勿再优化该空分支。当前诊断初次/返回low29.13/25.02FPS，不能代替正常成绩，35目标未达。
 3. 原先约1秒周期330–380ms仍未重新捕获；风场/云层开关对照没有排除偶发路径。上述返回/卸载修复不等于该问题解决。§27六份正常样本是目前最近的累计正常对照，28之后尚未形成新的三份正常整图结果。
 
+用户补充验收顺序：先完成白天初次及返回稳定段的1% low ≥35 FPS验收，再开展夜间验收，重点分别检查灯光和星空，并复测夜间加载、卸载和返回加载。当前尚未验收夜晚；白天结果不能代表夜间通过。夜间工作不提前打断上述白天剩余瓶颈定位。
+
 证据入口：`P/entry_candidates28/`、`P/entry_candidates28_trace_01/callback_analysis.json`、`low_frame_analysis.json`。本轮没有模型、纹理、地图内容或默认引擎安装改动；其他会话工作继续保留。
+
+### 29：主循环外尖峰、返回实例准备与卸载原生释放分开定位（跨日2026-11-01）
+
+新增同步范围细分loader泵、prefetch启动、cooked恢复和地图退出。首份`loader_disposal29_trace_01`的诊断包装在RefCounted PREDELETE中调用了self方法；此时引用计数已为零，引擎拒绝调用，导致2个span未闭合。该样本明确无效并保留；改为直接在原析构函数内计时，未改生产语义。不要把这个插桩错误当游戏崩溃。
+
+修正后`loader_disposal29_trace_02` exit0、零功能/引擎错误、无并跑引擎/编译器，5,870,453事件、零丢失和结构错误，结束恢复fixture。诊断完整就绪57.785s；返回最大264.507ms中，`_build_records`首次同步段236.754ms，含cooked mesh恢复56.187ms、spec恢复4.274ms，其余约176ms仍在实例构建前缀；prefetch启动另15.300ms。卸载250.564ms中，prepare_disposal38.522ms、body.free48.206ms、map.free131.326ms；退出服务脚本的内层范围合计很小，剩余主要需要原生栈。
+
+本份还首次重新捕获了大稳定帧：79.295 / 126.759 / 138.606 / 138.707 / 119.034 / 352.509ms，完整保留。352.509ms帧主循环重叠仅18.562ms、render.draw_list3.978ms、weather0.261ms；粗主线程CPU62.500ms。返回收尾另有221.703ms，粗CPU15.625ms。**大段落在已覆盖的Main::iteration之外，不能归成OS空闲，也不能拿日常风场/云层耗时解释。** 当前没有证明其与旧B6约1秒周期尖峰同因。Windows消息/输入处理处于主循环外，需后续补范围或栈；本轮没有据此修改引擎。初次稳定low12.866、返回31.916FPS，诊断值不作为正常成绩。
+
+`loader_disposal29_gdb_01`提前预载22引擎匹配符号，使用GDB18.1、固定已提交exporter、明确PID/创建时间/主线程ID，在full-ready后启动60秒纯采样。保存85份栈；固定fixture保留原有30秒steady后再卸载，脚本说明中的“5秒”是继承旧未插桩探针的文字，实际范围以源文件和时间戳为准，没有人为等待调试器。按unix/tick锚点与提交阶段对齐：sample47落在body.free的Node::remove_child；48–51落在map.free，分别包括Node::_propagate_after_exit_tree、**MeshInstance3D::~MeshInstance3D → ArrayMesh::~ArrayMesh → MeshStorage::mesh_free → RenderingDevice::_free_dependencies**、Mesh引用下降和VisualInstance原生销毁。sample52已进入目标地图UI重绑，不能并入map.free。调用位置采样不是耗时比例；当前优化构建没有成功导出GDScript函数名，不能假称已取得该层名字。
+
+本GDB运行保留1项失败：`old resource retirement drains before return`，即12秒空场结束时仍有退役任务；无引擎错误，实际旧地图/Deferred owner已释放，普通往返和最终settle成功。它是带all-stop调试器的失败样本，**不能作正常功能/性能通过**，也尚未证明这项失败只由调试暂停导致。栈归因仍有效；零事件丢失。证据`loader_disposal29_gdb_01/commit_attribution.json`及原始`stacks.jsonl`。
+
+同份返回时调试器已退出，新增实例分段显示：PackedScene.instantiate21.786ms、grass绑定9.510ms、**model_texture_cache.apply75.893ms**，合计107.259ms；初次是402.790/14.005/130.819ms，且同时有符号加载，不能当正常对照。返回证据提示除了节点实例化，旧内嵌纹理材质的全property扫描也要独立复现；尚未修改该材质流程。
+
+### 30：永久卸载接管实际绘制网格的最后持有者
+
+29的栈暴露了现有退役链的缺口：运行时spec可以只保留CPU投影，其source_reference为WeakRef；实际恢复的ArrayMesh仅由MeshInstance持有。已有records、合批group及WorldDocument缓存退役不一定持有这些实际绘制网格，所以map.free仍可集中进入原生mesh依赖销毁。
+
+新增`test_map_render_mesh_retirement.gd`：384个独立ArrayMesh、1536实例、CPU spec弱指向实际绘制资源，另保留一个外部借用。原代码red2仅2项新合同失败，map.free同步释放383个绘制网格，其他9项语义通过；最初red只有测试类型推断parse错误，保留但不计复现。修复在永久prepare_map_disposal中，沿现有stream_meshes目录收集实际非CPU绘制网格，按实例ID去重成独占平面数组，交给既有MAIN退役队列。节点/场景/碰撞仍立即退出和销毁，回调仍能读取原数据；不推迟逻辑卸载、不扫描mesh surface、不增加后台GPU释放或递归修改共享资源。临时detach不调用该入口，重复prepare不增加ticket。
+
+真实隔离桌面GPU ABBAAB使用旧/新源码实际切换，六次exit0无引擎错误。A9项、B11项通过；每次实际384mesh/1536实例，原路径同步释放383→新路径0，最后外部借用仍完整可用并正常释放，所有资源只在主线程释放且队列归零。map.free A=24.952/27.049/26.111ms，B=24.312/17.389/15.519ms，中位26.111→17.389ms；准备中位0.040→1.750ms，延后退役中位0.185→6.127ms，B最大单片1.060/1.149/1.048ms。**工作被拆片，没证明总CPU下降**：prepare+free+后续退役串行总和A=25.160/27.533/26.364ms，B=32.513/27.362/21.707ms，全部保留。
+
+记录退役9项、缓存退役18项、标量索引退役32项回归通过。证据`P/map_render_retirement30/qualification.json`、`component_comparison.json`。当前运行`render_retirement30_trace_01`复核实际地图；尚无本改动正常整图三次数据，不能从组件结果宣称卸载长帧或35 FPS目标已解决。碰撞体/VisualInstance退出、加载前缀和主循环外尖峰仍分别待处理；夜间灯光/星空仍在白天验收之后。
+
+`render_retirement30_trace_01`完成：exit0、零功能/引擎错误、无并跑引擎/编译器，6,005,148事件、零丢失及结构错误，旧地图/Deferred owner释放、返回前退役排空，按SHA恢复fixture。诊断卸载最大192.943ms，其中map.free96.064ms（29有效诊断131.326ms）、body.free37.158ms、prepare31.329ms；只作为单份机制复测，不作三次正常收益结论。空场仍有65.062ms一帧，返回最大257.752ms、返回收尾97.756ms全部保留。初次/返回稳定low33.750/31.548，仍不足35；完整就绪58.029s不当正常成绩。
+
+这份无调试器分段确认返回实例构建中：PackedScene.instantiate25.005ms、grass14.732ms、**model_texture_cache.apply116.745ms**，cooked恢复另46.623ms。因此不能只将它说成“创建整棵节点树”；下一项应先独立复现实际材质全属性遍历，再优化已知纹理槽读取和重复检查。生产材质逻辑本轮尚未改。默认安装4.8也通过新增11项生命周期回归；默认引擎文件未变。
