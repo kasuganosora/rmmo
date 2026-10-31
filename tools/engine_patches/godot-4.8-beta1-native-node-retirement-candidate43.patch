@@ -1,0 +1,130 @@
+--- a/scene/main/node.cpp
++++ b/scene/main/node.cpp
+@@ -45,6 +45,7 @@
+ #include "core/io/resource_loader.h"
+ #include "core/object/class_db.h"
+ #include "core/object/message_queue.h"
++#include "core/os/os.h"
+ #include "core/object/script_language.h"
+ #include "core/string/print_string.h"
+ #include "scene/animation/tween.h"
+@@ -65,6 +66,111 @@
+ #endif
+ 
+ thread_local Node *Node::current_process_thread_group = nullptr;
++
++// Project runtime extension: privately owned nodes after permanent scene exit.
++// This only destroys on main. Array ownership and publication fences stay with
++// the caller's retirement queue; no Node/Resource graph is sent to a worker.
++static bool rmmo_retire_detached_nodes_step(Dictionary p_state, int64_t p_budget_usec) {
++	if (!Thread::is_main_thread() || p_budget_usec < 0) {
++		return false;
++	}
++	const Variant roots_value = p_state.get(SNAME("roots"), Variant());
++	const Variant stack_value = p_state.get(SNAME("stack"), Variant());
++	const Variant expanded_value = p_state.get(SNAME("expanded"), Variant());
++	const Variant cursor_value = p_state.get(SNAME("root_cursor"), Variant());
++	if (roots_value.get_type() != Variant::ARRAY || stack_value.get_type() != Variant::ARRAY ||
++			expanded_value.get_type() != Variant::ARRAY || cursor_value.get_type() != Variant::INT) {
++		return false;
++	}
++	Array roots = roots_value;
++	Array stack = stack_value;
++	Array expanded = expanded_value;
++	int64_t cursor = cursor_value;
++	if (roots.get_typed_builtin() != Variant::OBJECT || roots.get_typed_class_name() != SNAME("Node") ||
++			stack.get_typed_builtin() != Variant::OBJECT || stack.get_typed_class_name() != SNAME("Node") ||
++			expanded.get_typed_builtin() != Variant::BOOL || expanded.size() != stack.size() ||
++			cursor < 0 || cursor > roots.size()) {
++		return false;
++	}
++	int64_t freed = p_state.get(SNAME("freed"), int64_t(0));
++	int64_t snapshots = p_state.get(SNAME("snapshots"), int64_t(0));
++	int64_t cancelled = p_state.get(SNAME("cancelled"), int64_t(0));
++	int64_t atomic_subtrees = p_state.get(SNAME("atomic_subtrees"), int64_t(0));
++	auto finish = [&](bool p_complete) {
++		p_state[SNAME("root_cursor")] = cursor;
++		p_state[SNAME("freed")] = freed;
++		p_state[SNAME("snapshots")] = snapshots;
++		p_state[SNAME("cancelled")] = cancelled;
++		p_state[SNAME("atomic_subtrees")] = atomic_subtrees;
++		return p_complete;
++	};
++	const uint64_t began = OS::get_singleton()->get_ticks_usec();
++	bool progressed = false;
++	while (!progressed || p_budget_usec == 0 || OS::get_singleton()->get_ticks_usec() - began < uint64_t(p_budget_usec)) {
++		progressed = true;
++		if (stack.is_empty()) {
++			if (cursor == roots.size()) {
++				roots.clear();
++				cursor = 0;
++				return finish(true);
++			}
++			Node *next = Object::cast_to<Node>(roots[cursor].get_validated_object());
++			if (next && next->is_inside_tree()) {
++				return finish(false);
++			}
++			roots[cursor++] = Variant();
++			if (!next) {
++				continue;
++			}
++			stack.push_back(next);
++			expanded.push_back(false);
++		}
++		const int last = stack.size() - 1;
++		Node *node = Object::cast_to<Node>(stack[last].get_validated_object());
++		if (!node) {
++			stack.pop_back();
++			expanded.pop_back();
++			continue;
++		}
++		if (node->is_inside_tree()) {
++			return finish(false);
++		}
++		if (!bool(expanded[last])) {
++			expanded[last] = true;
++			if (node->get_child_count(true) > 0) {
++				// Preserve PREDELETE semantics for scripts and specialized native
++				// parents. The map's plain structural and static-physics parents
++				// have already delivered all SceneTree exit notifications.
++				const StringName &type = node->get_class_name();
++				const bool plain = !node->get_script_instance() &&
++						(type == SNAME("Node") || type == SNAME("Node3D") || type == SNAME("MeshInstance3D") || type == SNAME("StaticBody3D"));
++				if (plain) {
++					const TypedArray<Node> children = node->get_children(true);
++					stack.append_array(children);
++					expanded.resize(stack.size());
++					++snapshots;
++					continue;
++				}
++				// Counts this opaque subtree as one deletion unit, not as a known
++				// node count. There is deliberately no extra recursive size scan.
++				++atomic_subtrees;
++			}
++		}
++		const ObjectID identity = node->get_instance_id();
++		memdelete(node);
++		if (ObjectDB::get_instance(identity)) {
++			++cancelled;
++			expanded[last] = false;
++			return finish(false);
++		}
++		stack.pop_back();
++		expanded.pop_back();
++		++freed;
++	}
++	return finish(false);
++}
++
++
+ 
+ void Node::_notification(int p_notification) {
+ 	switch (p_notification) {
+@@ -3808,6 +3914,7 @@
+ 	GLOBAL_DEF(PropertyInfo(Variant::INT, "editor/naming/node_name_num_separator", PROPERTY_HINT_ENUM, "None,Space,Underscore,Dash"), 0);
+ 	GLOBAL_DEF(PropertyInfo(Variant::INT, "editor/naming/node_name_casing", PROPERTY_HINT_ENUM, "PascalCase,camelCase,snake_case,kebab-case"), NAME_CASING_PASCAL_CASE);
+ 
++	ClassDB::bind_static_method("Node", D_METHOD("rmmo_retire_detached_nodes_step", "state", "budget_usec"), &rmmo_retire_detached_nodes_step);
+ 	ClassDB::bind_static_method("Node", D_METHOD("print_orphan_nodes"), &Node::print_orphan_nodes);
+ 	ClassDB::bind_static_method("Node", D_METHOD("get_orphan_node_ids"), &Node::get_orphan_node_ids);
+ 	ClassDB::bind_method(D_METHOD("add_sibling", "sibling", "force_readable_name"), &Node::add_sibling, DEFVAL(false));
