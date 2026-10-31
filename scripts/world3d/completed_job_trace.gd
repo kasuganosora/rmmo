@@ -14,6 +14,14 @@ static func record(path:String,generation:int,event:String,details:Dictionary={}
 static func start()->void:
 	events=[];dropped=0;enabled=true
 
+static func work(prepare:Callable)->Dictionary:
+	# One clock pair for every actual worker invocation, including continuations.
+	# Transport marks stay private until main joins; no worker journal or I/O.
+	var began:=Time.get_ticks_usec()
+	var result:Dictionary=prepare.call()
+	result.audit_worker_start_us=began;result.audit_worker_end_us=Time.get_ticks_usec()
+	return result
+
 static func joined(path:String,generation:int,result:Dictionary)->void:
 	if result.has("audit_worker_end_us"):
 		record(path,generation,"worker_finished",{"started_us":result.audit_worker_start_us},int(result.audit_worker_end_us))

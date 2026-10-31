@@ -2078,8 +2078,6 @@ static func _prepare_job(path:String,digest:String,token:RefCounted,manifest:Dic
 	var started:=Time.get_ticks_usec()
 	var result:=_prepare_job_inner(path,digest,token,manifest,faces,root,index,map_path,requests,native,need_model,ownership_proof,model_route)
 	preload("res://scripts/world3d/load_trace.gd").elapsed("deferred.job",started,{"path":path,"native":native,"need_model":need_model,"reference_count":requests.size(),"failed":not str(result.get("error","")).is_empty()})
-	if model_route.get("completed_job_trace",false):
-		result.audit_worker_start_us=started;result.audit_worker_end_us=Time.get_ticks_usec()
 	return result
 
 static func _prepare_job_inner(path:String,digest:String,token:RefCounted,manifest:Dictionary,faces:bool,root:String,index:Dictionary,map_path:String,requests:Array,native:bool,need_model:bool,ownership_proof:OwnershipProof=null,model_route:Dictionary={})->Dictionary:
@@ -2647,7 +2645,7 @@ func _stage_building(item:Dictionary,specs:Array)->void:
 	job.staged_groups.erase(group)
 	_publish_items(ordered,combined)
 
-func _publication_ready()->Array:
+func _publication_ready(completion_pressure:bool=false)->Array:
 	var began:=Time.get_ticks_usec();var ready:Array=[]
 	var building_ranks:Dictionary={};var pruned:=0
 	var paths_checked:=0;var prefix_checks:=0;var eligible_calls:=0
@@ -2667,7 +2665,7 @@ func _publication_ready()->Array:
 		# once an earlier house is ready, checking this one cannot change choice.
 		# Never apply this to shared model paths, safety priorities, stale ranks,
 		# or when the earlier house was blocked. Re-evaluate on every selection.
-		if fair_publication_enabled and _candidates_revision==_demand_revision and path.begins_with("reference:building:"):
+		if fair_publication_enabled and not completion_pressure and _candidates_revision==_demand_revision and path.begins_with("reference:building:"):
 			var first:Dictionary=_path_first.get(path,EMPTY_DEMAND)
 			if not first.is_empty():
 				var priority:int=_demanded_priority.get(first.record.uuid,2147483647)
@@ -2809,6 +2807,9 @@ func _update_loading_worker_capacity(budget_usec:int)->void:
 static func _account_work_unit(timing:Dictionary,began:int)->void:
 	var elapsed:=Time.get_ticks_usec()-began
 	timing.units+=1;timing.unit_us+=elapsed;timing.max_unit_us=maxi(timing.max_unit_us,elapsed)
+	if CompletedTrace.enabled and timing.has("trace_identity"):
+		var identity:Array=timing.trace_identity
+		CompletedTrace.record(identity[0],identity[1],"main_unit",{"uuid":identity[2],"stage":timing.trace_stage,"start_us":began,"duration_us":elapsed},began+elapsed)
 
 func _record_main_thread_budget(budget:int,began:int,acceptance:Dictionary,publication:Dictionary)->void:
 	# The clock starts at this service's frame entry: elapsed_us includes demand,
@@ -2837,14 +2838,21 @@ func _publish_ready(began:int,budget_usec:int=INTERACTIVE_BUDGET_US)->Dictionary
 	# admits this stage only with time remaining after bookkeeping/acceptance;
 	# explicit direct callers retain their forced-progress soft-slice contract.
 	while timing.units==0 or Time.get_ticks_usec()-began<budget_usec:
-		var heads:=_publication_ready()
+		var pressure:=_completed_owner_pressure()
+		var heads:=_publication_ready(pressure)
 		if heads.is_empty():break
-		var item:Dictionary=_publication_order.choose(heads,_demanded_priority,_demanded_rank,_jobs) if fair_publication_enabled else heads[0]
+		var remaining:Dictionary={}
+		if pressure and int(_demanded_priority.get(heads[0].record.uuid,0))>=0 and _publication_order.needs_drain_target(heads,_jobs):
+			for head:Dictionary in heads:remaining[head.path]=_remaining_owner_members(_jobs[head.path])
+		var item:Dictionary=_publication_order.choose(heads,_demanded_priority,_demanded_rank,_jobs,pressure,remaining) if fair_publication_enabled else heads[0]
+		if fair_publication_enabled and _publication_order.drain_selected:profile.completed_owner_drain_units=int(profile.get("completed_owner_drain_units",0))+1
 		if item.path!=heads[0].path:profile.fair_publication_units=int(profile.get("fair_publication_units",0))+1
 		if item.get("published",false) or instance_errors.has(item.record.uuid) or path_errors.has(item.path):continue
 		var unit_began:=Time.get_ticks_usec()
 		var publication_id:String=item.record.uuid
 		var pixel_job:Dictionary=_jobs.get(item.path,{})
+		if CompletedTrace.enabled:
+			timing.trace_identity=[item.path,pixel_job.token.get_instance_id(),publication_id];timing.trace_stage="instance_begin"
 		if not item.get("native_reference",false) and not _publication_template_current(item.path,pixel_job):
 			# published callbacks can replace a global template within this same
 			# slice, after the frame-start check. Do not instantiate that unrelated
@@ -2862,11 +2870,13 @@ func _publish_ready(began:int,budget_usec:int=INTERACTIVE_BUDGET_US)->Dictionary
 		if pixel_job.has("pixel_consumer") and not Prefab.tickets_valid(pixel_job.get("pixel_tickets",{}),pixel_job.get("result",{}).get("prefab_texture_packet",{}).get("sources",{})):
 			_retry_pixel_job(item.path,{},"Resident texture changed before publication");_account_work_unit(timing,unit_began);continue
 		if pixel_job.get("collision_staged",{}).has(publication_id):
+			if CompletedTrace.enabled:timing.trace_stage="packet_commit"
 			var packet:Dictionary=pixel_job.collision_staged[publication_id]
 			_publish_items(packet.items,packet.specs)
 			_account_work_unit(timing,unit_began)
 			continue
 		if pixel_job.has("instance_preparation"):
+			if CompletedTrace.enabled:timing.trace_stage="instance_"+str(pixel_job.instance_preparation.phase)
 			var revision:=_demand_revision
 			_advance_instance_specs(item,pixel_job,unit_began,maxi(1,budget_usec-(Time.get_ticks_usec()-began)))
 			_account_work_unit(timing,unit_began)
@@ -2881,6 +2891,7 @@ func _publish_ready(began:int,budget_usec:int=INTERACTIVE_BUDGET_US)->Dictionary
 			if not pixel_job.has("streamed_texture_owners"):pixel_job.streamed_texture_owners={};pixel_job.streamed_texture_scope={}
 			var texture_phase:int=preload("res://scripts/world3d/material_publication.gd").step_record_prepared(item.record,_doc.load_paint_validation,pixel_job.streamed_texture_owners,record_pixels,pixel_job.streamed_texture_scope)
 			if texture_phase!=0:
+				if CompletedTrace.enabled:timing.trace_stage="record_texture"
 				if texture_phase<0:
 					_instance_failed(publication_id,"区块纹理准备失败："+publication_id)
 					if not str(item.get("group_id","")).is_empty():_stage_building(item,[])
@@ -2915,6 +2926,7 @@ func _publish_ready(began:int,budget_usec:int=INTERACTIVE_BUDGET_US)->Dictionary
 					if prefab_published:profile.combined_material_publications=int(profile.get("combined_material_publications",0))+1
 				else:phase=publication.step_prepared(item.record,prepared.data.materials,_doc.load_paint_validation,_doc.load_material_pool,pixel_job.material_textures,textures,pixel_job.material_scope)
 				if phase!=0:
+					if CompletedTrace.enabled:timing.trace_stage="prefab_material"
 					if phase<0:
 						_instance_failed(publication_id,"预制件材质准备或发布失败："+publication_id)
 						if not str(item.get("group_id","")).is_empty():_stage_building(item,[])
@@ -2987,6 +2999,29 @@ func _publish_ready(began:int,budget_usec:int=INTERACTIVE_BUDGET_US)->Dictionary
 		profile.publication_remove_batch_us=int(profile.get("publication_remove_batch_us",0))+Time.get_ticks_usec()-remove_started
 	profile.publication_units=int(profile.get("publication_units",0))+int(timing.units)
 	return timing
+
+func _completed_owner_pressure()->bool:
+	# Reuse the real dispatcher stop. No repeated demand/estimate scan or
+	# admission query with preemption side effects. A released owner still goes
+	# through ordinary byte/exclusive admission before a successor can start.
+	if not fair_publication_enabled or not _publication_order.completed_owner_drain_enabled or _job_cap_waiter.is_empty() or _candidates_revision!=_demand_revision:return false
+	if _jobs.size()<_job_limit() or _admission.active_workers()>=_admission.worker_limit:return false
+	if _jobs.has(_job_cap_waiter) or path_errors.has(_job_cap_waiter):return false
+	var first:Dictionary=_path_first.get(_job_cap_waiter,EMPTY_DEMAND)
+	return not first.is_empty() and not instance_errors.has(first.record.uuid)
+
+func _remaining_owner_members(owner:Dictionary)->int:
+	# Count only at target selection/arrival, not on every sticky cursor step.
+	var remaining:=0
+	var staged:Dictionary=owner.get("staged",EMPTY_DEMAND)
+	var packets:Dictionary=owner.get("collision_staged",EMPTY_DEMAND)
+	var members:Array=owner.get("publication_ids",[])
+	profile.completed_owner_cost_queries=int(profile.get("completed_owner_cost_queries",0))+1
+	profile.completed_owner_cost_items=int(profile.get("completed_owner_cost_items",0))+members.size()
+	for uuid:String in members:
+		if not _demanded_by_id.has(uuid) or instance_errors.has(uuid) or staged.has(uuid) or packets.has(uuid):continue
+		if not _demanded_by_id[uuid].get("published",false):remaining+=1
+	return remaining
 
 const INSTANCE_WORK_FIELDS:={"namespace_nodes_visited":"instance_namespace_nodes_visited","component_node_steps":"instance_component_node_steps","finish_nodes_visited":"instance_finish_nodes_visited","finish_visuals_registered":"instance_finish_visuals_registered","nodes_visited":"instance_projection_nodes_visited","nodes_freed":"instance_projection_nodes_freed","subtree_free_calls":"instance_cancel_subtree_free_calls","meshes_projected":"instance_meshes_projected"}
 func _record_instance_work(cursor:RefCounted,cancelled:bool=false,worker_prepared:bool=false)->void:
@@ -3349,6 +3384,8 @@ func _process(_delta:float)->void:
 		if (phase_budget_guard_enabled or acceptance.units>0) and Time.get_ticks_usec()-began>=budget:break
 		var unit_began:=Time.get_ticks_usec()
 		var result:Dictionary=job.result
+		if CompletedTrace.enabled:
+			acceptance.trace_identity=[path,job.token.get_instance_id(),""];acceptance.trace_stage="accept"
 		var acceptance_phase:=Time.get_ticks_usec()
 		if not _geometry_coverage_current(path,result):
 			# A new stronger consumer appeared while the private worker ran. Keep
@@ -3510,7 +3547,7 @@ func _refresh_raw_memory(path:String)->Dictionary:
 	return MemoryEstimate.estimate(path)
 
 func _start_worker(worker:RefCounted,prepare:Callable)->int:
-	return worker.start(prepare)
+	return worker.start(CompletedTrace.work.bind(prepare) if CompletedTrace.enabled else prepare)
 
 static func _retry_decision(job:Dictionary,result:Dictionary)->String:
 	# The worker wrapper uses String errors; the reader packet has typed engine
@@ -3925,7 +3962,6 @@ func _dispatch_jobs(tree:SceneTree,prefetch_only:bool=false)->void:
 func _make_prepare_task(path:String,digest:String,token:RefCounted,item:Dictionary,needs_faces:bool,content_root:String,requests:Array,native:bool,need_model:bool)->Callable:
 	var job:Dictionary=_jobs.get(path,{})
 	var route:Dictionary={"stage":job.get("stage","legacy"),"candidate":job.get("candidate",{}).duplicate(true),"require_native_products":require_native_products,"worker_prepack":job.get("worker_prepack",false),"direct_template_reuse":job.get("direct_template_reuse",false),"direct_material_plan":job.get("direct_material_plan",false)}
-	if CompletedTrace.enabled:route.completed_job_trace=true
 	if job.has("geometry_consumers"):
 		route.filter_collision_geometry=true;route.geometry_consumers=job.geometry_consumers.duplicate(true)
 		route.geometry_known=_collision_definition_modes.get(path,{}).duplicate();route.geometry_mode=int(job.geometry_mode)
@@ -3957,6 +3993,7 @@ func _make_native_pixel_prepare_task(plan:Dictionary,requested:Dictionary,conten
 
 func _discard_job(path:String)->void:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.deferred_asset_loader._discard_job") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
+	var trace_started:=Time.get_ticks_usec() if CompletedTrace.enabled else 0
 	_invalidate_collision_queries()
 	var job:Dictionary=_jobs[path]
 	_discard_pending_preparation(path,job)
@@ -4001,6 +4038,7 @@ func _discard_job(path:String)->void:
 	if not deferred_release:release.call()
 	_raw_retries.erase(path);_pixel_retries.erase(path)
 	if job.token.has_meta("admission_owner"):job.token.remove_meta("admission_owner")
+	if CompletedTrace.enabled:CompletedTrace.record(path,job.token.get_instance_id(),"main_unit",{"uuid":"","stage":"result_retirement","start_us":trace_started,"duration_us":Time.get_ticks_usec()-trace_started})
 
 func _discard_pending_preparation(path:String,job:Dictionary)->void:
 	# Only this job's publication IDs can receive model_verified, and only its

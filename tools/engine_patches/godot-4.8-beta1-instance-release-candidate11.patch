@@ -1,0 +1,31 @@
+--- a/servers/rendering/renderer_scene_cull.cpp
++++ b/servers/rendering/renderer_scene_cull.cpp
+@@ -4429,9 +4429,16 @@
+ 	} else if (RendererSceneOcclusionCull::get_singleton() && RendererSceneOcclusionCull::get_singleton()->is_occluder(p_rid)) {
+ 		RendererSceneOcclusionCull::get_singleton()->free_occluder(p_rid);
+ 	} else if (instance_owner.owns(p_rid)) {
+-		// delete the instance
+-
+-		update_dirty_instances();
++		// Delete the instance after settling scene dependencies. Resource uploads
++		// and dirty material uniforms are consumed before rendering, not by an
++		// unrelated instance destructor: they can wait for shader compilation.
++		// Keep both instance-list drains, including any changes from teardown.
++		auto flush_instance_updates = [this]() {
++			while (_instance_update_list.first()) {
++				_update_dirty_instance(_instance_update_list.first()->self());
++			}
++		};
++		flush_instance_updates();
+ 
+ 		Instance *instance = instance_owner.get_or_null(p_rid);
+ 
+@@ -4443,7 +4450,7 @@
+ 		instance_attach_skeleton(p_rid, RID());
+ 
+ 		instance->instance_uniforms.free(instance->self);
+-		update_dirty_instances(); //in case something changed this
++		flush_instance_updates(); // In case teardown changed scene dependencies.
+ 
+ 		instance_owner.free(p_rid);
+ 	} else {

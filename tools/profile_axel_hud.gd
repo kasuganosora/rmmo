@@ -29,6 +29,9 @@ func _initialize()->void:
 	report.private_road_upload=preload("res://scripts/world3d/ground_batcher.gd").private_road_upload_enabled
 	if "--without-water-surface-projection" in OS.get_cmdline_user_args():preload("res://scripts/world3d/river_materials.gd").water_visible_surfaces_enabled=false
 	report.water_visible_surfaces=preload("res://scripts/world3d/river_materials.gd").water_visible_surfaces_enabled
+	if "--completion-service" in OS.get_cmdline_user_args():preload("res://scripts/world3d/publication_order.gd").completed_owner_drain_enabled=true
+	elif "--without-completion-service" in OS.get_cmdline_user_args():preload("res://scripts/world3d/publication_order.gd").completed_owner_drain_enabled=false
+	report.completed_owner_drain=preload("res://scripts/world3d/publication_order.gd").completed_owner_drain_enabled
 	var old_disposal:bool="--without-source-retirement" in OS.get_cmdline_user_args()
 	preload("res://scripts/world3d/world_navigation.gd").sliced_source_disposal_enabled=not old_disposal
 	preload("res://scripts/world3d/dependency_index_proof.gd").cpu_snapshot_retirement_enabled=not old_disposal
@@ -46,10 +49,11 @@ func _initialize()->void:
 	var map_data=preload("res://scripts/world3d/world_map_data.gd")
 	map_data.native_visible_order_enabled=not "--scripted-map-query-order" in OS.get_cmdline_user_args()
 	report.native_map_query_order=map_data.native_visible_order_enabled
-	if "--trace-completed-jobs" in OS.get_cmdline_user_args():
+	if "--trace-queue-latency" in OS.get_cmdline_user_args() or "--trace-completed-jobs" in OS.get_cmdline_user_args():
 		preload("res://scripts/world3d/completed_job_trace.gd").start()
-		_completed_audit=preload("res://tools/completed_job_audit_probe.gd").new()
-		report.completed_job_samples=[]
+		if "--trace-completed-jobs" in OS.get_cmdline_user_args():
+			_completed_audit=preload("res://tools/completed_job_audit_probe.gd").new()
+			report.completed_job_samples=[]
 		report.completed_job_diagnostic=true
 		report.normal_performance_sample=false
 	var copy:=OS.get_environment("RMMO_HUD_TEST_MAP").replace("\\","/").simplify_path()

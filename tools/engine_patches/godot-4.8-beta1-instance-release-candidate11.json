@@ -1,0 +1,97 @@
+{
+  "schema_version": 1,
+  "candidate": "11",
+  "status": "component_and_map_lifecycle_validated_performance_inconclusive_not_installed",
+  "apply_after": {
+    "path": "tools/engine_patches/godot-4.8-beta1-shader-rid-candidate10.json",
+    "sha256": "393da454e1fa10ecc670bdfd21097e348ee5f02974b0ebc5f3b7205738c6e488"
+  },
+  "patch": {
+    "path": "tools/engine_patches/godot-4.8-beta1-instance-release-candidate11.patch",
+    "sha256": "fe1f160f1fa477dbbfaf565bd35ed3bd7b25072fc5d656add675f5a52c6887bc"
+  },
+  "files": [
+    {
+      "path": "servers/rendering/renderer_scene_cull.cpp",
+      "before_sha256": "1d06d853dfdee7390d4d9721aa674405315b58a136ce7c60788973313372dbfb",
+      "after_sha256": "b8b8b60c94e41a71e6dd11a73af4e160e1f9318c4f9ec5859632f762a3243f11"
+    }
+  ],
+  "build": {
+    "receipt": "D:\\code\\rmmo_runtime\\review_artifacts\\axel_post_roads_perf_20261030_01\\engine_instance_release_candidate11\\result.json",
+    "receipt_sha256": "17c3e0e366968a752ca7aab8f8eedeaac8920413c36aced4fe858c7c32bce479",
+    "command": [
+      "D:/tools/godot-4.8-build/python-env/Scripts/python.exe",
+      "-m",
+      "SCons",
+      "platform=windows",
+      "arch=x86_64",
+      "target=editor",
+      "use_mingw=yes",
+      "debug_symbols=yes",
+      "separate_debug_symbols=yes",
+      "dev_build=no",
+      "optimize=speed",
+      "lto=none",
+      "d3d12=no",
+      "accesskit=no",
+      "angle=no",
+      "-j4",
+      "tests=no"
+    ],
+    "seconds": 407.4060000000027,
+    "artifacts": {
+      "godot.windows.editor.x86_64.console.exe": {
+        "sha256": "9d9b3dad892d8038db8b264b0def12572fd6c0649eac70eb4eaa877e06762779",
+        "bytes": 199477
+      },
+      "godot.windows.editor.x86_64.console.exe.debugsymbols": {
+        "sha256": "67159208bf6d4676e6862e8650f0968700a41347db6be08fb1c48f564729acf2",
+        "bytes": 78178
+      },
+      "godot.windows.editor.x86_64.exe": {
+        "sha256": "a0516deb4b8a89ee09d2ad933db9b5c9fe3b9604cd4f300816ec523e6b52a501",
+        "bytes": 163218826
+      },
+      "godot.windows.editor.x86_64.exe.debugsymbols": {
+        "sha256": "59bc871822768fabd0af4883be064df51bde331ddf1d3345d952d787694c67a6",
+        "bytes": 2167854229
+      }
+    },
+    "source_unchanged": true,
+    "default_unchanged": true
+  },
+  "behavior": "Instance destruction settles both dirty-instance passes and all existing RID/scene dependency teardown, but leaves global dirty-resource/material updates to the normal render update. RenderingServer command synchronization is unchanged.",
+  "evidence": {
+    "real_stack": "D:\\code\\rmmo_runtime\\review_artifacts\\axel_post_roads_perf_20261030_01\\queue_node_release_gdb10_02\\node_release_attribution.json",
+    "shader_provenance": "D:\\code\\rmmo_runtime\\review_artifacts\\axel_post_roads_perf_20261030_01\\captured_shader_provenance.json",
+    "three_run_ranking": "D:\\code\\rmmo_runtime\\review_artifacts\\axel_post_roads_perf_20261030_01\\queue_latency_three_run03\\comparison.json",
+    "baseline_release_ms": [
+      93.391,
+      70.106,
+      79.474
+    ],
+    "candidate_release_ms": [
+      0.114,
+      0.138,
+      0.129
+    ]
+  },
+  "validation": {
+    "material_first_draw": "Default and candidate: 25 checks each; identical nonblank first-draw pixels with unrelated/shared instance teardown and pending owner cancellation. TAA disabled only in this functional fixture.",
+    "instance_spec": "15/15 GPU",
+    "asset_instance": "10/10 GPU",
+    "native_streamed_reference": "29/29 GPU",
+    "prepared_material": "102/102 GPU",
+    "native_reproduction": "Three fresh processes per engine, each projecting/discarding the exact fixed-map obj_1302 three times; zero failures. Identical captured shader fixture bytes.",
+    "map": "Normal serial full-HUD ABBA completed: all lifecycle checks pass, identical source/map SHA and structural workload. See comparison for every slow sample; overall loading/low improvement is not established.",
+    "map_evidence": "D:\\code\\rmmo_runtime\\review_artifacts\\axel_post_roads_perf_20261030_01\\instance_release_map11_comparison.json",
+    "patch_replay": "D:\\code\\rmmo_runtime\\review_artifacts\\axel_post_roads_perf_20261030_01\\engine_instance_release_candidate11\\delta_replay01\\result.json"
+  },
+  "limitations": [
+    "Local release benefit is not proof of faster frames or loading: compilation still happens during rendering. The standalone first-draw fixture explicitly records this transfer.",
+    "Candidate first native preparation took 2.594s; preserved, not counted as a warm steady-state comparison.",
+    "Default remains candidate10. No production installation or full editor acceptance is claimed. First candidate map run needed 33.517s native preparation and 119.208s full readiness; the cause is not established and the sample is retained.",
+    "No authored model, texture or map content changed."
+  ]
+}

@@ -9,10 +9,10 @@ class Document extends "res://scripts/world3d/world_document.gd":
 	var calls:=0
 	var calls_by_id:Dictionary={}
 	var observed:Array=[]
-	func _mesh(record:Dictionary,effects:bool=true,timings:Variant=null)->MeshInstance3D:
+	func _mesh(record:Dictionary,effects:bool=true,timings:Variant=null,prepared_context:RefCounted=null)->MeshInstance3D:
 		calls+=1
 		calls_by_id[record.uuid]=int(calls_by_id.get(record.uuid,0))+1
-		var node:=super(record,effects,timings)
+		var node:=super(record,effects,timings,prepared_context)
 		if node.mesh!=null:
 			for slot:int in node.mesh.get_surface_count():observed.append(node.mesh.surface_get_material(slot))
 		observed.append(node.material_override)
