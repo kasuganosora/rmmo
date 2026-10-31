@@ -1,7 +1,7 @@
 {
   "candidate": "21r2",
   "inherits": "20",
-  "status": "component_verified_normal_map_series_running",
+  "status": "component_and_six_normal_map_samples_verified_not_installed",
   "default_engine_changed": false,
   "control": {
     "environment": "RMMO_SECONDARY_DRAW_LISTS",
@@ -244,5 +244,84 @@
     "Subpass transitions and nested secondary execution remain inline",
     "Default and installed diagnostic executables unchanged",
     "Baseline Vulkan validation failures retained; pixel-only success had not proven API validity"
-  ]
+  ],
+  "normal_map": {
+    "evidence": "D:\\code\\rmmo_runtime\\review_artifacts\\axel_post_roads_perf_20261030_01\\secondary21r2_map_comparison.json",
+    "order": "ABBAAB",
+    "functional_passes": 6,
+    "failed": 0,
+    "full_ready_ms": {
+      "values": {
+        "A": [
+          85655.172,
+          65456.114,
+          66268.567
+        ],
+        "B": [
+          59015.766,
+          71551.675,
+          56883.656
+        ]
+      },
+      "median_A": 66268.567,
+      "median_B": 59015.766,
+      "reduction_percent": 10.945
+    },
+    "return_with_transfer_ms": {
+      "values": {
+        "A": [
+          72005.48999999999,
+          66818.024,
+          62194.01700000001
+        ],
+        "B": [
+          61549.84,
+          75653.317,
+          56258.29900000001
+        ]
+      },
+      "median_A": 66818.024,
+      "median_B": 61549.84,
+      "reduction_percent": 7.884
+    },
+    "return_loading_p95_ms": {
+      "values": {
+        "A": [
+          68.045,
+          55.832,
+          51.402
+        ],
+        "B": [
+          48.676,
+          57.024,
+          46.782
+        ]
+      },
+      "median_A": 55.832,
+      "median_B": 48.676
+    },
+    "return_steady_low_1pct_fps": {
+      "values": {
+        "A": [
+          23.304319455611097,
+          23.452707615094162,
+          25.30036274395084
+        ],
+        "B": [
+          27.508130180697854,
+          23.37657024805463,
+          28.532750842508726
+        ]
+      },
+      "median_A": 23.452707615094162,
+      "median_B": 27.508130180697854
+    },
+    "sources": "3580 batch sources / 200 prepared shadow builds in all six; final batch nodes 216 or 219 in both modes",
+    "caveats": [
+      "Retains first A 85.655 s and slower B 71.552 s; not a strict cold-disk/driver experiment",
+      "One all-process observation ended when B2 process age was 3.9 s; map clock began at 11.721 s. Cause of persistent slow B2 is not established.",
+      "Unloading and transfer peaks remain hundreds of milliseconds; no claim of total goal completion",
+      "Default engine and installed diagnostic remain unchanged"
+    ]
+  }
 }

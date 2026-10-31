@@ -727,6 +727,9 @@ every byte across odd sizes, mip levels and R8/RGBA8 formats.
 
 Six fresh processes in ABBAAB order, same executable and GPU work, show large
 batch CPU submit median 18.077 → 12.098 ms; full batch median 49.903 → 43.742 ms.
-Small lists have no demonstrated gain. See the manifest and performance log
-for all samples and the ongoing normal-map series. These component gains are
-not full-map acceptance; no installed engine has been replaced.
+Small lists have no demonstrated gain. Six normal-map ABBAAB samples also pass:
+full-ready group median 66.269 → 59.016 s, return-loading p95 55.832 → 48.676 ms,
+and return-steady 1% low 23.45 → 27.51 FPS. The slow A 85.655 s and B 71.552 s
+are retained. Unloading/transfer peaks remain hundreds of milliseconds; see
+the manifest and performance log for all samples and work-count boundaries.
+No installed engine has been replaced, and remaining map issues are not closed.
