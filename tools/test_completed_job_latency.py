@@ -1,5 +1,6 @@
 import unittest
 from summarize_completed_job_latency import summarize
+from compare_completed_job_latency import require_same_cache_contract
 
 
 def event(kind, at, generation=1, **details):
@@ -7,6 +8,22 @@ def event(kind, at, generation=1, **details):
 
 
 class QueueLatencyTests(unittest.TestCase):
+    def test_directory_rebuild_cannot_masquerade_as_equal_queue_work(self):
+        warm={'map_profile': {'reference_index_hit': True,
+                              'reference_index_rebuilt_before_models': False}}
+        cold={'map_profile': {'reference_index_hit': False,
+                              'reference_index_rebuilt_before_models': True}}
+        self.assertEqual(require_same_cache_contract([warm, warm, warm])['map_profile'],
+                         warm['map_profile'])
+        with self.assertRaisesRegex(ValueError, 'Mixed directory'):
+            require_same_cache_contract([cold, warm, warm])
+
+    def test_return_cache_state_also_has_to_match(self):
+        before={'return_map_profile': {'reference_index_hit': True}}
+        after={'return_map_profile': {'reference_index_hit': False}}
+        with self.assertRaisesRegex(ValueError, 'Mixed directory'):
+            require_same_cache_contract([before, before, after])
+
     def test_overlap_is_not_double_counted_as_cpu(self):
         events=[event('dispatch',0),event('worker_finished',300,started_us=100),
                 event('main_unit',350,start_us=250,duration_us=100,stage='accept'),event('slot_released',1000)]

@@ -35,6 +35,7 @@ const TexturePlanCatalog=preload("res://scripts/world3d/texture_plan_catalog.gd"
 const CollisionProducts=preload("res://scripts/world3d/collision_product_cache.gd")
 const FrameBudget=preload("res://scripts/world3d/frame_work_budget.gd")
 const CompletedTrace=preload("res://scripts/world3d/completed_job_trace.gd")
+const LoadTrace=preload("res://scripts/world3d/load_trace.gd")
 const CollisionGeometry=preload("res://scripts/world3d/model_collision_requirements.gd")
 static var shared_prefab_texture_preparation_enabled:=true # Shared source tasks retain and charge pixels once.
 static var parallel_texture_preparation_enabled:=true # Same byte lease and total worker cap; diagnostic serial control.
@@ -2889,7 +2890,9 @@ func _publish_ready(began:int,budget_usec:int=INTERACTIVE_BUDGET_US)->Dictionary
 			and not preload("res://scripts/world3d/runtime_probe_controls.gd").discard_map_textures
 			and (not item.record.has("house_prefab") or not item.record.get("surface_paint",[]).is_empty()) and not record_pixels.is_empty()):
 			if not pixel_job.has("streamed_texture_owners"):pixel_job.streamed_texture_owners={};pixel_job.streamed_texture_scope={}
+			var texture_step_began:=Time.get_ticks_usec() if LoadTrace.enabled else 0
 			var texture_phase:int=preload("res://scripts/world3d/material_publication.gd").step_record_prepared(item.record,_doc.load_paint_validation,pixel_job.streamed_texture_owners,record_pixels,pixel_job.streamed_texture_scope)
+			if LoadTrace.enabled:LoadTrace.elapsed("deferred.record_texture_ready_check",texture_step_began,{"uuid":publication_id,"phase":texture_phase})
 			if texture_phase!=0:
 				if CompletedTrace.enabled:timing.trace_stage="record_texture"
 				if texture_phase<0:
@@ -2959,7 +2962,9 @@ func _publish_ready(began:int,budget_usec:int=INTERACTIVE_BUDGET_US)->Dictionary
 			pixel_job.instance_preparation={"uuid":publication_id,"cursor":cursor,"phase":"asset","prefab_us":prefab_finished-unit_began,"instance_us":0,"prefab_parts_ms":prefab_parts,"instance_parts_ms":instance_parts,"worker_prepared":false}
 		else:
 			var cursor:RefCounted
+			var scope_began:=Time.get_ticks_usec() if LoadTrace.enabled else 0
 			var texture_scope:=_begin_record_texture_scope(item,pixel_job)
+			if LoadTrace.enabled:LoadTrace.elapsed("deferred.record_scope_begin",scope_began,{"uuid":publication_id})
 			if not texture_scope.ok:
 				_instance_failed(publication_id,"区块纹理在实例化前改变："+publication_id)
 				if not str(item.get("group_id","")).is_empty():_stage_building(item,[])
@@ -2977,8 +2982,12 @@ func _publish_ready(began:int,budget_usec:int=INTERACTIVE_BUDGET_US)->Dictionary
 				profile.instance_nodes_avoided=int(profile.get("instance_nodes_avoided",0))+1
 				preload("res://scripts/world3d/material_publication.gd").end_record_scope(texture_scope)
 			else:
+				var mesh_began:=Time.get_ticks_usec() if LoadTrace.enabled else 0
 				var holder:Node3D=_doc._mesh(item.record,true,instance_parts)
+				if LoadTrace.enabled:LoadTrace.elapsed("deferred.record_mesh_return",mesh_began,{"uuid":publication_id})
+				var scope_end_began:=Time.get_ticks_usec() if LoadTrace.enabled else 0
 				preload("res://scripts/world3d/material_publication.gd").end_record_scope(texture_scope)
+				if LoadTrace.enabled:LoadTrace.elapsed("deferred.record_scope_end",scope_end_began,{"uuid":publication_id})
 				if _instance_error(holder,item):_account_work_unit(timing,unit_began);continue
 				cursor=preload("res://scripts/world3d/instance_spec_preparation.gd").new()
 				cursor.begin(holder,_local_collision_order(item),int(item.get("draw_order",0)))

@@ -590,7 +590,10 @@ static func _texture_scope_current(record:Dictionary,packet:Dictionary,state:Dic
 	return true
 
 static func end_texture_publication(scope:Dictionary)->void:
-	if scope.get("previous")!=null:load("res://scripts/world_editor/terrain_texture_preparation.gd").restore(scope.previous)
+	# This successful publication has no failed textures to invalidate. Restore
+	# the borrowed owner directly; loading the editor helper here can compile it
+	# on the first resident-only handoff, long after the frame budget was spent.
+	if scope.get("previous")!=null:Cook.Paint.prepared_images=scope.previous
 	if scope.has("previous_uploaded"):Cook.Paint.prepared_textures=scope.previous_uploaded
 
 static func _publish_prepared(record:Dictionary,prepared:Dictionary,paint_validation:Variant=null,material_pool:Variant=null,timings:Variant=null)->bool:

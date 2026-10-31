@@ -8,6 +8,23 @@ from pathlib import Path
 from summarize_completed_job_latency import summarize
 
 
+def cache_contract(report):
+    # Rebuilding the directory transfers hydrated records into deferred jobs.
+    # Equal map/code/arguments alone therefore do not imply equal queue work.
+    return {phase: {key: report.get(phase, {}).get(key) for key in
+                    ['reference_index_hit', 'reference_index_rebuilt_before_models']}
+            for phase in ['map_profile', 'return_map_profile']}
+
+
+def require_same_cache_contract(reports):
+    contracts = [cache_contract(report) for report in reports]
+    if any(contract != contracts[0] for contract in contracts[1:]):
+        raise ValueError('Mixed directory-hit/rebuild samples; retain the cold run '
+                         'separately and obtain three samples with the same cache contract: '
+                         + json.dumps(contracts))
+    return contracts[0]
+
+
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('profiles',nargs=3,type=Path)
@@ -25,6 +42,7 @@ def main():
         assert summary['exit']==0 and not summary['failures'] and not summary['diagnostics']
         assert not summary['other_engine_or_compiler_pids']
     reference=reports[0]
+    directory_contract=require_same_cache_contract(reports)
     for report in reports:
         assert report['map_sha']==reference['map_sha']==report['map_sha_after']
         assert report['sources']==reference['sources']==report['sources_after']
@@ -59,6 +77,7 @@ def main():
     args.output.mkdir(parents=True,exist_ok=False)
     result=dict(profiles=[str(p.resolve()) for p in args.profiles],map_sha=reference['map_sha'],
                 engine_sha=launches[0]['engine_sha'],
+                directory_cache_contract=directory_contract,
                 note='Three diagnostic runs, fixed map/source and switches. Wall time includes native/GPU waits; these are not load p95 or exclusive CPU measurements. Initial and return phases are both included. All spikes retained.',
                 by_total=rows,by_single=sorted(rows,key=lambda r:r['median_max_unit_ms'],reverse=True),
                 by_source=source_rows,spikes=sorted(spikes,key=lambda r:r['duration_ms'],reverse=True),

@@ -834,3 +834,71 @@ B2的51.312s样本仍有852个需求，`active_workers=0`，4个结果全部read
 **已证明的收益**是实例释放不再承担全局材质编译：三次独立复现和两次真实地图的spec最大值都下降，依赖清理及后续材质首帧保持正确。**未证明**总加载和low改善：B2总时间仍与A2相近，返回最大帧反而更高，B1有119.208s及2–3.7s尖峰，全部保留。B1的原生准备33.517s集中在逻辑资源`7824a14b…`的同一281810329字节native产品，A1/B2/A2均约3.8–4.2s；这是下一次需要定位的差异，不能只凭“首次新引擎路径”把它归因于缓存或OS。当前不替换默认引擎。
 
 后续顺序：先澄清candidate11首次原生准备/首帧异常，确认引擎候选是否可正式采用；继续对三次稳定出现的`pavement_28cfb38d30df3a942dcd`约69–89ms实例开始做独立复现，以及把剩余渲染编译等待与真正绘制工作区分。高调用量的植被初始化继续留在累计榜，不能因单次较短丢掉。碰撞缓存失效清理仍仅有未运行的草稿测试，不作为已交付修复。本轮没有改模型/纹理/地图内容，所有实验patch和失败/慢样本保留。
+
+### 首次新路径慢读的对照与原生管线等待
+
+`instance_release_path_control10_01/02`将默认candidate10运行文件逐字节复制到此前未运行的隔离路径，两次均SHA `7a8029a6…`，没有candidate11改动。沿用上述冻结工程/地图、全HUD、正常预算与空私有用户缓存，无调试器/其他引擎/编译进程。两份均退出0、零错误/失败、源码地图前后相同。
+
+| 同一旧引擎、新路径 | 首次01 | 第二次02 |
+|---|---:|---:|
+| 入口 s | 48.993 | 16.451 |
+| 完整就绪 s | 118.893 | 65.337 |
+| 同一281810329字节native产品准备 s | 35.534 | 3.835 |
+| 可玩加载最大帧 ms | 4156.999 | 849.466 |
+| 卸载最大帧 ms | 1945.714 | 247.230 |
+
+旧引擎在新路径首次同样慢，证明candidate11不是触发这类异常的必要条件；同一路径第二次恢复，支持继续调查可执行路径相关的首次准备成本。仍不能由此宣称已识别具体驱动缓存、OS因素或所有长帧原因，也不能据此把候选首次慢样本删除。
+
+`probe_native_product_read.gd`单独调用正式`CompiledAssetPreparation.read`，使用初始公会`obj_1033`的同一原生产品及CPU handoff，不导入GLB、不创建地图。`native_read_newpath_gdb10_01`使用另一份同SHA旧引擎新路径，在读前的显式诊断门口预载符号并附加，随后抓全线程栈。30次采样中25次命中真实读取worker的`ArrayMesh::_set_surfaces → RenderingServerDefault::mesh_create_from_surfaces → RenderForwardClustered::mesh_generate_pipelines → PipelineHashMapRD::wait_for_pipeline → WorkerThreadPool::wait_for_task_completion`；另3次在同一worker的材质shader完成等待。此为调用位置采样计数，不是CPU占比。
+
+对应引擎源码`render_forward_clustered.cpp:5157`明确在非background模式等待所提交的ubershader管线；`rendering_server_default.h`给worker传入false。因此“compiled native read”不仅是读取/解码，还包括同步渲染管线准备。现场也有AMD Vulkan驱动执行栈，但符号不完整，未据此认定驱动bug。该诊断成功、零错误，112.308s跨度包含84.604s的栈收集暂停，绝不当普通加载成绩，也不简单相减冒充正常成绩。默认引擎仍candidate10，尚未改变管线等待策略。
+
+### 同一道路的独立三进程复现：先保留未复现边界
+
+`probe_ranked_road_lifecycle.gd`只读冻结地图的`pavement_28cfb38d30df3a942dcd`，真实worker准备原道路数组、边界、涂装和原贴图，主线程走正式纹理分片、scope、`WorldDocument._mesh`及spec投影/私有节点释放。为查计时空白，单列包含函数返回清理的整个`_mesh`调用，不能只相加其内层字段。每个进程重复使用同一份准备结果三次；这是组件隔离测试，没有整城并发上下文，也不是GPU绘制等价验收。
+
+初稿`ranked_road_isolated10_01`因测试使用`is preload(...)`语法解析失败，修为命名脚本常量，两份新测试脚本parse-check通过，失败日志保留。随后`ranked_road_isolated10r2_01/02/03`三进程均成功、零错误/失败，原地图SHA不变。
+
+| 每进程最大调用 ms | 01 | 02 | 03 |
+|---|---:|---:|---:|
+| 纹理准备/提交分片 | 76.753 | 54.069 | 53.844 |
+| `_mesh`含返回 | 8.784 | 5.412 | 7.850 |
+| scope begin | 0.124 | 0.178 | 0.137 |
+| spec投影/释放 | 0.246 | 0.143 | 0.156 |
+
+每份均9次纹理步骤、3次网格构建、3次spec推进，组件没有减少内容。**仍未复现整图的69–89ms instance_begin**：孤立纹理首提虽慢，其阶段不同，不能直接等同原热点或报已解决。继续在正式队列诊断中拆出texture ready check、scope begin/end和mesh完整返回跨度；新增计时只在LoadTrace开启时执行，正式发布语义与预算不变。
+
+### 补齐真实resident上下文：结束纹理作用域首次加载编辑器脚本
+
+细分整图`road_queue_detail10_01/02`的目标道路instance_begin分别97.851 / 89.548ms，其中`record_scope_end`占91.797 / 81.647ms，而整个`_mesh`含返回仅3.031 / 3.975ms。结束调用是`HousePrefab.end_texture_publication → load(terrain_texture_preparation.gd).restore(previous)`；本调用不传failed纹理，restore有效工作只有恢复`Paint.prepared_images`。原先与后台模型的时间重合不能证明上传锁，新的内层时钟把范围缩到这个调用。
+
+补充`--resident-only`独立fixture：仍使用原道路和原贴图，先通过正式纹理路径得到实际GPU owner，转为共享池同样的resident ticket交接，保持其真实source身份；不提前调用编辑器图片install helper。`ranked_road_resident10_01/02/03`全部成功、零错误/失败。三份helper在发布前均未缓存，第一次scope end后均变为已缓存；该调用分别 **62.583 / 56.959 / 56.572ms**，后两次恢复很短。这补齐了此前孤立Image交接未复现的上下文：Image安装路径会较早加载helper，resident路径第一次真正需要它反而在scope结束。
+
+修复只把无failed参数的scope结束改为直接恢复原Dictionary引用，保留uploaded texture恢复、进入作用域时的身份/失效处理，以及失败、取消时的原清理逻辑。没有把耗时移到预热或扩大缓存，不再为一次赋值动态加载编辑器辅助脚本。
+
+`ranked_road_scope_fixed10_01/02/03`同样三进程、同记录/owner/work，scope end最大 **0.016 / 0.023 / 0.016ms**；辅助脚本始终未进入缓存，三份零错误/失败。既有真实GPU回归`test_prepared_material_publication_scope_restore10_01` **102/102**、`test_streamed_texture_publication_scope_restore10_01` **103/103**，包括精确外层owner恢复、共享/不同角色纹理、实际GPU纹理像素与mip、源版本切换、取消及失败、零热缓存。尚需与整图后续三份细分样本对照；组件结果不能替代总加载或low验收。
+
+### 整图前后三次：道路热点消失，剩余长帧完整保留
+
+修复前road_queue_detail10_01/02/03均目录命中，第三份目标scope end为79.982ms。修复后的road_queue_scope_fixed10_01源码变化触发stale_index：目录重建读取1448项、后续入口reference_read读取1056项，并交接1098个已还原记录；deferred记录读取从1074降为435，是提前读取/交接造成的工作位置变化，不能冒充本次scope修复节省了639次读取。该冷目录样本完整就绪66.075s、卸载239.599ms、返回最大85.079ms，全部保留。
+
+因此另补road_queue_scope_fixed10_04，最终同条件三份取修复后 **02/03/04**，初次及返回均目录命中。新增排序合同检查初次/返回的directory hit/rebuild标记；真实混合01/02/03会拒绝生成同条件榜，失败证据mixed_directory_rejection.log保留，Python回归 **5/5**。此前混合三份分析road_scope_map_comparison.json保留为探索记录，不用于最终三次排名。
+
+最终排名是P/road_scope_before_matched_three/及P/road_scope_after_matched_three/，都有完整资源累计、资源阶段累计、单次倒序CSV，以及未删减的>50ms事件；对照为P/road_scope_map_matched_comparison.json。六份固定源码各组三次、同地图/引擎/预算/全HUD，没有GDB/官方profiler/其他引擎或编译进程；均退出0、零错误/失败、两层journal零丢失、旧owner释放及回收排空通过。开着队列/内层时钟，仍是诊断样本，且顺序为AAA后BBB，**不是正常性能ABBA或加载p95**。
+
+| 项目 | 修复前01 / 02 / 03 | 修复后02 / 03 / 04 |
+|---|---:|---:|
+| 目标道路初次instance_begin ms | 97.851 / 89.548 / 86.165 | **6.190 / 5.532 / 4.972** |
+| 同道路返回instance_begin ms | 5.162 / 5.420 / 5.188 | 9.156 / 5.738 / 5.541 |
+| 完整就绪 s | 81.211 / 75.382 / 64.946 | 67.993 / 66.690 / 64.743 |
+| 卸载最大帧 ms | 327.520 / 286.159 / 246.714 | 222.355 / 259.419 / 320.276 |
+| 返回加载p95 ms | 57.100 / 48.553 / 46.377 | 55.511 / 55.470 / 53.855 |
+| 返回加载最大帧 ms | 96.521 / 84.404 / 68.672 | 134.509 / 90.945 / 86.915 |
+| 初次稳定1% low FPS | 31.22 / 30.64 / 34.90 | 29.01 / 34.62 / 29.08 |
+| 返回稳定1% low FPS | 26.47 / 30.19 / 30.78 | 28.51 / 29.89 / 24.38 |
+
+目标道路修复后没有超过2ms阈值的scope end事件，不将被阈值省略的小调用写成0。六份初次/返回结构工作量均为1505实例、1074引用读取、742直接prefab、1870节点访问/释放、2176网格投影、9731922面准备顶点；时间分片次数略变，不是删内容。能够确认该局部首次加载工作被去掉；不能把总时间差或low波动归因于这一个修复。
+
+最终修复后三份仍分别有 **536.036 / 520.970 / 491.872ms** 的spec单元，内层均为私有节点释放；另有pack等尖峰。累计资源榜首重新为2abd3fe0…（中位831.703ms），植被5dde353b…为472.063ms，完整保留。没有把这些既有问题算成已解决，也没有扩大队列或放宽依赖条件。
+
+下一轮应回到上述原生管线等待及既有释放/pack等待：candidate11仍隔离保留、默认仍10；需评估原生准备是否必须逐网格等待全部管线，以及异步准备的首帧正确性、取消/资源寿命和真实总耗时，不能只移动等待位置。Image安装仍会调用编辑器helper，是否能把共享运行时安装逻辑从编辑器依赖中拆出留作同链候选。此轮仅完成scope结束的不必要加载修复，纹理画质和地图/模型资源均未修改。
