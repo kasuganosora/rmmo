@@ -1,0 +1,83 @@
+{
+  "candidate": "32",
+  "inherits": "22",
+  "status": "diagnostic_event_coverage_and_control_contracts_verified",
+  "purpose": "Cover native Windows loop before Main::iteration: SDL poll, window lock wait, raw input, message dispatch context, flush, HDR and dialog callbacks. No scheduling or renderer behavior change.",
+  "apply_after": {
+    "path": "tools/engine_patches/godot-4.8-beta1-binding-batches-candidate22.json",
+    "sha256": "e9ca78f59bc9c39448ba199b1195e9f100c156d0878f7e11d1cc1f191c259d81"
+  },
+  "patch": {
+    "path": "tools/engine_patches/godot-4.8-beta1-windows-event-trace-candidate32.patch",
+    "sha256": "49fd0ed3d8a7959f3e5bb98e03033fa626242e668b36dabea6ad7319ea0c985d"
+  },
+  "source_changes": [
+    {
+      "path": "core/debugger/rmmo_debug_trace.h",
+      "before_sha256": "7a3016ae893fa08cb40ebebba5aff9e3f99ae21a7060ffb7aedaead563049882",
+      "after_sha256": "23f1675df164cd46b48d37b9380fb42d52eb765aa6c12fc65e1bd9c18aed800b"
+    },
+    {
+      "path": "core/debugger/rmmo_debug_trace.cpp",
+      "before_sha256": "ac809244d3910ff09c75ea623ecabd673dd7a95298c1b226b0cb79807a81d2d5",
+      "after_sha256": "203de167487bc34772ca39fbea421a2c924b9bd7dadcbb15a8ed166846b26077"
+    },
+    {
+      "path": "platform/windows/os_windows.cpp",
+      "before_sha256": "92d107f08a985453bd9ce693cd285a47245fae9e13db883ea9c67684e281d7e0",
+      "after_sha256": "9adc695d7fad234565951b42ccd48b370e4dd2fdedc4b6b17df20b6a3df924e1"
+    },
+    {
+      "path": "platform/windows/display_server_windows.cpp",
+      "before_sha256": "7e642120a8a76b75b13472db67f4e176d89c3ef743d604dd789b47aa600ba3d7",
+      "after_sha256": "c0aa51b7ee0e0aed8af3cded80dbdc5e5ce65cde871a1a703f6c9a246c0722d9"
+    },
+    {
+      "path": "drivers/sdl/joypad_sdl.cpp",
+      "before_sha256": "e61d9a205085a280046eb149f694a8784f14e9740fef9d8161b026b8ff855c0d",
+      "after_sha256": "af7c405792d6de7571aacab2e5df2ff2454bb3ed4278c0ab3240da78bf8b346a"
+    }
+  ],
+  "engine": "D:\\code\\rmmo_runtime\\review_artifacts\\axel_post_roads_perf_20261030_01\\engine_event_pump_candidate32\\engine\\godot.windows.editor.x86_64.exe",
+  "engine_sha256": "801ae4c66abdda0da536dc28bb6bb12d1e67a8e3f754e379203b0dec4a0d7eab",
+  "symbols_sha256": "5d24a2a590dac261d2917bf52a299990a9fbef895de915cf2ecb48876da284c8",
+  "build_command": [
+    "D:/tools/godot-4.8-build/python-env/Scripts/python.exe",
+    "-m",
+    "SCons",
+    "platform=windows",
+    "arch=x86_64",
+    "target=editor",
+    "use_mingw=yes",
+    "debug_symbols=yes",
+    "separate_debug_symbols=yes",
+    "dev_build=no",
+    "optimize=speed",
+    "lto=none",
+    "d3d12=no",
+    "accesskit=no",
+    "angle=no",
+    "-j4",
+    "tests=no"
+  ],
+  "default_engine_changed": false,
+  "default_engine_identity": {
+    "godot.windows.editor.x86_64.exe": "7a8029a67b0e0bbc442c12f5ebf0aa67baf2e53f65c8750dd5fbb6b4adabdb53",
+    "godot.windows.editor.x86_64.exe.debugsymbols": "bd2749d59db19ef16b32351530922b81af52e7a6372a238a1331f0131b52c7c7",
+    "patched_build_manifest.json": "89638792af31e21041a6b8b50232125bb2ae6be41236a92dab01d3ed0bae8c71"
+  },
+  "contract_evidence": "D:\\code\\rmmo_runtime\\review_artifacts\\axel_post_roads_perf_20261030_01\\event_pump32_contract",
+  "red": "red02",
+  "green": "green01",
+  "control_checks": 88,
+  "pixel_equality": "gpu_static22 and gpu_static32: exact pixels; TAA disabled only for static fixture. Real-map settings unchanged.",
+  "real_map": "event_pump32_trace_01",
+  "real_map_events": 6943946,
+  "real_map_dropped": 0,
+  "limits": [
+    "Prior 352ms outer-main spike did not recur; not marked fixed.",
+    "Native tracing is diagnostic and no normal FPS benefit is claimed.",
+    "Coarse GetThreadTimes is not precise short-span CPU timing.",
+    "Unmatched scopes crossing capture stop remain explicitly incomplete."
+  ]
+}

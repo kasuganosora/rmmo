@@ -1,0 +1,180 @@
+--- a/core/debugger/rmmo_debug_trace.h
++++ b/core/debugger/rmmo_debug_trace.h
+@@ -19,6 +19,21 @@
+ 	VULKAN_FENCE_WAIT,
+ 	VULKAN_SUBMIT_PRESENT,
+ 	WORKER_ENQUEUE,
++	// IDs 13..75 are existing diagnostic labels; keep capture v1 IDs stable.
++	WINDOWS_LOOP = 76,
++	WINDOWS_EVENTS,
++	WINDOWS_SDL,
++	WINDOWS_LOCK_WAIT,
++	WINDOWS_RAW_INPUT,
++	WINDOWS_MESSAGES,
++	WINDOWS_DISPATCH,
++	WINDOWS_TTS,
++	WINDOWS_KEY_EVENTS,
++	WINDOWS_INPUT_FLUSH,
++	WINDOWS_HDR_POLL,
++	WINDOWS_DIALOGS,
++	SDL_POLL,
++	SDL_EVENT,
+ };
+ Error start(int64_t p_event_capacity = 1048576, bool p_cpu_clock = false);
+ Dictionary stop();
+--- a/core/debugger/rmmo_debug_trace.cpp
++++ b/core/debugger/rmmo_debug_trace.cpp
+@@ -115,7 +115,7 @@
+ 	if (!labels.is_empty()) return;
+ 	for (const char *name : {"unknown", "main.iteration", "render.sync", "render.draw", "worker.execute", "worker.wait",
+ 			"resource.load", "mesh.surface_material", "pipeline.wait", "device.stall", "vulkan.fence_wait", "vulkan.submit_present", "worker.enqueue", "worker.name",
+-			"render.begin_frame", "render.scene_update", "render.canvas_update", "render.particles", "render.probes", "render.viewports", "render.canvas_renderer_update", "render.end_frame", "render.canvas_notifiers", "render.scene_notifiers", "render.memory_info", "render.post_draw", "render.viewport", "render.viewport_3d", "render.dirty_instances", "render.cull_scene", "render.cull_range", "render.particle_colliders", "render.rd_scene", "render.rd_update", "render.forward_scene", "render.instance_data", "render.fill_list", "render.draw_list", "render.dirty_geometry", "render.dirty_pipelines", "render.shadow_pass", "render.shadow_process", "render.shadow_end", "render.contact_shadows", "render.global_uniforms", "render.material_updates", "render.multimesh_updates", "render.skeleton_updates", "render.decal_redraw", "render.decal_atlas", "render.area_light_atlas", "main.scene_process", "main.audio", "main.message_queue", "rd.begin_frame", "rd.end_frame", "rd.execute_frame", "rd.stall_frame", "rd.free_pending", "rd.transfer_workers", "rd.transfer_barriers", "rd.graph_begin", "rd.begin_segment", "rd.command_begin", "rd.uniform_pool_reset", "rd.graph_end", "rd.graph_run", "rd.graph_draw", "rd.graph_compute", "rd.graph_framebuffer", "rd.graph_barriers", "rd.secondary_wait", "rd.graph_sort", "rd.graph_dependencies", "rd.graph.draw_bind_work", "rd.graph.vertex_pipeline_work"}) labels.push_back(name);
++			"render.begin_frame", "render.scene_update", "render.canvas_update", "render.particles", "render.probes", "render.viewports", "render.canvas_renderer_update", "render.end_frame", "render.canvas_notifiers", "render.scene_notifiers", "render.memory_info", "render.post_draw", "render.viewport", "render.viewport_3d", "render.dirty_instances", "render.cull_scene", "render.cull_range", "render.particle_colliders", "render.rd_scene", "render.rd_update", "render.forward_scene", "render.instance_data", "render.fill_list", "render.draw_list", "render.dirty_geometry", "render.dirty_pipelines", "render.shadow_pass", "render.shadow_process", "render.shadow_end", "render.contact_shadows", "render.global_uniforms", "render.material_updates", "render.multimesh_updates", "render.skeleton_updates", "render.decal_redraw", "render.decal_atlas", "render.area_light_atlas", "main.scene_process", "main.audio", "main.message_queue", "rd.begin_frame", "rd.end_frame", "rd.execute_frame", "rd.stall_frame", "rd.free_pending", "rd.transfer_workers", "rd.transfer_barriers", "rd.graph_begin", "rd.begin_segment", "rd.command_begin", "rd.uniform_pool_reset", "rd.graph_end", "rd.graph_run", "rd.graph_draw", "rd.graph_compute", "rd.graph_framebuffer", "rd.graph_barriers", "rd.secondary_wait", "rd.graph_sort", "rd.graph_dependencies", "rd.graph.draw_bind_work", "rd.graph.vertex_pipeline_work", "windows.loop", "windows.events", "windows.sdl", "windows.lock_wait", "windows.raw_input", "windows.messages", "windows.dispatch", "windows.tts", "windows.key_events", "windows.input_flush", "windows.hdr_poll", "windows.dialogs", "sdl.poll", "sdl.event"}) labels.push_back(name);
+ }
+ Slot *enter_writer(uint64_t p_epoch) {
+ 	if (!local.slot) {
+--- a/platform/windows/os_windows.cpp
++++ b/platform/windows/os_windows.cpp
+@@ -27,6 +27,8 @@
+ /* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE      */
+ /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                 */
+ /**************************************************************************/
++
++#include "core/debugger/rmmo_debug_trace.h"
+ 
+ #include "os_windows.h"
+ 
+@@ -2355,6 +2357,7 @@
+ 	while (true) {
+ 		GodotProfileFrameMark;
+ 		GodotProfileZone("OS_Windows::run");
++		RmmoDebugTrace::Scope debug_scope(RmmoDebugTrace::WINDOWS_LOOP);
+ 		DisplayServer::get_singleton()->process_events(); // get rid of pending events
+ 		if (Main::iteration()) {
+ 			break;
+--- a/platform/windows/display_server_windows.cpp
++++ b/platform/windows/display_server_windows.cpp
+@@ -27,6 +27,8 @@
+ /* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE      */
+ /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                 */
+ /**************************************************************************/
++
++#include "core/debugger/rmmo_debug_trace.h"
+ 
+ #include "display_server_windows.h"
+ 
+@@ -4538,18 +4540,25 @@
+ 
+ void DisplayServerWindows::process_events() {
+ 	ERR_FAIL_COND(!Thread::is_main_thread());
++	RmmoDebugTrace::Scope events_scope(RmmoDebugTrace::WINDOWS_EVENTS);
+ 
+ 	if (!drop_events) {
+ #ifdef SDL_ENABLED
+ 		if (joypad_sdl) {
++			RmmoDebugTrace::Scope sdl_scope(RmmoDebugTrace::WINDOWS_SDL);
+ 			joypad_sdl->process_events();
+ 		}
+ #endif
+ 	}
+ 
++	const uint64_t lock_span = RmmoDebugTrace::begin(RmmoDebugTrace::WINDOWS_LOCK_WAIT);
+ 	_THREAD_SAFE_LOCK_
+-
++	RmmoDebugTrace::end(lock_span);
++
++	const uint64_t raw_span = RmmoDebugTrace::begin(RmmoDebugTrace::WINDOWS_RAW_INPUT);
+ 	bool has_touch_events = process_raw_input();
++	RmmoDebugTrace::end(raw_span);
++	const uint64_t messages_span = RmmoDebugTrace::begin(RmmoDebugTrace::WINDOWS_MESSAGES);
+ 
+ 	DisplayServerEnums::WindowID window_id = _get_focused_window_or_popup();
+ 	const WindowData &wd = windows[window_id];
+@@ -4590,34 +4599,46 @@
+ 	if (has_touch_events || wd.ime_active) {
+ 		// Process all messages.
+ 		while (PeekMessageW(&msg, nullptr, 0, 0, PM_REMOVE)) {
++			RmmoDebugTrace::Scope dispatch_scope(RmmoDebugTrace::WINDOWS_DISPATCH, 0, msg.message);
+ 			TranslateMessage(&msg);
+ 			DispatchMessageW(&msg);
+ 		}
+ 	} else {
+ 		// Process non-mouse move messages.
+ 		while (peek_discrete()) {
++			RmmoDebugTrace::Scope dispatch_scope(RmmoDebugTrace::WINDOWS_DISPATCH, 0, msg.message);
+ 			TranslateMessage(&msg);
+ 			DispatchMessageW(&msg);
+ 		}
+ 		if (PeekMessageW(&msg, nullptr, WM_MOUSEMOVE, WM_MOUSEMOVE, PM_REMOVE)) {
++			RmmoDebugTrace::Scope dispatch_scope(RmmoDebugTrace::WINDOWS_DISPATCH, 0, msg.message);
+ 			TranslateMessage(&msg);
+ 			DispatchMessageW(&msg);
+ 		}
+ 		if (PeekMessageW(&msg, nullptr, WM_NCMOUSEMOVE, WM_NCMOUSEMOVE, PM_REMOVE)) {
++			RmmoDebugTrace::Scope dispatch_scope(RmmoDebugTrace::WINDOWS_DISPATCH, 0, msg.message);
+ 			TranslateMessage(&msg);
+ 			DispatchMessageW(&msg);
+ 		}
+ 	}
+ 	_reconcile_shift_state(_get_focused_window_or_popup());
++	RmmoDebugTrace::end(messages_span);
+ 	_THREAD_SAFE_UNLOCK_
+ 
+ 	if (tts) {
++		RmmoDebugTrace::Scope tts_scope(RmmoDebugTrace::WINDOWS_TTS);
+ 		tts->process_events();
+ 	}
+ 
+ 	if (!drop_events) {
+-		_process_key_events();
+-		Input::get_singleton()->flush_buffered_events();
++		{
++			RmmoDebugTrace::Scope key_scope(RmmoDebugTrace::WINDOWS_KEY_EVENTS);
++			_process_key_events();
++		}
++		{
++			RmmoDebugTrace::Scope flush_scope(RmmoDebugTrace::WINDOWS_INPUT_FLUSH);
++			Input::get_singleton()->flush_buffered_events();
++		}
+ 	}
+ 
+ 	// Poll HDR output state for windows that have requested it.
+@@ -4631,8 +4652,12 @@
+ 	// because the only way to adjust this is to leave the Godot Window and adjust the SDR/HDR
+ 	// Content Brightness Windows display setting. This means the user must return to the Godot
+ 	// window, which triggers a WM_WINDOWPOSCHANGED event.
+-	_legacy_update_hdr_output_for_tracked_windows(false);
+-
++	{
++		RmmoDebugTrace::Scope hdr_scope(RmmoDebugTrace::WINDOWS_HDR_POLL);
++		_legacy_update_hdr_output_for_tracked_windows(false);
++	}
++
++	RmmoDebugTrace::Scope dialog_scope(RmmoDebugTrace::WINDOWS_DIALOGS);
+ 	LocalVector<List<FileDialogData *>::Element *> to_remove;
+ 	for (List<FileDialogData *>::Element *E = file_dialogs.front(); E; E = E->next()) {
+ 		FileDialogData *fd = E->get();
+--- a/drivers/sdl/joypad_sdl.cpp
++++ b/drivers/sdl/joypad_sdl.cpp
+@@ -28,6 +28,8 @@
+ /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                 */
+ /**************************************************************************/
+ 
++#include "core/debugger/rmmo_debug_trace.h"
++
+ #include "joypad_sdl.h"
+ 
+ #ifdef SDL_ENABLED
+@@ -122,7 +124,11 @@
+ 	}
+ 
+ 	SDL_Event sdl_event;
+-	while (SDL_PollEvent(&sdl_event)) {
++	while ([&]() {
++		RmmoDebugTrace::Scope poll_scope(RmmoDebugTrace::SDL_POLL);
++		return SDL_PollEvent(&sdl_event);
++	}()) {
++		RmmoDebugTrace::Scope event_scope(RmmoDebugTrace::SDL_EVENT, 0, sdl_event.type);
+ 		// A new joypad was attached
+ 		if (sdl_event.type == SDL_EVENT_JOYSTICK_ADDED) {
+ 			int joy_id = Input::get_singleton()->get_unused_joy_id();

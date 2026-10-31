@@ -20,6 +20,9 @@ func run()->void:
 	check(Timeline.available(),"native trace API exists")
 	if not Timeline.available():quit(2);return
 	root.size=Vector2i(320,240)
+	# Compare capture on/off, not different TAA accumulation frames. Keep the
+	# exact pixel equality assertion; only this static test disables temporal AA.
+	root.use_taa=false
 	var world:=Node3D.new();root.add_child(world)
 	var camera:=Camera3D.new();world.add_child(camera);camera.position=Vector3(0,0,4);camera.current=true
 	var light:=DirectionalLight3D.new();world.add_child(light);light.rotation_degrees=Vector3(-30,-30,0)
