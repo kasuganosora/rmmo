@@ -1,0 +1,238 @@
+{
+  "candidate": "22",
+  "inherits": "21r2",
+  "status": "component_correctness_and_work_verified_mixed_timing_map_pending",
+  "purpose": "Skip empty descriptor batches and clean-state second scans; hoist constant backend capability query while preserving per-set preparation",
+  "engine": "D:\\code\\rmmo_runtime\\review_artifacts\\axel_post_roads_perf_20261030_01\\engine_binding_batches_candidate22\\engine\\godot.windows.editor.x86_64.exe",
+  "engine_sha256": "40e62261f3675839a91cd078d1b16f076c97f440a61aaa5c9cd0c32361a9c55d",
+  "default_engine_changed": false,
+  "source_changes": [
+    {
+      "path": "servers/rendering/rendering_device.cpp",
+      "before_sha256": "33a1bf7c65d22d0792d539847be4eaad73b29ce15a852a13ac815cb761a2b34a",
+      "after_sha256": "f65e2839095807dc19f8f33c54ef0239c013d24b3530dc5480b038b9a1370326"
+    }
+  ],
+  "patch_sha256": "a14ed7dde2862388cdc39138b8b3d41bee17a592bba5515584f7e6c0ad2cc459",
+  "test_sha256": "e37f54bd6be0d66967711f9882db943051fd22fde86a3f6a7be6d39736f8e419",
+  "evidence_root": "D:\\code\\rmmo_runtime\\review_artifacts\\axel_post_roads_perf_20261030_01",
+  "red": "descriptor_batches22_red2",
+  "green": "descriptor_batches22_green",
+  "checks": 51,
+  "render_bindings": [
+    {
+      "mode": "reuse",
+      "draws": 4096,
+      "observed_bindings": 2,
+      "expected_bindings": 2,
+      "correct": true
+    },
+    {
+      "mode": "material",
+      "draws": 4096,
+      "observed_bindings": 4097,
+      "expected_bindings": 4097,
+      "correct": true
+    },
+    {
+      "mode": "sparse",
+      "draws": 4096,
+      "observed_bindings": 8192,
+      "expected_bindings": 8192,
+      "correct": true
+    },
+    {
+      "mode": "pipeline",
+      "draws": 4096,
+      "observed_bindings": 2,
+      "expected_bindings": 2,
+      "correct": true
+    }
+  ],
+  "compute_bytes_before": [
+    7704,
+    3168,
+    8216,
+    3680
+  ],
+  "compute_bytes_after": [
+    5688,
+    3168,
+    6200,
+    3680
+  ],
+  "equal_pixels": true,
+  "zero_vulkan_validation_errors": true,
+  "timing": {
+    "reuse": {
+      "process_medians_us": {
+        "A": {
+          "encode_us": [
+            679,
+            672,
+            696
+          ],
+          "submit_us": [
+            220,
+            230,
+            229
+          ],
+          "sync_us": [
+            248,
+            257,
+            247
+          ]
+        },
+        "B": {
+          "encode_us": [
+            642,
+            641,
+            687
+          ],
+          "submit_us": [
+            249,
+            225,
+            256
+          ],
+          "sync_us": [
+            271,
+            261,
+            313
+          ]
+        }
+      },
+      "encode_median_A_us": 679,
+      "encode_median_B_us": 642,
+      "encode_reduction_percent": 5.449
+    },
+    "material": {
+      "process_medians_us": {
+        "A": {
+          "encode_us": [
+            1427,
+            1443,
+            1439
+          ],
+          "submit_us": [
+            1331,
+            1325,
+            1344
+          ],
+          "sync_us": [
+            405,
+            396,
+            424
+          ]
+        },
+        "B": {
+          "encode_us": [
+            1513,
+            1536,
+            1486
+          ],
+          "submit_us": [
+            1415,
+            1782,
+            1531
+          ],
+          "sync_us": [
+            416,
+            442,
+            418
+          ]
+        }
+      },
+      "encode_median_A_us": 1439,
+      "encode_median_B_us": 1513,
+      "encode_reduction_percent": -5.142
+    },
+    "sparse": {
+      "process_medians_us": {
+        "A": {
+          "encode_us": [
+            2277,
+            2238,
+            2252
+          ],
+          "submit_us": [
+            1754,
+            1805,
+            1808
+          ],
+          "sync_us": [
+            389,
+            420,
+            444
+          ]
+        },
+        "B": {
+          "encode_us": [
+            2283,
+            2307,
+            2284
+          ],
+          "submit_us": [
+            1818,
+            2268,
+            1964
+          ],
+          "sync_us": [
+            422,
+            493,
+            390
+          ]
+        }
+      },
+      "encode_median_A_us": 2252,
+      "encode_median_B_us": 2284,
+      "encode_reduction_percent": -1.421
+    },
+    "pipeline": {
+      "process_medians_us": {
+        "A": {
+          "encode_us": [
+            1197,
+            1182,
+            1234
+          ],
+          "submit_us": [
+            1220,
+            1178,
+            1227
+          ],
+          "sync_us": [
+            880,
+            878,
+            874
+          ]
+        },
+        "B": {
+          "encode_us": [
+            1177,
+            1188,
+            1257
+          ],
+          "submit_us": [
+            1235,
+            1230,
+            1333
+          ],
+          "sync_us": [
+            889,
+            876,
+            882
+          ]
+        }
+      },
+      "encode_median_A_us": 1197,
+      "encode_median_B_us": 1188,
+      "encode_reduction_percent": 0.752
+    }
+  },
+  "limits": [
+    "Six timing samples retain material encode +5.1% and submit +15.0%; not a general timing improvement",
+    "Record-count reduction is CPU graph work; empty records already did no Vulkan descriptor binding",
+    "No cumulative map measurement for this delta yet",
+    "Installed normal and diagnostic engines unchanged"
+  ]
+}

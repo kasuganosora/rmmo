@@ -1,0 +1,95 @@
+--- a/servers/rendering/rendering_device.cpp
++++ b/servers/rendering/rendering_device.cpp
+@@ -6172,9 +6172,11 @@
+ 	// storage, TLS lookup or dynamic vector reset is required.
+ 	RDD::UniformSetID valid_descriptor_ids[MAX_UNIFORM_SETS];
+ 	uint32_t valid_set_count = 0;
+-	uint32_t first_set_index = 0;
++	// No dirty sets means there is no second binding scan to perform.
++	uint32_t first_set_index = draw_list.state.set_count;
+ 	uint32_t last_set_index = 0;
+ 	bool found_first_set = false;
++	const bool prepare_sets_for_use = !driver->api_trait_get(RDD::API_TRAIT_HONORS_PIPELINE_BARRIERS);
+ 
+ 	for (uint32_t i = 0; i < draw_list.state.set_count; i++) {
+ 		if (draw_list.state.sets[i].pipeline_expected_format == 0) {
+@@ -6186,7 +6188,7 @@
+ 			found_first_set = true;
+ 		}
+ 		// Prepare descriptor sets if the API doesn't use pipeline barriers.
+-		if (!driver->api_trait_get(RDD::API_TRAIT_HONORS_PIPELINE_BARRIERS)) {
++		if (prepare_sets_for_use) {
+ 			draw_graph.add_draw_list_uniform_set_prepare_for_use(draw_list.state.pipeline_shader_driver_id, draw_list.state.sets[i].uniform_set_driver_id, i);
+ 		}
+ 	}
+@@ -6201,7 +6203,7 @@
+ 			// Batch contiguous descriptor sets in a single call.
+ 			if (descriptor_set_batching) {
+ 				// All good, see if this requires re-binding.
+-				if (i - last_set_index > 1) {
++				if (valid_set_count > 0 && i - last_set_index > 1) {
+ 					// If the descriptor sets are not contiguous, bind the previous ones and start a new batch.
+ 					draw_graph.add_draw_list_bind_uniform_sets(draw_list.state.pipeline_shader_driver_id, VectorView<RDD::UniformSetID>(valid_descriptor_ids, valid_set_count), first_set_index, valid_set_count);
+ 
+@@ -6984,9 +6986,11 @@
+ 	valid_descriptor_ids.resize(compute_list.state.set_count);
+ 
+ 	uint32_t valid_set_count = 0;
+-	uint32_t first_set_index = 0;
++	// No dirty sets means there is no second binding scan to perform.
++	uint32_t first_set_index = compute_list.state.set_count;
+ 	uint32_t last_set_index = 0;
+ 	bool found_first_set = false;
++	const bool prepare_sets_for_use = !driver->api_trait_get(RDD::API_TRAIT_HONORS_PIPELINE_BARRIERS);
+ 
+ 	for (uint32_t i = 0; i < compute_list.state.set_count; i++) {
+ 		if (compute_list.state.sets[i].pipeline_expected_format == 0) {
+@@ -6999,7 +7003,7 @@
+ 			found_first_set = true;
+ 		}
+ 		// Prepare descriptor sets if the API doesn't use pipeline barriers.
+-		if (!driver->api_trait_get(RDD::API_TRAIT_HONORS_PIPELINE_BARRIERS)) {
++		if (prepare_sets_for_use) {
+ 			draw_graph.add_compute_list_uniform_set_prepare_for_use(compute_list.state.pipeline_shader_driver_id, compute_list.state.sets[i].uniform_set_driver_id, i);
+ 		}
+ 	}
+@@ -7014,7 +7018,7 @@
+ 			// Descriptor set batching
+ 			if (descriptor_set_batching) {
+ 				// All good, see if this requires re-binding.
+-				if (i - last_set_index > 1) {
++				if (valid_set_count > 0 && i - last_set_index > 1) {
+ 					// If the descriptor sets are not contiguous, bind the previous ones and start a new batch.
+ 					draw_graph.add_compute_list_bind_uniform_sets(compute_list.state.pipeline_shader_driver_id, valid_descriptor_ids, first_set_index, valid_set_count);
+ 
+@@ -7124,9 +7128,11 @@
+ 	valid_descriptor_ids.resize(compute_list.state.set_count);
+ 
+ 	uint32_t valid_set_count = 0;
+-	uint32_t first_set_index = 0;
++	// No dirty sets means there is no second binding scan to perform.
++	uint32_t first_set_index = compute_list.state.set_count;
+ 	uint32_t last_set_index = 0;
+ 	bool found_first_set = false;
++	const bool prepare_sets_for_use = !driver->api_trait_get(RDD::API_TRAIT_HONORS_PIPELINE_BARRIERS);
+ 
+ 	for (uint32_t i = 0; i < compute_list.state.set_count; i++) {
+ 		if (compute_list.state.sets[i].pipeline_expected_format == 0) {
+@@ -7140,7 +7146,7 @@
+ 		}
+ 
+ 		// Prepare descriptor sets if the API doesn't use pipeline barriers.
+-		if (!driver->api_trait_get(RDD::API_TRAIT_HONORS_PIPELINE_BARRIERS)) {
++		if (prepare_sets_for_use) {
+ 			draw_graph.add_compute_list_uniform_set_prepare_for_use(compute_list.state.pipeline_shader_driver_id, compute_list.state.sets[i].uniform_set_driver_id, i);
+ 		}
+ 	}
+@@ -7153,7 +7159,7 @@
+ 
+ 		if (!compute_list.state.sets[i].bound) {
+ 			// All good, see if this requires re-binding.
+-			if (i - last_set_index > 1) {
++			if (valid_set_count > 0 && i - last_set_index > 1) {
+ 				// If the descriptor sets are not contiguous, bind the previous ones and start a new batch.
+ 				draw_graph.add_compute_list_bind_uniform_sets(compute_list.state.pipeline_shader_driver_id, valid_descriptor_ids, first_set_index, valid_set_count);
+ 

@@ -733,3 +733,25 @@ and return-steady 1% low 23.45 → 27.51 FPS. The slow A 85.655 s and B 71.552 s
 are retained. Unloading/transfer peaks remain hundreds of milliseconds; see
 the manifest and performance log for all samples and work-count boundaries.
 No installed engine has been replaced, and remaining map issues are not closed.
+
+## Empty descriptor batches, candidate22 (2026-10-31)
+
+Apply `godot-4.8-beta1-binding-batches-candidate22.patch` after candidate21r2.
+Direct drawing and direct/indirect compute no longer flush a zero-sized batch
+when the first dirty descriptor set is above index 1. Fully bound state skips
+the second scan. Backend barrier capability is queried once per call, retaining
+per-set preparation on other backends and all existing state/resource checks.
+
+`test_descriptor_binding_batches.gd` reproduces the failure on 21r2 before the
+fix. Both versions pass 51 pixel/data/trace checks and Vulkan synchronization
+validation; the old binding-count contract fails. For 4096 material-changing
+draws, graph bind records fall from 8192 to the required 4097. Four compute
+cases preserve all outputs; changing only set 3 reduces direct and indirect
+instruction payloads by 2016 bytes each, while reuse payloads stay unchanged.
+Dispatches write disjoint locations without a barrier that would reset bindings.
+
+Six ABBAAB timing runs pass 54 checks each with identical requested draws/binds
+and pixels. Timing is mixed: reuse encode improves 5.4%, material encode grows
+5.1% and submit grows 15.0%. Retain the proven work reduction without claiming
+a general timing win. The manifest includes every timing group; cumulative map
+measurement remains pending and installed engines are unchanged.

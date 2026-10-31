@@ -1368,3 +1368,19 @@ candidate20继承19r2，追加22个原生标签，细分RD帧结束/开始、命
 先读取已有`frame_trace20_component/capture.rmtrace`，再用**当前21r2**独立复现：`descriptor_batches22_red`的51项像素、数据、直接/间接计算与trace完整性检查通过、零Vulkan同步错误；但数量合同如预期失败。4096次材质变化绘制观察8192条绑定，必要记录应为4097条；reuse=2、sparse=8192、pipeline=2均符合。原始失败保留，未降低期望值。
 
 候选22仅修改`RenderingDevice.cpp`：三个路径都只刷新非空批次；没有脏set时从set_count开始，省掉第二次遍历；后端barrier能力每次调用只查询一次，非barrier后端仍逐set执行必要准备。保留状态验证、共享资源更新、资源使用登记及绑定顺序。当前正在构建，尚未称修复验证通过。源码前后SHA及构建目录`P/engine_binding_batches_candidate22`；正式地图21r2样本已结束后才开始构建，没有与GPU对照并跑。
+
+
+### 22 空批次修复验证：工作量有效，局部耗时混合
+
+22构建成功，默认/已安装诊断引擎不变。复核发现最初计算用例的`compute_list_add_barrier`会重开列表并全量重绑，不能证明只改set3；保留red记录并调整为每个dispatch写互不重叠的uint。`descriptor_batches22_red2`在21r2上再次按预期失败，`descriptor_batches22_green`在22上通过。两者同一测试SHA、均51项像素/数据/trace检查通过、零Vulkan同步错误；render的material绑定8192→4097，其余reuse=2、sparse=8192、pipeline=2不变。四个计算列表（direct-change / direct-reuse / indirect-change / indirect-reuse）的指令字节从7704/3168/8216/3680变为5688/3168/6200/3680，两个change各少63×32=2016字节，所有输出一致。
+
+关闭trace与校验，真实顶点缓冲、并行槽0、21r2(A)/22(B)六个新进程ABBAAB，54项全部通过、请求的draw/bind调用和像素SHA相同。`descriptor_abba22_summary.json`保留每个进程：
+
+| 每4096次draw | 构造中位数 A → B us | 提交中位数 A → B us |
+| --- | --- | --- |
+| reuse | 679 → 642（-5.4%） | 229 → 249 |
+| material | 1439 → 1513（+5.1%） | 1331 → 1531（+15.0%） |
+| sparse | 2252 → 2284 | 1805 → 1964 |
+| pipeline | 1197 → 1188 | 1220 → 1235 |
+
+不把减少空工作冒称各路径都更快，也不丢弃B的慢样本。按用户三维收益要求保留数量已证明有效的调整，性能回归仍须累计整图评估。Vulkan原来已经忽略零数量绑定，因此减少的是CPU图指令及处理，不是同数量真实GPU调用。进一步审查发现下游Vulkan的render/compute绑定仍逐次清空/resize线程局部`LocalVector<VkDescriptorSet>`，而公共接口已有16组上限；这是下一项可独立验证的重复工作，尚未修改。还要用原生地图记录确认实际后台录制覆盖率及每帧绑定量，再评估累计版本；不能直接默认开启未完成累计验收的引擎。
