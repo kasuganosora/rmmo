@@ -1384,3 +1384,29 @@ candidate20继承19r2，追加22个原生标签，细分RD帧结束/开始、命
 | pipeline | 1197 → 1188 | 1220 → 1235 |
 
 不把减少空工作冒称各路径都更快，也不丢弃B的慢样本。按用户三维收益要求保留数量已证明有效的调整，性能回归仍须累计整图评估。Vulkan原来已经忽略零数量绑定，因此减少的是CPU图指令及处理，不是同数量真实GPU调用。进一步审查发现下游Vulkan的render/compute绑定仍逐次清空/resize线程局部`LocalVector<VkDescriptorSet>`，而公共接口已有16组上限；这是下一项可独立验证的重复工作，尚未修改。还要用原生地图记录确认实际后台录制覆盖率及每帧绑定量，再评估累计版本；不能直接默认开启未完成累计验收的引擎。
+
+### 35 FPS low 目标与真实地图逐帧归因
+
+用户新增及格线：1% low ≥35 FPS。沿用已有计算方法 `1000 / mean(slowest ceil(frame_count * 0.01) frame_ms)`，对应最慢1%平均≤28.571ms，不能用p99倒数或平均FPS替代。完整贴图与HUD、冻结地图、初次steady和return_steady分别记录，正常引擎独立三次复测；加载、卸载、返回尖峰仍单列，不因此豁免。历史21r2三次B返回稳定low为27.51/23.38/28.53 FPS，中位数27.51 FPS尚未达标；不是只差平均帧率。
+
+`native_binding_trace22_01_A`（21r2）/`native_binding_trace22_02_B`（22）均4槽、相同缓存种子，exit0、功能通过、无并跑引擎/编译器，采集5,124,481 / 4,931,412事件，零丢失、孤立结束、交叉范围或任务名冲突。正常生产fixture在finally恢复，身份记录在`render_map_trace_setup18/restored_after_binding22.json`。两份完整就绪70.497/69.482s仅属诊断，不称正常加载收益。
+
+原生事件确认实际主地图执行19,128 / 19,039个RenderCommandRecord任务片段，峰值4个重叠；不是仅凭环境变量或局部RD测试推测启用。逐帧工作统计已包含所有线程：返回稳定两份均约4076.25 draw指令/帧，其中3281在后台录制、795.25在主线程；uniform图绑定记录2174.25→1142.25/帧（减少47.5%）。减少的是空CPU记录，不是同数量Vulkan绑定或物件。顶点绑定3977/3979、管线绑定494.25/482.25仍有差异，保留实际值，不冒称全工作恒定。
+
+`analyze_low_frames22.py`以observer的绝对ticks窗口裁剪每个span，按同线程直接父子关系计算exclusive墙钟，不把并行worker时间相加到主线程。输出各样本`low_frame_analysis.json`。最慢1%多数帧是`main.scene_process`独占10–18ms、`render.draw_list`约5–10ms，主线程worker.wait多数1–2ms；只有少数渲染构造本身升到15ms以上。多数慢帧无500ms队列采样，不能统一归因测试宿主；已命中的队列采样约1.3–3.4ms，也不足单独解释这些场景更新尖峰。GetThreadTimes以15.625ms量化，某帧CPU差为0不能据此写成OS空闲。
+
+卸载最大363.790/299.412ms中，场景更新exclusive310.008/246.615ms、ground_batcher.clear 47.098/40.750ms；返回最大312.178/374.349ms中，场景更新exclusive289.866/351.860ms。另一个B卸载69.095ms样本确有58.431ms worker.wait，不能把所有卸载统一说成CPU构造。当前新增38个运行组件/子阶段的诊断wrapper，继续定位场景更新内部具体工作；尚未据此改生产逻辑、降低画质或认定35 FPS已通过。
+
+### 23：定位远景代理的周期扫描，复用单次扫描内的相同输入
+
+`native_process_trace22_01_B`退出0、5,197,098事件、零丢失/结构错误。在return_steady最慢9帧中，7帧含远景代理扫描，单次7.033–9.754ms；初次steady最大38.589ms中该组件10.879ms。最终远景代理prepared=0、active=0、snapshot_attempts=0，仍扫描258轮、访问29,475个目录源。不是GPU管线编译，也没有靠关闭远景功能解释结果。
+
+继续用`native_proxy_trace22_01_B`拆到`_eligible/_cohort/_candidate_bounds/_snapshot`：exit0、5,352,164事件、无丢失/结构错误。返回稳定最慢一轮代理11.918ms，其中资格检查2.506ms、分组键2.310ms、边界0.578ms，其余循环及取数6.524ms。该轮223次资格调用仅117种网格，另有211次分组键构造和31次候选组边界检查。复用不能消除剩余循环成本，因此不预先宣称单项足够达到35 FPS。
+
+修复只在同步`tick`内复用网格资格结果和建筑/layer/shadow的原始分组字符串。每轮新建纯标量表，退出即释放；实例override/overlay先独立判断，下一轮重新读取材质、网格、层、投影、姿态及目录。没有跨帧有效性假设、资源强引用、检查降频、可见距离或图像变更。`tick_local_reuse_enabled=false`仅供旧重复路径对照。建筑ID仍使用文档约定的String，完整32位layer mask与shadow组合保留。
+
+新增`test_distant_proxy_tick_reuse.gd`，217源、117网格、31组、每网格8surface、64轮。原路径复现，`red2`在同一新测试上因工作量合同失败2项而退出1，功能项通过；复用开启后24项全部通过。三次A/三次B以ABBAAB运行，64轮总耗时A=384380/237008/389960us，B=136964/246453/196346us，组中位数384380→196346us（-48.9%）；所有慢样本保留，这是独立headless逻辑压测，不代表整图收益。每轮网格资格计算217→117（-46.1%），分组字符串217→31（-85.7%），near候选及无后台几何任务相同。测试还覆盖下一轮材质修改/恢复、实例override以及16种layer/shadow组合。
+
+隔离桌面GPU回归：admission 6项、catalog 17项、实际代理/LOD 25项全部通过，无引擎错误，隐藏/移动/释放/重新发布、取消任务、返回近处及精确碰撞保持。旧GPU脚本原先固定写2026-10-17证据目录；本轮改成每次独立外部目录并打印报告位置，避免覆盖历史图像。当前证据`D:/code/rmmo_runtime/review_artifacts/distant_proxy_regression_1793447941462000/proxy_gpu.json`。
+
+正常整图ABBAAB已启动：`run_proxy_map23_series.py`，相同22引擎、4槽、完整HUD与贴图、相同缓存种子和冻结地图，只切代理源码before/after；每次独立进程与用户目录，无trace/GDB/校验层。结果写`proxy23_map_index.json`，仍需三份B的steady与return_steady low验证35 FPS，同时保留加载和卸载/返回长帧。默认引擎尚未替换。

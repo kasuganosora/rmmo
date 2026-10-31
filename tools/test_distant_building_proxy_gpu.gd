@@ -6,7 +6,9 @@ const Stream=preload("res://scripts/world3d/world_stream.gd")
 const Proxy=preload("res://scripts/world3d/distant_building_proxy.gd")
 const Lod=preload("res://scripts/world3d/render_lod_preparation.gd")
 const Cpu=preload("res://scripts/world3d/ground_cpu_mesh.gd")
-const OUT="D:/code/rmmo_runtime/review_artifacts/runtime_completion_20261017/"
+# Each rerun keeps its own pixels and report; never overwrite the archived
+# 2026-10-17 baseline when checking a later runtime-only change.
+var OUT:String="D:/code/rmmo_runtime/review_artifacts/distant_proxy_regression_%d/"%int(Time.get_unix_time_from_system()*1000000.)
 var checks:=0
 var failures:=0
 var scene:Node3D
@@ -129,4 +131,4 @@ func run()->void:
 	# Scalar LOD counts only; never serialize thousands of index elements in reports.
 	evidence.lod.erase("lods")
 	FileAccess.open(OUT+"proxy_gpu.json",FileAccess.WRITE).store_string(JSON.stringify(evidence,"  "));view.free()
-	print("DISTANT_PROXY_GPU checks=",checks," failures=",failures);quit(1 if failures else 0)
+	print("DISTANT_PROXY_GPU checks=",checks," failures=",failures," report=",OUT+"proxy_gpu.json");quit(1 if failures else 0)

@@ -7,11 +7,12 @@ const Lod=preload("res://scripts/world3d/render_lod_preparation.gd")
 const Retirement=preload("res://scripts/world3d/cpu_worker_retirement.gd")
 static var enabled:=true
 static var source_catalog_enabled:=true # Diagnostic scan control, same eligibility.
+static var tick_local_reuse_enabled:=true # Diagnostic repeated-query control.
 const ENTER_M=240.
 const EXIT_M=200.
 const MAX_VERTICES=65536
 const MAX_PROXIES=32
-var profile:Dictionary={"prepared":0,"active":0,"invalidated":0,"source_draws":0,"proxy_draws":0,"last_wait":"","near_snapshot_skips":0,"snapshot_attempts":0,"source_visits":0,"catalog_ticks":0,"fallback_ticks":0}
+var profile:Dictionary={"prepared":0,"active":0,"invalidated":0,"source_draws":0,"proxy_draws":0,"last_wait":"","near_snapshot_skips":0,"snapshot_attempts":0,"source_visits":0,"catalog_ticks":0,"fallback_ticks":0,"eligibility_mesh_evaluations":0,"cohort_key_builds":0}
 var _rows:Dictionary={}
 var _job:Dictionary={}
 var _cooldown:Dictionary={} # Scalar retry times, never rejected mesh owners.
@@ -30,13 +31,17 @@ func tick(origin:Vector3)->void:
 	var batcher:=get_parent().get_node_or_null("GroundRenderBatches")
 	if batcher==null:return
 	var candidates:Dictionary={};var material_keys:Dictionary={}
+	# These caches live for this synchronous scan only. Shared mesh checks and
+	# cohort string formatting repeat across instances; edits, poses and owners
+	# are observed afresh next tick. Values contain no resource owners.
+	var mesh_keys:Dictionary={};var cohort_keys:Dictionary={"values":{},"builds":0}
 	for group:Dictionary in batcher.groups.values():
 		if group.category!="building" or group.get("moving",false) or not is_instance_valid(group.get("visual")) or not group.visual is MeshInstance3D:continue
 		var record:Dictionary=group.members[0].get_meta("ground_batch_record",{})
 		if not record.has("building") or record.has("fixture"):continue
 		if group.visual.global_position.distance_to(origin)<EXIT_M-128.:continue
-		if not _eligible(group.visual,material_keys):continue
-		var id:String=_cohort(record,group.visual)
+		if not _eligible(group.visual,material_keys,mesh_keys):continue
+		var id:String=_cohort(record,group.visual,cohort_keys)
 		if not candidates.has(id):candidates[id]=[]
 		candidates[id].append(group)
 	# Frozen floor/roof meshes keep their authored LOD and selection semantics
@@ -51,10 +56,12 @@ func tick(origin:Vector3)->void:
 		var record:Dictionary=node.get_meta("ground_batch_record",{})
 		if not record.has("building") or record.has("fixture") or not record.has("house_prefab"):continue
 		if node.global_position.distance_to(origin)<EXIT_M-128.:continue
-		if not _eligible(node,material_keys):continue
-		var id:String=_cohort(record,node)
+		if not _eligible(node,material_keys,mesh_keys):continue
+		var id:String=_cohort(record,node,cohort_keys)
 		if not candidates.has(id):candidates[id]=[]
 		candidates[id].append({"visual":node,"members":[node]})
+	profile.eligibility_mesh_evaluations+=int(mesh_keys.get(&"evaluations",0))
+	profile.cohort_key_builds+=int(cohort_keys.builds)
 	for id:String in _rows.keys():
 		var row:Dictionary=_rows[id]
 		if not enabled or not _current(row,candidates.get(id,[])) or row.bounds.get_center().distance_to(origin)<EXIT_M:_drop(id)
@@ -80,16 +87,22 @@ func tick(origin:Vector3)->void:
 		var task:=_prepare.bind(row.sources,row.origin)
 		if thread.start(task)!=OK:Retirement.complete(lease);return
 		_job={"id":id,"thread":thread,"lease":lease,"row":row};return
-static func _eligible(visual:MeshInstance3D,keys:Dictionary={})->bool:
+static func _eligible(visual:MeshInstance3D,keys:Dictionary={},meshes:Dictionary={})->bool:
 	if visual.material_override!=null or visual.material_overlay!=null:return false
-	if visual.mesh==null:return false
-	for slot in visual.mesh.get_surface_count():
-		var material:Material=visual.mesh.surface_get_material(slot)
-		if not material is StandardMaterial3D:return false
+	var mesh:Mesh=visual.mesh
+	if mesh==null:return false
+	var mesh_id:=mesh.get_instance_id()
+	if tick_local_reuse_enabled and meshes.has(mesh_id):return meshes[mesh_id]
+	meshes[&"evaluations"]=int(meshes.get(&"evaluations",0))+1
+	var accepted:=true
+	for slot in mesh.get_surface_count():
+		var material:Material=mesh.surface_get_material(slot)
+		if not material is StandardMaterial3D:accepted=false;break
 		var id:int=material.get_instance_id()
 		if not keys.has(id):keys[id]=Geometry.material_supported(material)
-		if not keys[id]:return false
-	return true
+		if not keys[id]:accepted=false;break
+	if tick_local_reuse_enabled:meshes[mesh_id]=accepted
+	return accepted
 
 static func _candidate_bounds(groups:Array)->Variant:
 	var bounds:=AABB();var first:=true
@@ -103,8 +116,18 @@ static func _candidate_bounds(groups:Array)->Variant:
 func _retry_later(id:String)->void:
 	if _cooldown.size()>=512:_cooldown.clear()
 	_cooldown[id]=Time.get_ticks_msec()+5000
-static func _cohort(record:Dictionary,visual:MeshInstance3D)->String:
-	return str([record.building.id,visual.get_meta("distant_proxy_layers",visual.layers),visual.cast_shadow])
+static func _cohort(record:Dictionary,visual:MeshInstance3D,cache:Dictionary={})->String:
+	if cache.is_empty():cache={"values":{},"builds":0}
+	var building:Variant=record.building.id
+	var layers:int=visual.get_meta("distant_proxy_layers",visual.layers);var shadow:int=visual.cast_shadow
+	var flags:=Vector2i(layers,shadow)
+	var entries:Dictionary=cache.values.get(building,{})
+	if tick_local_reuse_enabled and entries.has(flags):return entries[flags]
+	# Preserve the exact existing key, including escaping/type distinctions in
+	# the building ID. Vector2i keeps the complete 32-bit layer mask as a key.
+	var key:=str([building,layers,shadow]);cache.builds+=1
+	if tick_local_reuse_enabled:entries[flags]=key;cache.values[building]=entries
+	return key
 static func _snapshot(groups:Array)->Dictionary:
 	var row:={"sources":[],"visuals":[],"controllers":[],"members":[],"poses":[],"bounds":AABB(),"origin":Vector3.ZERO,"callbacks":[],"watchers":[]}
 	var vertices:=0;var draws:=0;var first:=true
