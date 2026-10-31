@@ -807,14 +807,17 @@ static func _in_entry_scope(spec:Dictionary,clip:AABB)->bool:
 static func _entry_candidates(map_root:Node,clip:AABB)->Array:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.world_stream._entry_candidates") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	var index:=_dict(map_root,&"stream_index");var by_id:=_dict(map_root,&"stream_by_id")
-	var area:=_entry_area(clip);var selected:Dictionary={}
+	var area:=_entry_area(clip);var seen:Dictionary={};var selected:Array=[]
 	for z in range(area.low.y,area.high.y+1):
 		for x in range(area.low.x,area.high.x+1):
 			for id:Variant in index.get(Vector2i(x,z),[]):
-				if selected.has(id):continue
+				# Conservative cell bounds also repeat sources whose exact bounds
+				# miss this clip. Remember rejection within this query as well.
+				if seen.has(id):continue
+				seen[id]=true
 				var spec:Dictionary=by_id[id]
-				if _in_entry_scope(spec,clip):selected[id]=spec
-	return selected.values()
+				if _in_entry_scope(spec,clip):selected.append(spec)
+	return selected
 
 
 ## Checks only entry-visible/collidable resident specs, not unrelated batch
