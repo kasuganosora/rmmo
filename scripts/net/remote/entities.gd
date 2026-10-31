@@ -28,5 +28,5 @@ func sync()->void:
 		actor.global_position=feet+Vector3.UP*.9;actor.rotation.y=float(row.get("facing_radians",0.))
 		var dead:=bool(row.get("state",{}).get("dead",false))
 		actor.collision_layer=0 if dead else 1;actor.collision_mask=0
-		actor.model.play("death" if dead else ("walk" if str(row.get("behavior","")) in ["chase","return","wander"] else "idle"),"front")
+		actor.model.play("death" if dead else ("walk" if str(row.get("behavior","")) in ["chase","search","return","wander","patrol","flee","tactical"] else "idle"),"front")
 	if not rows.has(combat.selected):combat.selected=""
