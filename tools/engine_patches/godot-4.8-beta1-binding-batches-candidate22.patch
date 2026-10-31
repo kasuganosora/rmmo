@@ -1,6 +1,7 @@
 --- a/servers/rendering/rendering_device.cpp
 +++ b/servers/rendering/rendering_device.cpp
-@@ -6172,9 +6172,11 @@
+@@ -6171,11 +6171,13 @@
+ 	// The command recorder copies these IDs synchronously; no cross-draw
  	// storage, TLS lookup or dynamic vector reset is required.
  	RDD::UniformSetID valid_descriptor_ids[MAX_UNIFORM_SETS];
  	uint32_t valid_set_count = 0;
@@ -13,7 +14,9 @@
  
  	for (uint32_t i = 0; i < draw_list.state.set_count; i++) {
  		if (draw_list.state.sets[i].pipeline_expected_format == 0) {
-@@ -6186,7 +6188,7 @@
+ 			continue; // Nothing expected by this pipeline.
+@@ -6185,9 +6187,9 @@
+ 			first_set_index = i;
  			found_first_set = true;
  		}
  		// Prepare descriptor sets if the API doesn't use pipeline barriers.
@@ -22,7 +25,9 @@
  			draw_graph.add_draw_list_uniform_set_prepare_for_use(draw_list.state.pipeline_shader_driver_id, draw_list.state.sets[i].uniform_set_driver_id, i);
  		}
  	}
-@@ -6201,7 +6203,7 @@
+ 
+@@ -6200,9 +6202,9 @@
+ 		if (!draw_list.state.sets[i].bound) {
  			// Batch contiguous descriptor sets in a single call.
  			if (descriptor_set_batching) {
  				// All good, see if this requires re-binding.
@@ -31,7 +36,9 @@
  					// If the descriptor sets are not contiguous, bind the previous ones and start a new batch.
  					draw_graph.add_draw_list_bind_uniform_sets(draw_list.state.pipeline_shader_driver_id, VectorView<RDD::UniformSetID>(valid_descriptor_ids, valid_set_count), first_set_index, valid_set_count);
  
-@@ -6984,9 +6986,11 @@
+ 					first_set_index = i;
+@@ -6983,11 +6985,13 @@
+ 	valid_descriptor_ids.clear();
  	valid_descriptor_ids.resize(compute_list.state.set_count);
  
  	uint32_t valid_set_count = 0;
@@ -44,7 +51,9 @@
  
  	for (uint32_t i = 0; i < compute_list.state.set_count; i++) {
  		if (compute_list.state.sets[i].pipeline_expected_format == 0) {
-@@ -6999,7 +7003,7 @@
+ 			// Nothing expected by this pipeline.
+@@ -6998,9 +7002,9 @@
+ 			first_set_index = i;
  			found_first_set = true;
  		}
  		// Prepare descriptor sets if the API doesn't use pipeline barriers.
@@ -53,7 +62,9 @@
  			draw_graph.add_compute_list_uniform_set_prepare_for_use(compute_list.state.pipeline_shader_driver_id, compute_list.state.sets[i].uniform_set_driver_id, i);
  		}
  	}
-@@ -7014,7 +7018,7 @@
+ 
+@@ -7013,9 +7017,9 @@
+ 		if (!compute_list.state.sets[i].bound) {
  			// Descriptor set batching
  			if (descriptor_set_batching) {
  				// All good, see if this requires re-binding.
@@ -62,7 +73,9 @@
  					// If the descriptor sets are not contiguous, bind the previous ones and start a new batch.
  					draw_graph.add_compute_list_bind_uniform_sets(compute_list.state.pipeline_shader_driver_id, valid_descriptor_ids, first_set_index, valid_set_count);
  
-@@ -7124,9 +7128,11 @@
+ 					first_set_index = i;
+@@ -7123,11 +7127,13 @@
+ 	valid_descriptor_ids.clear();
  	valid_descriptor_ids.resize(compute_list.state.set_count);
  
  	uint32_t valid_set_count = 0;
@@ -75,7 +88,9 @@
  
  	for (uint32_t i = 0; i < compute_list.state.set_count; i++) {
  		if (compute_list.state.sets[i].pipeline_expected_format == 0) {
-@@ -7140,7 +7146,7 @@
+ 			// Nothing expected by this pipeline.
+@@ -7139,9 +7145,9 @@
+ 			found_first_set = true;
  		}
  
  		// Prepare descriptor sets if the API doesn't use pipeline barriers.
@@ -84,7 +99,9 @@
  			draw_graph.add_compute_list_uniform_set_prepare_for_use(compute_list.state.pipeline_shader_driver_id, compute_list.state.sets[i].uniform_set_driver_id, i);
  		}
  	}
-@@ -7153,7 +7159,7 @@
+ 
+@@ -7152,9 +7158,9 @@
+ 		}
  
  		if (!compute_list.state.sets[i].bound) {
  			// All good, see if this requires re-binding.
@@ -93,3 +110,4 @@
  				// If the descriptor sets are not contiguous, bind the previous ones and start a new batch.
  				draw_graph.add_compute_list_bind_uniform_sets(compute_list.state.pipeline_shader_driver_id, valid_descriptor_ids, first_set_index, valid_set_count);
  
+ 				first_set_index = i;
