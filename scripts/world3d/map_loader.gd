@@ -1371,7 +1371,7 @@ func _initial_native_scene(entry:Dictionary,record:Dictionary={})->Node:
 	preload("res://scripts/world3d/asset_worker_drainer.gd").synchronize_transfer()
 	# The private worker never touches the shared texture pool. This is the
 	# existing first-instance material handoff, applied to that exact scene.
-	preload("res://scripts/world3d/model_texture_cache.gd").apply(scene)
+	preload("res://scripts/world3d/model_texture_runtime.gd").apply(scene)
 	entry.packed.set_meta("compiled_grass_rebound",true)
 	_profile.initial_native_main_handoff_us=int(_profile.get("initial_native_main_handoff_us",0))+Time.get_ticks_usec()-began
 	Trace.elapsed("game.initial_native_handoff",began)

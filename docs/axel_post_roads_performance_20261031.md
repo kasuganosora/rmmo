@@ -1615,3 +1615,37 @@ PCM计算将种类判断提到循环外，以`PackedByteArray.encode_s16`取代�
 `render_retirement30_trace_01`完成：exit0、零功能/引擎错误、无并跑引擎/编译器，6,005,148事件、零丢失及结构错误，旧地图/Deferred owner释放、返回前退役排空，按SHA恢复fixture。诊断卸载最大192.943ms，其中map.free96.064ms（29有效诊断131.326ms）、body.free37.158ms、prepare31.329ms；只作为单份机制复测，不作三次正常收益结论。空场仍有65.062ms一帧，返回最大257.752ms、返回收尾97.756ms全部保留。初次/返回稳定low33.750/31.548，仍不足35；完整就绪58.029s不当正常成绩。
 
 这份无调试器分段确认返回实例构建中：PackedScene.instantiate25.005ms、grass14.732ms、**model_texture_cache.apply116.745ms**，cooked恢复另46.623ms。因此不能只将它说成“创建整棵节点树”；下一项应先独立复现实际材质全属性遍历，再优化已知纹理槽读取和重复检查。生产材质逻辑本轮尚未改。默认安装4.8也通过新增11项生命周期回归；默认引擎文件未变。
+
+### 31：复用原生材质纹理属性清单，不重复导出标量属性
+
+先拆开测量，避免把整段apply误判为扫描或GPU等待。`material_scan31_trace_01`在30的累计生产源上，仅在隔离fixture增加计数和分段计时。入口大模型149材质，每遍导出26486属性、storage get 19104次、纹理引用273次、有效唯一纹理60个。首次gather17.045ms、scan83.276ms（其中导出property list42.874ms）、同步/释放0.027ms；返回11.804/68.531/0.028ms。两遍set均为0，这两次长段不是材质重新上传或等待GPU造成。完整样本exit0、无功能/引擎错误和并跑引擎/编译器，5,978,295事件零丢失及结构错误，恢复fixture；诊断完整就绪56.833s、返回最大194.837ms，不当正常性能分数。
+
+先前direct-safe helper已经过滤get的类型，但仍会对每个材质生成整份property list，且这次入口没有走那个分支。本次增加运行时`model_texture_runtime.gd`：普通原生StandardMaterial3D按Godot4.8的实际texture storage规则复用6种属性清单（shading_mode×skin flag），每个材质的metadata独立快照；脚本/扩展材质继续枚举原storage属性，保留自定义getter与Variant语义。仍逐次检查纹理身份，保持原弱引用池、替换次序和渲染同步；seen原本已强持original/shared，所以只去掉重复retired数组，保留到同步后释放。缓存只含属性名，不持有材质/纹理。没有改模型产物、像素、导入生成器输入，也没有加入GLB回退。
+
+正式接入AssetLibrary首次实例化、cache_scene、prepared-native提交，以及MapLoader初始私有场景接收；readiness与原PackedScene owner继续保留。Compiled的导入/验证代码和独立direct候选不变。该优化不会靠少读纹理或取消共享来降低工作量。
+
+新增`test_model_texture_runtime.gd`使用真实旧Cache与新helper的独立2000节点/120材质图，比较全部storage状态、metadata、override/overlay、next_pass、无效key、作者身份、local纹理、最终释放；检查全部native feature/flag/transparency状态下清单与引擎相等、脚本属性回退、实际library入口和原纹理贯穿同步的寿命。首个runner仅Python参数错误，未启动引擎；red02的额外寿命失败来自测试计数循环仍持有最后一个材质，移到独立计数函数释放该测试引用后，red03仅剩预期的“旧library未接入新helper”失败，记录均保留。
+
+candidate22独立GPU绿样本3次各320项通过，默认已安装4.8最终源也320项通过；native readiness19项、streamed preview逻辑协议267项通过（后者是CPU协议stub，不冒充GPU画面验收）。实际helper插桩计数三次一致：property list **120→6**，get **13560→2280**。未插桩helper在绿样本的三组各3对组件调用，旧60–152ms、新16–22ms左右；每对固定旧先新后，保留冷首遍，不能据此宣称严格ABBA百分比或整图速度收益。完整数值、最终源身份和失败样本在`P/material_runtime31/`。
+
+`material_runtime31_trace_01`继续同一冻结地图、完整HUD/纹理、candidate22/4槽、相同shader种子复测。已观测大模型首次清单生成2次、返回0次，get均3033，纹理引用仍273、set仍0；首次gather12.546ms、scan7.434ms、sync/release0.053ms，返回14.941/5.445/0.032ms。这是带计数的定位对照，不能拿它代替正常FPS验收。后续正常三次累计样本使用`run_material_runtime31_maps.py`，不称本改动单独A/B，也不称严格cold。
+
+白天35 FPS low门槛继续保留；达到并完成白天验收后，再分别验收夜晚灯光与星空，以及夜间加载/卸载/返回。目前没有启动夜间测试，也没有把主循环外352ms尖峰归因成OS空闲或风场/云层。
+
+31诊断完成：exit0、功能/引擎错误0、无并跑引擎/编译器，5,991,423事件零丢失及结构错误；旧owner释放且返回前退役归零，fixture恢复。前后均48次apply、累计588材质/1180纹理引用/228次替换，逐root出现次数与材质/纹理数量一致；完整property list **588→2**，storage get **75222→11890**。累计gather35.735→34.826ms没有明显改善，scan394.822→31.036ms，sync/release4.561→3.497ms。该0.36秒扫描减少是同步工作定位量，不能解释整图全部时间差。
+
+诊断返回最大137.175ms（旧194.837ms），`_build_records`返回首次同步段88.995ms；现在最大的返回帧不是材质扫描。卸载仍195.843ms：prepare47.299、body33.983、map.free87.756ms；返回收尾最大86.705ms仍保留。完整就绪55.205s，初始/返回稳定low32.915/30.519 FPS，**35未通过**。证据`material_runtime31_trace_01/detail_analysis.json`和`P/material_runtime31/diagnostic_comparison.json`。这些都是单次带计数的定位样本，正常三次另记。
+
+三次正常累计复测完成（无native trace/GDB，同22引擎/4槽、完整HUD/纹理、同shader种子、独立进程用户目录）：
+
+| 样本 | 可操作入口 s | 当前需求完整就绪 s | 初始稳定1% low FPS | 返回稳定1% low FPS | 卸载最大 ms | 返回最大 ms | 返回收尾最大 ms |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 31-01 | 10.402 | 55.880 | 39.581 | 34.345 | 181.171 | 205.634 | 95.343 |
+| 31-02 | 9.032 | 53.083 | 35.910 | 27.963 | 211.915 | 174.653 | 70.825 |
+| 31-03 | 9.028 | 54.739 | 34.275 | 34.633 | 212.605 | 130.591 | 66.897 |
+
+全部exit0、功能/引擎错误0、无并跑引擎/编译器，地图/纳入的源码身份不变，旧地图及Deferred owner实际释放，返回前known/pending均0。保留31-01空场55.193ms、31-02返回稳定51.563ms，不筛除慢样本。三次batch source均3580、具名namespace数量相等；结束时匿名合批节点219/216/216，故总mesh数4445/4442/4442，不能声称所有GPU提交工作量逐项完全相同。该差异不来自地图内容SHA变化，当前只记录计数，不杜撰原因。
+
+这是28/30/31后的累计正常样本，较27的历史完整就绪59.690–74.604s更短，但不是同轮旧/新ABBA，不能把跨轮全部差值归给本次0.36s材质扫描减少，更不能称严格cold。主要可确认收益仍是重复属性工作减少，以及对应材质同步段缩短。**白天35门槛仍未通过，夜晚灯光和星空未验收。** 正常样本与计时口径见`P/material_runtime31/normal_map_comparison.json`，三个进程均结束。
+
+下一步分别处理：①卸载中仍同步发生的Node/VisualInstance/碰撞体销毁，用当前修复后的栈重新归因；②补齐Windows事件/输入处理等Main::iteration外的追踪范围，捕获此前352ms尖峰，不能凭主循环内部很短就判为OS空闲；③返回后low帧按当前真实帧数据继续定位。材质收集仍约15ms，但不再把已降到约5ms的属性扫描当成最大块死扣。没有启动新引擎构建、夜景测试或替换默认安装引擎。

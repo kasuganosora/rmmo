@@ -296,15 +296,16 @@ static func instantiate(path: String,native_only:bool=false) -> Node3D:
 
 static func _instantiate(packed:PackedScene)->Node3D:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.asset_library._instantiate") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
-	if packed.get_meta("compiled_asset_validated",false) and not packed.get_meta("compiled_grass_rebound",false):
-		var first:=preload("res://scripts/world3d/compiled_asset_cache.gd").instantiate(packed)
-		if first!=null:packed.set_meta("compiled_grass_rebound",true)
-		return first
 	# Materials are shared by this template. Rebinding once avoids reading every
 	# grass surface again for hundreds of subsequent instances of the same GLB.
 	var scene:=packed.instantiate() as Node3D
 	if scene!=null:preload("res://scripts/world3d/model_texture_readiness.gd").inherit_instance(packed,scene)
-	if scene!=null and packed.get_meta("compiled_asset_validated",false):scene.set_meta("_compiled_resource_owner",packed)
+	if scene!=null and packed.get_meta("compiled_asset_validated",false):
+		if not packed.get_meta("compiled_grass_rebound",false):
+			preload("res://scripts/world3d/grass_texture_cache.gd").apply(scene,true)
+			preload("res://scripts/world3d/model_texture_runtime.gd").apply(scene)
+			packed.set_meta("compiled_grass_rebound",true)
+		scene.set_meta("_compiled_resource_owner",packed)
 	return scene
 
 ## Preview/import owns one scene and frees it; it must not grow the runtime scene cache.
@@ -368,7 +369,7 @@ static func cache_scene(path: String, scene: Node, verified_digest:String="") ->
 	var started:=Time.get_ticks_usec()
 	var keepalive:Variant=scene.get_meta("_compiled_resource_owner") if scene.has_meta("_compiled_resource_owner") else null
 	if keepalive is PackedScene and keepalive.get_meta("compiled_asset_validated",false):
-		preload("res://scripts/world3d/model_texture_cache.gd").apply(scene)
+		preload("res://scripts/world3d/model_texture_runtime.gd").apply(scene)
 	preload("res://scripts/world3d/load_trace.gd").elapsed("asset_library.cache_materials",started,{"path":path})
 	if scene.has_meta("_compiled_resource_owner"):scene.remove_meta("_compiled_resource_owner")
 	started=Time.get_ticks_usec()
@@ -399,7 +400,7 @@ static func cache_prepared_native_scene(path:String,scene:Node,packed:PackedScen
 	if scene==null or packed==null or native_owner==null or not native_owner.get_meta("compiled_asset_validated",false):return false
 	if not preload("res://scripts/world3d/model_texture_readiness.gd").inherit_pack(scene,packed):return false
 	var began:=Time.get_ticks_usec()
-	preload("res://scripts/world3d/model_texture_cache.gd").apply(scene)
+	preload("res://scripts/world3d/model_texture_runtime.gd").apply(scene)
 	preload("res://scripts/world3d/load_trace.gd").elapsed("asset_library.cache_materials",began,{"path":path})
 	packed.set_meta("compiled_asset_validated",true);packed.set_meta("compiled_grass_rebound",true)
 	for key:String in ["_rmmo_source_digest","_rmmo_native_payload_sha","_rmmo_native_generator","_rmmo_native_audited"]:
