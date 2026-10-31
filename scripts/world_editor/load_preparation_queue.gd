@@ -117,51 +117,6 @@ func forget_terminal(key:String)->bool:
 	rows.erase(key);order.erase(key);_task_timings.erase(key)
 	return true
 
-func retry_as_raw(key:String,task:Callable,estimate:Dictionary)->bool:
-	# Only a joined fixed-native attempt or explicit legacy source-change result
-	# can change route. Its old renderer
-	# resources and every packet alias must be disposed on main before returning
-	# any byte credit; a raw GLTF must never run inside the smaller native lease.
-	if OS.get_thread_caller_id()!=OS.get_main_thread_id() or cancelled or not rows.has(key) or not task.is_valid():return false
-	var row:Dictionary=rows[key]
-	if row.state not in ["ready","resident","held"] or row.has("worker"):return false
-	var legacy_retry:bool=row.estimate.get("stage")=="legacy_model" and preload("res://scripts/world3d/model_parse_preparation.gd").is_legacy_source_retry(row.packet)
-	if row.estimate.get("stage")!="compiled_read" and not legacy_retry:return false
-	if not estimate.get("estimated_bytes") is int or estimate.estimated_bytes<=0 or not estimate.get("exclusive") is bool:return false
-	if estimate.get("cpu_only",false):return false
-	var demanded:bool=demand_key==key or row.state=="held"
-	var retired:int=row.estimate.estimated_bytes
-	Drainer.dispose_result(row.packet)
-	_resident_exit(key,"native_retry")
-	ledger.release(_ledger_key(key))
-	_event("release",key,"native_retry")
-	row.task=task;row.estimate=estimate.duplicate();row.estimate.stage="raw_import"
-	row.state="pending";row.packet={};row.erase("held_origin")
-	if demanded:demand_key=key
-	metrics.raw_retries+=1;metrics.native_retired_bytes+=retired
-	return true
-
-func retry_cached_model(key:String,task:Callable,estimate:Dictionary)->bool:
-	# A cache freshness check owns only a bounded CPU hash buffer. A mismatch
-	# must acquire a real model lease before it can allocate native/GLTF objects.
-	if OS.get_thread_caller_id()!=OS.get_main_thread_id() or cancelled or not rows.has(key) or not task.is_valid():return false
-	var row:Dictionary=rows[key]
-	if row.state not in ["ready","held"] or row.has("worker") or row.estimate.get("stage")!="cache_check" or row.estimate.get("cpu_only")!=true:return false
-	var packet:Dictionary=row.packet
-	if not packet.get("cache_checked") is bool or not packet.cache_checked or not packet.get("error") is int or packet.error!=OK:return false
-	for field:Variant in packet:
-		if field not in ["error","cache_checked","source_digest","cache_closed","elapsed_us"]:return false
-	if not packet.get("cache_closed") is bool:return false
-	if not preload("res://scripts/world3d/compiled_asset_cache.gd")._sha(packet.get("source_digest")):return false
-	if not estimate.get("estimated_bytes") is int or estimate.estimated_bytes<=0 or not estimate.get("exclusive") is bool or estimate.get("cpu_only",false):return false
-	if estimate.get("stage") not in ["compiled_read","legacy_model"]:return false
-	var demanded:bool=demand_key==key or row.state=="held"
-	_dispose(row);ledger.release(_ledger_key(key));_event("release",key,"cache_changed")
-	row.task=task;row.estimate=estimate.duplicate();row.state="pending";row.packet={};row.erase("held_origin")
-	if demanded:demand_key=key
-	metrics.cache_retries=int(metrics.get("cache_retries",0))+1
-	return true
-
 func _process(_dt:float)->void:pump()
 
 func pump()->void:

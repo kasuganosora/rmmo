@@ -180,23 +180,24 @@ func exclusive_fences()->void:
 	check(queue.rows.needed.state=="running" and ready_alias.is_empty() and queue.snapshot().preempted==1,"exclusive demand retires remaining ready ownership only when it can proceed")
 	await close_queue(queue)
 
-func retry_cancel_and_ownership()->void:
+func cancel_and_ownership()->void:
 	var queue:=make_queue();var observed:Array=[]
 	queue.enqueue("native",owned_packet.bind(queue.ledger,observed),{"estimated_bytes":10,"exclusive":false,"stage":"compiled_read"},"model")
 	await until_ready(queue,"native");var native:Dictionary=queue.acquire("native");var before:Array=queue.order.duplicate()
-	var raw:=gate()
-	check(queue.retry_as_raw("native",raw.run.bind("raw"),{"estimated_bytes":90,"exclusive":false}),"lane scheduler accepts the existing joined native-to-raw transition")
-	check(queue.rows.native.lane=="model" and queue.order==before and queue.demand_key=="native","raw retry preserves its lane first-use position and real demand")
+	queue.release("native")
+	check(queue.rows.native.lane=="model" and queue.order==before and queue.rows.native.state=="done","native disposal preserves lane bookkeeping without a new source task")
 	check(native.is_empty() and observed.size()==1 and observed[0].main and observed[0].bytes==10 and queue.ledger.count()==0,"native ownership is destroyed on main before old lease return")
-	step(queue);await until_entered(raw.entered)
-	check(queue.rows.native.state=="running" and queue.ledger.reserved_bytes==90,"retry takes the full fresh raw envelope")
+	check(not queue.has_method("retry_as_raw"),"lane queue has no authoring-source fallback")
+	var pending:=gate()
+	queue.enqueue("pending_native",pending.run.bind("native"),estimate(90),"model")
+	step(queue);await until_entered(pending.entered)
 	var owner:RefCounted=queue.ledger;var drainer:=Drainer.for_tree(self);var drained:int=drainer.drained
 	queue.free()
-	check(owner.reserved_bytes==90 and owner.count()==1,"detached cancellation keeps the live raw lease")
-	raw.leave.post();_gates.clear()
+	check(owner.reserved_bytes==90 and owner.count()==1,"detached cancellation keeps the active native lease")
+	pending.leave.post();_gates.clear()
 	var deadline:=Time.get_ticks_msec()+3000
 	while drainer.drained==drained and Time.get_ticks_msec()<deadline:await process_frame
-	check(drainer.drained>drained and owner.count()==0,"detached drainer joins and disposes before returning the raw budget")
+	check(drainer.drained>drained and owner.count()==0,"detached drainer disposes native result before returning budget")
 
 	queue=make_queue();queue.thread_starter=func(_worker:Thread,_task:Callable)->int:return ERR_CANT_CREATE
 	queue.enqueue("failed",packet.bind("must_not_run"),estimate(10),"model");step(queue)
@@ -241,7 +242,7 @@ func run()->void:
 	await demand_borrows_held_share()
 	await minimal_demand_retirement()
 	await exclusive_fences()
-	await retry_cancel_and_ownership()
+	await cancel_and_ownership()
 	await bounded_diagnostics()
 	print("EDITOR_PREPARATION_LANES passed=",passed," failures=",failures)
 	quit(0 if failures==0 else 1)

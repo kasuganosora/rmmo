@@ -21,6 +21,7 @@ func product_owner(packet:Dictionary)->WeakRef:
 	return weakref(packet.get("packed"))
 func inventory(packet:Dictionary)->Dictionary:
 	var packed:PackedScene=packet.packed
+	var capture_stats:Dictionary={}
 	var pending:Array=[packed];var states:Dictionary={};var meshes:Dictionary={};var materials:Dictionary={};var shaders:Dictionary={};var nodes:=0;var surfaces:=0
 	while not pending.is_empty():
 		var current:PackedScene=pending.pop_back()
@@ -35,6 +36,9 @@ func inventory(packet:Dictionary)->Dictionary:
 				var mesh:Mesh=state.get_node_property_value(at,slot)
 				if mesh==null or meshes.has(mesh.get_instance_id()):continue
 				meshes[mesh.get_instance_id()]=true
+				if capture_stats.is_empty() and mesh.has_meta(&"_rmmo_native_cpu_hint"):
+					var hint:Resource=mesh.get_meta(&"_rmmo_native_cpu_hint")
+					if hint.capture!=null:capture_stats=hint.capture.get_statistics()
 				for surface:int in mesh.get_surface_count():
 					surfaces+=1
 					var material:Material=mesh.surface_get_material(surface)
@@ -43,7 +47,7 @@ func inventory(packet:Dictionary)->Dictionary:
 					# These surface materials were already bound by _set_surfaces.
 					# Do not inspect unrelated node overrides that could be lazy.
 					shaders[material.get_shader_rid().get_id()]=true
-	return {"scene_states":states.size(),"nodes":nodes,"unique_meshes":meshes.size(),"surface_slots":surfaces,"surface_material_owners":materials.size(),"surface_shader_rids":shaders.size()}
+	return {"scene_states":states.size(),"nodes":nodes,"unique_meshes":meshes.size(),"surface_slots":surfaces,"surface_material_owners":materials.size(),"surface_shader_rids":shaders.size(),"native_capture":capture_stats}
 func draw_frame()->void:
 	await process_frame;await RenderingServer.frame_post_draw
 func show_product(packet:Dictionary)->Dictionary:
@@ -78,13 +82,14 @@ func show_product(packet:Dictionary)->Dictionary:
 	phase="remove_visible";began=Time.get_ticks_usec();stage.free();var removed:=Time.get_ticks_usec()-began
 	return {"instantiate_us":instantiated,"attach_us":attached,"first_draw_us":first_draw,"complete_to_first_draw_us":display_ready,"settle_12_draw_us":settle,"remove_nodes_us":removed,"first_nonblank":first_image!=background,"settled_nonblank":final_image!=background,"first_matches_settled":first_image==final_image,"bounds":bounds}
 func run()->void:
-	var output:="";var gate:="";var draw:=false;var inspect_inventory:=false
+	var output:="";var gate:="";var draw:=false;var inspect_inventory:=false;var capture_cpu:=true
 	var path:=ROOT+"/packs/default/assets/7824a14b75aa5ab2e65e785199391a60594706fad17cab9a448a15e8a48d09fd.glb"
 	for arg:String in OS.get_cmdline_user_args():
 		if arg.begins_with("--output="):output=arg.substr(9).replace("\\","/")
 		elif arg.begins_with("--gate="):gate=arg.substr(7).replace("\\","/")
 		elif arg=="--draw":draw=true
 		elif arg=="--inventory":inspect_inventory=true
+		elif arg=="--without-cpu-capture":capture_cpu=false
 	if not output.begins_with(ROOT+"/review_artifacts/") or (not gate.is_empty() and not gate.begins_with(ROOT+"/review_artifacts/")):quit(2);return
 	if DisplayServer.get_name()=="headless":quit(2);return
 	preload("res://scripts/world3d/runtime_package_policy.gd").verify_packages=false
@@ -101,7 +106,7 @@ func run()->void:
 	Trace.minimum_event_us=0;Trace.start();phase="native_read"
 	var pipelines_before:=pipelines()
 	var began:=Time.get_ticks_usec();var thread:=Thread.new()
-	var code:=thread.start(Reader.read.bind(path,candidate,ROOT,Callable(),true,false,"",true,true))
+	var code:=thread.start(Reader.read.bind(path,candidate,ROOT,Callable(),true,false,"",true,capture_cpu))
 	if code!=OK:print("FAIL native reader thread");quit(1);return
 	while thread.is_alive():await process_frame
 	var result:Dictionary=thread.wait_to_finish();var elapsed:=Time.get_ticks_usec()-began
@@ -111,7 +116,9 @@ func run()->void:
 	var synchronized:=Time.get_ticks_usec()-began
 	var okay:bool=result.get("error",FAILED)==OK and result.get("packed") is PackedScene
 	var owner:WeakRef=product_owner(result) if okay else null
-	var report:={"ok":okay,"candidate":candidate,"elapsed_us":elapsed,"cache_us":result.get("cache_us",0),"join_sync_us":synchronized,"gated_diagnostic":not gate.is_empty(),"async_pipelines":OS.get_environment("RMMO_ASYNC_MESH_PIPELINES")=="1","pipelines_before":pipelines_before,"pipelines_after_read":pipelines()}
+	var report:={"ok":okay,"candidate":candidate,"elapsed_us":elapsed,"cache_us":result.get("cache_us",0),"join_sync_us":synchronized,"gated_diagnostic":not gate.is_empty(),"async_pipelines":OS.get_environment("RMMO_ASYNC_MESH_PIPELINES")=="1","batch_pipelines":OS.get_environment("RMMO_BATCH_MESH_PIPELINES")=="1","pipelines_before":pipelines_before,"pipelines_after_read":pipelines()}
+	report.capture_cpu=capture_cpu;report.pipeline_batch=result.get("native_pipeline_batch",{})
+	report.native_cpu_hint_meshes=result.get("native_cpu_hint_meshes",0)
 	if okay:
 		if draw:
 			report.draw=await show_product(result)

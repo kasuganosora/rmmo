@@ -52,6 +52,7 @@ static func read(path:String,candidate:Dictionary,content_root:String,prepare_pr
 	var cpu_context:RefCounted
 	var loaded:Resource
 	var native_read_error:=OK
+	var pipeline_batch:Dictionary={}
 	# CPU handoff is bound to each mesh identity/revision, not the unrelated
 	# whole-template reuse audit. Old native products may omit that descriptor.
 	# Import/audit/export readers keep a plain resource graph. Only consumers
@@ -60,6 +61,13 @@ static func read(path:String,candidate:Dictionary,content_root:String,prepare_pr
 		var packet:Dictionary=ClassDB.class_call_static(&"ArrayMesh",&"load_native_scene_with_cpu_surfaces",product)
 		loaded=packet.get("resource");cpu_context=packet.get("capture")
 		native_read_error=int(packet.get("error",ERR_INVALID_DATA))
+		pipeline_batch=packet.get("pipeline_batch",{})
+	elif ClassDB.class_has_method(&"ArrayMesh",&"load_native_scene_with_pipeline_batch"):
+		# Initial loading/editor reads need the same worker pipeline completion,
+		# without allocating CPU capture buffers or attaching mesh hints.
+		var packet:Dictionary=ClassDB.class_call_static(&"ArrayMesh",&"load_native_scene_with_pipeline_batch",product)
+		loaded=packet.get("resource");native_read_error=int(packet.get("error",ERR_INVALID_DATA))
+		pipeline_batch=packet.get("pipeline_batch",{})
 	else:loaded=ResourceLoader.load(product,"PackedScene",ResourceLoader.CACHE_MODE_IGNORE_DEEP)
 	var packed:=loaded as PackedScene
 	Trace.elapsed("compiled.native_read",phase,{"path":path,"bytes":candidate.bytes})
@@ -108,5 +116,8 @@ static func read(path:String,candidate:Dictionary,content_root:String,prepare_pr
 	# authored metadata value that could falsely mark this owner as audited.
 	packed.set_meta("_rmmo_native_audited",not trusted_package)
 	result.error=OK;result.cache_us=Time.get_ticks_usec()-started
+	# Retry/error packets have an exact ownership schema. Keep optional success
+	# diagnostics out of those control packets so mutable imports still retry.
+	if not pipeline_batch.is_empty():result.native_pipeline_batch=pipeline_batch
 	Trace.elapsed("compiled.read",started,{"path":path,"bytes":candidate.bytes,"footprint":true})
 	return result

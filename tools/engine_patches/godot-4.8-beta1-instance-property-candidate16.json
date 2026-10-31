@@ -1,0 +1,85 @@
+{
+  "schema_version": 1,
+  "candidate": "16r2",
+  "status": "isolated_query_latency_improves_but_map_regresses_opt_in_diagnostic_only_not_installed",
+  "apply_after": {
+    "path": "tools/engine_patches/godot-4.8-beta1-native-batch-candidate15.json",
+    "sha256": "726faed16d9828efc87db8f710a529a36f508ae1f85a65c7b8029b3cf335f449"
+  },
+  "patch": {
+    "path": "tools/engine_patches/godot-4.8-beta1-instance-property-candidate16.patch",
+    "sha256": "d234e0511c2e4d3d4b9c201115b9585ac3df5f12f96e8edd4bf9c1ed855f7252"
+  },
+  "files": [
+    {
+      "path": "servers/rendering/renderer_scene_cull.cpp",
+      "before_sha256": "b8b8b60c94e41a71e6dd11a73af4e160e1f9318c4f9ec5859632f762a3243f11",
+      "after_sha256": "5873421351c9e03bef86d54ad0f013cba8499bd39d328bfbf47a74f678eaf129"
+    }
+  ],
+  "build": {
+    "receipt": "D:\\code\\rmmo_runtime\\review_artifacts\\axel_post_roads_perf_20261030_01\\engine_property_query_candidate16r2\\result.json",
+    "receipt_sha256": "f8461e36189ca72afa485d0e89ae6397322e26a35e981b4afa511e6172cd3c31",
+    "command": [
+      "D:/tools/godot-4.8-build/python-env/Scripts/python.exe",
+      "-m",
+      "SCons",
+      "platform=windows",
+      "arch=x86_64",
+      "target=editor",
+      "use_mingw=yes",
+      "debug_symbols=yes",
+      "separate_debug_symbols=yes",
+      "dev_build=no",
+      "optimize=speed",
+      "lto=none",
+      "d3d12=no",
+      "accesskit=no",
+      "angle=no",
+      "-j4",
+      "tests=no"
+    ],
+    "seconds": 344.73399999999674,
+    "artifacts": {
+      "godot.windows.editor.x86_64.console.exe": {
+        "sha256": "1db2c080d033c5feb81f9891a166453bb24b5c4afece3747cc44d5c78c01e3da",
+        "bytes": 199477
+      },
+      "godot.windows.editor.x86_64.console.exe.debugsymbols": {
+        "sha256": "26b5b3477ac40c933f699449472ba0eaa096c2601acbf76558273c104d982dae",
+        "bytes": 78178
+      },
+      "godot.windows.editor.x86_64.exe": {
+        "sha256": "abfdc3c81dff5b88a2a50cd10e6954e82b93211c455f6e1a697e58945ddecd12",
+        "bytes": 163256202
+      },
+      "godot.windows.editor.x86_64.exe.debugsymbols": {
+        "sha256": "64da4f944fe23dd0b2a0149ec3cd896466c2fac5f229172a4f122256b39bf355",
+        "bytes": 2168843576
+      }
+    },
+    "source_unchanged": true,
+    "default_unchanged": true
+  },
+  "control": "RMMO_TARGETED_INSTANCE_PROPERTY_QUERY=1; default off. Inherits 15; pipeline batching separately controlled; legacy async kept off.",
+  "behavior": "Only update the queried instance before returning its shader property declarations. Ordinary renderer update/draw still updates all dirty resources; compilation work is not removed.",
+  "evidence_root": "D:\\code\\rmmo_runtime\\review_artifacts\\axel_post_roads_perf_20261030_01",
+  "report": "docs/axel_post_roads_performance_20261031.md",
+  "validation": {
+    "isolated_three_pairs": "property_query16_validation_index.json",
+    "native_gpu": "native_pipeline_property16_01/report.json",
+    "native_reader": "trusted_native_property16_02/engine.log",
+    "map_three_pairs": "property16_map_comparison.json",
+    "initial_build_failure": "engine_property_query_candidate16/result.json",
+    "gdb_failed_sample": "pipeline15_native_game_gdb_01/summary.json",
+    "editor_old_contract_failure": "editor_native_property16_01/engine.log",
+    "default_control_same_failure": "editor_native_property16_default10_control_01/engine.log",
+    "map_conclusion": "Three paired repetitions: full-ready median 71.512s off vs 76.702s on; return-loading max is worse in all three on samples. Do not enable this candidate control by default.",
+    "editor_current_contracts": "editor_native_cleanup_final_validation.json"
+  },
+  "limitations": [
+    "No default engine installation.",
+    "Isolated query latency gain does not remove compilation cost; creation+query+draw total did not improve.",
+    "Full-map conclusions must use the attached six-run comparison, not the isolated query result."
+  ]
+}

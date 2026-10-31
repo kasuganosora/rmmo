@@ -189,6 +189,7 @@ func run(paths: Array, parser: Callable = Callable(), worker_limit: int = 2, thr
 			var sample:Dictionary={"stage":item.stage,"dispatched_us":item.dispatched_us,"queue_us":item.queue_us,"joined_us":Time.get_ticks_usec(),"worker_us":int(reply.elapsed_us),
 				"worker_started_us":int(reply.get("worker_started_us",item.dispatched_us)),"worker_finished_us":int(reply.get("worker_finished_us",0)),"error":int(reply.error),"reserved_bytes":int(item.reserved_bytes),
 				"raw_import_lock_wait_us":int(reply.get("raw_import_wait_us",0)),"compiled_cache_us":int(reply.get("cache_us",0))}
+			if reply.has("native_pipeline_batch"):sample.native_pipeline_batch=reply.native_pipeline_batch
 			admission_profile.tasks[path].stages.append(sample)
 			var phase:Dictionary=admission_profile.stages[item.stage]
 			phase.joined+=1;phase.worker_us+=int(reply.elapsed_us);phase.active_jobs-=1

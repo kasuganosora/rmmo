@@ -48,3 +48,6 @@
 /tools/engine_patches/godot-4.8-beta1-instance-release-candidate11.json text eol=lf
 /tools/engine_patches/godot-4.8-beta1-mesh-pipeline-candidate12.json text eol=lf
 /tools/engine_patches/godot-4.8-beta1-worker-shutdown-candidate13.json text eol=lf
+/tools/engine_patches/godot-4.8-beta1-pipeline-batch-candidate14.json text eol=lf
+/tools/engine_patches/godot-4.8-beta1-native-batch-candidate15.json text eol=lf
+/tools/engine_patches/godot-4.8-beta1-instance-property-candidate16.json text eol=lf

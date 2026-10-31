@@ -1,0 +1,44 @@
+--- a/servers/rendering/renderer_scene_cull.cpp
++++ b/servers/rendering/renderer_scene_cull.cpp
+@@ -35,6 +35,7 @@
+ #include "core/math/geometry_3d.h"
+ #include "core/object/callable_mp.h"
+ #include "core/object/worker_thread_pool.h"
++#include "core/os/os.h"
+ #include "servers/rendering/rendering_light_culler.h"
+ #include "servers/rendering/rendering_server.h"
+ #include "servers/rendering/rendering_server_default.h"
+@@ -44,9 +45,6 @@
+ #endif
+ 
+ //#define DEBUG_CULL_TIME
+-#ifdef DEBUG_CULL_TIME
+-#include "core/os/os.h"
+-#endif
+ 
+ /* HALTON SEQUENCE */
+ 
+@@ -1618,10 +1616,21 @@
+ 
+ void RendererSceneCull::instance_geometry_get_shader_parameter_list(RID p_instance, List<PropertyInfo> *p_parameters) const {
+ 	ERR_FAIL_NULL(p_parameters);
+-	const Instance *instance = instance_owner.get_or_null(p_instance);
++	Instance *instance = instance_owner.get_or_null(p_instance);
+ 	ERR_FAIL_NULL(instance);
+ 
+-	update_dirty_instances();
++	static const bool targeted_query = OS::get_singleton()->get_environment("RMMO_TARGETED_INSTANCE_PROPERTY_QUERY") == "1";
++	if (targeted_query) {
++		// Instance-uniform declarations and defaults come from this instance's
++		// current material dependencies, not GPU uniform-buffer publication.
++		// Packing or inspecting one node must not finish unrelated shaders.
++		// Ordinary renderer update/draw still drains all pending resources.
++		if (instance->update_item.in_list()) {
++			_update_dirty_instance(instance);
++		}
++	} else {
++		update_dirty_instances();
++	}
+ 
+ 	instance->instance_uniforms.get_property_list(*p_parameters);
+ }

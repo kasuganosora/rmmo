@@ -1,4 +1,5 @@
 extends SceneTree
+const Job = preload("res://scripts/world_editor/load_job.gd")
 ## CPU-only contracts. Actual texture binding/renderer retirement and full town
 ## integration remain in the deferred graphics/HTTP acceptance batch.
 const Compiled = preload("res://scripts/world3d/compiled_asset_cache.gd")
@@ -84,15 +85,11 @@ func run() -> void:
 	queue.demand("model")
 	while not queue.is_ready("model"): await process_frame
 	var owned: Dictionary = queue.acquire("model")
-	check(Preparation.is_legacy_source_retry(owned), "editor accepts exact retained legacy retry contract")
+	check(Job._native_result_action({"source_sha":"a".repeat(64)},owned)!="ready", "editor rejects conversion-only retained source retry")
 	check(queue.ledger.reserved_bytes == 64 and deaths.is_empty(), "failed ready allocation retains lease")
-	check(queue.retry_as_raw("model", func(): return {"error":OK}, {"estimated_bytes":32,"exclusive":false}), "editor retires and re-admits raw retry")
-	check(owned.is_empty() and deaths == [main_id] and queue.ledger.reserved_bytes == 0, "all aliases clear before byte credit returns")
-	queue.demand("model")
-	while not queue.is_ready("model"): await process_frame
-	check(queue.acquire("model").error == OK, "raw retry completes")
+	check(not queue.has_method("retry_as_raw"), "editor has no native-to-source retry route")
 	queue.release("model")
-	check(queue.ledger.reserved_bytes == 0, "successful raw lease released")
+	check(owned.is_empty() and deaths == [main_id] and queue.ledger.reserved_bytes == 0, "all failed native aliases clear on main before byte credit returns")
 	queue.cancel(); queue.free()
 	var malformed := {"error":ERR_BUSY,"legacy_native_retry":true,"cache_reason":"source_changed_during_read","retained_resources":[]}
 	check(not Preparation.is_legacy_source_retry(malformed), "resource-free forged retry rejected")

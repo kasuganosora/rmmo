@@ -1,0 +1,87 @@
+--- a/scene/resources/native_mesh_cpu_capture.h
++++ b/scene/resources/native_mesh_cpu_capture.h
+@@ -67,6 +67,7 @@
+ 	uint64_t decode_usec = 0;
+ 	Dictionary pipeline_batch_statistics;
+ 
++	static Dictionary _load_native_scene(const String &p_path, bool p_capture_cpu);
+ 	static bool _eligible(const ArrayMesh *p_mesh, const Vector<RenderingServerTypes::SurfaceData> &p_surfaces);
+ 	static bool _valid_lengths(const RenderingServerTypes::SurfaceData &p_surface);
+ 	static uint64_t _payload_bytes(const RenderingServerTypes::SurfaceData &p_surface);
+@@ -76,6 +77,7 @@
+ 
+ public:
+ 	static Dictionary load_native_scene(const String &p_path);
++	static Dictionary load_native_scene_with_pipeline_batch(const String &p_path);
+ 	void record(ArrayMesh *p_mesh, const Vector<RenderingServerTypes::SurfaceData> &p_surfaces);
+ 	Dictionary take(const Ref<ArrayMesh> &p_mesh);
+ 	void close();
+--- a/scene/resources/native_mesh_cpu_capture.cpp
++++ b/scene/resources/native_mesh_cpu_capture.cpp
+@@ -235,28 +235,49 @@
+ }
+ 
+ Dictionary NativeMeshCpuCapture::load_native_scene(const String &p_path) {
++	return _load_native_scene(p_path, true);
++}
++
++Dictionary NativeMeshCpuCapture::load_native_scene_with_pipeline_batch(const String &p_path) {
++	return _load_native_scene(p_path, false);
++}
++
++Dictionary NativeMeshCpuCapture::_load_native_scene(const String &p_path, bool p_capture_cpu) {
+ 	Ref<NativeMeshCpuCapture> capture;
+-	capture.instantiate();
++	if (p_capture_cpu) {
++		capture.instantiate();
++	}
+ 	PipelineCompilationBatch pipeline_batch;
+ 	Error error = ERR_FILE_UNRECOGNIZED;
+ 	Ref<Resource> resource;
+ 	const String extension = p_path.get_extension().to_lower();
+ 	if (extension == "scn" || extension == "tscn") {
+-		resource = ResourceLoader::load_with_preparation_context(p_path, "PackedScene", ResourceLoader::CACHE_MODE_IGNORE_DEEP, capture, &error);
++		if (capture.is_valid()) {
++			resource = ResourceLoader::load_with_preparation_context(p_path, "PackedScene", ResourceLoader::CACHE_MODE_IGNORE_DEEP, capture, &error);
++		} else {
++			resource = ResourceLoader::load(p_path, "PackedScene", ResourceLoader::CACHE_MODE_IGNORE_DEEP, &error);
++		}
+ 		if (error == OK && Object::cast_to<PackedScene>(resource.ptr()) == nullptr) {
+ 			error = ERR_INVALID_DATA;
+ 		}
+ 	}
++	// Finish compiler work while all temporary material owners remain alive,
++	// including a valid native resource that failed the PackedScene root check.
+ 	pipeline_batch.finish();
+-	capture->pipeline_batch_statistics = pipeline_batch.get_statistics();
+-	if (error != OK) {
+-		capture->close();
++	Dictionary statistics = pipeline_batch.get_statistics();
++	if (capture.is_valid()) {
++		capture->pipeline_batch_statistics = statistics;
++		if (error != OK) {
++			capture->close();
++		}
+ 	}
+ 	Dictionary packet;
+ 	packet["error"] = error;
+ 	packet["resource"] = resource;
+-	packet["capture"] = capture;
+-	packet["pipeline_batch"] = capture->pipeline_batch_statistics;
++	if (capture.is_valid()) {
++		packet["capture"] = capture;
++	}
++	packet["pipeline_batch"] = statistics;
+ 	return packet;
+ }
+ 
+--- a/scene/resources/mesh.cpp
++++ b/scene/resources/mesh.cpp
+@@ -2342,6 +2342,7 @@
+ 
+ void ArrayMesh::_bind_methods() {
+ 	ClassDB::bind_static_method("ArrayMesh", D_METHOD("load_native_scene_with_cpu_surfaces", "path"), &NativeMeshCpuCapture::load_native_scene);
++	ClassDB::bind_static_method("ArrayMesh", D_METHOD("load_native_scene_with_pipeline_batch", "path"), &NativeMeshCpuCapture::load_native_scene_with_pipeline_batch);
+ 	ClassDB::bind_method(D_METHOD("get_cpu_geometry_revision"), &ArrayMesh::get_cpu_geometry_revision);
+ 	ClassDB::bind_method(D_METHOD("add_blend_shape", "name"), &ArrayMesh::add_blend_shape);
+ 	ClassDB::bind_method(D_METHOD("get_blend_shape_count"), &ArrayMesh::get_blend_shape_count);

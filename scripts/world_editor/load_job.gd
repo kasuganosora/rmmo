@@ -358,20 +358,11 @@ static func _parse_native_asset(value:String,content_root:String,candidate:Dicti
 	return parsed
 
 static func _native_result_action(candidate:Dictionary,parsed:Dictionary)->String:
-	# Reader control packets are trusted only in their precise ownership shape.
-	# Resource-bearing errors other than the known source replacement stay errors.
+	# Published products never transition back to an authoring-source import.
+	# The shared reader also serves explicit conversion/audit callers; their
+	# retry packets are errors here, with ownership left for queue disposal.
 	if not parsed.get("error") is int:return "reject"
-	if parsed.has("fallback_required"):
-		for key:Variant in parsed:
-			if key not in ["error","fallback_required","cache_reason","elapsed_us"]:return "reject"
-		if parsed.fallback_required is bool and parsed.fallback_required and parsed.error==OK and parsed.get("cache_reason") is String:return "retry"
-		return "reject"
-	if parsed.has("native_source_retry"):
-		for key:Variant in parsed:
-			if key not in ["error","packed","compiled","source_digest","compiled_payload_bytes","native_source_retry","cache_reason","elapsed_us","retained_resources"]:return "reject"
-		if not parsed.get("retained_resources",[]) is Array:return "reject"
-		if parsed.native_source_retry is bool and parsed.native_source_retry and parsed.error==ERR_BUSY and parsed.get("packed") is PackedScene and parsed.get("compiled") is bool and parsed.compiled and parsed.get("source_digest")==candidate.get("source_sha") and NativePreparation.Compiled._sha(candidate.get("source_sha")) and parsed.get("cache_reason")=="candidate_source_changed_after_read":return "retry"
-		return "reject"
+	if parsed.has("fallback_required") or parsed.has("native_source_retry"):return "reject"
 	if parsed.error!=OK:return "error"
 	return "ready" if parsed.get("packed") is PackedScene and parsed.get("compiled") is bool and parsed.compiled and parsed.get("source_digest")==candidate.get("source_sha") and NativePreparation.Compiled._sha(candidate.get("source_sha")) else "reject"
 

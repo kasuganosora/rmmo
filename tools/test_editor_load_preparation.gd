@@ -43,12 +43,12 @@ func native_result_cases()->void:
 	var packed:=PackedScene.new()
 	var candidate:Dictionary={"source_sha":"a".repeat(64)}
 	var fallback:Dictionary={"error":OK,"fallback_required":true,"cache_reason":"candidate_checksum","elapsed_us":1}
-	check(Job._native_result_action(candidate,fallback)=="retry","resource-free fixed-native miss requests separate raw admission")
+	check(Job._native_result_action(candidate,fallback)=="reject","native miss cannot request authoring-source readmission")
 	for patch:Dictionary in [{"packed":packed},{"fallback_required":1},{"fallback_required":false},{"error":ERR_BUSY},{"cache_reason":1},{"scene":null},{"unknown_owner":packed},{"retained_resources":[]}]:
 		var malformed:Dictionary=fallback.duplicate();malformed.merge(patch,true)
 		check(Job._native_result_action(candidate,malformed)=="reject","fallback rejects invalid control or ownership field: "+str(patch.keys()[0]))
 	var retry:Dictionary={"error":ERR_BUSY,"packed":packed,"compiled":true,"source_digest":candidate.source_sha,"compiled_payload_bytes":1,"native_source_retry":true,"cache_reason":"candidate_source_changed_after_read","elapsed_us":1}
-	check(Job._native_result_action(candidate,retry)=="retry","typed source replacement retains its exact native identity before raw retry")
+	check(Job._native_result_action(candidate,retry)=="reject","conversion-only source replacement cannot enter published native consumption")
 	for patch:Dictionary in [{"source_digest":"b".repeat(64)},{"native_source_retry":1},{"native_source_retry":false},{"error":ERR_INVALID_DATA},{"error":OK},{"compiled":1},{"compiled":false},{"packed":null},{"cache_reason":"other"},{"scene":null},{"private_preparation":{}},{"fallback_required":true},{"unknown_owner":packed},{"retained_resources":{}}]:
 		var malformed:Dictionary=retry.duplicate();malformed.merge(patch,true)
 		check(Job._native_result_action(candidate,malformed)=="reject","source retry rejects invalid identity, control or ownership field: "+str(patch.keys()[0]))
@@ -61,94 +61,40 @@ func native_result_cases()->void:
 	check(Job._native_result_action(candidate,{"error":ERR_CANT_CREATE,"packed":packed})=="error","unmarked resource-bearing errors remain failures instead of retrying raw")
 	check(retry.packed==packed and fallback.fallback_required and success.packed==packed,"native result classification never disposes or mutates its borrowed packets")
 
-func native_retry_cases()->void:
-	# These packets are private CPU stand-ins. Scheduling, joins, ownership,
-	# admission, preemption and detached cancellation use the production queue.
-	var native_estimate:Dictionary={"estimated_bytes":10,"exclusive":false,"stage":"compiled_read"}
-	var queue:=make_queue()
-	var observations:Array=[]
-	queue.enqueue("native",owned_native_packet.bind(queue.ledger,observations),native_estimate)
-	await until_ready(queue,"native")
-	var native:Dictionary=queue.acquire("native")
-	var original_order:Array=queue.order.duplicate()
-	check(not queue.retry_as_raw("absent",packet.bind("raw"),{"estimated_bytes":90,"exclusive":false}),"retry rejects an unknown preparation key")
-	check(not queue.retry_as_raw("native",packet.bind("raw"),{"estimated_bytes":0,"exclusive":false}),"invalid raw estimate cannot retire a native result")
-	check(not queue.retry_as_raw("native",Callable(),{"estimated_bytes":90,"exclusive":false}),"invalid raw callable cannot retire a native result")
-	check(not queue.retry_as_raw("native",packet.bind("raw"),{"estimated_bytes":90,"exclusive":false,"cpu_only":true}),"raw retry rejects a CPU-only disposal policy")
-	check(native.get("value")=="native" and queue.rows.native.state=="held" and queue.ledger.reserved_bytes==10,"rejected retry preserves native aliases, state and lease")
-	var gate:=Semaphore.new()
-	check(queue.retry_as_raw("native",gated_packet.bind("raw",gate),{"estimated_bytes":90,"exclusive":false,"stage":"compiled_read"}),"joined held native result accepts separately admitted raw retry")
-	check(native.is_empty() and queue.ledger.reserved_bytes==0 and queue.ledger.count()==0,"retry clears the consumer packet alias before returning native byte credit")
-	check(observations.size()==1 and observations[0].main_thread and observations[0].reserved_bytes==10,"native ownership is destroyed on main while the original byte lease is still charged")
-	check(queue.order==original_order and queue.rows.native.state=="pending" and queue.demand_key=="native","held retry preserves first-use position and restores its demand")
-	check(queue.rows.native.estimate.estimated_bytes==90 and queue.rows.native.estimate.stage=="raw_import" and not queue.rows.native.estimate.get("cpu_only",false),"raw retry replaces the native estimate and cannot retain a compiled or CPU-only stage")
-	queue.pump()
-	check(queue.rows.native.state=="running" and queue.ledger.reserved_bytes==90,"raw worker starts only after acquiring its full fresh reservation")
-	check(not queue.retry_as_raw("native",packet.bind("second_raw"),{"estimated_bytes":1,"exclusive":false}) and queue.ledger.reserved_bytes==90,"running raw work cannot re-enter retry or discount its reservation")
-	gate.post();await until_ready(queue,"native")
-	check(not queue.retry_as_raw("native",packet.bind("second_raw"),{"estimated_bytes":1,"exclusive":false}),"joined raw result cannot retry raw a second time")
-	var raw:Dictionary=queue.acquire("native")
-	check(raw.get("value")=="raw" and queue.ledger.reserved_bytes==90 and queue.snapshot().raw_retries==1,"raw completion stays charged through acquire and counts one stage transition")
-	queue.release("native")
-	check(raw.is_empty() and queue.ledger.count()==0,"raw publication clears its packet and returns the full retry lease")
-	queue.free()
+func native_retirement_cases()->void:
+	# Failure and cancellation retain the original lease through disposal;
+	# there is no native-to-GLB scheduling transition in an editor load queue.
+	var estimate:Dictionary={"estimated_bytes":10,"exclusive":false,"stage":"compiled_read"}
+	for acquire_first:bool in [false,true]:
+		var queue:=make_queue();var observations:Array=[]
+		queue.enqueue("native",owned_native_packet.bind(queue.ledger,observations),estimate)
+		await until_ready(queue,"native")
+		var owned:Dictionary=queue.acquire("native") if acquire_first else queue.rows.native.packet
+		check(not queue.has_method("retry_as_raw"),"editor queue exposes no authoring-source fallback")
+		check(queue.ledger.reserved_bytes==10 and not owned.is_empty(),"joined native owner retains the exact admitted lease")
+		if acquire_first:queue.release("native")
+		else:queue.cancel()
+		check(owned.is_empty() and queue.ledger.count()==0,"native release/cancel clears aliases before returning byte credit")
+		check(observations.size()==1 and observations[0].main_thread and observations[0].reserved_bytes==10,"native owner is destroyed once on main while its lease remains charged")
+		queue.free()
 
-	queue=make_queue(100,4,4)
-	queue.enqueue("native",packet.bind("native"),native_estimate)
-	for key:String in ["later_a","later_b","later_c"]:queue.enqueue(key,packet.bind(key),{"estimated_bytes":10,"exclusive":false})
-	for key:String in ["native","later_a","later_b","later_c"]:await until_ready(queue,key)
-	check(queue.ledger.count()==4,"native retry fixture fills the complete ready window")
-	var later_alias:Dictionary=queue.rows.later_a.packet
-	native=queue.acquire("native")
-	check(queue.retry_as_raw("native",packet.bind("exclusive_raw"),{"estimated_bytes":200,"exclusive":true}),"oversized raw retry retires its held native packet before exclusive admission")
-	await until_ready(queue,"native")
-	check(native.is_empty() and later_alias.is_empty() and queue.snapshot().preempted==3,"exclusive raw demand safely retires all joined lookahead aliases")
-	check(queue.ledger.reserved_bytes==200 and queue.ledger.count()==1 and queue.rows.native.estimate.stage=="raw_import","exclusive retry owns its complete raw envelope without native or lookahead credits")
-	queue.release("native")
-	for key:String in ["later_a","later_b","later_c"]:
-		await until_ready(queue,key);queue.release(key)
-	check(queue.ledger.count()==0 and queue.snapshot().raw_retries==1,"preempted lookahead resumes after exclusive raw consumption without duplicate retry")
-	queue.free()
+	var queue:=make_queue();var gate:=Semaphore.new()
+	queue.enqueue("cancel_native",gated_packet.bind("native",gate),estimate);queue.pump()
+	var ledger:RefCounted=queue.ledger;var drainer:Node=Drainer.for_tree(self);var before:int=drainer.drained
+	check(queue.rows.cancel_native.state=="running" and ledger.reserved_bytes==10,"active native worker keeps its lease")
+	var began:=Time.get_ticks_usec();queue.free()
+	check(Time.get_ticks_usec()-began<50000 and ledger.reserved_bytes==10,"native cancellation does not block or release a running worker's lease")
+	gate.post();var deadline:=Time.get_ticks_msec()+3000
+	while drainer.drained==before and Time.get_ticks_msec()<deadline:await process_frame
+	check(drainer.drained>before and ledger.count()==0,"drainer joins cancelled native worker before returning its lease")
 
-	queue=make_queue();queue.enqueue("ready_native",packet.bind("native"),native_estimate)
-	await until_ready(queue,"ready_native");queue.demand("ready_native")
-	native=queue.rows.ready_native.packet
-	check(queue.retry_as_raw("ready_native",packet.bind("never_started"),{"estimated_bytes":80,"exclusive":false}),"joined unacquired native result may transition to raw")
-	check(native.is_empty() and queue.demand_key=="ready_native" and queue.ledger.count()==0,"ready retry retains existing demand and returns only the disposed native lease")
-	queue.cancel()
-	check(queue.ledger.count()==0 and queue.rows.ready_native.state=="cancelled" and not queue.retry_as_raw("ready_native",packet.bind("late"),{"estimated_bytes":80,"exclusive":false}),"cancellation between stages prevents raw dispatch and further retries")
-	queue.free()
-
-	# Keep each worker blocked deterministically while removing its owning Node.
-	# The main thread never waits for that worker; the retained drainer ledger
-	# must outlive the queue until the semaphore permits worker completion.
-	for raw_stage:bool in [false,true]:
-		queue=make_queue();gate=Semaphore.new()
-		queue.enqueue("cancel_stage",packet.bind("native") if raw_stage else gated_packet.bind("native",gate),native_estimate)
-		if raw_stage:
-			await until_ready(queue,"cancel_stage");queue.acquire("cancel_stage")
-			check(queue.retry_as_raw("cancel_stage",gated_packet.bind("raw",gate),{"estimated_bytes":90,"exclusive":false}),"raw cancellation fixture transitions through real native ownership")
-		queue.pump()
-		var charge:int=90 if raw_stage else 10
-		check(queue.rows.cancel_stage.state=="running" and queue.ledger.reserved_bytes==charge,"cancellation fixture keeps its active stage charged")
-		check(not queue.retry_as_raw("cancel_stage",packet.bind("illegal"),{"estimated_bytes":1,"exclusive":false}) and queue.ledger.reserved_bytes==charge,"running stage cannot be retired or re-admitted before join")
-		var ledger:RefCounted=queue.ledger;var drainer:Node=Drainer.for_tree(self);var before:int=drainer.drained
-		var began:=Time.get_ticks_usec();queue.free()
-		check(Time.get_ticks_usec()-began<50000 and ledger.reserved_bytes==charge,"stage cancellation remains nonblocking and keeps its detached lease")
-		gate.post()
-		var deadline:=Time.get_ticks_msec()+3000
-		while drainer.drained==before and Time.get_ticks_msec()<deadline:await process_frame
-		check(drainer.drained>before and ledger.count()==0,"drainer joins and disposes the cancelled stage before returning its lease")
-
-	queue=make_queue();queue.enqueue("start_failure",packet.bind("native"),native_estimate)
-	await until_ready(queue,"start_failure");native=queue.acquire("start_failure")
-	check(queue.retry_as_raw("start_failure",packet.bind("must_not_run"),{"estimated_bytes":200,"exclusive":true}),"raw start-failure fixture replaces the native reservation")
-	queue.thread_starter=func(_worker:Thread,_task:Callable)->int:return ERR_CANT_CREATE
-	queue.pump();var failed:Dictionary=queue.acquire("start_failure")
-	check(native.is_empty() and failed.get("start_failed",false) and not failed.has("value"),"failed raw launch never executes heavyweight fallback on main")
-	check(queue.ledger.reserved_bytes==200 and queue.ledger.active_workers()==0,"failed raw launch retains its complete parked lease until disposal")
+	queue=make_queue();queue.thread_starter=func(_worker:Thread,_task:Callable)->int:return ERR_CANT_CREATE
+	queue.enqueue("start_failure",packet.bind("must_not_run"),estimate);queue.pump()
+	var failed:Dictionary=queue.acquire("start_failure")
+	check(failed.get("start_failed",false) and not failed.has("value"),"failed native launch never runs import work on main")
+	check(queue.ledger.reserved_bytes==10 and queue.ledger.active_workers()==0,"failed native launch retains its parked lease until disposal")
 	queue.release("start_failure")
-	check(failed.is_empty() and queue.ledger.count()==0 and queue.snapshot().raw_retries==1,"failed raw launch clears aliases and releases the new envelope exactly once")
+	check(failed.is_empty() and queue.ledger.count()==0,"failed native launch returns its original lease exactly once")
 	queue.free()
 
 func native_job_retry_case()->void:
@@ -234,7 +180,7 @@ func run()->void:
 	queue.cancel();check(queue.cancelled and queue.ledger.count()==0,"budget denial cannot prevent cancellation")
 	Budget.enabled=false;queue.free()
 	native_result_cases()
-	await native_retry_cases()
+	await native_retirement_cases()
 	await native_job_retry_case()
 
 	var directory:=Paths.cache_directory("editor_preparation_cpu_%d"%Time.get_ticks_usec());DirAccess.make_dir_recursive_absolute(directory)

@@ -9,6 +9,7 @@ extends Node
 const NODE_NAME := "PreparedModelOwnership"
 const SCRIPT_PATH := "res://scripts/world_editor/prepared_model_ownership.gd"
 const Compiled = preload("res://scripts/world3d/compiled_asset_cache.gd")
+const Assets = preload("res://scripts/world_editor/asset_library.gd")
 const Drainer = preload("res://scripts/world3d/asset_worker_drainer.gd")
 const NativeTextures = preload("res://scripts/world_editor/native_model_texture_preparation.gd")
 const SharedPixels = preload("res://scripts/world3d/shared_prefab_images.gd")
@@ -59,6 +60,13 @@ func preflight(candidate: Dictionary, packet: Dictionary, envelope_bytes: int) -
 	var split := candidate.has("texture_table")
 	for key: Variant in packet:
 		if key in SUCCESS_FIELDS: publication[key] = packet[key]
+		elif key == "native_pipeline_batch":
+			# Optional engine counters carry no resource ownership. Keep them out
+			# of the publication identity/ticket and do not rescan the native graph.
+			var counters: Variant = packet[key]
+			if not counters is Dictionary: return _failure("native_pipeline_counters")
+			for metric: Variant in counters:
+				if not metric is String or not (counters[metric] is int or counters[metric] is bool): return _failure("native_pipeline_counters")
 		elif not split or key not in SPLIT_FIELDS: return _failure("unexpected_packet_field:" + str(key))
 	publication.make_read_only()
 	var reason := _validate_identity(candidate, publication, envelope_bytes)
@@ -103,8 +111,8 @@ func adopt(ticket: Variant) -> Dictionary:
 	if snapshot.ticket.get_ref() != ticket: return _failure("unissued_ticket")
 	var packed: PackedScene = snapshot.packed.get_ref() as PackedScene
 	if packed == null: return _failure("packed_owner_expired")
-	# cache_packed stamps this source digest before publishing. The caller keeps
-	# the transient reservation if this handoff fails, even after cache insertion.
+	# The reader already stamps this digest. It proves identity, not that cache
+	# publication occurred; first adoption also requires the exact cached owner.
 	var validated: Variant = packed.get_meta("compiled_asset_validated", false)
 	if not validated is bool or not validated or packed.get_meta("_rmmo_source_digest", "") != snapshot.identity.source_sha:
 		return _failure("cache_publication_identity")
@@ -114,6 +122,8 @@ func adopt(ticket: Variant) -> Dictionary:
 		if previous.identity != snapshot.identity or previous.envelope_bytes != snapshot.envelope_bytes:
 			return _failure("allocation_identity_conflict")
 		return {"ok":true, "entry_id":allocation, "reused":true}
+	if Assets._scenes.get(snapshot.identity.source_path) != packed:
+		return _failure("cache_publication_owner")
 	# Different CACHE_MODE_IGNORE_DEEP loads of the same source are independent
 	# allocations and must each be charged. Private/shared geometry children keep
 	# each original envelope alive. A proven engine-managed split texture does

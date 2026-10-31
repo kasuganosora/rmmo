@@ -1,0 +1,89 @@
+{
+  "schema_version": 1,
+  "candidate": "15",
+  "status": "isolated_native_plain_and_capture_validated_map_acceptance_incomplete_not_installed",
+  "apply_after": {
+    "path": "tools/engine_patches/godot-4.8-beta1-pipeline-batch-candidate14.json",
+    "sha256": "961ae15c153dffae5d6186ac35dcaa55d8b5b6e58be9dfc944a901d596dfdac0"
+  },
+  "patch": {
+    "path": "tools/engine_patches/godot-4.8-beta1-native-batch-candidate15.patch",
+    "sha256": "3e24b59c7148279cb6291123a6bf3d223e751e00199069a9e389d1364b00ae08"
+  },
+  "files": [
+    {
+      "path": "scene/resources/native_mesh_cpu_capture.h",
+      "before_sha256": "9cbccca0c6775847d47df368f52c3fa2f3563221576fc055543176aedab73461",
+      "after_sha256": "734e2afd424eb7cfbfb2e7ccda01177f8c7f21486e80beabd90fe39667cca628"
+    },
+    {
+      "path": "scene/resources/native_mesh_cpu_capture.cpp",
+      "before_sha256": "608ed03bc0d40c670dc9d7ac626ee015758546bc2f09a620c71cfac4bd143f07",
+      "after_sha256": "d71705ec9aee9917742e692a684d9a6ac48e73a5cb4b15e6f3fc016d87a6b071"
+    },
+    {
+      "path": "scene/resources/mesh.cpp",
+      "before_sha256": "977afc04765e38f35f0af84a5add2da2218824cb7b389406819439627735962f",
+      "after_sha256": "a6971dffef12cd8d294becfc0296277ed3ceb383651e19f79ba5121c9233391a"
+    }
+  ],
+  "build": {
+    "receipt": "D:\\code\\rmmo_runtime\\review_artifacts\\axel_post_roads_perf_20261030_01\\engine_native_batch_candidate15\\result.json",
+    "receipt_sha256": "88b840b6ece2cd565b89376d88474ae337a83206387a41c33b243c49ca1d0cf4",
+    "command": [
+      "D:/tools/godot-4.8-build/python-env/Scripts/python.exe",
+      "-m",
+      "SCons",
+      "platform=windows",
+      "arch=x86_64",
+      "target=editor",
+      "use_mingw=yes",
+      "debug_symbols=yes",
+      "separate_debug_symbols=yes",
+      "dev_build=no",
+      "optimize=speed",
+      "lto=none",
+      "d3d12=no",
+      "accesskit=no",
+      "angle=no",
+      "-j4",
+      "tests=no"
+    ],
+    "seconds": 325.2810000000027,
+    "artifacts": {
+      "godot.windows.editor.x86_64.console.exe": {
+        "sha256": "450630201d21a8ecf69c5bd50d6bf6c8e01f1d7b01749f0a74ec4b4e31e4d753",
+        "bytes": 199477
+      },
+      "godot.windows.editor.x86_64.console.exe.debugsymbols": {
+        "sha256": "3f75343fb6b3fb1325284e974ea43e7424522cad859b59b8f09ad1d8b79e93b6",
+        "bytes": 78178
+      },
+      "godot.windows.editor.x86_64.exe": {
+        "sha256": "16ea82d443dcb76f34b516ed3e8e7c063eabfa556021e439b4b600ae6a21d5e6",
+        "bytes": 163238794
+      },
+      "godot.windows.editor.x86_64.exe.debugsymbols": {
+        "sha256": "fd7bae7cc5e458df3846880b27c41bc1200319fb2984aa14a2dcd9e754c5996c",
+        "bytes": 2168740157
+      }
+    },
+    "source_unchanged": true,
+    "default_unchanged": true
+  },
+  "control": "RMMO_BATCH_MESH_PIPELINES=1; default off; RMMO_ASYNC_MESH_PIPELINES must remain off.",
+  "behavior": "Shared private native-loading implementation exposes a plain scene API with identical pipeline batch lifetime but no CPU capture context. Production CompiledAssetPreparation ordinary branch uses it when available; existing CPU handoff remains opt-in. Main/pool callers retain ordinary waits.",
+  "evidence_root": "D:\\code\\rmmo_runtime\\review_artifacts\\axel_post_roads_perf_20261030_01",
+  "report": "docs/axel_post_roads_performance_20261031.md",
+  "validation": {
+    "functional": "pipeline15_validation_index.json",
+    "installed_engine_fallback": "native_cpu_handoff15_default10_01/report.json",
+    "first_paths": "pipeline15_component_comparison.json",
+    "full_map_incomplete": "pipeline15_map_comparison.json",
+    "actual_game_receipt": "pipeline15_batch_receipt_on_01/profile.json",
+    "gdb_diagnostic_failed": "pipeline15_native_game_gdb_01/summary.json",
+    "limitation": "Stopped full-map series after first exploration plus one off sample: no matched three-run map acceptance. Actual game already calls CPU API. Receipt proves batch active 6297 requests/42 completions in warm game; new-path first map remains slow. GDB-only 0x80000003 failure retained. No default engine replacement; do not infer low-frame or full-game speedup from component gains.",
+    "editor_statistics_handoff_failure": "test_editor_preparation_residency_gpu_native_cleanup16_01/engine.log",
+    "editor_statistics_handoff_followup": "editor_native_cleanup_final_validation.json"
+  }
+}

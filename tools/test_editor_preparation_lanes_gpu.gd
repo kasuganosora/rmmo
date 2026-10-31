@@ -135,7 +135,7 @@ func run()->void:
 	DirAccess.make_dir_recursive_absolute(temporary_directory)
 	var path:=temporary_directory.path_join("fixture.glb");var changed:=temporary_directory.path_join("changed.glb")
 	check(fixture(path,1,8,Color(.7,.2,.1)),"closed ordinary textured GLB exported")
-	check(fixture(changed,4,2048,Color(.1,.6,.2)),"larger replacement GLB exported for raw retry")
+	check(fixture(changed,4,32,Color(.1,.6,.2)),"different source exported to detect forbidden reimport")
 	var original:=FileAccess.get_file_as_bytes(path);var replacement:=FileAccess.get_file_as_bytes(changed)
 	check(Compiled.build(path).get("ok",false),"actual native PackedScene product compiled")
 	check(Footprint.build(path).get("ok",false),"actual native resource footprint compiled")
@@ -150,14 +150,13 @@ func run()->void:
 	if other_candidate.is_empty():quit(1);return
 	await mixed_lane_pressure(path,candidate,other_path,other_candidate)
 	check(put(path,replacement),"source replacement precedes frozen candidate dispatch")
-	await direct_case(path,candidate,"source_retry",4,2048)
-	check(_dispatch_lanes==["model","model"],"real native-to-raw retry preserves model lane across fresh admission")
+	await direct_case(path,candidate,"source_changed",1,8)
+	check(_dispatch_lanes==["model"],"changed source still requires exactly one admitted native model task")
 	check(put(path,original),"temporary source restored before real HTTP editor load")
 	await http_case(path)
 	check(FileAccess.get_sha256(path)==candidate.source_sha and FileAccess.get_sha256(candidate.product)==candidate.payload_sha,"source and native product identities remain unchanged after mixed-lane and HTTP tests")
 	check(FileAccess.get_sha256(other_path)==other_candidate.source_sha and FileAccess.get_sha256(other_candidate.product)==other_candidate.payload_sha,"second model source and product identities remain unchanged")
 	Job.native_model_footprints_enabled=original_native;Job.preparation_lanes_enabled=original_lanes;Native.source_precheck_enabled=previous_precheck
 	var report:={"passed":passed,"failures":failed,"fixture_directory":temporary_directory,"cases":results,"required_production_default":require_default,"original_lane_default":original_lanes}
-	var output:=Paths.external_root().path_join("review_artifacts/editor_preparation_lanes_gpu_20261011.json")
-	var file:=FileAccess.open(output,FileAccess.WRITE);file.store_string(JSON.stringify(report,"\t"));file.close()
+	write_report(report)
 	print("EDITOR_PREPARATION_LANES_GPU passed=",passed," failures=",failed);quit(1 if failed else 0)

@@ -1,12 +1,12 @@
 extends "res://tools/test_world3d_mcp.gd"
-## Small real-GPU fixture: native read, source retry and checksum fallback.
+## Real-GPU native-only consumption, failure retirement and HTTP editing.
 ## Only temporary GLBs/maps plus their derived products are written.
 const Job=preload("res://scripts/world_editor/load_job.gd")
 const Queue=preload("res://scripts/world_editor/load_preparation_queue.gd")
 const Library=preload("res://scripts/world_editor/asset_library.gd")
 const Compiled=preload("res://scripts/world3d/compiled_asset_cache.gd")
 const Footprint=preload("res://scripts/world3d/compiled_asset_footprint.gd")
-const Estimate=preload("res://scripts/world3d/asset_memory_estimate.gd")
+const Policy=preload("res://scripts/world3d/runtime_package_policy.gd")
 const Drainer=preload("res://scripts/world3d/asset_worker_drainer.gd")
 const Native=preload("res://scripts/world3d/compiled_asset_preparation.gd")
 var passed:=0
@@ -27,13 +27,15 @@ class Audit extends RefCounted:
 	var native_packet:Dictionary={}
 	var native_action:=""
 	var native_reason:=""
+	var observe_lifetime:=true
 	var seen:Dictionary={}
 	var mutex:=Mutex.new()
 	func observe(resource:Resource,kind:String)->void:
 		if resource==null or seen.has(resource.get_instance_id()):return
 		seen[resource.get_instance_id()]=true
-		var marker:=Lifetime.new();marker.audit=self;marker.kind=kind
-		resource.set_meta("native_admission_gpu_lifetime",marker)
+		if observe_lifetime:
+			var marker:=Lifetime.new();marker.audit=self;marker.kind=kind
+			resource.set_meta("native_admission_gpu_lifetime",marker)
 		resources.append({"weak":weakref(resource),"kind":kind})
 	func observe_packed(packed:PackedScene)->void:
 		observe(packed,"packed")
@@ -139,28 +141,21 @@ func prepare_fixture_job(path:String,candidate:Dictionary)->Dictionary:
 func direct_case(path:String,candidate:Dictionary,mode:String,width:float,texture_size:int)->void:
 	var fixture_job:=prepare_fixture_job(path,candidate)
 	var job:Node=fixture_job.job;var queue:Node=fixture_job.queue;var audit:Audit=fixture_job.audit
-	var expected_raw:=Estimate.estimate(path)
 	var packet:Dictionary=await job._prepare_asset({"kind":"asset","asset_path":path,"uuid":"direct_"+mode})
-	check(scene_matches(packet.get("scene"),width,texture_size),mode+": real LoadJob wiring publishes expected geometry and texture")
-	check(Library._scenes.has(path),mode+": accepted scene enters shared instance cache")
+	var expected_failure:bool=mode in ["corrupt_product","missing_product"]
+	if expected_failure:
+		check(packet.get("scene")==null and not Library._scenes.has(path),mode+": failed native product never publishes a scene or cache owner")
+		check(audit.native_action=="reject" and job._timings.asset_lookahead.compiled_misses==1,mode+": native failure stays a failure without importing the available GLB")
+		check(audit.native_reason==("candidate_checksum" if mode=="corrupt_product" else "candidate_size") and audit.resources.is_empty(),mode+": explicit failure is detected before native resource allocation")
+	else:
+		check(scene_matches(packet.get("scene"),width,texture_size),mode+": real LoadJob publishes the admitted native geometry and texture")
+		check(Library._scenes.has(path),mode+": accepted scene enters shared instance cache")
+		check(audit.native_action=="ready" and job._timings.asset_lookahead.compiled_hits==1,mode+": admitted native product records one successful publication")
+		check(audit.resources.any(func(row):return row.kind=="mesh") and audit.resources.any(func(row):return row.kind=="texture"),mode+": observes real native mesh and texture owners")
+	check(audit.starts.size()==1 and audit.starts[0].stage=="compiled_read" and audit.starts[0].bytes==candidate.estimated_bytes,mode+": exactly one native worker uses the admitted native footprint")
+	check(queue.metrics.raw_retries==0 and job._timings.asset_lookahead.native_retries==0,mode+": no source readmission or raw importer")
 	check(queue.ledger.reserved_bytes==0 and queue.rows[fixture_job.key].state=="done",mode+": consumed result returns complete lease")
 	check(audit.native_packet.is_empty(),mode+": native result aliases are cleared by owner")
-	if mode=="native_hit":
-		check(audit.native_action=="ready" and audit.starts.size()==1 and queue.metrics.raw_retries==0,"native hit needs one admitted reader and no raw importer")
-		check(job._timings.asset_lookahead.compiled_hits==1,"native hit records one compiled publication")
-	else:
-		check(audit.native_action=="retry" and audit.starts.size()==2 and queue.metrics.raw_retries==1,mode+": exactly one separately admitted raw retry")
-		check(job._timings.asset_lookahead.native_retries==1 and job._timings.asset_lookahead.compiled_misses==1,mode+": real LoadJob branch accounts fallback")
-		var start:Dictionary=audit.starts[-1]
-		check(start.stage=="raw_import" and start.estimate.estimated_bytes==expected_raw.estimated_bytes and start.estimate.exclusive==expected_raw.exclusive,mode+": raw estimate refreshed from current GLB")
-		check(start.bytes==expected_raw.estimated_bytes and not start.native_alive and start.packet_empty,mode+": raw dispatch occurs after native disposal and old lease release")
-		check(queue.metrics.native_retired_bytes==candidate.estimated_bytes,mode+": exact native credit retired once")
-		if mode=="source_retry":
-			check(audit.native_reason=="candidate_source_changed_after_read" and expected_raw.estimated_bytes>candidate.estimated_bytes,"source retry really allocated old native product before larger raw source admission")
-			check(audit.resources.any(func(row):return row.kind=="mesh") and audit.resources.any(func(row):return row.kind=="texture"),"source retry observes actual native GPU mesh and texture lifetimes")
-			check(audit.charged_main_retirement(),"source retry disposes packed mesh material texture on main while native budget remains charged")
-		else:
-			check(audit.native_reason=="candidate_checksum" and audit.resources.is_empty(),"corrupt product falls back before native resource creation")
 	results.append({"mode":mode,"starts":audit.starts.duplicate(true),"releases":audit.releases.duplicate(true),"native_reason":audit.native_reason,"queue":queue.snapshot()})
 	Drainer.dispose_result(packet);Library._scenes.erase(path);Drainer.synchronize_transfer()
 	job.free();await process_frame
@@ -233,11 +228,12 @@ func run()->void:
 		if not original_setting:quit(1);return
 	else:Job.native_model_footprints_enabled=true
 	var previous_precheck:bool=Native.source_precheck_enabled;Native.source_precheck_enabled=false
+	var previous_audit:bool=Policy.verify_packages;Policy.verify_packages=false
 	temporary_directory=Paths.cache_directory("native_admission_gpu_%d_%d"%[OS.get_process_id(),Time.get_ticks_usec()])
 	DirAccess.make_dir_recursive_absolute(temporary_directory)
 	var path:=temporary_directory.path_join("fixture.glb");var changed:=temporary_directory.path_join("changed.glb")
 	check(fixture(path,1,8,Color(.7,.2,.1)),"small self-contained textured GLB exported")
-	check(fixture(changed,4,2048,Color(.1,.6,.2)),"larger replacement GLB exported for fresh raw reservation")
+	check(fixture(changed,4,32,Color(.1,.6,.2)),"different import source exported to detect forbidden source replacement")
 	var original:=FileAccess.get_file_as_bytes(path);var replacement:=FileAccess.get_file_as_bytes(changed)
 	var built:=Compiled.build(path);check(built.get("ok",false),"real native PackedScene cache built")
 	var measured:=Footprint.build(path);check(measured.get("ok",false),"real resource footprint sidecar measured and built")
@@ -247,17 +243,35 @@ func run()->void:
 	var product:String=candidate.product;var product_bytes:=FileAccess.get_file_as_bytes(product)
 	await direct_case(path,candidate,"native_hit",1,8)
 	check(put(path,replacement),"replacement source committed before frozen native candidate is enqueued")
-	await direct_case(path,candidate,"source_retry",4,2048)
-	check(put(path,original),"original temporary source restored after source retry")
+	await direct_case(path,candidate,"source_changed",1,8)
+	check(put(path,original),"original temporary source restored after native-only load")
+	check(DirAccess.rename_absolute(product,product+".held")==OK,"temporarily hide private native product while valid GLB remains")
+	await direct_case(path,candidate,"missing_product",1,8)
+	check(DirAccess.rename_absolute(product+".held",product)==OK,"restore private native product after failure")
 	var damaged:=product_bytes.duplicate();damaged[-1]=damaged[-1]^1
 	check(put(product,damaged),"unique temporary derived product damaged at same length")
+	Policy.verify_packages=true # Explicit audit fixture, never a production load requirement.
 	await direct_case(path,candidate,"corrupt_product",1,8)
+	Policy.verify_packages=false
 	check(put(product,product_bytes) and FileAccess.get_sha256(product)==candidate.payload_sha,"temporary native product restored exactly")
 	await cancel_case(path,candidate)
+	check(DirAccess.rename_absolute(path,path+".held")==OK and not FileAccess.file_exists(path),"remove private GLB before direct load and actual HTTP editing")
+	await direct_case(path,candidate,"source_absent",1,8)
 	await http_case(path)
+	check(not FileAccess.file_exists(path),"HTTP open place undo save and reopen never recreate the absent GLB")
+	check(DirAccess.rename_absolute(path+".held",path)==OK,"restore private authoring fixture after HTTP test")
 	check(FileAccess.get_sha256(path)==candidate.source_sha and FileAccess.get_sha256(product)==candidate.payload_sha,"temporary source and compiled product end at their original identities")
-	Job.native_model_footprints_enabled=original_setting;Native.source_precheck_enabled=previous_precheck
+	Job.native_model_footprints_enabled=original_setting;Native.source_precheck_enabled=previous_precheck;Policy.verify_packages=previous_audit
 	var report:={"passed":passed,"failures":failed,"fixture_directory":temporary_directory,"cases":results,"native_enabled_only_for_test":not require_default,"native_production_default":original_setting}
-	var output:=Paths.external_root().path_join("review_artifacts/editor_native_admission_default_20261011.json" if require_default else "review_artifacts/editor_native_admission_gpu_20261011.json")
-	var file:=FileAccess.open(output,FileAccess.WRITE);file.store_string(JSON.stringify(report,"\t"));file.close()
+	write_report(report)
 	print("EDITOR_NATIVE_ADMISSION_GPU passed=",passed," failures=",failed);quit(1 if failed else 0)
+
+func write_report(report:Dictionary)->void:
+	var output:=temporary_directory.path_join("report.json")
+	for arg:String in OS.get_cmdline_user_args():
+		if arg.begins_with("--output="):output=arg.trim_prefix("--output=")
+	if not output.is_absolute_path() or not Paths.allowed(output,Paths.external_root()):
+		check(false,"report stays inside external runtime");return
+	var file:=FileAccess.open(output,FileAccess.WRITE)
+	if file==null:check(false,"report can be written");return
+	file.store_string(JSON.stringify(report,"\t"));file.close()

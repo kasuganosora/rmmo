@@ -177,17 +177,15 @@ func exclusive_and_worker_fences()->void:
 	check(queue.rows.needed.state=="pending" and queue.rows.resident.state=="resident" and queue.snapshot().preempted==0,"both live workers block demand without wasting a resident packet")
 	await close_queue(queue)
 
-func raw_retry_and_start_failure()->void:
+func native_release_and_start_failure()->void:
 	var queue:=make_queue();var observed:Array=[]
 	queue.enqueue("native",owned_packet.bind(queue.ledger,"native",observed),estimate(10),"model");await until_ready(queue,"native")
-	var held:Dictionary=queue.acquire("native");var raw:=gate()
-	check(queue.retry_as_raw("native",raw.run.bind("raw"),{"estimated_bytes":90,"exclusive":false}),"resident-held native result can take the existing raw retry route")
-	check(held.is_empty() and observed.size()==1 and observed[0].main and observed[0].owned and queue.ledger.count()==0,"native resident is synchronously disposed before fresh raw admission")
-	check(queue.rows.native.state=="pending" and not queue.rows.native.has("held_origin") and queue.rows.native.lane=="model" and queue.demand_key=="native","raw retry resets residency while preserving first-use lane and demand")
-	step(queue);await until_entered(raw.entered)
-	check(queue.ledger.reserved_bytes==90 and queue.snapshot().inflight_current==1 and queue.snapshot().resident_current==0,"raw retry reserves full new bytes in the in-flight window")
-	raw.leave.post();await until_ready(queue,"native")
-	check(queue.rows.native.state=="ready","raw success does not inherit native residency eligibility")
+	var held:Dictionary=queue.acquire("native")
+	queue.release("native")
+	check(held.is_empty() and observed.size()==1 and observed[0].main and observed[0].owned and queue.ledger.count()==0,"native resident is disposed while its own lease remains charged")
+	check(queue.rows.native.state=="done" and not queue.rows.native.has("held_origin") and queue.rows.native.lane=="model","resident disposal finishes its native task without source readmission")
+	check(queue.snapshot().inflight_current==0 and queue.snapshot().resident_current==0,"native disposal removes both resident and in-flight accounting")
+	check(not queue.has_method("retry_as_raw"),"resident queue exposes no authoring-source fallback")
 	await close_queue(queue)
 
 	queue=make_queue();queue.thread_starter=func(_worker:Thread,_task:Callable)->int:return ERR_CANT_CREATE
@@ -232,7 +230,7 @@ func run()->void:
 	await gate_and_cross_lane()
 	await demand_minimal_retirement()
 	await exclusive_and_worker_fences()
-	await raw_retry_and_start_failure()
+	await native_release_and_start_failure()
 	await exact_mixed_cancel()
 	print("EDITOR_PREPARATION_RESIDENCY passed=",passed," failures=",failures)
 	quit(0 if failures==0 else 1)

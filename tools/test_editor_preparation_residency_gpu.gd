@@ -87,6 +87,7 @@ func publication_lifetime(path:String,candidate:Dictionary)->void:
 	check(not tracker.adopt(receipt_a.ticket).ok and tracker.report().entries==0,"an unaccepted cache assignment cannot adopt its valid preflight ticket")
 	check(Library.cache_packed(path,a.packed,candidate.source_sha),"first valid native allocation enters actual AssetLibrary cache")
 	var adopted_a:Dictionary=tracker.adopt(receipt_a.ticket)
+	tracker.set_process(false)
 	check(adopted_a.ok and not adopted_a.reused and tracker.report().published_envelope_bytes==bytes,"cache handoff adopts the entire native envelope before transient credit is released")
 	check(queue.ledger.reserved_bytes==2*bytes,"both private native leases remain charged throughout preflight cache and adoption")
 	check(tracker.adopt(receipt_a.ticket).get("reused",false) and tracker.report().entries==1,"re-adopting the same real allocation is idempotent")
@@ -95,17 +96,21 @@ func publication_lifetime(path:String,candidate:Dictionary)->void:
 	var receipt_b:Dictionary=tracker.preflight(candidate,b,bytes)
 	check(receipt_b.get("ok",false) and Library.cache_packed(path,b.packed,candidate.source_sha),"second allocation can replace only the cache template")
 	var adopted_b:Dictionary=tracker.adopt(receipt_b.get("ticket"))
+	tracker.set_process(false)
 	check(adopted_b.get("ok",false) and not adopted_b.get("reused",true) and adopted_b.get("entry_id")==b.packed.get_instance_id() and adopted_b.get("entry_id")!=adopted_a.get("entry_id"),"different native allocations sharing one source identity are never merged")
 	queue.release("model:a");queue.release("model:b")
 	check(a.is_empty() and b.is_empty() and queue.ledger.reserved_bytes==0,"published handoff clears both private aliases and returns only their transient leases")
 	check(tracker.report().entries==2 and tracker.report().published_envelope_bytes==2*bytes,"instance-owned and cache-only native allocations both retain full published baseline charges")
 	tracker.collect_retired(32)
 	check(tracker.report().entries==2 and weak_b.get_ref()!=null,"cache-only allocation stays charged even when no instance was created")
+	await drain_retired_models(tracker,2*bytes,"replaced native cache")
 	scene_a.remove_meta("_compiled_resource_owner")
 	check(weak_a.get_ref()==null and scene_matches(scene_a,1,8),"PackedScene may die while its real instance still owns mesh material and texture")
 	tracker.collect_retired(32)
 	check(tracker.report().entries==2,"subresources keep the first baseline charged after its PackedScene dies")
 	Drainer.dispose_scene(scene_a);scene_a=null;Library.evict_cached_scene(path)
+	check(weak_b.get_ref()!=null,"logical eviction keeps its native owner until the real retirement service runs")
+	await drain_retired_models(tracker,2*bytes,"evicted native cache")
 	check(weak_a.get_ref()==null and weak_b.get_ref()==null and texture_a.get_width()==8 and texture_b.get_width()==8,"both template caches and instances can retire while independently held native textures remain alive")
 	tracker.collect_retired(32)
 	check(tracker.report().published_envelope_bytes==2*bytes and tracker.syncs.is_empty(),"live leaf textures prevent premature envelope release and renderer retirement sync")
@@ -119,6 +124,15 @@ func publication_lifetime(path:String,candidate:Dictionary)->void:
 	check(receipt_a.has("ticket") and receipt_b.has("ticket") and weak_a.get_ref()==null and weak_b.get_ref()==null,"retained preflight tickets never strongly pin native resource graphs")
 	results.append({"mode":"publication_resource_graph","queue":queue.snapshot(),"ownership":tracker.report(),"retirement_syncs":tracker.syncs.duplicate(true)})
 	queue.free();tracker.free();await process_frame
+
+func drain_retired_models(tracker:Node,expected_bytes:int,label:String)->void:
+	var service:Node=root.get_node_or_null("ResourceRetirement")
+	check(service!=null,label+": actual retirement service owns the deferred cache")
+	if service==null:return
+	var deadline:=Time.get_ticks_msec()+5000
+	while not service.pending.is_empty() and Time.get_ticks_msec()<deadline:await process_frame
+	check(service.pending.is_empty() and service.known.is_empty(),label+": normal frames finish resource retirement")
+	check(tracker.report().published_envelope_bytes==expected_bytes,label+": held textures preserve their full allocation charges")
 
 func mixed_private_cancel(path:String,candidate:Dictionary,png:String)->void:
 	var queue:=resident_queue(candidate)
@@ -175,6 +189,9 @@ func running_cancel(path:String,candidate:Dictionary,png:String)->void:
 func prepare_fixture_job(path:String,candidate:Dictionary)->Dictionary:
 	var value:Dictionary=super.prepare_fixture_job(path,candidate)
 	var queue:Node=value.queue;var job:Node=value.job;var audit:Audit=value.audit;var key:String=value.key
+	# Publication must inspect the real authored graph. Destruction markers are
+	# scripted metadata owners, used only by the separate cancellation fixtures.
+	audit.observe_lifetime=false
 	queue.rows[key].lane="model";queue.resident_enabled=true;queue.lanes_enabled=true;queue.diagnostics_enabled=true
 	job._model_ownership=Ownership.for_tree(self);job._timings.asset_lookahead.ownership_rejections={}
 	queue.resident_eligible=func(request:String,packet:Dictionary)->bool:
@@ -218,7 +235,7 @@ func run()->void:
 	DirAccess.make_dir_recursive_absolute(temporary_directory)
 	var path:=temporary_directory.path_join("fixture.glb");var changed:=temporary_directory.path_join("changed.glb")
 	check(fixture(path,1,8,Color(.7,.2,.1)),"temporary closed ordinary textured GLB exported")
-	check(fixture(changed,4,2048,Color(.1,.6,.2)),"larger temporary replacement source exported for separately admitted raw retry")
+	check(fixture(changed,4,32,Color(.1,.6,.2)),"different temporary source exported to detect forbidden reimport")
 	var original:=FileAccess.get_file_as_bytes(path);var replacement:=FileAccess.get_file_as_bytes(changed)
 	check(Compiled.build(path).get("ok",false),"actual native PackedScene product compiled")
 	check(Footprint.build(path).get("ok",false),"actual native product footprint compiled")
@@ -232,19 +249,20 @@ func run()->void:
 	await mixed_private_cancel(path,candidate,png)
 	await running_cancel(path,candidate,png)
 	check(put(path,replacement),"source replacement precedes the frozen native reader candidate")
-	await direct_case(path,candidate,"source_retry",4,2048)
-	check(_dispatch_lanes==["model","model"] and results[-1].queue.resident_entered==0,"real source-error packet and its separately admitted raw retry never enter the native resident pool and preserve model lane")
-	check(put(path,original),"temporary source restored after raw retry")
+	await direct_case(path,candidate,"source_changed",1,8)
+	check(_dispatch_lanes==["model"] and results[-1].queue.resident_entered==1,"changed source retains the published native result and enters residency exactly once")
+	check(put(path,original),"temporary source restored after native-only consumption")
 	var damaged:=product_bytes.duplicate();damaged[-1]=damaged[-1]^1
-	check(put(product,damaged),"only the temporary native product is damaged for a real fallback packet")
+	check(put(product,damaged),"temporary native product damaged for explicit audit rejection")
+	var previous_audit:bool=Policy.verify_packages;Policy.verify_packages=true
 	await direct_case(path,candidate,"corrupt_product",1,8)
-	check(results[-1].queue.resident_entered==0,"real checksum fallback and raw result cannot pass native residency gate")
+	Policy.verify_packages=previous_audit
+	check(results[-1].queue.resident_entered==0,"rejected native audit cannot enter residency or launch a source import")
 	check(put(product,product_bytes),"temporary compiled product restored before HTTP validation")
 	await http_case(path)
 	check(FileAccess.get_sha256(path)==candidate.source_sha and FileAccess.get_sha256(product)==candidate.payload_sha,"source and native product identities end unchanged")
 	await drain_workers()
 	Job.native_model_footprints_enabled=original_native;Job.prepared_model_residency_enabled=original_resident;Job.preparation_lanes_enabled=original_lanes;Native.source_precheck_enabled=previous_precheck
 	var report:={"passed":passed,"failures":failed,"fixture_directory":temporary_directory,"cases":results,"required_production_default":require_default,"original_residency_default":original_resident,"contract":"2 workers + 4 inflight + 8 private resident under unchanged private byte admission; published native envelopes are separate conservative accounting, not a total process cap; source proof is reader-completion snapshot"}
-	var output:=Paths.external_root().path_join("review_artifacts/editor_preparation_residency_gpu_20261011.json")
-	var file:=FileAccess.open(output,FileAccess.WRITE);file.store_string(JSON.stringify(report,"\t"));file.close()
+	write_report(report)
 	print("EDITOR_PREPARATION_RESIDENCY_GPU passed=",passed," failures=",failed);quit(1 if failed else 0)

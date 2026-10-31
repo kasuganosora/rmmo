@@ -1,0 +1,118 @@
+{
+  "schema_version": 1,
+  "candidate": "14r2",
+  "status": "isolated_cpu_capture_batch_validated_initial_reader_gap_not_installed",
+  "apply_after": {
+    "path": "tools/engine_patches/godot-4.8-beta1-worker-shutdown-candidate13.json",
+    "sha256": "7fb40541ba792e4f29301775a8f136a4edb1629b70e932e9f3c6e8ede9575a68"
+  },
+  "patch": {
+    "path": "tools/engine_patches/godot-4.8-beta1-pipeline-batch-candidate14.patch",
+    "sha256": "4344409379411c8cabb8294571c16baed0c5dd0d9dc01e6a7b8c101e77e60d7c"
+  },
+  "files": [
+    {
+      "path": "servers/rendering/pipeline_compilation_batch.cpp",
+      "before_sha256": null,
+      "after_sha256": "fe617cb90bfba4ee7f1e3c6a58240555d8355bfc65ff2a1cbca7c93f1bd2132d"
+    },
+    {
+      "path": "servers/rendering/pipeline_compilation_batch.h",
+      "before_sha256": null,
+      "after_sha256": "a3f0ec00e156210eab7bb25955c0fcd3b73a4085ba7a83b4b8be853d212ca61c"
+    },
+    {
+      "path": "servers/rendering/SCsub",
+      "before_sha256": "e535d71098ba13e3b85ec895939baad99b4f0e2bbbb8d87813d022bf8b467f91",
+      "after_sha256": "a3c7b79b8606e03e0d4d7ce20232bd586c62ff5ab717196242243ff1bbf7d29f"
+    },
+    {
+      "path": "servers/rendering/renderer_rd/pipeline_hash_map_rd.h",
+      "before_sha256": "426dd3257f91f5e7ed6e92414b7de94a3dc37d844ef5ec6906723f84d41783ca",
+      "after_sha256": "a0d4dbbb8c2706a047df399b28bf81a0d50c61fba7e75a664bdfc3e8ac04cb16"
+    },
+    {
+      "path": "servers/rendering/renderer_rd/forward_clustered/render_forward_clustered.cpp",
+      "before_sha256": "5bf4a50b67ee0690142d9ab92a63ea16e01ddc352bb3225d24aa4a56af464cf5",
+      "after_sha256": "c42fb3a40e39cf71007c8b6a0c9d0a6ebf520bd8d598dd3c4492f7aa4a19ff1e"
+    },
+    {
+      "path": "scene/resources/mesh.cpp",
+      "before_sha256": "6e7c0f2652eb078c9bc4c4107e65c25c113b00c817d1684831e0693e12e75a52",
+      "after_sha256": "977afc04765e38f35f0af84a5add2da2218824cb7b389406819439627735962f"
+    },
+    {
+      "path": "scene/resources/native_mesh_cpu_capture.cpp",
+      "before_sha256": "1a202f5847a8248c82b5b4af0d237d310ec2679e0bf96f04971f0079b1d61bf3",
+      "after_sha256": "608ed03bc0d40c670dc9d7ac626ee015758546bc2f09a620c71cfac4bd143f07"
+    },
+    {
+      "path": "scene/resources/native_mesh_cpu_capture.h",
+      "before_sha256": "4b094ccbe2a90945f960d50f7857cb2a23b29ec5d035c5356bfbfd260a8f1d98",
+      "after_sha256": "9cbccca0c6775847d47df368f52c3fa2f3563221576fc055543176aedab73461"
+    }
+  ],
+  "build": {
+    "receipt": "D:\\code\\rmmo_runtime\\review_artifacts\\axel_post_roads_perf_20261030_01\\engine_pipeline_batch_candidate14r2\\result.json",
+    "receipt_sha256": "c5d48307e3426c27e1ee1c0df2d26c178dd7c1977f6204aba40f0fe2bcb71dfa",
+    "command": [
+      "D:/tools/godot-4.8-build/python-env/Scripts/python.exe",
+      "-m",
+      "SCons",
+      "platform=windows",
+      "arch=x86_64",
+      "target=editor",
+      "use_mingw=yes",
+      "debug_symbols=yes",
+      "separate_debug_symbols=yes",
+      "dev_build=no",
+      "optimize=speed",
+      "lto=none",
+      "d3d12=no",
+      "accesskit=no",
+      "angle=no",
+      "-j4",
+      "tests=no"
+    ],
+    "seconds": 359.68700000000536,
+    "artifacts": {
+      "godot.windows.editor.x86_64.console.exe": {
+        "sha256": "23ec94ac6d2f4e4b7dcc94d1e10c2fd050d6830016c7e4e06c283242b1f6c5d8",
+        "bytes": 199477
+      },
+      "godot.windows.editor.x86_64.console.exe.debugsymbols": {
+        "sha256": "250eb61717648cfd34bae668787b31312929988c930cbc2f147ec3b6f16a1ff1",
+        "bytes": 78178
+      },
+      "godot.windows.editor.x86_64.exe": {
+        "sha256": "f5504198b6c33d2b1e00acef1c02f39b2020bd44b3780c5d0e7dcd535e51f0de",
+        "bytes": 163238282
+      },
+      "godot.windows.editor.x86_64.exe.debugsymbols": {
+        "sha256": "998b7406499c76e09fe3161de05c67d30acd5d889db75d97cc043e2748020201",
+        "bytes": 2168737678
+      }
+    },
+    "source_unchanged": true,
+    "default_unchanged": true
+  },
+  "control": "RMMO_BATCH_MESH_PIPELINES=1; default off. Legacy RMMO_ASYNC_MESH_PIPELINES must remain off.",
+  "behavior": "Private non-pool CPU-native reader batches existing shader compilations, deduplicates shared completion tickets, retains unique surface material owners, waits before returning. No second mesh walk. Completed WorkerThreadPool task IDs reclaimed once outside map mutex.",
+  "evidence_root": "D:\\code\\rmmo_runtime\\review_artifacts\\axel_post_roads_perf_20261030_01",
+  "report": "docs/axel_post_roads_performance_20261031.md",
+  "validation": {
+    "first_paths": "pipeline14_first_paths_index.json",
+    "gpu_contracts": [
+      "pipeline_first_draw14_off_02/report.json",
+      "pipeline_first_draw14_on_01/report.json",
+      "native_cpu_handoff_batch14_01/report.json",
+      "prepared_material_batch14_01/report.json"
+    ],
+    "limitations": "Ordinary editor/load_job reads bypass the CPU-only batch scope; actual game already used the CPU API. Earlier assumption that this explained game entry was incorrect. Map series stopped; no matched full-game acceptance. Default remains candidate10.",
+    "retained_failures": [
+      "engine_pipeline_batch_candidate14/prepare_failure.json",
+      "engine_pipeline_batch_candidate14/result.json",
+      "pipeline_first_draw14_off_01/engine.log"
+    ]
+  }
+}

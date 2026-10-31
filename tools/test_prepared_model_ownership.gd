@@ -86,6 +86,8 @@ func preflight_is_weak_and_side_effect_free() -> void:
 	check(result.packed.get_meta_list() == metadata and not result.packed.has_meta("_rmmo_source_digest"), "preflight adds no serialization metadata")
 	check(not Assets.has_cached_scene(identity.source_path) and tracker.report().published_envelope_bytes == 0, "preflight neither publishes nor transfers byte ownership")
 	check(not tracker.adopt(before.ticket).ok, "adoption before cache publication is rejected")
+	result.packed.set_meta("_rmmo_source_digest", identity.source_sha)
+	check(not tracker.adopt(before.ticket).ok and tracker.report().entries == 0, "reader-stamped native identity cannot impersonate actual cache publication")
 	result.clear()
 	check(packed_ref.get_ref() == null, "an abandoned preflight ticket does not retain PackedScene")
 	check(not tracker.adopt(before.ticket).ok, "a ticket with an expired resource cannot transfer ownership")
@@ -195,6 +197,14 @@ func fail_closed_graph_and_packet() -> void:
 	var tracker := make_tracker()
 	var identity := candidate()
 	var result := packet()
+	var ordinary: Dictionary = tracker.preflight(identity, result, BYTES)
+	result.native_pipeline_batch = {"enabled":true,"requests":6297,"unique_completions":42,"wait_usec":2,"remaining_material_owners":0}
+	var measured: Dictionary = tracker.preflight(identity, result, BYTES)
+	check(ordinary.ok and measured.ok and ordinary.graph_visits == measured.graph_visits and ordinary.weak_owner_count == measured.weak_owner_count, "flat pipeline counters preserve native ownership without extra graph visits")
+	for invalid: Variant in [[], {"hidden":Resource.new()}, {"nested":{"owner":Resource.new()}}, {"array":[Resource.new()]}, {1:42}]:
+		result.native_pipeline_batch = invalid
+		check(not tracker.preflight(identity, result, BYTES).ok, "pipeline diagnostics cannot hide additional ownership or nested payloads")
+	result.erase("native_pipeline_batch")
 	for change: Dictionary in [{"error":ERR_BUSY}, {"error":0.0}, {"compiled":1}, {"compiled":false}, {"source_digest":"d".repeat(64)}, {"compiled_payload_bytes":124}, {"compiled_payload_bytes":123.0}, {"packed":null}, {"scene":null}, {"retained_resources":[]}, {"private_preparation":{}}, {"fallback_required":false}, {"native_source_retry":false}, {"unknown_owner":null}, {"elapsed_us":-1}]:
 		var bad := result.duplicate(); bad.merge(change, true)
 		check(not tracker.preflight(identity, bad, BYTES).ok, "invalid or additional packet ownership rejects: " + str(change.keys()[0]))

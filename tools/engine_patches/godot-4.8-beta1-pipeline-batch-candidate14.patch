@@ -1,0 +1,445 @@
+--- /dev/null
++++ b/servers/rendering/pipeline_compilation_batch.cpp
+@@ -0,0 +1,129 @@
++/**************************************************************************/
++/*  native_mesh_cpu_capture.h                                             */
++/**************************************************************************/
++/*                         This file is part of:                          */
++/*                             GODOT ENGINE                               */
++/*                        https://godotengine.org                         */
++/**************************************************************************/
++/* Copyright (c) 2014-present Godot Engine contributors (see AUTHORS.md). */
++/* Copyright (c) 2007-2014 Juan Linietsky, Ariel Manzur.                  */
++/*                                                                        */
++/* Permission is hereby granted, free of charge, to any person obtaining  */
++/* a copy of this software and associated documentation files (the        */
++/* "Software"), to deal in the Software without restriction, including    */
++/* without limitation the rights to use, copy, modify, merge, publish,    */
++/* distribute, sublicense, and/or sell copies of the Software, and to     */
++/* permit persons to whom the Software is furnished to do so, subject to  */
++/* the following conditions:                                              */
++/*                                                                        */
++/* The above copyright notice and this permission notice shall be         */
++/* included in all copies or substantial portions of the Software.        */
++/*                                                                        */
++/* THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,        */
++/* EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF     */
++/* MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. */
++/* IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY   */
++/* CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,   */
++/* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE      */
++/* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                 */
++/**************************************************************************/
++
++#include "pipeline_compilation_batch.h"
++
++#include "core/object/worker_thread_pool.h"
++#include "core/os/os.h"
++#include "core/os/thread.h"
++
++void PipelineCompilationCompletion::mark_completed() {
++    MutexLock lock(mutex);
++    completed = true;
++    condition.notify_all();
++}
++
++bool PipelineCompilationCompletion::is_completed() const {
++    MutexLock lock(mutex);
++    return completed;
++}
++
++void PipelineCompilationCompletion::wait() {
++    MutexLock lock(mutex);
++    while (!completed) {
++        condition.wait(lock);
++    }
++}
++
++thread_local PipelineCompilationBatch *PipelineCompilationBatch::current = nullptr;
++
++bool PipelineCompilationBatch::is_enabled() {
++    static const bool enabled = OS::get_singleton()->get_environment("RMMO_BATCH_MESH_PIPELINES") == "1";
++    return enabled;
++}
++
++PipelineCompilationBatch::PipelineCompilationBatch() {
++    // Condition-variable waiting is restricted to the private reader thread.
++    // Pool tasks retain the existing collaborative wait; main keeps normal API
++    // behavior. This cannot consume all compiler workers waiting on themselves.
++    active = is_enabled() && !Thread::is_main_thread() && WorkerThreadPool::get_singleton()->get_thread_index() == -1;
++    if (active) {
++        previous = current;
++        current = this;
++    }
++}
++
++void PipelineCompilationBatch::retain_material(const Ref<RefCounted> &p_material) {
++    if (p_material.is_null() || material_ids.has(p_material->get_instance_id())) {
++        return;
++    }
++    material_ids.insert(p_material->get_instance_id());
++    materials.push_back(p_material);
++}
++
++void PipelineCompilationBatch::add_completion(const Ref<PipelineCompilationCompletion> &p_completion) {
++    ++requests;
++    if (p_completion.is_null() || completion_ids.has(p_completion->get_instance_id())) {
++        return;
++    }
++    completion_ids.insert(p_completion->get_instance_id());
++    completions.push_back(p_completion);
++}
++
++void PipelineCompilationBatch::finish() {
++    if (!active || finished) {
++        return;
++    }
++    finished = true;
++    current = previous;
++    unique_completions = completions.size();
++    unique_materials = materials.size();
++    for (const Ref<PipelineCompilationCompletion> &completion : completions) {
++        pending_at_finish += !completion->is_completed();
++    }
++    const uint64_t began = OS::get_singleton()->get_ticks_usec();
++    for (const Ref<PipelineCompilationCompletion> &completion : completions) {
++        completion->wait();
++    }
++    wait_usec = OS::get_singleton()->get_ticks_usec() - began;
++    // Even a failed read cannot destroy a compiler's material until its
++    // callback has returned. These owners are gone before handing off capture.
++    materials.clear();
++    material_ids.clear();
++    completions.clear();
++    completion_ids.clear();
++}
++
++Dictionary PipelineCompilationBatch::get_statistics() const {
++    Dictionary data;
++    data["enabled"] = active;
++    data["requests"] = int64_t(requests);
++    data["unique_completions"] = int64_t(unique_completions);
++    data["material_owners"] = int64_t(unique_materials);
++    data["pending_at_finish"] = int64_t(pending_at_finish);
++    data["wait_usec"] = int64_t(wait_usec);
++    data["remaining_material_owners"] = materials.size();
++    data["remaining_completions"] = completions.size();
++    return data;
++}
++
++PipelineCompilationBatch::~PipelineCompilationBatch() {
++    finish();
++}
+--- /dev/null
++++ b/servers/rendering/pipeline_compilation_batch.h
+@@ -0,0 +1,77 @@
++/**************************************************************************/
++/*  native_mesh_cpu_capture.h                                             */
++/**************************************************************************/
++/*                         This file is part of:                          */
++/*                             GODOT ENGINE                               */
++/*                        https://godotengine.org                         */
++/**************************************************************************/
++/* Copyright (c) 2014-present Godot Engine contributors (see AUTHORS.md). */
++/* Copyright (c) 2007-2014 Juan Linietsky, Ariel Manzur.                  */
++/*                                                                        */
++/* Permission is hereby granted, free of charge, to any person obtaining  */
++/* a copy of this software and associated documentation files (the        */
++/* "Software"), to deal in the Software without restriction, including    */
++/* without limitation the rights to use, copy, modify, merge, publish,    */
++/* distribute, sublicense, and/or sell copies of the Software, and to     */
++/* permit persons to whom the Software is furnished to do so, subject to  */
++/* the following conditions:                                              */
++/*                                                                        */
++/* The above copyright notice and this permission notice shall be         */
++/* included in all copies or substantial portions of the Software.        */
++/*                                                                        */
++/* THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,        */
++/* EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF     */
++/* MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. */
++/* IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY   */
++/* CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,   */
++/* TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE      */
++/* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                 */
++/**************************************************************************/
++
++#pragma once
++
++#include "core/object/ref_counted.h"
++#include "core/os/condition_variable.h"
++#include "core/os/mutex.h"
++#include "core/templates/hash_set.h"
++#include "core/templates/vector.h"
++#include "core/variant/dictionary.h"
++
++// An independent completion owner, not a borrowed WorkerThreadPool task ID.
++// The compiler signals only after the creation callback has returned.
++class PipelineCompilationCompletion : public RefCounted {
++    mutable BinaryMutex mutex;
++    ConditionVariable condition;
++    bool completed = false;
++public:
++    void mark_completed();
++    bool is_completed() const;
++    void wait();
++};
++
++// Short-lived, thread-local native-load scope. Material owners never escape
++// into the CPU capture returned to gameplay. Finish also runs on read failure.
++class PipelineCompilationBatch {
++    static thread_local PipelineCompilationBatch *current;
++    PipelineCompilationBatch *previous = nullptr;
++    bool active = false;
++    bool finished = false;
++    HashSet<ObjectID> material_ids;
++    Vector<Ref<RefCounted>> materials;
++    HashSet<ObjectID> completion_ids;
++    Vector<Ref<PipelineCompilationCompletion>> completions;
++    uint64_t requests = 0;
++    uint64_t unique_completions = 0;
++    uint64_t unique_materials = 0;
++    uint64_t pending_at_finish = 0;
++    uint64_t wait_usec = 0;
++public:
++    static bool is_enabled();
++    static PipelineCompilationBatch *get_current() { return current; }
++    void retain_material(const Ref<RefCounted> &p_material);
++    void add_completion(const Ref<PipelineCompilationCompletion> &p_completion);
++    void finish();
++    Dictionary get_statistics() const;
++    PipelineCompilationBatch();
++    ~PipelineCompilationBatch();
++};
+--- a/servers/rendering/SCsub
++++ b/servers/rendering/SCsub
+@@ -4,6 +4,7 @@
+ Import("env")
+ 
+ env.add_source_files(env.servers_sources, "instance_uniforms.cpp")
++env.add_source_files(env.servers_sources, "pipeline_compilation_batch.cpp")
+ env.add_source_files(env.servers_sources, "renderer_canvas_cull.cpp")
+ env.add_source_files(env.servers_sources, "renderer_canvas_render.cpp")
+ env.add_source_files(env.servers_sources, "renderer_compositor.cpp")
+--- a/servers/rendering/renderer_rd/pipeline_hash_map_rd.h
++++ b/servers/rendering/renderer_rd/pipeline_hash_map_rd.h
+@@ -38,6 +38,7 @@
+ #include "core/templates/rb_set.h"
+ #include "core/templates/rid.h"
+ #include "core/templates/vector.h"
++#include "servers/rendering/pipeline_compilation_batch.h"
+ #include "servers/rendering/rendering_device.h"
+ #include "servers/rendering/rendering_server_enums.h"
+ 
+@@ -56,6 +57,19 @@
+ 	RBSet<uint32_t> compilation_set;
+ 	HashMap<uint32_t, WorkerThreadPool::TaskID> compilation_tasks;
+ 	Mutex local_mutex;
++    HashMap<uint32_t, Ref<PipelineCompilationCompletion>> compilation_completions;
++    struct CompletionJob {
++        CreationClass *object = nullptr;
++        CreationFunction function = nullptr;
++        Key key;
++        Ref<PipelineCompilationCompletion> completion;
++    };
++    static void _run_completion_job(void *p_data) {
++        CompletionJob *job = static_cast<CompletionJob *>(p_data);
++        (job->object->*job->function)(job->key);
++        job->completion->mark_completed();
++        memdelete(job);
++    }
+ 
+ 	bool _add_new_pipelines_to_map() {
+ 		thread_local Vector<uint32_t> hashes_added;
+@@ -71,16 +85,21 @@
+ 			compiled_queue.clear();
+ 		}
+ 
++		LocalVector<WorkerThreadPool::TaskID> completed_tasks;
+ 		{
+ 			MutexLock local_lock(local_mutex);
+ 			for (uint32_t hash : hashes_added) {
+ 				HashMap<uint32_t, WorkerThreadPool::TaskID>::Iterator task_it = compilation_tasks.find(hash);
+ 				if (task_it != compilation_tasks.end()) {
++					completed_tasks.push_back(task_it->value);
+ 					compilation_tasks.remove(task_it);
+ 				}
+ 			}
+ 		}
+ 
++		for (WorkerThreadPool::TaskID task_id : completed_tasks) {
++			WorkerThreadPool::get_singleton()->wait_for_task_completion(task_id);
++		}
+ 		return !hashes_added.is_empty();
+ 	}
+ 
+@@ -92,6 +111,7 @@
+ 			for (KeyValue<uint32_t, WorkerThreadPool::TaskID> key_value : compilation_tasks) {
+ 				tasks_to_wait.push_back(key_value.value);
+ 			}
++			compilation_tasks.clear();
+ 		}
+ 
+ 		for (WorkerThreadPool::TaskID task_id : tasks_to_wait) {
+@@ -112,8 +132,15 @@
+ 
+ 		MutexLock local_lock(local_mutex);
+ 		if (compilation_set.has(p_key_hash)) {
+-			// Check if the pipeline was already submitted.
+-			return;
++            // A different reader may own the same pending shader pipeline.
++            // Every batch joins the same completion, including existing keys.
++            if (PipelineCompilationBatch *batch = PipelineCompilationBatch::get_current()) {
++                const Ref<PipelineCompilationCompletion> *completion = compilation_completions.getptr(p_key_hash);
++                if (completion) {
++                    batch->add_completion(*completion);
++                }
++            }
++            return;
+ 		}
+ 
+ 		// Record the pipeline as submitted, a task can't be started for it again.
+@@ -148,7 +175,23 @@
+ #endif
+ 
+ 		// Queue a background compilation task.
+-		WorkerThreadPool::TaskID task_id = WorkerThreadPool::get_singleton()->add_template_task(creation_object, creation_function, p_key, p_high_priority, "PipelineCompilation");
++        WorkerThreadPool::TaskID task_id;
++        if (PipelineCompilationBatch::is_enabled()) {
++            Ref<PipelineCompilationCompletion> completion;
++            completion.instantiate();
++            compilation_completions.insert(p_key_hash, completion);
++            CompletionJob *job = memnew(CompletionJob);
++            job->object = creation_object;
++            job->function = creation_function;
++            job->key = p_key;
++            job->completion = completion;
++            task_id = WorkerThreadPool::get_singleton()->add_native_task(&_run_completion_job, job, p_high_priority, "PipelineCompilation");
++            if (PipelineCompilationBatch *batch = PipelineCompilationBatch::get_current()) {
++                batch->add_completion(completion);
++            }
++        } else {
++            task_id = WorkerThreadPool::get_singleton()->add_template_task(creation_object, creation_function, p_key, p_high_priority, "PipelineCompilation");
++        }
+ 		compilation_tasks.insert(p_key_hash, task_id);
+ 	}
+ 
+@@ -221,6 +264,7 @@
+ 
+ 		hash_map.clear();
+ 		compilation_set.clear();
++		compilation_completions.clear();
+ 	}
+ 
+ 	// Set the external pipeline compilations array to increase the counters on every time a pipeline is compiled.
+--- a/servers/rendering/renderer_rd/forward_clustered/render_forward_clustered.cpp
++++ b/servers/rendering/renderer_rd/forward_clustered/render_forward_clustered.cpp
+@@ -31,6 +31,7 @@
+ #include "render_forward_clustered.h"
+ 
+ #include "core/os/os.h"
++#include "servers/rendering/pipeline_compilation_batch.h"
+ 
+ #include "core/config/project_settings.h"
+ #include "servers/rendering/renderer_rd/environment/fog.h"
+@@ -5113,6 +5114,7 @@
+ 	// On uses the existing background pipeline path; draw and resource teardown
+ 	// retain their ordinary completion checks. Measure both before promotion.
+ 	static const bool async_mesh_probe = OS::get_singleton()->get_environment("RMMO_ASYNC_MESH_PIPELINES") == "1";
++	const bool defer_mesh_pipelines = async_mesh_probe || PipelineCompilationBatch::get_current() != nullptr;
+ 	RendererRD::MaterialStorage *material_storage = RendererRD::MaterialStorage::get_singleton();
+ 	RendererRD::MeshStorage *mesh_storage = RendererRD::MeshStorage::get_singleton();
+ 	RID shadow_mesh = mesh_storage->mesh_get_shadow_mesh(p_mesh);
+@@ -5157,11 +5159,11 @@
+ 		surface.uses_transparent = material->shader_data->uses_alpha_pass();
+ 		surface.uses_depth = surface.uses_opaque || (surface.uses_transparent && material->shader_data->uses_depth_in_alpha_pass());
+ 		surface.can_use_lightmap = mesh_storage->mesh_surface_get_format(mesh_surface) & RSE::ARRAY_FORMAT_TEX_UV2;
+-		_mesh_compile_pipelines_for_surface(surface, global_pipeline_data_required, RSE::PIPELINE_SOURCE_MESH, async_mesh_probe ? nullptr : &pipeline_pairs);
++		_mesh_compile_pipelines_for_surface(surface, global_pipeline_data_required, RSE::PIPELINE_SOURCE_MESH, defer_mesh_pipelines ? nullptr : &pipeline_pairs);
+ 	}
+ 
+ 	// Wait for all the pipelines that were compiled. This will force the loader to wait on all ubershader pipelines to be ready.
+-	if (!p_background_compilation && !async_mesh_probe && !pipeline_pairs.is_empty()) {
++	if (!p_background_compilation && !defer_mesh_pipelines && !pipeline_pairs.is_empty()) {
+ 		for (ShaderPipelinePair pair : pipeline_pairs) {
+ 			pair.first->pipeline_hash_map.wait_for_pipeline(pair.second.hash());
+ 		}
+--- a/scene/resources/mesh.cpp
++++ b/scene/resources/mesh.cpp
+@@ -35,6 +35,7 @@
+ #include "core/object/class_db.h"
+ #include "core/templates/pair.h"
+ #include "scene/resources/native_mesh_cpu_capture.h"
++#include "servers/rendering/pipeline_compilation_batch.h"
+ #include "scene/resources/surface_tool.h"
+ #include "servers/rendering/rendering_server.h"
+ 
+@@ -1704,6 +1705,9 @@
+ 
+ 		surface_data.push_back(surface);
+ 		surface_materials.push_back(material);
++		if (PipelineCompilationBatch *batch = PipelineCompilationBatch::get_current()) {
++			batch->retain_material(material);
++		}
+ 		surface_names.push_back(surf_name);
+ 		surface_2d.push_back(_2d);
+ 	}
+--- a/scene/resources/native_mesh_cpu_capture.cpp
++++ b/scene/resources/native_mesh_cpu_capture.cpp
+@@ -36,6 +36,7 @@
+ #include "scene/resources/mesh.h"
+ #include "scene/resources/packed_scene.h"
+ #include "servers/rendering/rendering_server.h"
++#include "servers/rendering/pipeline_compilation_batch.h"
+ 
+ bool NativeMeshCpuCapture::_eligible(const ArrayMesh *p_mesh, const Vector<RenderingServerTypes::SurfaceData> &p_surfaces) {
+ 	if (p_mesh->get_blend_shape_count() != 0 || p_mesh->is_local_to_scene() || p_surfaces.is_empty()) {
+@@ -229,12 +230,14 @@
+ 	data["duplicate_records"] = int64_t(duplicate_records);
+ 	data["missing_takes"] = int64_t(missing_takes);
+ 	data["decode_usec"] = int64_t(decode_usec);
++	data["pipeline_batch"] = pipeline_batch_statistics;
+ 	return data;
+ }
+ 
+ Dictionary NativeMeshCpuCapture::load_native_scene(const String &p_path) {
+ 	Ref<NativeMeshCpuCapture> capture;
+ 	capture.instantiate();
++	PipelineCompilationBatch pipeline_batch;
+ 	Error error = ERR_FILE_UNRECOGNIZED;
+ 	Ref<Resource> resource;
+ 	const String extension = p_path.get_extension().to_lower();
+@@ -244,6 +247,8 @@
+ 			error = ERR_INVALID_DATA;
+ 		}
+ 	}
++	pipeline_batch.finish();
++	capture->pipeline_batch_statistics = pipeline_batch.get_statistics();
+ 	if (error != OK) {
+ 		capture->close();
+ 	}
+@@ -251,6 +256,7 @@
+ 	packet["error"] = error;
+ 	packet["resource"] = resource;
+ 	packet["capture"] = capture;
++	packet["pipeline_batch"] = capture->pipeline_batch_statistics;
+ 	return packet;
+ }
+ 
+--- a/scene/resources/native_mesh_cpu_capture.h
++++ b/scene/resources/native_mesh_cpu_capture.h
+@@ -33,6 +33,7 @@
+ #include "core/object/ref_counted.h"
+ #include "core/os/mutex.h"
+ #include "core/templates/hash_map.h"
++#include "core/variant/dictionary.h"
+ #include "servers/rendering/rendering_server_types.h"
+ 
+ class ArrayMesh;
+@@ -64,6 +65,7 @@
+ 	uint64_t duplicate_records = 0;
+ 	uint64_t missing_takes = 0;
+ 	uint64_t decode_usec = 0;
++	Dictionary pipeline_batch_statistics;
+ 
+ 	static bool _eligible(const ArrayMesh *p_mesh, const Vector<RenderingServerTypes::SurfaceData> &p_surfaces);
+ 	static bool _valid_lengths(const RenderingServerTypes::SurfaceData &p_surface);
