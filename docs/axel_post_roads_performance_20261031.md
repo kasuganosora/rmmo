@@ -1540,3 +1540,15 @@ PCM计算将种类判断提到循环外，以`PackedByteArray.encode_s16`取代�
 返回360.171ms帧的主线程粗粒度CPU为343.750ms；`loader.tail.finished_emit`占294.630ms（exclusive 294.354ms），加载器退出8.181ms。其余发布收尾：entry_plan复制0.071ms、元数据0.251ms、入口预取收尾0.116ms、签名移交0.023ms、Deferred挂接0.037ms、碰撞预取移交0.014ms、服务端环境0.080ms、record_context释放0.020ms。本次证据不能把295ms归到后台上传锁、元数据或上下文释放；也不能只把finished信号改成延迟发送便声称工作消失。
 
 接收方是`world_3d.transfer_map`在`await loader.finished`之后继续执行的同步部分：创建隔离物理视口、挂入目标地图、选择入口策略并启动入口准备。新外部诊断`transfer_callback27_01`细分这条链的12处同步方法/区间；不跨await包围计时、不改生产流程。原周期380ms仍与返回发布问题分开记录，均未宣称修复。
+
+12处细分完成：`transfer_callback27_01` exit0、零功能/引擎错误、无并跑引擎或编译器；5,958,723事件，零完整性错误，按SHA恢复fixture。返回最大390.880ms；`finished_emit`324.207ms，其中`_choose_entry_policy`266.409ms，初次同方法266.122ms。实际策略为`full / unresolved_volumes`。它先同步运行`local_entry_authority.register_root`，复制完整作者数据、构建/散列每栋建筑目录，才发现已有未标注素材要求完整等待；此时生成的目录根本不用于放行。初次诊断80.205s、卸载336.919ms、稳定段54.916ms及返回稳定49.976ms全部保留；本轮没有触发周期GDB条件，不冒称捕获了其栈。
+
+新增`test_entry_policy_admission.gd`，使用冻结地图和复制的原始目录二进制独立复现，不运行游戏加载器、模型导入或渲染上传。2,360条作者记录/目录行、25栋建筑；原源码8次登记均选择完整等待，每次192–262ms，新工作量合同2项失败，其余功能通过。修复只在入口策略选择中利用现有目录的已知未标注素材提前选择同一个完整等待模式，不生成没有消费者的权限目录；不缓存跨地图判断。若没有这项否定证据，则原样执行登记；强制协议调用仍自行登记并拒绝未明确归属的室内区域，分阶段放行、碰撞和目标落点检查保留。
+
+独立ABBAAB是旧/新源码实际切换，三个新进程/版本，每进程8次选择：A累计1840119 / 1878253 / 1788650us，B=22153 / 17534 / 29716us，中位**1840119→22153us（-98.8%）**；整图就绪收益尚待正常样本。A登记8次，B登记0次；每份完整作者快照字节不变，B20项通过，A仅跳过2条新工作量断言。覆盖compact/direct建筑标注、下一次元数据变化、无目录路径、强制协议登记和保守拒绝；全部耗时记录在`P/entry_policy27/micro_index.json`。
+
+相关回归：`test_local_entry_authority`56项、`test_automatic_staged_entry_gpu`35项通过；真实GPU覆盖完整等待/自动分阶段入口、失败回滚、往返与20轮最新请求取消。GPU报告独立写入`P/entry_policy27/automatic_gpu/automatic_entry.json`，没有覆盖2026-10-17历史报告。另两组既有失败保留：旧`test_imported_building_membership`仅生成GLB，未发布原生描述，在调用策略前即报`imported_building_descriptor_mismatch`；`test_editor_native_consumers`26项通过、2项楼梯kit重开/几何失败。两组均用实际旧策略源码重跑，错误相同，不能算本轮回归，也不能称全套通过；后者建筑原生描述、成员身份、删除GLB后的读取与严格索引检查通过。没有为过测试恢复GLB回退，详见`qualification.json`及原始日志。
+
+修复后`transfer_callback27b_01`完成：exit0、零功能/引擎错误、无并跑引擎或编译器；5,691,727事件、零丢失/孤立end/交叉span/任务名冲突，按SHA恢复fixture，未触发GDB。初次/返回策略选择**266.122/266.409→3.726/4.700ms**，返回`finished_emit` **324.207→57.491ms**，模式仍为`full / unresolved_volumes`。该回调所在帧115.439ms，包含entry_specs 16.280ms、Stream.sync 20.647ms、scope_ready 9.836ms、loader退出9.963ms及外层其他工作；区间有嵌套，不能直接相加。全返回最大仍240.591ms，另有193.972/124.359ms，未宣称整个返回流程无长帧。诊断完整就绪63.068s不作为正常成绩。
+
+同一冻结内容的正常ABBAAB已启动，入口`run_entry_policy27_maps.py`；只切入口策略源码，保留代理26与声音24修复，其余使用既定22引擎/4槽、完整HUD与纹理、相同shader缓存种子。每进程独立用户目录，不清OS/驱动缓存、不称cold；完成后记录整图、两段1% low、卸载/返回及工作量。当前尚未将独立测试收益当作整图或35 FPS low验收。
