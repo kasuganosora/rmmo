@@ -16,6 +16,8 @@ func runtime_observation_finished()->bool:
 	return _ui_finished
 
 func _initialize()->void:
+	preload("res://scripts/world3d/world_3d.gd").incremental_warp_candidates_enabled=not "--legacy-warp-candidates" in OS.get_cmdline_user_args()
+	report.incremental_warp_candidates=preload("res://scripts/world3d/world_3d.gd").incremental_warp_candidates_enabled
 	var scan_proxy:bool="--scan-proxy-sources" in OS.get_cmdline_user_args()
 	preload("res://scripts/world3d/distant_building_proxy.gd").source_catalog_enabled=not scan_proxy
 	report.proxy_source_catalog=not scan_proxy
@@ -81,6 +83,7 @@ func observe()->void:
 	var world:Node=current_scene
 	if not world.is_world_ready() or root.get_node("GameSession")._world_transition_active:return
 	_game_world=world
+	report.warp_candidate_visits=world._warp_candidate_visits
 	if not _hud_probe_installed:
 		_hud_probe_installed=true
 		if is_instance_valid(world._hud) and is_instance_valid(world._hud._radar):world._hud._radar.set_meta("profile_frame",true)

@@ -8,7 +8,7 @@ const Loader=preload("res://scripts/world3d/map_loader.gd")
 const Policy=preload("res://scripts/world3d/definition_cache_policy.gd")
 const GiB=1024*1024*1024
 class SourceWorld extends World:
-	func _ready()->void:pass
+	func _ready()->void:_bind_warp_candidates()
 	func _process(_delta:float)->void:pass
 	func _physics_process(_delta:float)->void:pass
 	func _exit_tree()->void:pass
@@ -106,7 +106,7 @@ func retry_run()->void:
 	world._map_root=Node3D.new();world.add_child(world._map_root)
 	var proxy:=Node.new();proxy.name="DistantBuildingProxy";world._map_root.add_child(proxy)
 	world._player=Player.new();world.add_child(world._player);world._player.position=Vector3(0,.9,6)
-	var warp:=Node.new();world.add_child(warp);warp.set_meta("center",Vector3(0,.9,6));warp.set_meta("target_path",map_path);warp.set_meta("spawn",[0,.9,6]);world._warp_candidates=[warp]
+	var warp:=Node.new();world.add_child(warp);warp.set_meta("kind","warp");warp.set_meta("center",Vector3(0,.9,6));warp.set_meta("target_path",map_path);warp.set_meta("spawn",[0,.9,6])
 	node_added.connect(configure)
 	for index:int in 12:await tick(world)
 	check(reads.snapshot().geometry==1 and reads.snapshot().tables==1,"same rejected approach makes one geometry/table read")
@@ -121,9 +121,9 @@ func retry_run()->void:
 		check(int(target.profile.budget_probe_us)>0 and int(target.profile.budget_probe_max_us)>0,"main-thread stat work is timed, not claimed zero IO")
 		check(Target.verify(memo(world).files,content_root),"authoritative source verification remains usable during suppression")
 		check(target.take(map_path,Vector3(0,.9,6))==null,"normal transfer receives a prefetch miss, not a retained failed scene")
-		world._warp_candidates.clear();world._update_approach_preparation()
+		world.remove_child(warp);world._update_approach_preparation()
 		check(memo(world).is_empty(),"leaving approach forgets rejection")
-		world._warp_candidates=[warp];await rejected(world,2,"reapproach")
+		world.add_child(warp);await rejected(world,2,"reapproach")
 		warp.set_meta("target_path",other_path);await rejected(world,3,"different target")
 		check(str(memo(world).path)==other_path,"different target keeps its own bounded memo")
 		Policy.enabled=true;Policy.configure();await rejected(world,4,"definition cache capacity change")
@@ -143,7 +143,7 @@ func retry_run()->void:
 		await rejected(world,7,"native cap changes with source work")
 		check(int(memo(world).native_budget_bytes)==prior_cap-4096,"memo records the actually used native cap after terrain reservation")
 		await stable(world,"same changed native cap")
-		world._warp_candidates.clear();world._update_approach_preparation();reads.hold_next();world._warp_candidates=[warp]
+		world.remove_child(warp);world._update_approach_preparation();reads.hold_next();world.add_child(warp)
 		for index:int in 24:
 			await tick(world)
 			if reads.snapshot().entered:break

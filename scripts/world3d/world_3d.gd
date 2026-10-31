@@ -11,6 +11,7 @@ static var navigation_background_enabled:=true
 static var wind_background_enabled:=true # Unknown variants recover automatically under a drawn cover.
 static var building_readiness_enabled:=false
 static var automatic_staged_entry_enabled:=true
+static var incremental_warp_candidates_enabled:=true # Diagnostic comparison of full child rescans.
 var _entry_policy:Dictionary={}
 var _preparation_hint:Label
 var _preparation_sample_at:=0
@@ -57,6 +58,9 @@ var _actor_host: Node3D
 var _failed_warp := ""
 var _warp_candidates:Array[Node]=[]
 var _warp_cache_dirty:=true
+var _warp_arrivals:Array[Node]=[]
+var _warp_order_dirty:=false
+var _warp_candidate_visits:=0
 var _transfer_pending := false
 var _transfer_loader: Node
 var _transfer_request_serial := 0
@@ -471,7 +475,7 @@ func _exit_tree() -> void:
 
 func _ready() -> void:
 	loading_profile.ready_started=Time.get_ticks_msec()
-	child_order_changed.connect(func():_warp_cache_dirty=true)
+	_bind_warp_candidates()
 	_travel = Net.session().world3d_travel()
 	_add_light()
 	_add_hud()
@@ -1249,14 +1253,65 @@ func _apply_residency(budget: int = 0) -> void:
 			batcher.share_residency_budget(started)
 
 
+func _bind_warp_candidates()->void:
+	if not incremental_warp_candidates_enabled:
+		child_order_changed.connect(_warp_legacy_changed)
+		return
+	if child_entered_tree.is_connected(_warp_child_entered):return
+	child_entered_tree.connect(_warp_child_entered)
+	child_exiting_tree.connect(_warp_child_exiting)
+	child_order_changed.connect(_warp_children_reordered)
+	_refresh_warp_candidates()
+
+func _warp_legacy_changed()->void:
+	_warp_cache_dirty=true
+
+func _warp_child_entered(child:Node)->void:
+	# Producers may finish metadata after add_child, before the next poll.
+	# Nodes here are non-owning handles; a departed arrival may already be freed.
+	_warp_arrivals.append(child)
+
+func _warp_child_exiting(child:Node)->void:
+	_warp_candidates.erase(child)
+
+func _warp_children_reordered()->void:
+	# Collision/render arrivals do not invalidate portal membership. Only the
+	# order of actual portals matters when several overlap at the same position.
+	if _warp_candidates.size()>1:_warp_order_dirty=true
+
+func _refresh_warp_candidates()->void:
+	if not incremental_warp_candidates_enabled:
+		if _warp_cache_dirty:
+			_warp_candidates.clear()
+			for child:Node in get_children():
+				_warp_candidate_visits+=1
+				if str(child.get_meta("kind",""))=="warp":_warp_candidates.append(child)
+			_warp_cache_dirty=false
+		return
+	var external_children:Array[Node]=[]
+	if _warp_cache_dirty:
+		_warp_candidates.clear()
+		external_children=get_children()
+		_warp_arrivals=external_children.duplicate()
+		_warp_cache_dirty=false
+	for child:Node in _warp_arrivals:
+		if not is_instance_valid(child) or child.get_parent()!=self:continue
+		_warp_candidate_visits+=1
+		if str(child.get_meta("kind",""))!="warp" or _warp_candidates.has(child):continue
+		# The internal-mode accessor is not exposed to scripts. Preserve the
+		# old external-child contract, enumerating only on actual warp arrivals.
+		if external_children.is_empty():external_children=get_children()
+		if not external_children.has(child):continue
+		_warp_candidates.append(child);_warp_order_dirty=true
+	_warp_arrivals.clear()
+	if _warp_order_dirty and _warp_candidates.size()>1:
+		_warp_candidates.sort_custom(func(a:Node,b:Node)->bool:return a.get_index()<b.get_index())
+	_warp_order_dirty=false
+
 func _poll_warp() -> void:
 	if _player == null or _map_path == "" or _player.input_locked:
 		return
-	if _warp_cache_dirty:
-		_warp_candidates.clear()
-		for child in get_children():
-			if str(child.get_meta("kind", ""))=="warp":_warp_candidates.append(child)
-		_warp_cache_dirty=false
+	_refresh_warp_candidates()
 	for child in _warp_candidates:
 		if not is_instance_valid(child):continue
 		var center: Vector3 = child.get_meta("center")
@@ -2183,6 +2238,7 @@ func _update_approach_preparation()->void:
 	if not is_instance_valid(_target_scene_prefetch):
 		_target_scene_prefetch=preload("res://scripts/world3d/target_scene_prefetch.gd").for_world(self)
 	var chosen:="";var destination:=Vector3.ZERO;var distance:=24.
+	_refresh_warp_candidates()
 	for body:Node in _warp_candidates:
 		if not is_instance_valid(body):continue
 		var centre:Vector3=body.get_meta("center",Vector3.INF);var d:=_player.global_position.distance_to(centre)
