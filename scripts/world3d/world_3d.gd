@@ -1689,7 +1689,7 @@ func transfer_map(target: String, destination: Vector3, before_commit: Callable 
 	_transfer_commit_mark(commit_timing,"outgoing_combat")
 	# Detached CPU workers retain their immutable inputs in the shared drainer;
 	# freeing the outgoing map must not synchronously join unfinished geometry.
-	Stream.prepare_map_disposal(_map_root,get_tree())
+	Stream.prepare_map_disposal(_map_root,get_tree(),_navigation)
 	_transfer_commit_mark(commit_timing,"prepare_disposal")
 	for body in _map_root.get_meta("stream_bodies", {}).values():
 		if is_instance_valid(body): body.free()

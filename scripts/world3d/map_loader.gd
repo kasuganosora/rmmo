@@ -1399,6 +1399,10 @@ func _build_records() -> void:
 	_prepared = root
 	root.name = "rmmo_world"
 	root.set_meta("extras", _record_meta)
+	# Native reference records are decoded with Objects disabled. Game builds
+	# share those immutable definitions; render/physics owners live in specs
+	# and mesh metadata, never here. Deferred publication preserves this schema.
+	root.set_meta("runtime_record_metadata_cpu_only",true)
 	# Complete author reference metadata is distinct from prepared runtime records.
 	if not _author_reference_meta.is_empty():root.set_meta("author_reference_extras",_author_reference_meta)
 	root.set_meta("runtime_record_subset",not _dependency_index.is_empty())

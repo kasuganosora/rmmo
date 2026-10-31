@@ -36,8 +36,10 @@ static var resident_retirement_catalog_enabled:=true # Runtime index owns member
 static var incremental_adoption_enabled:=true # A/B control for root-child adoption and empty-plan preservation.
 static var owned_removal_accounting_enabled:=true # Preserve the residency plan across a slow removal's early yield.
 static var cpu_author_retirement_enabled:=true
+static var cpu_record_metadata_retirement_enabled:=true # Diagnostic legacy control.
 static var sliced_record_disposal_enabled:=true
 static var sliced_cache_disposal_enabled:=true # Diagnostic control for bulk cache destruction.
+static var sliced_index_disposal_enabled:=true # Diagnostic control for nested spatial owner destruction.
 ## Opt-in diagnostics add per-candidate clocks; leave off for timing A/B runs.
 static var collision_readiness_profile_enabled:=false
 const COLLISION_CANDIDATE_RANGES:=8
@@ -370,7 +372,7 @@ static func _track_deferred_source(map_root:Node,source:MeshInstance3D)->void:
 		if not map_root.has_meta("deferred_gpu_sources"):map_root.set_meta("deferred_gpu_sources",[])
 		map_root.get_meta("deferred_gpu_sources").append(source)
 
-static func prepare_map_disposal(map_root:Node,tree:SceneTree=null)->void:
+static func prepare_map_disposal(map_root:Node,tree:SceneTree=null,record_consumer:Node=null)->void:
 	# Permanent replacement only. Stop producers, then disconnect batch member
 	# exit callbacks before ANY source exits. Otherwise the first dying member
 	# restores all surviving CPU sources just before the whole map is destroyed.
@@ -403,6 +405,13 @@ static func prepare_map_disposal(map_root:Node,tree:SceneTree=null)->void:
 			draw_ids[mesh.get_instance_id()]=true;draw_owners.append(mesh)
 		if preload("res://scripts/world3d/resource_retirement.gd").defer_private_array(draw_owners,true):
 			map_root.set_meta("render_mesh_owners_retiring",draw_owners.size())
+	# Mixed spatial indexes own live specs, candidates and meshes. Keep their
+	# shallow owner layers through exit, then release in dependency order on
+	# the bounded MAIN queue. Never send these graphs to the pure CPU lane.
+	if sliced_index_disposal_enabled and not map_root.get_meta("spatial_indexes_retiring",false):
+		var index_owners:Array=preload("res://scripts/world3d/stream_index_retirement.gd").owners(map_root)
+		if preload("res://scripts/world3d/resource_retirement.gd").defer_private_array(index_owners,true):
+			map_root.set_meta("spatial_indexes_retiring",true)
 	# StreamIndex owns these exact scalar schemas: IDs, cell coordinates,
 	# membership/order and append bookkeeping. Unlike by_id/prop/collision
 	# indexes they never contain live specs or Resource owners. Retain them
@@ -422,9 +431,19 @@ static func prepare_map_disposal(map_root:Node,tree:SceneTree=null)->void:
 	if cpu_author_retirement_enabled and map_root.has_meta("author_reference_extras") and not map_root.get_meta("author_snapshot_retiring",false):
 		if preload("res://scripts/world3d/resource_retirement.gd").defer_cpu_values([map_root.get_meta("author_reference_extras")],0):
 			map_root.set_meta("author_snapshot_retiring",true)
-	# Expanded runtime records can own Resources as well as nested CPU arrays.
-	# Retain one reference per record on the bounded MAIN queue, never the CPU
-	# lane. Leave the original metadata intact through all exit callbacks.
+	# MapLoader's decoded records also back ground_batch_record in live specs.
+	# Retain the original CPU metadata until ALL MAIN spec/cache owners have
+	# drained, including navigation's later source donation after worker drain.
+	# Otherwise their final reference can synchronously destroy
+	# thousands of nested arrays inside one nominally small private-queue unit.
+	# Producer proof avoids rescanning/copying records during map disposal.
+	if cpu_record_metadata_retirement_enabled and map_root.get_meta("runtime_record_metadata_cpu_only",false) and not map_root.get_meta("runtime_records_retiring",false):
+		var retained:bool=is_instance_valid(record_consumer) and record_consumer.retain_map_record_metadata(map_root.get_meta("extras"))
+		if retained or preload("res://scripts/world3d/resource_retirement.gd").defer_cpu_values([map_root.get_meta("extras")],0):
+			map_root.set_meta("runtime_records_retiring",true)
+	# Arbitrary/editor roots may mix Resources into their records. They keep
+	# MAIN retirement, as does a disabled/unavailable CPU lane. Exit callbacks
+	# and external borrowers continue to see the untouched original metadata.
 	if sliced_record_disposal_enabled and not map_root.get_meta("runtime_records_retiring",false):
 		var records:Variant=map_root.get_meta("extras",{}).get("rmmo_records")
 		if records is Array and not records.is_empty():

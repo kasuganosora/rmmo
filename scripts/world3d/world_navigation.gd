@@ -15,6 +15,23 @@ var _work_deadline_usec:=0
 var _budget_slice_active:=false
 var _retiring:=false
 var _retire_reparenting:=false
+var _retired_map_records:Array=[] # Decoded CPU metadata, never specs/Resources.
+
+func retain_map_record_metadata(metadata:Dictionary)->bool:
+	# Called only with MapLoader's decoded-metadata proof at permanent map exit.
+	# This consumer may donate its MAIN source owners several frames later.
+	if _disposed or _retiring or is_queued_for_deletion() or not preload("res://scripts/world3d/resource_retirement.gd").background_decoded_release_enabled:return false
+	_retired_map_records.append(metadata)
+	return true
+
+func _notification(what:int)->void:
+	# Reparenting/temporary exits must keep the lease. PREDELETE is after this
+	# consumer has donated its sources (or is synchronously destroying them).
+	# Queue the CPU payload AFTER those MAIN tickets, not when the map exits.
+	# Language shutdown has no remaining frames or reliable script statics.
+	if what==NOTIFICATION_PREDELETE and not _retired_map_records.is_empty() and Engine.get_main_loop()!=null:
+		if preload("res://scripts/world3d/resource_retirement.gd").defer_cpu_values(_retired_map_records,0):_retired_map_records=[]
+
 # Bound Recast's temporary voxel allocation while gameplay is already running.
 # 350 m tiles at 10 cm precision created 12.25 million cells in one bake.
 const TILE_SIZE:=128.0
