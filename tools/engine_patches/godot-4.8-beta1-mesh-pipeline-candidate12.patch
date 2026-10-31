@@ -1,0 +1,36 @@
+--- a/servers/rendering/renderer_rd/forward_clustered/render_forward_clustered.cpp
++++ b/servers/rendering/renderer_rd/forward_clustered/render_forward_clustered.cpp
+@@ -30,6 +30,8 @@
+ 
+ #include "render_forward_clustered.h"
+ 
++#include "core/os/os.h"
++
+ #include "core/config/project_settings.h"
+ #include "servers/rendering/renderer_rd/environment/fog.h"
+ #include "servers/rendering/renderer_rd/framebuffer_cache_rd.h"
+@@ -5107,6 +5109,10 @@
+ }
+ 
+ void RenderForwardClustered::mesh_generate_pipelines(RID p_mesh, bool p_background_compilation) {
++	// Isolated candidate control. Off preserves the existing loader barrier.
++	// On uses the existing background pipeline path; draw and resource teardown
++	// retain their ordinary completion checks. Measure both before promotion.
++	static const bool async_mesh_probe = OS::get_singleton()->get_environment("RMMO_ASYNC_MESH_PIPELINES") == "1";
+ 	RendererRD::MaterialStorage *material_storage = RendererRD::MaterialStorage::get_singleton();
+ 	RendererRD::MeshStorage *mesh_storage = RendererRD::MeshStorage::get_singleton();
+ 	RID shadow_mesh = mesh_storage->mesh_get_shadow_mesh(p_mesh);
+@@ -5151,11 +5157,11 @@
+ 		surface.uses_transparent = material->shader_data->uses_alpha_pass();
+ 		surface.uses_depth = surface.uses_opaque || (surface.uses_transparent && material->shader_data->uses_depth_in_alpha_pass());
+ 		surface.can_use_lightmap = mesh_storage->mesh_surface_get_format(mesh_surface) & RSE::ARRAY_FORMAT_TEX_UV2;
+-		_mesh_compile_pipelines_for_surface(surface, global_pipeline_data_required, RSE::PIPELINE_SOURCE_MESH, &pipeline_pairs);
++		_mesh_compile_pipelines_for_surface(surface, global_pipeline_data_required, RSE::PIPELINE_SOURCE_MESH, async_mesh_probe ? nullptr : &pipeline_pairs);
+ 	}
+ 
+ 	// Wait for all the pipelines that were compiled. This will force the loader to wait on all ubershader pipelines to be ready.
+-	if (!p_background_compilation && !pipeline_pairs.is_empty()) {
++	if (!p_background_compilation && !async_mesh_probe && !pipeline_pairs.is_empty()) {
+ 		for (ShaderPipelinePair pair : pipeline_pairs) {
+ 			pair.first->pipeline_hash_map.wait_for_pipeline(pair.second.hash());
+ 		}

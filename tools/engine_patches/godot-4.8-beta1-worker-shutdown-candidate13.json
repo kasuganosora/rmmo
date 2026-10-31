@@ -1,0 +1,80 @@
+{
+  "schema_version": 1,
+  "candidate": "13",
+  "status": "isolated_shutdown_and_native_lifecycle_validated_not_installed",
+  "apply_after": {
+    "path": "tools/engine_patches/godot-4.8-beta1-mesh-pipeline-candidate12.json",
+    "sha256": "fa8542fa2d3819eb9fa0a6cb10f749d4fde1693732af3bb66a88ebdfe0ecf0a6"
+  },
+  "patch": {
+    "path": "tools/engine_patches/godot-4.8-beta1-worker-shutdown-candidate13.patch",
+    "sha256": "0b55aad374d07ffdef1dae355209363ec8fb7d6d35ede8350a9787b40e51afbc"
+  },
+  "files": [
+    {
+      "path": "core/object/worker_thread_pool.cpp",
+      "before_sha256": "7d8a76de17e61e87e00f312a0e4ddf1cb37e9af9932603f644e7d58259c2937a",
+      "after_sha256": "65d8a23ae18aa4361e0f18eeda04a9e05bd55fb95e4a1e668c1c57779c23441e"
+    }
+  ],
+  "build": {
+    "receipt": "D:\\code\\rmmo_runtime\\review_artifacts\\axel_post_roads_perf_20261030_01\\engine_shutdown_candidate13\\result.json",
+    "receipt_sha256": "a78355e3378d3c3a558efe8cfcb0e4dc60a3b0a939b440bf78f62199db59ee17",
+    "command": [
+      "D:/tools/godot-4.8-build/python-env/Scripts/python.exe",
+      "-m",
+      "SCons",
+      "platform=windows",
+      "arch=x86_64",
+      "target=editor",
+      "use_mingw=yes",
+      "debug_symbols=yes",
+      "separate_debug_symbols=yes",
+      "dev_build=no",
+      "optimize=speed",
+      "lto=none",
+      "d3d12=no",
+      "accesskit=no",
+      "angle=no",
+      "-j4",
+      "tests=no"
+    ],
+    "seconds": 159.40699999999924,
+    "artifacts": {
+      "godot.windows.editor.x86_64.console.exe": {
+        "sha256": "a0a869d70c6289db49206b4e88491f9d23322a52406c506c6d3ff05187c1f6d4",
+        "bytes": 199477
+      },
+      "godot.windows.editor.x86_64.console.exe.debugsymbols": {
+        "sha256": "30cb8e8848ff561aa0185a399d7c80204ad1cead07b4ca7f8462508fd74a67fe",
+        "bytes": 78178
+      },
+      "godot.windows.editor.x86_64.exe": {
+        "sha256": "be2ccb71c4cfaba194d331c094ffe48a88d7b559320056c0157efafeb2b64715",
+        "bytes": 163219338
+      },
+      "godot.windows.editor.x86_64.exe.debugsymbols": {
+        "sha256": "76e469e66221f5e8299bc027c191bff750389d1c5cc0397ebd7a56e9548471b9",
+        "bytes": 2167859059
+      }
+    },
+    "source_unchanged": true,
+    "default_unchanged": true
+  },
+  "control": "RMMO_ASYNC_MESH_PIPELINES defaults off. Do not enable for gameplay acceptance; immediate first draw regresses in new-path tests.",
+  "evidence_root": "D:\\code\\rmmo_runtime\\review_artifacts\\axel_post_roads_perf_20261030_01",
+  "report": "docs/axel_post_roads_performance_20261031.md",
+  "behavior": "Only during exit_languages_threads, after idle progress wakes the main thread, notify workers not yet registered idle so they recheck queues drained by low-priority workers. Runtime scheduling, priority and task counts are unchanged.",
+  "validation": {
+    "before_default": "shutdown_isolated_default10_final_before_01/result.json",
+    "before_candidate12": "shutdown_isolated_candidate12_before_01/result.json",
+    "after": "shutdown_isolated_candidate13_fixed_01/result.json",
+    "native_first_draw": [
+      "pipeline_first_draw13_off_01/report.json",
+      "pipeline_first_draw13_on_01/report.json"
+    ],
+    "native_first_paths": "pipeline13_first_paths_index.json",
+    "gdb_state": "native_pipeline12_first_path_off_01/shutdown_state.json",
+    "limitation": "No new full-game map lifecycle comparison in this slice. Does not claim to fix in-game unload stalls. Default engine remains candidate10."
+  }
+}

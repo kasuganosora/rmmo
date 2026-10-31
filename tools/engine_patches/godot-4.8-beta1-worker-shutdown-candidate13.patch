@@ -1,0 +1,19 @@
+--- a/core/object/worker_thread_pool.cpp
++++ b/core/object/worker_thread_pool.cpp
+@@ -868,6 +868,16 @@
+ 	_switch_runlevel(RUNLEVEL_PRE_EXIT_LANGUAGES);
+ 	while (runlevel_data.pre_exit_languages.num_idle_threads != threads.size()) {
+ 		control_cond_var.wait(lock);
++		// Some workers can sleep while low-priority tasks are still queued.
++		// When another worker reports idle after draining those tasks, wake the
++		// remaining workers so they can observe the empty queues and register.
++		// This runs only during shutdown, under the existing task mutex.
++		for (ThreadData &data : threads) {
++			if (!data.pre_exited_languages) {
++				data.cond_var.notify_one();
++				data.signaled = true;
++			}
++		}
+ 	}
+ 
+ 	// Wait until all threads have detached from scripting languages.

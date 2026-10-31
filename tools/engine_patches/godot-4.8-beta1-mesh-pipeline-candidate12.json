@@ -1,0 +1,73 @@
+{
+  "schema_version": 1,
+  "candidate": "12",
+  "status": "experimental_disabled_not_installed",
+  "apply_after": {
+    "path": "tools/engine_patches/godot-4.8-beta1-instance-release-candidate11.json",
+    "sha256": "aa759d0ef5653f4517f989ab009bbf16d97ac9dc5ef0de2ce1f73f8f74956f1e"
+  },
+  "patch": {
+    "path": "tools/engine_patches/godot-4.8-beta1-mesh-pipeline-candidate12.patch",
+    "sha256": "e64f69d7ede35c9fe7a4217d95a237877c39a82101661e31c15b13874b3abd45"
+  },
+  "files": [
+    {
+      "path": "servers/rendering/renderer_rd/forward_clustered/render_forward_clustered.cpp",
+      "before_sha256": "4382cd88984dbff6c6d1b0f1fe2c9068ad8d8316a88af66c5d962b3515ef1a1c",
+      "after_sha256": "5bf4a50b67ee0690142d9ab92a63ea16e01ddc352bb3225d24aa4a56af464cf5"
+    }
+  ],
+  "build": {
+    "receipt": "D:\\code\\rmmo_runtime\\review_artifacts\\axel_post_roads_perf_20261030_01\\engine_mesh_pipeline_candidate12\\result.json",
+    "receipt_sha256": "449abe1d4d1a754c2a4072fb18981c971835ce498ca6768452d743ef982bf0ce",
+    "command": [
+      "D:/tools/godot-4.8-build/python-env/Scripts/python.exe",
+      "-m",
+      "SCons",
+      "platform=windows",
+      "arch=x86_64",
+      "target=editor",
+      "use_mingw=yes",
+      "debug_symbols=yes",
+      "separate_debug_symbols=yes",
+      "dev_build=no",
+      "optimize=speed",
+      "lto=none",
+      "d3d12=no",
+      "accesskit=no",
+      "angle=no",
+      "-j4",
+      "tests=no"
+    ],
+    "seconds": 363.0,
+    "artifacts": {
+      "godot.windows.editor.x86_64.console.exe": {
+        "sha256": "eaaad5281c4f657ffd422f4c30c9a752d426ecb51d2e6d8f97ee0c49ea7777e8",
+        "bytes": 199477
+      },
+      "godot.windows.editor.x86_64.console.exe.debugsymbols": {
+        "sha256": "fc15597ce5a248fb2affd153d773898f8f13ebf0fea2f4982be35af5c39437d7",
+        "bytes": 78178
+      },
+      "godot.windows.editor.x86_64.exe": {
+        "sha256": "0c714661071765e68a0fddfdb54eae1b874f5ae4e74cfac471c623de54f00b44",
+        "bytes": 163219338
+      },
+      "godot.windows.editor.x86_64.exe.debugsymbols": {
+        "sha256": "16709830f768a3dd9561494ac57deab794dbf09a5aceb24ed59cfac67a027913",
+        "bytes": 2167858547
+      }
+    },
+    "source_unchanged": true,
+    "default_unchanged": true
+  },
+  "control": "RMMO_ASYNC_MESH_PIPELINES defaults off. Do not enable for gameplay acceptance; immediate first draw regresses in new-path tests.",
+  "evidence_root": "D:\\code\\rmmo_runtime\\review_artifacts\\axel_post_roads_perf_20261030_01",
+  "report": "docs/axel_post_roads_performance_20261031.md",
+  "behavior": "Experimental Forward+ mesh loading queues the same pipelines but optionally omits the per-mesh barrier and waiter-pair collection. Draw and destruction keep their existing waits.",
+  "validation": {
+    "normal_path_triples": "pipeline12_triples_index.json",
+    "first_path_triples_on_candidate13": "pipeline13_first_paths_index.json",
+    "limitation": "Native product component measurements only, not map load or low-FPS acceptance. Warm improvement not established; new-path read improves but first-draw wait grows to about 1.25 seconds."
+  }
+}

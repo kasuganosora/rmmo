@@ -46,3 +46,5 @@
 /tools/engine_patches/godot-4.8-beta1-material-queue-candidate09.json text eol=lf
 /tools/engine_patches/godot-4.8-beta1-shader-rid-candidate10.json text eol=lf
 /tools/engine_patches/godot-4.8-beta1-instance-release-candidate11.json text eol=lf
+/tools/engine_patches/godot-4.8-beta1-mesh-pipeline-candidate12.json text eol=lf
+/tools/engine_patches/godot-4.8-beta1-worker-shutdown-candidate13.json text eol=lf
