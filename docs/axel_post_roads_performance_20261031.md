@@ -1305,3 +1305,35 @@ candidate20继承19r2，追加22个原生标签，细分RD帧结束/开始、命
 源码进一步确认当前回放没有后台派发：`SECONDARY_COMMAND_BUFFERS_PER_FRAME=0`，`_run_secondary_command_buffer_task`只有声明和定义，没有调用，`secondary_command_buffers_used`没有递增路径。增加地图准备worker不会加速这一段。上游[RenderingDevice源码](https://github.com/godotengine/godot/blob/master/servers/rendering/rendering_device.cpp)保留默认禁用的驱动兼容性说明；[Khronos多线程指南](https://docs.vulkan.org/guide/latest/threading.html)要求独立命令池及明确同步，不能只改常量就宣称并行完成。
 
 下一切片优先做大绘制列表的独立并行记录实验：每个在途任务独占命令池/缓冲，保留完整列表状态及GPU依赖顺序；待当前frame GPU fence完成后才能复用。先用多列表、稀疏绑定、材质/管线变化、纹理与buffer依赖、反复submit/reset/free的像素及工作量测试，确认无任务或指令重复、无漏画，比较主线程时间和总CPU；小列表不机械拆线程，含subpass切换的列表先保留原路径。然后才对冻结地图做对照。当前尚未实现该并行实验，不修改默认引擎，也没有把渲染或100秒问题标为解决。
+
+
+## 大绘制列表后台录制：candidate21r2 独立验证（2026-10-31）
+
+延续上述驱动回放证据，已实现实验路径，不再只是增加空的 secondary buffer 数量。`RMMO_SECONDARY_DRAW_LISTS=4` 仅显式开启 Vulkan；默认仍为 0。挑选至少 64 KiB 的完整大列表，按指令字节量从大到小派发，每个在途任务独占 command pool/buffer。主线程保留原有 GPU 图依赖和提交顺序，在需要该列表时只等待对应任务；其他任务可以继续录制。借用只读指令内存，所有任务完成后才能清空。小列表、subpass 切换、嵌套 secondary 保留 inline。原图自增的 frame 序号在空图时会和 RD 分离，现改为使用 RD 已等待 fence 的真实 frame 槽位；可选绘制字节统计移出 worker，避免启用调试宏后竞争。
+
+首版21的三个局部功能样本各144项通过，观察到28个后台任务、最大4个同时执行，draw总量214144不变；但随后 **candidate20 串行基线的 Vulkan 校验失败**，不能以此前像素通过替代API合法性。`secondary21_parent_validation`保留20条报告：10条空 `vkCmdBindVertexBuffers(bindingCount=0)`，10条初始化4×4×4体纹理时按深度1逐层复制、违反传输队列16×16×8粒度。后者独立 `volume21_parent_validation` 也复现；10组字节读回正确仍不能证明合法上传。
+
+21r2的两个修正：图记录入口省略空顶点绑定，RD顶点状态和合法性检查保留；每个 mip 起点对齐一次，连续布局Z切片，完整体积发一次复制，省掉逐层驱动调用及填充。既有驱动接口已经接受体积深度；本轮实际验证范围为 Vulkan，不冒称其他后端完成验收。依据：[顶点绑定规范](https://docs.vulkan.org/refpages/latest/refpages/source/vkCmdBindVertexBuffers.html)、[图像复制规范](https://docs.vulkan.org/refpages/latest/refpages/source/vkCmdCopyBufferToImage.html)。
+
+`engine_secondary_candidate21r2` 构建成功，源码在构建期间未变化；默认10和已安装诊断17均未替换。可执行SHA `26a694cd820c1a1a7f708fe9db2da7b0c29af295320ad601ed73748c8f1384a9`。组合补丁可应用于保存的20后/21前源码，并逐文件匹配实际构建源码；graph头文件首次SHA快照在21的before.json，而非20清单。
+
+七组独立验证全部通过（`secondary21r2_qualification_index.json`）：
+
+- `volume`：10组R8/RGBA8、奇数尺寸/多个mip/薄体积，每字节一致，Vulkan零错误。
+- `procedural` / `procedural_parallel`：各141项，串行和4槽下零Vulkan错误，复验已修复的空顶点路径。
+- `vertex_trace`：145项；真实顶点缓冲，214144条draw、100次顶点绑定、28个录制任务，峰值4任务重叠。无trace丢失、孤立end、交叉span或任务名冲突。
+- `vertex_validation`：142项，稀疏set、pipeline切换、8目标可见历史、小列表、共享UBO改写与同目标有序保留均通过，Vulkan同步检查零错误。
+- `serial_main` / `parallel_main`：各225项，主RD真实2帧环形缓冲、两代资源创建/释放、18批共148032条draw，零Vulkan同步错误。
+
+随后关闭trace和校验层，**同一21r2可执行**下0槽(A)/4槽(B)按ABBAAB跑6个新进程，均142项通过。每次仍214144条draw，逐目标像素SHA及依赖目标SHA全部一致。大批为8×4100条draw，小批为8×20条；每进程排除第0次预热，保留后5次的中位数，再比较每组3个进程。数据 `secondary21r2_abba_summary.json`：
+
+| 大批耗时 | A三个进程中位数 ms | B三个进程中位数 ms | 组中位数变化 |
+| --- | --- | --- | --- |
+| GD/RD构造 | 28.765 / 22.909 / 28.762 | 25.149 / 32.355 / 29.715 | 28.762 → 29.715，无改善 |
+| CPU提交/驱动录制 | 18.815 / 16.480 / 18.077 | 10.544 / 13.221 / 12.098 | **18.077 → 12.098，-33.1%** |
+| GPU同步等待 | 2.233 / 2.243 / 2.212 | 2.218 / 2.267 / 2.299 | 2.233 → 2.267，无改善 |
+| 整批构造+提交+同步 | 49.903 / 41.522 / 52.232 | 37.661 / 43.742 / 46.011 | **49.903 → 43.742，-12.3%** |
+
+整批先对每次样本求总时长，不能把分项中位数直接相加。小列表整批中位数0.661→0.685ms，无明确收益；B第二次构造32.355ms、B第三次小批0.957ms等慢值全部保留。首版单轮约50%的提交差距没有作为正式收益，当前采用这组六进程数据。没有用局部改善宣称整城加载或low完成。
+
+正在运行正常地图ABBAAB：`run_secondary_map21r2_series.py` / `secondary21r2_map_index.json`，恢复的生产fixture、同一冻结地图SHA、完整HUD、同一可执行、同一份shader/Vulkan缓存种子、每次独立用户目录，只切0/4槽。无native trace、GDB和Vulkan校验层；继续记录其他引擎/编译器进程、完整就绪、卸载、返回、队列回收、slow/low及源码身份。OS/驱动缓存未清除，不称严格cold；首个样本也保留。地图对照尚未完成，默认不开启并行路径。

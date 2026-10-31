@@ -1,0 +1,248 @@
+{
+  "candidate": "21r2",
+  "inherits": "20",
+  "status": "component_verified_normal_map_series_running",
+  "default_engine_changed": false,
+  "control": {
+    "environment": "RMMO_SECONDARY_DRAW_LISTS",
+    "default": 0,
+    "tested_parallel": 4,
+    "backend": "Vulkan",
+    "minimum_instruction_bytes": 65536
+  },
+  "engine": "D:\\code\\rmmo_runtime\\review_artifacts\\axel_post_roads_perf_20261030_01\\engine_secondary_candidate21r2\\engine\\godot.windows.editor.x86_64.exe",
+  "engine_sha256": "26a694cd820c1a1a7f708fe9db2da7b0c29af295320ad601ed73748c8f1384a9",
+  "source_changes": [
+    {
+      "path": "servers/rendering/rendering_device.cpp",
+      "before_sha256": "44748ff48c7317e231445f65061f3980b7b65a677811708cba19295c3c2364bd",
+      "after_sha256": "33a1bf7c65d22d0792d539847be4eaad73b29ce15a852a13ac815cb761a2b34a"
+    },
+    {
+      "path": "servers/rendering/rendering_device_graph.cpp",
+      "before_sha256": "79ef9bcbadcd0b5384463a5b4a92329e4546c7d9b839382c157a2a63b1e9b0d4",
+      "after_sha256": "b7b0072e549661496f437f859e45d966954784a20f77dde518d303f671674a62"
+    },
+    {
+      "path": "servers/rendering/rendering_device_graph.h",
+      "before_sha256": "0103ab06740776e42d3a6f362d04e768cbfefbe697d8d736fb2922e42659b9d1",
+      "after_sha256": "461548ece01fc64a4153c0cbf1597bbaf4ec4bc8b1a15a67b5eeb039e30b2c6b"
+    }
+  ],
+  "patch_sha256": "2c0cbc218b455305e6a9e1f4e9b9dcfe1667fb0652ac8d19cd80cb1a9f35a808",
+  "patch_check": "D:\\code\\rmmo_runtime\\review_artifacts\\axel_post_roads_perf_20261030_01\\secondary21r2_patch_check\\result.json",
+  "qualification": [
+    {
+      "name": "secondary21r2_volume",
+      "exit": 0,
+      "checks": 10
+    },
+    {
+      "name": "secondary21r2_procedural",
+      "exit": 0,
+      "checks": 141
+    },
+    {
+      "name": "secondary21r2_procedural_parallel",
+      "exit": 0,
+      "checks": 141
+    },
+    {
+      "name": "secondary21r2_vertex_trace",
+      "exit": 0,
+      "checks": 145
+    },
+    {
+      "name": "secondary21r2_vertex_validation",
+      "exit": 0,
+      "checks": 142
+    },
+    {
+      "name": "secondary21r2_serial_main",
+      "exit": 0,
+      "checks": 225
+    },
+    {
+      "name": "secondary21r2_parallel_main",
+      "exit": 0,
+      "checks": 225
+    }
+  ],
+  "parallel_trace": {
+    "peak_parallel_jobs": 4,
+    "vertex_binds": 100,
+    "draw_commands": 214144,
+    "parallel_jobs": 28,
+    "draws_by_thread": {
+      "18752": 12296,
+      "25056": 8200,
+      "14496": 8200,
+      "22436": 8200,
+      "7492": 8200,
+      "25252": 8200,
+      "18600": 8200,
+      "5068": 12296,
+      "2044": 12296,
+      "17436": 8200,
+      "16272": 99360,
+      "20472": 8200,
+      "7452": 12296
+    }
+  },
+  "component_abba": {
+    "4100": {
+      "encode_us": {
+        "values": {
+          "A": [
+            28765,
+            22909,
+            28762
+          ],
+          "B": [
+            25149,
+            32355,
+            29715
+          ]
+        },
+        "median_A": 28762,
+        "median_B": 29715,
+        "reduction_percent": -3.313
+      },
+      "submit_us": {
+        "values": {
+          "A": [
+            18815,
+            16480,
+            18077
+          ],
+          "B": [
+            10544,
+            13221,
+            12098
+          ]
+        },
+        "median_A": 18077,
+        "median_B": 12098,
+        "reduction_percent": 33.075
+      },
+      "sync_us": {
+        "values": {
+          "A": [
+            2233,
+            2243,
+            2212
+          ],
+          "B": [
+            2218,
+            2267,
+            2299
+          ]
+        },
+        "median_A": 2233,
+        "median_B": 2267,
+        "reduction_percent": -1.523
+      },
+      "batch_total_us": {
+        "values": {
+          "A": [
+            49903,
+            41522,
+            52232
+          ],
+          "B": [
+            37661,
+            43742,
+            46011
+          ]
+        },
+        "median_A": 49903,
+        "median_B": 43742,
+        "reduction_percent": 12.346
+      }
+    },
+    "20": {
+      "encode_us": {
+        "values": {
+          "A": [
+            337,
+            198,
+            185
+          ],
+          "B": [
+            192,
+            180,
+            321
+          ]
+        },
+        "median_A": 198,
+        "median_B": 192,
+        "reduction_percent": 3.03
+      },
+      "submit_us": {
+        "values": {
+          "A": [
+            298,
+            232,
+            202
+          ],
+          "B": [
+            220,
+            200,
+            390
+          ]
+        },
+        "median_A": 232,
+        "median_B": 220,
+        "reduction_percent": 5.172
+      },
+      "sync_us": {
+        "values": {
+          "A": [
+            303,
+            263,
+            275
+          ],
+          "B": [
+            287,
+            263,
+            276
+          ]
+        },
+        "median_A": 275,
+        "median_B": 276,
+        "reduction_percent": -0.364
+      },
+      "batch_total_us": {
+        "values": {
+          "A": [
+            989,
+            661,
+            661
+          ],
+          "B": [
+            668,
+            685,
+            957
+          ]
+        },
+        "median_A": 661,
+        "median_B": 685,
+        "reduction_percent": -3.631
+      }
+    }
+  },
+  "evidence_root": "D:\\code\\rmmo_runtime\\review_artifacts\\axel_post_roads_perf_20261030_01",
+  "correctness_fixes": [
+    "Drop zero-sized vertex binding instructions while retaining RD validation/state",
+    "Initialize each 3D mip as one packed volume; align mip starts rather than each Z slice",
+    "Use actual RD frame slot for secondary pools after empty graphs",
+    "Move optional draw-list stats off worker replay"
+  ],
+  "known_limits": [
+    "Independent component timing is not full-map acceptance",
+    "Vulkan only; no other driver or XR qualification",
+    "Subpass transitions and nested secondary execution remain inline",
+    "Default and installed diagnostic executables unchanged",
+    "Baseline Vulkan validation failures retained; pixel-only success had not proven API validity"
+  ]
+}

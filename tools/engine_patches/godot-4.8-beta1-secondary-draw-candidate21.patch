@@ -1,0 +1,397 @@
+--- a/servers/rendering/rendering_device.cpp
++++ b/servers/rendering/rendering_device.cpp
+@@ -2242,38 +2242,37 @@
+ 			const uint8_t *read_ptr_mipmap = read_ptr + mipmap_offset;
+ 			tight_mip_size = image_total - mipmap_offset;
+ 
+-			for (uint32_t z = 0; z < depth; z++) {
+-				if (required_align > 0) {
+-					uint32_t align_offset = staging_local_offset % required_align;
+-					if (align_offset != 0) {
+-						staging_local_offset += required_align - align_offset;
+-					}
++			// One aligned, tightly sliced volume per mipmap. Transfer-only
++			// queues can require depth granularity > 1; copying complete mips
++			// satisfies that rule and avoids a command and padding per Z slice.
++			if (required_align > 0) {
++				uint32_t align_offset = staging_local_offset % required_align;
++				if (align_offset != 0) {
++					staging_local_offset += required_align - align_offset;
+ 				}
+-
+-				uint32_t pitch = get_compressed_image_format_pixels_shifted(texture->format, width * pixel_size * block_w);
+-				uint32_t pitch_step = driver->api_trait_get(RDD::API_TRAIT_TEXTURE_DATA_ROW_PITCH_STEP);
+-				pitch = STEPIFY(pitch, pitch_step);
+-				uint32_t to_allocate = get_compressed_image_format_pixels_shifted(texture->format, pitch * height);
+-
+-				if (copy_pass) {
++			}
++			uint32_t pitch = get_compressed_image_format_pixels_shifted(texture->format, width * pixel_size * block_w);
++			uint32_t pitch_step = driver->api_trait_get(RDD::API_TRAIT_TEXTURE_DATA_ROW_PITCH_STEP);
++			pitch = STEPIFY(pitch, pitch_step);
++			uint32_t slice_size = get_compressed_image_format_pixels_shifted(texture->format, pitch * height);
++			if (copy_pass) {
++				uint64_t staging_buffer_offset = staging_worker_offset + staging_local_offset;
++				for (uint32_t z = 0; z < depth; z++) {
+ 					const uint8_t *read_ptr_mipmap_layer = read_ptr_mipmap + (tight_mip_size / depth) * z;
+-					uint64_t staging_buffer_offset = staging_worker_offset + staging_local_offset;
+-					uint8_t *write_ptr_mipmap_layer = write_ptr + staging_buffer_offset;
++					uint8_t *write_ptr_mipmap_layer = write_ptr + staging_buffer_offset + uint64_t(slice_size) * z;
+ 					_copy_region_block_or_regular(read_ptr_mipmap_layer, write_ptr_mipmap_layer, 0, 0, width, width, height, block_w, block_h, pitch, pixel_size, block_size);
+-
+-					RDD::BufferTextureCopyRegion copy_region;
+-					copy_region.buffer_offset = staging_buffer_offset;
+-					copy_region.row_pitch = pitch;
+-					copy_region.texture_subresource.aspect = texture->read_aspect_flags.has_flag(RDD::TEXTURE_ASPECT_DEPTH_BIT) ? RDD::TEXTURE_ASPECT_DEPTH : RDD::TEXTURE_ASPECT_COLOR;
+-					copy_region.texture_subresource.mipmap = mm_i;
+-					copy_region.texture_subresource.layer = p_layer;
+-					copy_region.texture_offset = Vector3i(0, 0, z);
+-					copy_region.texture_region_size = Vector3i(logic_width, logic_height, 1);
+-					driver->command_copy_buffer_to_texture(transfer_worker->command_buffer, transfer_worker->staging_buffer, texture->driver_id, p_dst_layout, copy_region);
+ 				}
+-
+-				staging_local_offset += to_allocate;
++				RDD::BufferTextureCopyRegion copy_region;
++				copy_region.buffer_offset = staging_buffer_offset;
++				copy_region.row_pitch = pitch;
++				copy_region.texture_subresource.aspect = texture->read_aspect_flags.has_flag(RDD::TEXTURE_ASPECT_DEPTH_BIT) ? RDD::TEXTURE_ASPECT_DEPTH : RDD::TEXTURE_ASPECT_COLOR;
++				copy_region.texture_subresource.mipmap = mm_i;
++				copy_region.texture_subresource.layer = p_layer;
++				copy_region.texture_offset = Vector3i();
++				copy_region.texture_region_size = Vector3i(logic_width, logic_height, depth);
++				driver->command_copy_buffer_to_texture(transfer_worker->command_buffer, transfer_worker->staging_buffer, texture->driver_id, p_dst_layout, copy_region);
+ 			}
++			staging_local_offset += slice_size * depth;
+ 
+ 			mipmap_offset = image_total;
+ 			logic_width = MAX(1u, logic_width >> 1);
+@@ -8318,7 +8317,7 @@
+ 
+ 	// Reset the graph.
+ 	GodotProfileZoneGrouped(_profile_zone, "draw_graph.begin");
+-	{ RmmoDebugTrace::Scope frame_trace(RmmoDebugTrace::RD_GRAPH_BEGIN); draw_graph.begin(); }
++	{ RmmoDebugTrace::Scope frame_trace(RmmoDebugTrace::RD_GRAPH_BEGIN); draw_graph.begin(frame); }
+ 
+ 	// Erase pending resources.
+ 	GodotProfileZoneGrouped(_profile_zone, "_free_pending_resources");
+@@ -8793,8 +8792,14 @@
+ 	_configure_draw_graph_flags();
+ #endif
+ 
+-	draw_graph.initialize(driver, &_render_pass_create_from_graph, frames.size(), main_queue_family, SECONDARY_COMMAND_BUFFERS_PER_FRAME);
+-	draw_graph.begin();
++	// Isolated experiment: disabled unless explicitly requested, Vulkan only.
++	int secondary_count = SECONDARY_COMMAND_BUFFERS_PER_FRAME;
++	int requested_secondary_count = OS::get_singleton()->get_environment("RMMO_SECONDARY_DRAW_LISTS").to_int();
++	if (requested_secondary_count > 0 && driver->get_api_name() == "Vulkan" && WorkerThreadPool::get_singleton() != nullptr) {
++		secondary_count = MIN(requested_secondary_count, WorkerThreadPool::get_singleton()->get_thread_count());
++	}
++	draw_graph.initialize(driver, &_render_pass_create_from_graph, frames.size(), main_queue_family, secondary_count);
++	draw_graph.begin(frame);
+ 
+ 	for (uint32_t i = 0; i < frames.size(); i++) {
+ 		// Reset all queries in a query pool before doing any operations with them..
+--- a/servers/rendering/rendering_device_graph.cpp
++++ b/servers/rendering/rendering_device_graph.cpp
+@@ -954,15 +954,8 @@
+ 	r_framebuffer = it->value.framebuffer;
+ }
+ 
+-#if PRINT_DRAW_LIST_STATS
+-static uint32_t draw_list_total_size = 0;
+-#endif
+-
+ void RenderingDeviceGraph::_run_draw_list_command(RDD::CommandBufferID p_command_buffer, const uint8_t *p_instruction_data, uint32_t p_instruction_data_size) {
+ 	RmmoDebugTrace::Scope frame_trace(RmmoDebugTrace::RD_GRAPH_DRAW, p_instruction_data_size);
+-#if PRINT_DRAW_LIST_STATS
+-	draw_list_total_size += p_instruction_data_size;
+-#endif
+ 
+ 	uint32_t trace_draws = 0, trace_uniform_binds = 0, trace_vertex_binds = 0, trace_pipeline_binds = 0;
+ 	uint32_t instruction_data_cursor = 0;
+@@ -1101,6 +1094,7 @@
+ 	}
+ 
+ 	draw_instruction_list.split_cmd_buffer = p_split_cmd_buffer;
++	draw_instruction_list.secondary_eligible = true;
+ 
+ #if defined(DEBUG_ENABLED) || defined(DEV_ENABLED)
+ 	draw_instruction_list.breadcrumb = p_breadcrumb;
+@@ -1109,10 +1103,66 @@
+ 	workarounds_state.bound_any_draw_list_pipeline = false;
+ }
+ 
+-void RenderingDeviceGraph::_run_secondary_command_buffer_task(const SecondaryCommandBuffer *p_secondary) {
+-	driver->command_buffer_begin_secondary(p_secondary->command_buffer, p_secondary->render_pass, 0, p_secondary->framebuffer);
+-	_run_draw_list_command(p_secondary->command_buffer, p_secondary->instruction_data.ptr(), p_secondary->instruction_data.size());
++void RenderingDeviceGraph::_run_secondary_command_buffer_task(SecondaryCommandBuffer *p_secondary) {
++	if (!driver->command_buffer_begin_secondary(p_secondary->command_buffer, p_secondary->render_pass, 0, p_secondary->framebuffer)) {
++		return; // The main thread will record this list inline instead.
++	}
++	_run_draw_list_command(p_secondary->command_buffer, p_secondary->instruction_data, p_secondary->instruction_data_size);
+ 	driver->command_buffer_end(p_secondary->command_buffer);
++	p_secondary->recorded = true; // Read only after task completion synchronization.
++}
++
++void RenderingDeviceGraph::_schedule_secondary_command_buffers() {
++	Frame &current_frame = frames[frame];
++	if (current_frame.secondary_command_buffers.is_empty()) {
++		return;
++	}
++	secondary_candidates.clear();
++	for (uint32_t i = 0; i < command_count; ++i) {
++		RecordedCommand *base = reinterpret_cast<RecordedCommand *>(&command_data[command_data_offsets[i]]);
++		if (base->type != RecordedCommand::TYPE_DRAW_LIST) {
++			continue;
++		}
++		RecordedDrawListCommand *draw = static_cast<RecordedDrawListCommand *>(base);
++		// Whole lists retain their complete binding/dynamic state. Small lists,
++		// nested secondary execution and subpass transitions stay inline.
++		if (draw->secondary_eligible && draw->instruction_data_size >= 65536) {
++			secondary_candidates.push_back({ draw });
++		}
++	}
++	secondary_candidates.sort();
++	for (SecondaryCandidate &candidate : secondary_candidates) {
++		if (current_frame.secondary_command_buffers_used == current_frame.secondary_command_buffers.size()) {
++			break;
++		}
++		RecordedDrawListCommand *draw = candidate.command;
++		RDD::RenderPassID render_pass = draw->render_pass;
++		RDD::FramebufferID framebuffer = draw->framebuffer;
++		if (draw->framebuffer_cache != nullptr) {
++			_get_draw_list_render_pass_and_framebuffer(draw, render_pass, framebuffer);
++		}
++		if (!render_pass || !framebuffer) {
++			continue;
++		}
++		uint32_t index = current_frame.secondary_command_buffers_used;
++		SecondaryCommandBuffer &secondary = current_frame.secondary_command_buffers[index];
++		if (!secondary.command_pool || !secondary.command_buffer || !driver->command_pool_reset(secondary.command_pool)) {
++			continue;
++		}
++		secondary.render_pass = render_pass;
++		secondary.framebuffer = framebuffer;
++		secondary.instruction_data = draw->instruction_data();
++		secondary.instruction_data_size = draw->instruction_data_size;
++		secondary.recorded = false;
++		secondary.task = WorkerThreadPool::get_singleton()->add_native_task([](void *p_userdata) {
++			SecondaryCommandBuffer *job = static_cast<SecondaryCommandBuffer *>(p_userdata);
++			job->owner->_run_secondary_command_buffer_task(job);
++		}, &secondary, true, "RenderCommandRecord");
++		if (secondary.task != WorkerThreadPool::INVALID_TASK_ID) {
++			draw->secondary_index = index;
++			++current_frame.secondary_command_buffers_used;
++		}
++	}
+ }
+ 
+ void RenderingDeviceGraph::_wait_for_secondary_command_buffer_tasks() {
+@@ -1225,9 +1275,20 @@
+ #if defined(DEBUG_ENABLED) || defined(DEV_ENABLED)
+ 				driver->command_insert_breadcrumb(r_command_buffer, draw_list_command->breadcrumb);
+ #endif
++				SecondaryCommandBuffer *secondary = nullptr;
++				if (draw_list_command->secondary_index >= 0) {
++					secondary = &frames[frame].secondary_command_buffers[draw_list_command->secondary_index];
++					if (secondary->task != WorkerThreadPool::INVALID_TASK_ID) {
++						WorkerThreadPool::get_singleton()->wait_for_task_completion(secondary->task);
++						secondary->task = WorkerThreadPool::INVALID_TASK_ID;
++					}
++				}
+ 				RDD::RenderPassID render_pass;
+ 				RDD::FramebufferID framebuffer;
+-				if (draw_list_command->framebuffer_cache != nullptr) {
++				if (secondary != nullptr) {
++					render_pass = secondary->render_pass;
++					framebuffer = secondary->framebuffer;
++				} else if (draw_list_command->framebuffer_cache != nullptr) {
+ 					_get_draw_list_render_pass_and_framebuffer(draw_list_command, render_pass, framebuffer);
+ 				} else {
+ 					render_pass = draw_list_command->render_pass;
+@@ -1235,8 +1296,13 @@
+ 				}
+ 
+ 				if (framebuffer && render_pass) {
+-					driver->command_begin_render_pass(r_command_buffer, render_pass, framebuffer, draw_list_command->command_buffer_type, draw_list_command->region, clear_values);
+-					_run_draw_list_command(r_command_buffer, draw_list_command->instruction_data(), draw_list_command->instruction_data_size);
++					bool use_secondary = secondary != nullptr && secondary->recorded;
++					driver->command_begin_render_pass(r_command_buffer, render_pass, framebuffer, use_secondary ? RDD::COMMAND_BUFFER_TYPE_SECONDARY : draw_list_command->command_buffer_type, draw_list_command->region, clear_values);
++					if (use_secondary) {
++						driver->command_buffer_execute_secondary(r_command_buffer, secondary->command_buffer);
++					} else {
++						_run_draw_list_command(r_command_buffer, draw_list_command->instruction_data(), draw_list_command->instruction_data_size);
++					}
+ 					driver->command_end_render_pass(r_command_buffer);
+ 				}
+ 			} break;
+@@ -1785,8 +1851,11 @@
+ 
+ 		for (uint32_t j = 0; j < p_secondary_command_buffers_per_frame; j++) {
+ 			SecondaryCommandBuffer &secondary = frames[i].secondary_command_buffers[j];
++			secondary.owner = this;
+ 			secondary.command_pool = driver->command_pool_create(p_secondary_command_queue_family, RDD::COMMAND_BUFFER_TYPE_SECONDARY);
+-			secondary.command_buffer = driver->command_buffer_create(secondary.command_pool);
++			if (secondary.command_pool) {
++				secondary.command_buffer = driver->command_buffer_create(secondary.command_pool);
++			}
+ 			secondary.task = WorkerThreadPool::INVALID_TASK_ID;
+ 		}
+ 	}
+@@ -1814,7 +1883,11 @@
+ 	frames.clear();
+ }
+ 
+-void RenderingDeviceGraph::begin() {
++void RenderingDeviceGraph::begin(uint32_t p_frame) {
++	// The RD has waited for this exact GPU frame slot. A separate graph counter
++	// would diverge after empty submissions and could reset an in-flight pool.
++	DEV_ASSERT(p_frame < frames.size());
++	frame = p_frame;
+ 	command_data.clear();
+ 	command_data_offsets.clear();
+ 	command_normalization_barriers.clear();
+@@ -2234,6 +2307,11 @@
+ 
+ void RenderingDeviceGraph::add_draw_list_bind_vertex_buffers(Span<RDD::BufferID> p_vertex_buffers, Span<uint64_t> p_vertex_buffer_offsets) {
+ 	DEV_ASSERT(p_vertex_buffers.size() == p_vertex_buffer_offsets.size());
++	// Procedural vertices need no bindings. A zero-sized bind neither clears
++	// state nor does useful work, and vkCmdBindVertexBuffers forbids it.
++	if (p_vertex_buffers.is_empty()) {
++		return;
++	}
+ 
+ 	uint32_t instruction_size = sizeof(DrawListBindVertexBuffersInstruction) + sizeof(RDD::BufferID) * p_vertex_buffers.size() + sizeof(uint64_t) * p_vertex_buffer_offsets.size();
+ 	DrawListBindVertexBuffersInstruction *instruction = reinterpret_cast<DrawListBindVertexBuffersInstruction *>(_allocate_draw_list_instruction(instruction_size));
+@@ -2307,12 +2385,14 @@
+ }
+ 
+ void RenderingDeviceGraph::add_draw_list_execute_commands(RDD::CommandBufferID p_command_buffer) {
++	draw_instruction_list.secondary_eligible = false;
+ 	DrawListExecuteCommandsInstruction *instruction = reinterpret_cast<DrawListExecuteCommandsInstruction *>(_allocate_draw_list_instruction(sizeof(DrawListExecuteCommandsInstruction)));
+ 	instruction->type = DrawListInstruction::TYPE_EXECUTE_COMMANDS;
+ 	instruction->command_buffer = p_command_buffer;
+ }
+ 
+ void RenderingDeviceGraph::add_draw_list_next_subpass(RDD::CommandBufferType p_command_buffer_type) {
++	draw_instruction_list.secondary_eligible = false;
+ 	DrawListNextSubpassInstruction *instruction = reinterpret_cast<DrawListNextSubpassInstruction *>(_allocate_draw_list_instruction(sizeof(DrawListNextSubpassInstruction)));
+ 	instruction->type = DrawListInstruction::TYPE_NEXT_SUBPASS;
+ 	instruction->command_buffer_type = p_command_buffer_type;
+@@ -2399,6 +2479,8 @@
+ 	command->framebuffer = draw_instruction_list.framebuffer;
+ 	command->instruction_data_size = instruction_data_size;
+ 	command->command_buffer_type = RDD::COMMAND_BUFFER_TYPE_PRIMARY;
++	command->secondary_index = -1;
++	command->secondary_eligible = draw_instruction_list.secondary_eligible;
+ 	command->region = draw_instruction_list.region;
+ #if defined(DEBUG_ENABLED) || defined(DEV_ENABLED)
+ 	command->breadcrumb = draw_instruction_list.breadcrumb;
+@@ -2768,7 +2850,7 @@
+ 
+ 	}
+ 
+-	{ RmmoDebugTrace::Scope frame_trace(RmmoDebugTrace::RD_SECONDARY_WAIT); _wait_for_secondary_command_buffer_tasks(); }
++	_schedule_secondary_command_buffers();
+ 
+ 	if (command_count > 0) {
+ 		int32_t current_label_index = -1;
+@@ -2781,7 +2863,14 @@
+ 		}
+ 
+ #if PRINT_DRAW_LIST_STATS
+-		draw_list_total_size = 0;
++		// Count immutable records on this thread, never from worker replay.
++		uint64_t draw_list_total_size = 0;
++		for (uint32_t i = 0; i < command_count; ++i) {
++			const RecordedCommand *command = reinterpret_cast<const RecordedCommand *>(&command_data[command_data_offsets[i]]);
++			if (command->type == RecordedCommand::TYPE_DRAW_LIST) {
++				draw_list_total_size += static_cast<const RecordedDrawListCommand *>(command)->instruction_data_size;
++			}
++		}
+ #endif
+ 
+ 		if (p_reorder_commands) {
+@@ -2842,8 +2931,8 @@
+ #endif
+ 	}
+ 
+-	// Advance the frame counter. It's not necessary to do this if no commands are recorded because that means no secondary command buffers were used.
+-	frame = (frame + 1) % frames.size();
++	// All borrowed instruction memory must be released before begin() can clear it.
++	{ RmmoDebugTrace::Scope final_join_trace(RmmoDebugTrace::RD_SECONDARY_WAIT); _wait_for_secondary_command_buffer_tasks(); }
+ }
+ 
+ #if PRINT_RESOURCE_TRACKER_TOTAL
+--- a/servers/rendering/rendering_device_graph.h
++++ b/servers/rendering/rendering_device_graph.h
+@@ -310,6 +310,7 @@
+ 		uint32_t breadcrumb;
+ #endif
+ 		bool split_cmd_buffer = false;
++		bool secondary_eligible = true;
+ 	};
+ 
+ 	struct RecordedCommandSort {
+@@ -427,6 +428,7 @@
+ 		RDD::FramebufferID framebuffer;
+ 		RDD::RenderPassID render_pass;
+ 		uint32_t instruction_data_size = 0;
++		int32_t secondary_index = -1;
+ 		RDD::CommandBufferType command_buffer_type;
+ 		Rect2i region;
+ 		uint32_t clear_values_count = 0;
+@@ -436,6 +438,7 @@
+ 		uint32_t breadcrumb = 0;
+ #endif
+ 		bool split_cmd_buffer = false;
++		bool secondary_eligible = true;
+ 
+ 		_FORCE_INLINE_ RDD::RenderPassClearValue *clear_values() {
+ 			return reinterpret_cast<RDD::RenderPassClearValue *>(&this[1]);
+@@ -803,13 +806,25 @@
+ 	};
+ 
+ 	struct SecondaryCommandBuffer {
+-		LocalVector<uint8_t> instruction_data;
++		RenderingDeviceGraph *owner = nullptr;
++		// Borrowed only during end(): command_data is immutable until every task joins.
++		const uint8_t *instruction_data = nullptr;
++		uint32_t instruction_data_size = 0;
++		bool recorded = false;
+ 		RDD::CommandBufferID command_buffer;
+ 		RDD::CommandPoolID command_pool;
+ 		RDD::RenderPassID render_pass;
+ 		RDD::FramebufferID framebuffer;
+ 		WorkerThreadPool::TaskID task;
+ 	};
++
++	struct SecondaryCandidate {
++		RecordedDrawListCommand *command = nullptr;
++		bool operator<(const SecondaryCandidate &p_other) const {
++			return command->instruction_data_size > p_other.command->instruction_data_size;
++		}
++	};
++	LocalVector<SecondaryCandidate> secondary_candidates;
+ 
+ 	struct Frame {
+ 		TightLocalVector<SecondaryCommandBuffer> secondary_command_buffers;
+@@ -881,7 +896,8 @@
+ 	void _run_raytracing_list_command(RDD::CommandBufferID p_command_buffer, const uint8_t *p_instruction_data, uint32_t p_instruction_data_size);
+ 	void _run_draw_list_command(RDD::CommandBufferID p_command_buffer, const uint8_t *p_instruction_data, uint32_t p_instruction_data_size);
+ 	void _add_draw_list_begin(FramebufferCache *p_framebuffer_cache, RDD::RenderPassID p_render_pass, RDD::FramebufferID p_framebuffer, Rect2i p_region, VectorView<AttachmentOperation> p_attachment_operations, VectorView<RDD::RenderPassClearValue> p_attachment_clear_values, BitField<RDD::PipelineStageBits> p_stages, uint32_t p_breadcrumb, bool p_split_cmd_buffer);
+-	void _run_secondary_command_buffer_task(const SecondaryCommandBuffer *p_secondary);
++	void _run_secondary_command_buffer_task(SecondaryCommandBuffer *p_secondary);
++	void _schedule_secondary_command_buffers();
+ 	void _wait_for_secondary_command_buffer_tasks();
+ 	void _run_render_commands(int32_t p_level, const RecordedCommandSort *p_sorted_commands, uint32_t p_sorted_commands_count, RDD::CommandBufferID &r_command_buffer, CommandBufferPool &r_command_buffer_pool, int32_t &r_current_label_index, int32_t &r_current_label_level);
+ 	void _run_label_command_change(RDD::CommandBufferID p_command_buffer, int32_t p_new_label_index, int32_t p_new_level, bool p_ignore_previous_value, bool p_use_label_for_empty, const RecordedCommandSort *p_sorted_commands, uint32_t p_sorted_commands_count, int32_t &r_current_label_index, int32_t &r_current_label_level);
+@@ -897,7 +913,7 @@
+ 	~RenderingDeviceGraph();
+ 	void initialize(RDD *p_driver, RenderPassCreationFunction p_render_pass_creation_function, uint32_t p_frame_count, RDD::CommandQueueFamilyID p_secondary_command_queue_family, uint32_t p_secondary_command_buffers_per_frame);
+ 	void finalize();
+-	void begin();
++	void begin(uint32_t p_frame);
+ 	void add_blas_build(RDD::AccelerationStructureID p_blas, RDD::BufferID p_scratch_buffer, ResourceTracker *p_dst_tracker, VectorView<ResourceTracker *> p_src_trackers);
+ 	void add_tlas_build(RDD::AccelerationStructureID p_tlas, RDD::BufferID p_scratch_buffer, RDD::BufferID p_instance_buffer, uint32_t p_instance_offset, uint32_t p_instance_count, ResourceTracker *p_dst_tracker, VectorView<ResourceTracker *> p_src_trackers);
+ 	void add_buffer_clear(RDD::BufferID p_dst, ResourceTracker *p_dst_tracker, uint32_t p_offset, uint32_t p_size);

@@ -700,3 +700,33 @@ orphan ends, crossing spans or task-name conflicts. The saved-parent patch check
 matches the built sources after newline normalization. See the manifest and
 performance log for retained slow frames, the uninstalled binary and evidence.
 This diagnostic adds no parallel scheduling and does not claim a map speedup.
+
+## Parallel whole-list recording, candidate21r2 (2026-10-31)
+
+Apply `godot-4.8-beta1-secondary-draw-candidate21.patch` after candidate20.
+The experimental Vulkan path uses `RMMO_SECONDARY_DRAW_LISTS=4`; the default
+remains zero. It records the largest eligible lists (at least 64 KiB each)
+on workers with distinct command pools, then executes them in the original
+GPU dependency order. Instruction memory is borrowed until all jobs join.
+Small lists, subpass transitions and nested secondary execution stay inline.
+Pool reuse follows the actual RD frame slot, including empty submissions.
+
+Validation exposed two existing API errors, also reproduced without parallel
+recording. The patch drops empty vertex-buffer binding instructions and uploads
+each initialized 3D mip as one packed volume, avoiding invalid transfer-queue
+depth granularity and per-slice commands/padding. Optional draw-list statistics
+are counted on the recording thread rather than mutated by workers.
+
+The local GPU probes cover procedural and buffer-backed vertices, sparse sets,
+pipeline changes, small/large lists, dependent passes and shared buffer updates.
+Native trace observes exactly 214,144 draw instructions, 100 real vertex binds,
+28 recording jobs and four simultaneous jobs. Main-device tests each pass 225
+checks over two frame slots and 148,032 draws, including resource recreation.
+All validation runs have zero Vulkan errors. Ten texture volume cases preserve
+every byte across odd sizes, mip levels and R8/RGBA8 formats.
+
+Six fresh processes in ABBAAB order, same executable and GPU work, show large
+batch CPU submit median 18.077 → 12.098 ms; full batch median 49.903 → 43.742 ms.
+Small lists have no demonstrated gain. See the manifest and performance log
+for all samples and the ongoing normal-map series. These component gains are
+not full-map acceptance; no installed engine has been replaced.

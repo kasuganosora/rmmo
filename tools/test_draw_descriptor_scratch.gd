@@ -28,13 +28,21 @@ func _initialize()->void:
 func make_shader(factor:int)->RID:
 	var src:=RDShaderSource.new()
 	src.source_vertex="#version 450\nvoid main(){vec2 p[3]=vec2[3](vec2(-1,-1),vec2(3,-1),vec2(-1,3));gl_Position=vec4(p[gl_VertexIndex],0,1);}\n"
+	if OS.get_environment("RMMO_TEST_VERTEX_BUFFER")=="1":
+		src.source_vertex="#version 450\nlayout(location=0) in vec2 position;\nvoid main(){gl_Position=vec4(position,0,1);}\n"
 	src.source_fragment="#version 450\nlayout(set=0,binding=0,std140) uniform A {vec4 a;};\nlayout(set=2,binding=0,std140) uniform B {vec4 b;};\nlayout(set=3,binding=0,std140) uniform C {vec4 c;};\nlayout(location=0) out vec4 color;\nvoid main(){color=vec4(a.rgb+b.rgb+c.rgb*%d.0,1.0);}\n"%factor
 	var spirv:=rd.shader_compile_spirv_from_source(src)
 	for stage:int in [RenderingDevice.SHADER_STAGE_VERTEX,RenderingDevice.SHADER_STAGE_FRAGMENT]:check(spirv.get_stage_compile_error(stage).is_empty(),"shader compilation")
 	return keep(rd.shader_create_from_spirv(spirv))
 func prepare()->void:
 	for factor:int in [1,2]:shaders.append(make_shader(factor))
-	var vertex:=rd.vertex_format_create([]);vertex_array=keep(rd.vertex_array_create(3,vertex,[]))
+	var attributes:Array[RDVertexAttribute]=[];var buffers:Array[RID]=[]
+	if OS.get_environment("RMMO_TEST_VERTEX_BUFFER")=="1":
+		var attribute:=RDVertexAttribute.new();attribute.location=0;attribute.format=RenderingDevice.DATA_FORMAT_R32G32_SFLOAT;attribute.stride=8
+		attributes.append(attribute)
+		var bytes:=PackedFloat32Array([-1.,-1.,3.,-1.,-1.,3.]).to_byte_array()
+		buffers.append(keep(rd.vertex_buffer_create(bytes.size(),bytes)))
+	var vertex:=rd.vertex_format_create(attributes);vertex_array=keep(rd.vertex_array_create(3,vertex,buffers))
 	var format:=RDTextureFormat.new();format.width=8;format.height=8;format.format=RenderingDevice.DATA_FORMAT_R8G8B8A8_UNORM
 	format.usage_bits=RenderingDevice.TEXTURE_USAGE_COLOR_ATTACHMENT_BIT|RenderingDevice.TEXTURE_USAGE_CAN_COPY_FROM_BIT
 	texture=keep(rd.texture_create(format,RDTextureView.new()));framebuffer=keep(rd.framebuffer_create([texture]))
