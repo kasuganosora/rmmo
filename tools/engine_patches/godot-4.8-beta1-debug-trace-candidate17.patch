@@ -1,0 +1,600 @@
+--- /dev/null
++++ b/core/debugger/rmmo_debug_trace.h
+@@ -0,0 +1,40 @@
++#pragma once
++
++#include "core/error/error_list.h"
++#include "core/variant/dictionary.h"
++
++// Optional diagnostic capture. Each native thread is the sole writer of its
++// event chunks. Control/export are main-thread-only, outside the timed window.
++namespace RmmoDebugTrace {
++enum Label {
++	MAIN_ITERATION = 1,
++	RENDER_SYNC,
++	RENDER_DRAW,
++	WORKER_EXECUTE,
++	WORKER_WAIT,
++	RESOURCE_LOAD,
++	MESH_MATERIAL,
++	PIPELINE_WAIT,
++	DEVICE_STALL,
++	VULKAN_FENCE_WAIT,
++	VULKAN_SUBMIT_PRESENT,
++	WORKER_ENQUEUE,
++};
++Error start(int64_t p_event_capacity = 1048576, bool p_cpu_clock = false);
++Dictionary stop();
++Dictionary status();
++Error export_capture(const String &p_path);
++int64_t register_label(const String &p_name);
++uint64_t begin(uint32_t p_label, int64_t p_task = 0, int64_t p_context = 0);
++void end(uint64_t p_span);
++void mark(uint32_t p_label, int64_t p_task = 0, int64_t p_value = 0);
++
++class Scope {
++	uint64_t span;
++public:
++	Scope(uint32_t p_label, int64_t p_task = 0, int64_t p_context = 0) : span(begin(p_label, p_task, p_context)) {}
++	~Scope() { if (span) end(span); }
++	Scope(const Scope &) = delete;
++	Scope &operator=(const Scope &) = delete;
++};
++}
+--- /dev/null
++++ b/core/debugger/rmmo_debug_trace.cpp
+@@ -0,0 +1,320 @@
++#include "rmmo_debug_trace.h"
++#include "rmmo_debug_trace_tasks.h"
++#include "core/templates/hash_map.h"
++
++#include "core/io/file_access.h"
++#include "core/io/json.h"
++#include "core/os/os.h"
++#include "core/os/thread.h"
++
++#include <atomic>
++#include <cstring>
++#include <memory>
++#include <new>
++#include <thread>
++
++#ifdef WINDOWS_ENABLED
++#ifndef NOMINMAX
++#define NOMINMAX
++#endif
++#ifndef WIN32_LEAN_AND_MEAN
++#define WIN32_LEAN_AND_MEAN
++#endif
++#include <windows.h>
++#endif
++
++namespace RmmoDebugTrace {
++namespace {
++constexpr uint32_t CHUNK_EVENTS = 256;
++constexpr uint32_t WORKER_NAME = 13;
++struct Event {
++	uint64_t wall_us;
++	uint64_t cpu_us;
++	uint64_t span;
++	int64_t task;
++	int64_t value;
++	uint32_t label;
++	uint32_t kind; // 0 instant, 1 begin, 2 end
++	uint64_t thread_id;
++};
++static_assert(sizeof(Event) == 56, "Capture v1 has a fixed 56-byte event layout");
++static_assert(std::atomic<uint64_t>::is_always_lock_free && std::atomic<void *>::is_always_lock_free,
++		"This diagnostic requires native lock-free atomics");
++struct Chunk {
++	Chunk *next = nullptr;
++	uint32_t used = 0;
++	Event events[CHUNK_EVENTS];
++};
++struct alignas(64) Slot {
++	std::atomic<bool> writing{false};
++	std::atomic<bool> departed{false};
++	Slot *next = nullptr;
++	uint64_t epoch = 0;
++	uint64_t thread_id = 0;
++	uint32_t identity = 0;
++	uint32_t sequence = 0;
++	uint32_t first_sequence = 0;
++	uint64_t dropped = 0;
++	HashMap<String, uint32_t> task_names;
++	Chunk *first = nullptr;
++	Chunk *last = nullptr;
++};
++struct Registry {
++	std::atomic<Slot *> head{nullptr};
++	std::atomic<uint32_t> next_identity{1};
++	~Registry() {
++		// Godot has joined its native workers before static teardown.
++		Slot *slot = head.load();
++		while (slot) { Slot *next = slot->next; delete slot; slot = next; }
++	}
++	void insert(Slot *p_slot) {
++		Slot *head_value = head.load(std::memory_order_relaxed);
++		do { p_slot->next = head_value; }
++		while (!head.compare_exchange_weak(head_value, p_slot, std::memory_order_release, std::memory_order_relaxed));
++	}
++};
++Registry &registry() { static Registry value; return value; }
++struct Local {
++	Slot *slot = nullptr;
++	~Local() { if (slot) slot->departed.store(true, std::memory_order_release); }
++};
++thread_local Local local;
++std::atomic<uint64_t> active_epoch{0};
++uint64_t capture_epoch = 0;
++uint64_t capture_start = 0;
++uint64_t capture_end = 0;
++bool cpu_clock = false;
++bool stopped = false;
++std::unique_ptr<Chunk[]> chunks;
++uint64_t chunk_count = 0;
++std::atomic<uint64_t> next_chunk{0};
++std::atomic<uint64_t> registration_dropped{0};
++std::atomic<uint32_t> next_name{1};
++Array labels;
++Dictionary final_status;
++
++uint64_t native_thread_id() {
++#ifdef WINDOWS_ENABLED
++	return GetCurrentThreadId();
++#else
++	return Thread::get_caller_id();
++#endif
++}
++uint64_t thread_cpu_us() {
++#ifdef WINDOWS_ENABLED
++	FILETIME created, exited, kernel, user;
++	if (GetThreadTimes(GetCurrentThread(), &created, &exited, &kernel, &user)) {
++		uint64_t a = (uint64_t(kernel.dwHighDateTime) << 32) | kernel.dwLowDateTime;
++		uint64_t b = (uint64_t(user.dwHighDateTime) << 32) | user.dwLowDateTime;
++		return (a + b) / 10;
++	}
++#endif
++	return 0;
++}
++void initialize_labels() {
++	if (!labels.is_empty()) return;
++	for (const char *name : {"unknown", "main.iteration", "render.sync", "render.draw", "worker.execute", "worker.wait",
++			"resource.load", "mesh.surface_material", "pipeline.wait", "device.stall", "vulkan.fence_wait", "vulkan.submit_present", "worker.enqueue", "worker.name"}) labels.push_back(name);
++}
++Slot *enter_writer(uint64_t p_epoch) {
++	if (!local.slot) {
++		// Only first registration allocates a small thread descriptor. Event
++		// storage is preallocated before capture, not grown by a hot writer.
++		local.slot = new (std::nothrow) Slot;
++		if (!local.slot) { registration_dropped.fetch_add(1, std::memory_order_relaxed); return nullptr; }
++		local.slot->identity = registry().next_identity.fetch_add(1, std::memory_order_relaxed);
++		local.slot->thread_id = native_thread_id();
++		registry().insert(local.slot);
++	}
++	Slot *slot = local.slot;
++	// Busy is announced BEFORE rechecking the epoch. stop() first disables the
++	// epoch, then waits only for these tiny writes, never for an open scope or
++	// the resource/GPU work it surrounds. Late writers cannot touch old chunks.
++	slot->writing.store(true, std::memory_order_seq_cst);
++	if (active_epoch.load(std::memory_order_seq_cst) != p_epoch) {
++		slot->writing.store(false, std::memory_order_release);
++		return nullptr;
++	}
++	if (slot->epoch != p_epoch) {
++		slot->epoch = p_epoch;
++		slot->first = slot->last = nullptr;
++		slot->dropped = 0;
++		slot->first_sequence = slot->sequence + 1;
++		slot->task_names.clear();
++	}
++	return slot;
++}
++bool append(Slot *p_slot, uint32_t p_kind, uint32_t p_label, uint64_t p_span, int64_t p_task, int64_t p_value) {
++	if (!p_slot->last || p_slot->last->used == CHUNK_EVENTS) {
++		if (p_slot->dropped) { ++p_slot->dropped; return false; }
++		uint64_t index = next_chunk.fetch_add(1, std::memory_order_relaxed);
++		if (index >= chunk_count) { ++p_slot->dropped; return false; }
++		Chunk *chunk = &chunks[index];
++		chunk->used = 0; chunk->next = nullptr;
++		if (p_slot->last) p_slot->last->next = chunk;
++		else p_slot->first = chunk;
++		p_slot->last = chunk;
++	}
++	Event &event = p_slot->last->events[p_slot->last->used++];
++	event = {OS::get_singleton()->get_ticks_usec(), cpu_clock ? thread_cpu_us() : 0,
++			p_span, p_task, p_value, p_label, p_kind, p_slot->thread_id};
++	return true;
++}
++}
++
++Error start(int64_t p_event_capacity, bool p_cpu_clock) {
++	if (!Thread::is_main_thread()) return ERR_UNAUTHORIZED;
++	if (active_epoch.load() != 0) return ERR_BUSY;
++#ifndef WINDOWS_ENABLED
++	if (p_cpu_clock) return ERR_UNAVAILABLE;
++#endif
++	if (p_event_capacity <= 0 || uint64_t(p_event_capacity) > SIZE_MAX / sizeof(Event) - CHUNK_EVENTS) return ERR_INVALID_PARAMETER;
++	uint64_t count = (uint64_t(p_event_capacity) + CHUNK_EVENTS - 1) / CHUNK_EVENTS;
++	if (count > SIZE_MAX / sizeof(Chunk)) return ERR_INVALID_PARAMETER;
++	std::unique_ptr<Chunk[]> prepared(new (std::nothrow) Chunk[count]);
++	if (!prepared) return ERR_OUT_OF_MEMORY;
++	for (uint64_t i = 0; i < count; ++i) std::memset(prepared[i].events, 0, sizeof(prepared[i].events)); // Pre-touch before the clock.
++	Slot *old = registry().head.exchange(nullptr, std::memory_order_acq_rel);
++	while (old) {
++		Slot *slot = old; old = slot->next;
++		if (slot->departed.load(std::memory_order_acquire)) delete slot;
++		else registry().insert(slot);
++	}
++	initialize_labels();
++	chunks = std::move(prepared); chunk_count = count; next_chunk.store(0); registration_dropped.store(0);
++	next_name.store(1);
++	cpu_clock = p_cpu_clock; stopped = false; final_status.clear();
++	capture_start = OS::get_singleton()->get_ticks_usec(); capture_end = 0;
++	active_epoch.store(++capture_epoch, std::memory_order_seq_cst);
++	return OK;
++}
++
++uint64_t begin(uint32_t p_label, int64_t p_task, int64_t p_context) {
++	uint64_t epoch = active_epoch.load(std::memory_order_relaxed);
++	if (!epoch) return 0;
++	Slot *slot = enter_writer(epoch);
++	if (!slot) return 0;
++	// Sequence is not reset across captures; an old GD token cannot close a
++	// later capture's span. End must run on the same thread as begin.
++	uint64_t token = (uint64_t(slot->identity) << 32) | ++slot->sequence;
++	bool written = append(slot, 1, p_label, token, p_task, p_context);
++	slot->writing.store(false, std::memory_order_release);
++	return written ? token : 0;
++}
++void end(uint64_t p_span) {
++	uint64_t epoch = active_epoch.load(std::memory_order_relaxed);
++	if (!epoch || !p_span || !local.slot) return;
++	Slot *slot = enter_writer(epoch);
++	if (!slot) return;
++	if (uint32_t(p_span >> 32) == slot->identity && uint32_t(p_span) >= slot->first_sequence && uint32_t(p_span) <= slot->sequence)
++		append(slot, 2, 0, p_span, 0, 0);
++	slot->writing.store(false, std::memory_order_release);
++}
++void mark(uint32_t p_label, int64_t p_task, int64_t p_value) {
++	uint64_t epoch = active_epoch.load(std::memory_order_relaxed);
++	if (!epoch) return;
++	Slot *slot = enter_writer(epoch);
++	if (!slot) return;
++	append(slot, 0, p_label, 0, p_task, p_value);
++	slot->writing.store(false, std::memory_order_release);
++}
++void name_task(int64_t p_task, int64_t p_context, const String &p_name) {
++	uint64_t epoch = active_epoch.load(std::memory_order_relaxed);
++	if (!epoch || p_name.is_empty()) return;
++	Slot *slot = enter_writer(epoch);
++	if (!slot) return;
++	// Keep metadata bounded by accepted events, even after overflow. Hashing
++	// and first-use allocation are metadata costs, not the scalar hot path.
++	if (append(slot, 0, WORKER_NAME, 0, p_task, p_context)) {
++		uint32_t *known = slot->task_names.getptr(p_name);
++		uint32_t id;
++		if (known) id = *known;
++		else {
++			id = next_name.fetch_add(1, std::memory_order_relaxed);
++			slot->task_names.insert(p_name, id);
++		}
++		slot->last->events[slot->last->used - 1].span = id;
++	}
++	slot->writing.store(false, std::memory_order_release);
++}
++int64_t register_label(const String &p_name) {
++	if (!Thread::is_main_thread() || p_name.is_empty()) return -1;
++	initialize_labels();
++	int64_t existing = labels.find(p_name);
++	if (existing >= 0) return existing;
++	labels.push_back(p_name);
++	return labels.size() - 1;
++}
++Dictionary stop() {
++	if (!Thread::is_main_thread()) { Dictionary error; error["error"] = ERR_UNAUTHORIZED; return error; }
++	if (!active_epoch.exchange(0, std::memory_order_seq_cst)) return final_status.duplicate();
++	capture_end = OS::get_singleton()->get_ticks_usec();
++	Slot *detached = registry().head.exchange(nullptr, std::memory_order_acq_rel);
++	uint64_t events = 0, dropped = registration_dropped.load(), threads = 0;
++	uint64_t requested_stop = capture_end;
++	// Preserve descriptors until the thread exits. Reclaim only departed ones
++	// after their data has been exported or replaced, not while TLS can use them.
++	while (detached) {
++		Slot *slot = detached; detached = slot->next;
++		while (slot->writing.load(std::memory_order_seq_cst)) std::this_thread::yield();
++		if (slot->epoch == capture_epoch) {
++			++threads; dropped += slot->dropped;
++			for (Chunk *chunk = slot->first; chunk; chunk = chunk->next) {
++				events += chunk->used;
++				if (chunk->used) capture_end = MAX(capture_end, chunk->events[chunk->used - 1].wall_us);
++			}
++		}
++		registry().insert(slot);
++	}
++	stopped = true;
++	final_status["epoch"] = int64_t(capture_epoch);
++	final_status["stop_request_us"] = int64_t(requested_stop);
++	final_status["registration_dropped"] = int64_t(registration_dropped.load());
++	final_status["start_us"] = int64_t(capture_start); final_status["end_us"] = int64_t(capture_end);
++	final_status["events"] = int64_t(events); final_status["dropped"] = int64_t(dropped);
++	final_status["threads"] = int64_t(threads); final_status["capacity_events"] = int64_t(chunk_count * CHUNK_EVENTS);
++	final_status["cpu_clock"] = cpu_clock; final_status["active"] = false;
++	return final_status.duplicate();
++}
++Dictionary status() {
++	if (!Thread::is_main_thread()) { Dictionary error; error["error"] = ERR_UNAUTHORIZED; return error; }
++	Dictionary result = final_status.duplicate();
++	result["active"] = active_epoch.load() != 0;
++	return result;
++}
++Error export_capture(const String &p_path) {
++	if (!Thread::is_main_thread()) return ERR_UNAUTHORIZED;
++	if (active_epoch.load() || !stopped) return ERR_BUSY;
++	Error error;
++	Ref<FileAccess> file = FileAccess::open(p_path, FileAccess::WRITE, &error);
++	if (file.is_null()) return error;
++	Dictionary header = final_status.duplicate();
++	header["pid"] = int64_t(OS::get_singleton()->get_process_id());
++	header["version"] = 1; header["event_bytes"] = int64_t(sizeof(Event)); header["labels"] = labels;
++#ifdef BIG_ENDIAN_ENABLED
++	header["byte_order"] = "big";
++#else
++	header["byte_order"] = "little";
++#endif
++	Dictionary task_names;
++	for (Slot *slot = registry().head.load(std::memory_order_acquire); slot; slot = slot->next) {
++		if (slot->epoch != capture_epoch) continue;
++		for (const KeyValue<String, uint32_t> &entry : slot->task_names)
++			task_names[String::num_uint64(entry.value)] = entry.key;
++	}
++	header["task_names"] = task_names;
++	header["format"] = "QQQqqIIQ";
++	header["columns"] = "wall_us,cpu_us,span,task,value,label,kind,thread_id";
++	header["clock_note"] = "Wall ticks; CPU is optional cumulative thread CPU microseconds (Windows GetThreadTimes, coarse resolution). Nested spans overlap; unfinished begins are incomplete, not zero-time work.";
++	CharString metadata = JSON::stringify(header).utf8();
++	file->store_buffer((const uint8_t *)"RMMOTRC1", 8);
++	file->store_64(metadata.length()); file->store_buffer((const uint8_t *)metadata.get_data(), metadata.length());
++	for (Slot *slot = registry().head.load(std::memory_order_acquire); slot; slot = slot->next) {
++		if (slot->epoch != capture_epoch) continue;
++		for (Chunk *chunk = slot->first; chunk; chunk = chunk->next)
++			file->store_buffer(reinterpret_cast<const uint8_t *>(chunk->events), sizeof(Event) * chunk->used);
++	}
++	file->flush();
++	return file->get_error();
++}
++}
+--- a/main/performance.cpp
++++ b/main/performance.cpp
+@@ -29,6 +29,8 @@
+ /**************************************************************************/
+ 
+ #include "performance.h"
++#include "core/debugger/rmmo_debug_trace.h"
++#include "core/debugger/rmmo_debug_trace_tasks.h"
+ #include "performance.compat.inc"
+ 
+ #include "core/config/engine.h"
+@@ -65,6 +67,16 @@
+ Performance *Performance::singleton = nullptr;
+ 
+ void Performance::_bind_methods() {
++	ClassDB::bind_static_method("Performance", D_METHOD("debug_trace_start", "event_capacity", "cpu_clock"), &RmmoDebugTrace::start, DEFVAL(1048576), DEFVAL(false));
++	ClassDB::bind_static_method("Performance", D_METHOD("debug_trace_task_name", "task", "context", "name"), &RmmoDebugTrace::name_task);
++	ClassDB::bind_static_method("Performance", D_METHOD("debug_trace_stop"), &RmmoDebugTrace::stop);
++	ClassDB::bind_static_method("Performance", D_METHOD("debug_trace_status"), &RmmoDebugTrace::status);
++	ClassDB::bind_static_method("Performance", D_METHOD("debug_trace_export", "path"), &RmmoDebugTrace::export_capture);
++	ClassDB::bind_static_method("Performance", D_METHOD("debug_trace_register_label", "name"), &RmmoDebugTrace::register_label);
++	ClassDB::bind_static_method("Performance", D_METHOD("debug_trace_begin", "label", "task", "context"), &RmmoDebugTrace::begin, DEFVAL(0), DEFVAL(0));
++	ClassDB::bind_static_method("Performance", D_METHOD("debug_trace_end", "span"), &RmmoDebugTrace::end);
++	ClassDB::bind_static_method("Performance", D_METHOD("debug_trace_mark", "label", "task", "value"), &RmmoDebugTrace::mark, DEFVAL(0), DEFVAL(0));
++
+ 	ClassDB::bind_method(D_METHOD("get_monitor", "monitor"), &Performance::get_monitor);
+ 	ClassDB::bind_method(D_METHOD("add_custom_monitor", "id", "callable", "arguments", "type"), &Performance::add_custom_monitor, DEFVAL(Array()), DEFVAL(MONITOR_TYPE_QUANTITY));
+ 	ClassDB::bind_method(D_METHOD("remove_custom_monitor", "id"), &Performance::remove_custom_monitor);
+--- a/main/main.cpp
++++ b/main/main.cpp
+@@ -28,6 +28,7 @@
+ /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                 */
+ /**************************************************************************/
+ 
++#include "core/debugger/rmmo_debug_trace.h"
+ #include "main.h"
+ 
+ #include "core/config/engine.h"
+@@ -4946,6 +4947,7 @@
+ // will terminate the program. In case of failure, the OS exit code needs
+ // to be set explicitly here (defaults to EXIT_SUCCESS).
+ bool Main::iteration() {
++	RmmoDebugTrace::Scope debug_scope(RmmoDebugTrace::MAIN_ITERATION, 0);
+ 	GodotProfileZone("Main::iteration");
+ 	GodotProfileZoneGroupedFirst(_profile_zone, "prepare");
+ 	iterating++;
+--- a/core/object/worker_thread_pool.cpp
++++ b/core/object/worker_thread_pool.cpp
+@@ -28,6 +28,8 @@
+ /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                 */
+ /**************************************************************************/
+ 
++#include "core/debugger/rmmo_debug_trace.h"
++#include "core/debugger/rmmo_debug_trace_tasks.h"
+ #include "worker_thread_pool.h"
+ 
+ #include "core/object/class_db.h"
+@@ -55,6 +57,8 @@
+ #endif
+ 
+ void WorkerThreadPool::_process_task(Task *p_task) {
++	RmmoDebugTrace::name_task(p_task->group ? p_task->group->self : p_task->self, int64_t(uintptr_t(this) | (p_task->group ? 1 : 0)), p_task->description);
++	RmmoDebugTrace::Scope debug_scope(RmmoDebugTrace::WORKER_EXECUTE, p_task->group ? p_task->group->self : p_task->self, int64_t(uintptr_t(this) | (p_task->group ? 1 : 0)));
+ #ifdef THREADS_ENABLED
+ 	int pool_thread_index = thread_ids[Thread::get_caller_id()];
+ 	ThreadData &curr_thread = threads[pool_thread_index];
+@@ -382,6 +386,8 @@
+ 	}
+ #endif
+ 
++	RmmoDebugTrace::name_task(id, int64_t(uintptr_t(this)), p_description);
++	RmmoDebugTrace::mark(RmmoDebugTrace::WORKER_ENQUEUE, id, int64_t(uintptr_t(this)));
+ 	_post_tasks(&task, 1, p_high_priority, lock, p_pump_task);
+ 
+ 	return id;
+@@ -420,6 +426,7 @@
+ }
+ 
+ Error WorkerThreadPool::wait_for_task_completion(TaskID p_task_id) {
++	RmmoDebugTrace::Scope debug_scope(RmmoDebugTrace::WORKER_WAIT, p_task_id, int64_t(uintptr_t(this)));
+ 	task_mutex.lock();
+ 	Task **taskp = tasks.getptr(p_task_id);
+ 	if (!taskp) {
+@@ -715,6 +722,8 @@
+ 
+ 	groups[id] = group;
+ 
++	RmmoDebugTrace::name_task(id, int64_t(uintptr_t(this) | 1), p_description);
++	RmmoDebugTrace::mark(RmmoDebugTrace::WORKER_ENQUEUE, id, int64_t(uintptr_t(this) | 1));
+ 	_post_tasks(tasks_posted, p_tasks, p_high_priority, lock, false);
+ 
+ 	return id;
+@@ -746,6 +755,7 @@
+ }
+ 
+ void WorkerThreadPool::wait_for_group_task_completion(GroupID p_group) {
++	RmmoDebugTrace::Scope debug_scope(RmmoDebugTrace::WORKER_WAIT, p_group, int64_t(uintptr_t(this) | 1));
+ #ifdef THREADS_ENABLED
+ 	task_mutex.lock();
+ 	Group **groupp = groups.getptr(p_group);
+--- a/core/io/resource_loader.cpp
++++ b/core/io/resource_loader.cpp
+@@ -28,6 +28,7 @@
+ /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                 */
+ /**************************************************************************/
+ 
++#include "core/debugger/rmmo_debug_trace.h"
+ #include "resource_loader.h"
+ 
+ #include "core/config/engine.h"
+@@ -730,6 +731,7 @@
+ }
+ 
+ Ref<Resource> ResourceLoader::load(const String &p_path, const String &p_type_hint, CacheMode p_cache_mode, Error *r_error) {
++	RmmoDebugTrace::Scope debug_scope(RmmoDebugTrace::RESOURCE_LOAD, p_path.hash());
+ 	return load_with_preparation_context(p_path, p_type_hint, p_cache_mode, get_current_preparation_context(), r_error);
+ }
+ 
+--- a/servers/rendering/rendering_server_default.cpp
++++ b/servers/rendering/rendering_server_default.cpp
+@@ -28,6 +28,7 @@
+ /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                 */
+ /**************************************************************************/
+ 
++#include "core/debugger/rmmo_debug_trace.h"
+ #include "rendering_server_default.h"
+ 
+ #include "core/object/callable_mp.h"
+@@ -74,6 +75,7 @@
+ }
+ 
+ void RenderingServerDefault::_draw(bool p_swap_buffers, double frame_step) {
++	RmmoDebugTrace::Scope debug_scope(RmmoDebugTrace::RENDER_DRAW, 0);
+ 	GodotProfileZoneGroupedFirst(_profile_zone, "rasterizer->begin_frame");
+ 	RSG::rasterizer->begin_frame(frame_step);
+ 
+@@ -444,6 +446,7 @@
+ /* EVENT QUEUING */
+ 
+ void RenderingServerDefault::sync() {
++	RmmoDebugTrace::Scope debug_scope(RmmoDebugTrace::RENDER_SYNC, 0);
+ 	if (create_thread) {
+ 		command_queue.sync();
+ 	} else {
+--- a/servers/rendering/renderer_rd/pipeline_hash_map_rd.h
++++ b/servers/rendering/renderer_rd/pipeline_hash_map_rd.h
+@@ -30,6 +30,7 @@
+ 
+ #pragma once
+ 
++#include "core/debugger/rmmo_debug_trace.h"
+ #include "core/object/worker_thread_pool.h"
+ #include "core/os/mutex.h"
+ #include "core/templates/hash_map.h"
+@@ -196,6 +197,7 @@
+ 	}
+ 
+ 	void wait_for_pipeline(uint32_t p_key_hash) {
++	RmmoDebugTrace::Scope debug_scope(RmmoDebugTrace::PIPELINE_WAIT, p_key_hash);
+ 		WorkerThreadPool::TaskID task_id_to_wait = WorkerThreadPool::INVALID_TASK_ID;
+ 
+ 		{
+--- a/servers/rendering/rendering_device.cpp
++++ b/servers/rendering/rendering_device.cpp
+@@ -28,6 +28,7 @@
+ /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                 */
+ /**************************************************************************/
+ 
++#include "core/debugger/rmmo_debug_trace.h"
+ #include "rendering_device.h"
+ #include "rendering_device.compat.inc"
+ 
+@@ -8555,6 +8556,7 @@
+ }
+ 
+ void RenderingDevice::_flush_and_stall_for_all_frames(bool p_begin_frame) {
++	RmmoDebugTrace::Scope debug_scope(RmmoDebugTrace::DEVICE_STALL, 0);
+ 	_stall_for_previous_frames();
+ 	_end_frame();
+ 	_execute_frame(false);
+--- a/drivers/vulkan/rendering_device_driver_vulkan.cpp
++++ b/drivers/vulkan/rendering_device_driver_vulkan.cpp
+@@ -28,6 +28,7 @@
+ /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                 */
+ /**************************************************************************/
+ 
++#include "core/debugger/rmmo_debug_trace.h"
+ #include "rendering_device_driver_vulkan.h"
+ 
+ #include "core/config/engine.h"
+@@ -3113,6 +3114,7 @@
+ }
+ 
+ Error RenderingDeviceDriverVulkan::fence_wait(FenceID p_fence) {
++	RmmoDebugTrace::Scope debug_scope(RmmoDebugTrace::VULKAN_FENCE_WAIT, 0);
+ 	Fence *fence = (Fence *)(p_fence.id);
+ 	VkResult fence_status = vkGetFenceStatus(vk_device, fence->vk_fence);
+ 	if (fence_status == VK_NOT_READY) {
+@@ -3248,6 +3250,7 @@
+ }
+ 
+ Error RenderingDeviceDriverVulkan::command_queue_execute_and_present(CommandQueueID p_cmd_queue, VectorView<SemaphoreID> p_wait_semaphores, VectorView<CommandBufferID> p_cmd_buffers, VectorView<SemaphoreID> p_cmd_semaphores, FenceID p_cmd_fence, VectorView<SwapChainID> p_swap_chains) {
++	RmmoDebugTrace::Scope debug_scope(RmmoDebugTrace::VULKAN_SUBMIT_PRESENT, 0);
+ 	DEV_ASSERT(p_cmd_queue.id != 0);
+ 
+ 	VkResult err;
+--- a/scene/resources/mesh.cpp
++++ b/scene/resources/mesh.cpp
+@@ -28,6 +28,7 @@
+ /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                 */
+ /**************************************************************************/
+ 
++#include "core/debugger/rmmo_debug_trace.h"
+ #include "mesh.h"
+ 
+ #include "core/io/resource_loader.h"
+@@ -1990,6 +1991,7 @@
+ }
+ 
+ void ArrayMesh::surface_set_material(int p_idx, const Ref<Material> &p_material) {
++	RmmoDebugTrace::Scope debug_scope(RmmoDebugTrace::MESH_MATERIAL, get_instance_id());
+ 	ERR_FAIL_INDEX(p_idx, surfaces.size());
+ 	if (surfaces[p_idx].material == p_material) {
+ 		return;
+--- /dev/null
++++ b/core/debugger/rmmo_debug_trace_tasks.h
+@@ -0,0 +1,7 @@
++#pragma once
++#include "core/string/ustring.h"
++namespace RmmoDebugTrace {
++// Optional metadata: first use of a description allocates in this thread's
++// private name table. Ordinary begin/end/mark never access that table.
++void name_task(int64_t p_task, int64_t p_context, const String &p_name);
++}

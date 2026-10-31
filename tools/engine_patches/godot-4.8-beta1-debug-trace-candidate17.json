@@ -1,0 +1,144 @@
+{
+  "schema_version": 1,
+  "candidate": "17r3",
+  "status": "diagnostic_contract_validated_separate_entry_normal_default_unchanged",
+  "apply_after": {
+    "path": "tools/engine_patches/godot-4.8-beta1-instance-property-candidate16.json",
+    "sha256": "2d829ffd8581059cd1213892eeb26af88d7fac7374377e09cfd5a5bf4c9a15bb"
+  },
+  "patch": {
+    "path": "tools/engine_patches/godot-4.8-beta1-debug-trace-candidate17.patch",
+    "sha256": "0f0ba1a4bfa432a19d9f352456ee1184395889f652b5fe4e9da8230220deed3c"
+  },
+  "files": [
+    {
+      "path": "core/debugger/rmmo_debug_trace.h",
+      "before_sha256": null,
+      "after_sha256": "7a3016ae893fa08cb40ebebba5aff9e3f99ae21a7060ffb7aedaead563049882"
+    },
+    {
+      "path": "core/debugger/rmmo_debug_trace.cpp",
+      "before_sha256": null,
+      "after_sha256": "1a4c65f5e7a4683701ecb5f5ef53362307ca2e68a351e969fe7066a1f2ea164e"
+    },
+    {
+      "path": "main/performance.cpp",
+      "before_sha256": "59cb19b7753869ff7913f13515399fdbe31bed558e8262c39bb2e7c4d385c5d9",
+      "after_sha256": "1cb5efb212f76cf02420408c895e83d70ae20ebd2d10be1fa5025ac582ff3468"
+    },
+    {
+      "path": "main/main.cpp",
+      "before_sha256": "1460993d3164d77f460b30b2e9a0a9d8f8d516e453c1bc30813966797cc35250",
+      "after_sha256": "350c801bf65a04ef4d516db8e26f7abe19292674e1ebd442376f8d0f6230bcc7"
+    },
+    {
+      "path": "core/object/worker_thread_pool.cpp",
+      "before_sha256": "65d8a23ae18aa4361e0f18eeda04a9e05bd55fb95e4a1e668c1c57779c23441e",
+      "after_sha256": "372553260eab4a6050d556c17e68fbe52a6b88127ca70ab8b77bf53c22679771"
+    },
+    {
+      "path": "core/io/resource_loader.cpp",
+      "before_sha256": "fab4b31c6a29f6c63c4fb11be32b8ae985f92b9631b0dd88bc98857e8afd2af6",
+      "after_sha256": "46acbcb5554bf4242e62ffa97ff31c3b20694c90447531810ffd687251053d8a"
+    },
+    {
+      "path": "servers/rendering/rendering_server_default.cpp",
+      "before_sha256": "5e7d3fce189c0ecd35529145b85cdc2c255160fa928d771ed95107ff049fbb1e",
+      "after_sha256": "3c9d74fbe2464b65ff831156ed3dcacec43f30b6c65c9651f8ed6f25e99149ca"
+    },
+    {
+      "path": "servers/rendering/renderer_rd/pipeline_hash_map_rd.h",
+      "before_sha256": "a0d4dbbb8c2706a047df399b28bf81a0d50c61fba7e75a664bdfc3e8ac04cb16",
+      "after_sha256": "fd875e1de30e36e934356bea51d4920b8820ac48b8bb7a231db154beab19d119"
+    },
+    {
+      "path": "servers/rendering/rendering_device.cpp",
+      "before_sha256": "5adfdd46ed8b801cf7e530632f106cbf700370abea2d3dd1d920aa553e42dfa8",
+      "after_sha256": "62706fcd591787c578e3dedaa90cf0951b378b11e36b19e1a19b6ff2acb90cf0"
+    },
+    {
+      "path": "drivers/vulkan/rendering_device_driver_vulkan.cpp",
+      "before_sha256": "905e964ab728de0ff48df78d34f3a40e4c389a9df014d883edf86b320c87d9c7",
+      "after_sha256": "15d49b20a965e493e4564f75fd68663c74cf1f2d65c8550d4ddadd1ff30586cc"
+    },
+    {
+      "path": "scene/resources/mesh.cpp",
+      "before_sha256": "a6971dffef12cd8d294becfc0296277ed3ceb383651e19f79ba5121c9233391a",
+      "after_sha256": "4540cd9c06882a4f9bc0fad23c8c9e54d1e019118e0c9061ed67013f55e2968f"
+    },
+    {
+      "path": "core/debugger/rmmo_debug_trace_tasks.h",
+      "before_sha256": null,
+      "after_sha256": "8fc5f7a9f3300fd60bd21838f847457c3674bf89ec60f2f424d8552babad7312"
+    }
+  ],
+  "build": {
+    "receipt": "D:\\code\\rmmo_runtime\\review_artifacts\\axel_post_roads_perf_20261030_01\\engine_debug_trace_candidate17r3\\result.json",
+    "receipt_sha256": "81a9667c6866ca65fd6f6c22ae270bfed7fc85ac02b87c646fda6e0f7fd2373a",
+    "command": [
+      "D:/tools/godot-4.8-build/python-env/Scripts/python.exe",
+      "-m",
+      "SCons",
+      "platform=windows",
+      "arch=x86_64",
+      "target=editor",
+      "use_mingw=yes",
+      "debug_symbols=yes",
+      "separate_debug_symbols=yes",
+      "dev_build=no",
+      "optimize=speed",
+      "lto=none",
+      "d3d12=no",
+      "accesskit=no",
+      "angle=no",
+      "-j4",
+      "tests=no"
+    ],
+    "seconds": 179.84399999999732,
+    "artifacts": {
+      "godot.windows.editor.x86_64.console.exe": {
+        "sha256": "c9f9cc64b3bf676fce81d9551a94579e3ea10bec9911ddc136a51a9c809eb499",
+        "bytes": 199477
+      },
+      "godot.windows.editor.x86_64.console.exe.debugsymbols": {
+        "sha256": "6deea8e077de379079182767930aa727a1ccc3975db9fa40da7afd94f021d913",
+        "bytes": 78178
+      },
+      "godot.windows.editor.x86_64.exe": {
+        "sha256": "9f88c2f6a09fa1e164e9f25b1b8fabea89419d45f47a56e77b6b557a9b83ece6",
+        "bytes": 163273098
+      },
+      "godot.windows.editor.x86_64.exe.debugsymbols": {
+        "sha256": "5b07d1c6138d24ac0f64978dabaa8185f87280ba9705006cd64d9b06c41f71b8",
+        "bytes": 2169451340
+      }
+    },
+    "source_unchanged": true,
+    "default_unchanged": true
+  },
+  "installed_path": "D:\\tools\\godot\\debug-trace-4.8",
+  "control": "Performance.debug_trace_*; off by default; CPU clock opt-in; existing candidate optimization switches remain off unless explicitly selected",
+  "evidence_root": "D:\\code\\rmmo_runtime\\review_artifacts\\axel_post_roads_perf_20261030_01\\engine_debug_trace_candidate17r3",
+  "report": "docs/debug_timeline.md",
+  "validation": {
+    "index": "validation_index.json",
+    "summary": "validation_summary.json",
+    "cpu": "88 checks x 3; each capture has 147456 scalar records across 12 writers; 0 missing",
+    "bench": "3 independent processes x 21 trials; 96000 equal task bodies; includes GD overhead, not native-only cost",
+    "gpu": "gpu01: real private-desktop Vulkan; 229 records / 13 threads; 0 dropped; rendered pixels unchanged",
+    "decoder": "tools/test_summarize_debug_timeline.py: 11 passed",
+    "installed_entry": "installed_entry_smoke/validation_index.json",
+    "patch": "patch_check.json: apply and reconstructed source verified",
+    "installed_entry_sources": "One CPU contract, one equal-work benchmark, one private-desktop Vulkan; no full-map claim",
+    "csv": "gpu01/csv_final/dependencies.csv + csv_validation.json; task249 wait links to thread24652; no viewer delivered"
+  },
+  "limitations": [
+    "Diagnostic build inherits candidates 11-16; not a replacement for normal-engine map acceptance.",
+    "CPU-side Vulkan scopes do not measure GPU hardware execution.",
+    "First thread registration and first distinct task name may allocate; ordinary scalar recording has no logging Mutex/spinlock.",
+    "Stop waits for in-progress event writes, not open tasks; pausing inside a writer still requires resuming it before stop can complete.",
+    "In-memory captures must be explicitly stopped/exported before process exit; crash recovery is not implemented.",
+    "No conclusion about the 100-second map load has been drawn from this component fixture."
+  ],
+  "delivery": "Native capture, GD controls, CSV/JSON offline analysis only, per latest user scope"
+}

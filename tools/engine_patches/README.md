@@ -623,3 +623,28 @@ without stacks. The binary is not installed. Copy `cpu_texture_compression` to
 an external directory for the private-desktop probe. See
 [engine contract](../../docs/editor_dds_engine_contract_20261028.md) for exact
 identities, commands, retained runner failure and remaining acceptance work.
+
+## Native memory timeline, Godot 4.8 (2026-10-31)
+
+Apply `godot-4.8-beta1-debug-trace-candidate17.patch` after the candidate16r2
+source identified by `godot-4.8-beta1-instance-property-candidate16.json`.
+The accompanying candidate17 manifest records every before/after source SHA,
+build command, executable/symbol hashes, and validation artifacts. The patch
+is the complete trace addition relative to 16r2, not an incremental r2-to-r3
+patch. Source snapshots and failed earlier probes remain in external evidence.
+
+`Performance.debug_trace_*` exposes bounded per-thread memory recording and
+explicit stop/export. Scalar writes have no logging mutex; first registration
+and optional distinct task-name metadata may allocate. Native scopes cover
+the main loop, worker enqueue/execute/wait, resource loading, material binding,
+render synchronization, pipeline waits and CPU-side Vulkan calls. Capture is
+off by default and existing optional optimization switches remain independent.
+
+The validated diagnostic executable and matching symbols are installed at
+`D:/tools/godot/debug-trace-4.8/`. The ordinary default candidate10 is unchanged.
+This build inherits the earlier diagnostic candidates and does not replace
+normal-engine performance acceptance. Use the reusable component runner and
+offline decoder described in [debug timeline](../../docs/debug_timeline.md).
+Three 88-check contracts, equal-work benchmarks, private-desktop Vulkan,
+offline decoding and CSV dependency checks passed. No map loading improvement
+is claimed by this instrumentation delivery.
