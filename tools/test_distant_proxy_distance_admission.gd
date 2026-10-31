@@ -32,6 +32,9 @@ func discard(scene:Node3D)->void:
 	check(service._job.is_empty(),"background preparation drains before test world disposal")
 	scene.free();await process_frame
 func run()->void:
+	# Exercise this stage even when the earlier building proof can skip it.
+	var proxy_script:Variant=Proxy
+	if proxy_script.get("building_admission_enabled")!=null:proxy_script.set("building_admission_enabled",false)
 	var scene:=world();var service:Node=scene.get_node("Proxy")
 	var material:=StandardMaterial3D.new();var meshes:Array[ArrayMesh]=[]
 	var arrays:=BoxMesh.new().get_mesh_arrays()

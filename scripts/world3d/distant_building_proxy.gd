@@ -8,6 +8,7 @@ const Retirement=preload("res://scripts/world3d/cpu_worker_retirement.gd")
 static var enabled:=true
 static var source_catalog_enabled:=true # Diagnostic scan control, same eligibility.
 static var tick_local_reuse_enabled:=true # Diagnostic repeated-query control.
+static var building_admission_enabled:=true # Diagnostic original collection control.
 static var early_distance_admission_enabled:=true # Isolate material-cache tests.
 const ENTER_M=240.
 const EXIT_M=200.
@@ -36,11 +37,20 @@ func tick(origin:Vector3)->void:
 	# cohort string formatting repeat across instances; edits, poses and owners
 	# are observed afresh next tick. Values contain no resource owners.
 	var mesh_keys:Dictionary={};var cohort_keys:Dictionary={"values":{},"builds":0}
+	var coarse:bool=building_admission_enabled and early_distance_admission_enabled and _rows.is_empty()
+	var raw:Array=[];var raw_records:Array[Dictionary]=[];var buildings:Dictionary={}
 	for group:Dictionary in batcher.groups.values():
 		if group.category!="building" or group.get("moving",false) or not is_instance_valid(group.get("visual")) or not group.visual is MeshInstance3D:continue
 		var record:Dictionary=group.members[0].get_meta("ground_batch_record",{})
 		if not record.has("building") or record.has("fixture"):continue
 		if group.visual.global_position.distance_to(origin)<EXIT_M-128.:continue
+		if coarse:
+			raw.append(group);raw_records.append(record)
+			var building:Variant=record.building.id
+			if building is String:
+				if not buildings.has(building):buildings[building]=[]
+				buildings[building].append(group)
+			continue
 		if early_distance_admission_enabled:
 			if group.visual.material_override!=null or group.visual.material_overlay!=null:continue
 		elif not _eligible(group.visual,material_keys,mesh_keys):continue
@@ -59,12 +69,37 @@ func tick(origin:Vector3)->void:
 		var record:Dictionary=node.get_meta("ground_batch_record",{})
 		if not record.has("building") or record.has("fixture") or not record.has("house_prefab"):continue
 		if node.global_position.distance_to(origin)<EXIT_M-128.:continue
+		if coarse:
+			var group:Dictionary={"visual":node,"members":[node]}
+			raw.append(group);raw_records.append(record)
+			var building:Variant=record.building.id
+			if building is String:
+				if not buildings.has(building):buildings[building]=[]
+				buildings[building].append(group)
+			continue
 		if early_distance_admission_enabled:
 			if node.material_override!=null or node.material_overlay!=null:continue
 		elif not _eligible(node,material_keys,mesh_keys):continue
 		var id:String=_cohort(record,node,cohort_keys)
 		if not candidates.has(id):candidates[id]=[]
 		candidates[id].append({"visual":node,"members":[node]})
+	if coarse:
+		var rejected:Dictionary={}
+		for building:String in buildings:
+			var groups:Array=buildings[building]
+			if groups.size()<2:
+				rejected[building]=true;profile["building_singletons"]=int(profile.get("building_singletons",0))+1
+			elif _building_near(groups,origin):
+				rejected[building]=true;profile["building_near_skips"]=int(profile.get("building_near_skips",0))+1
+		# Preserve original source/cohort order for pending work and MAX_PROXIES.
+		for i in raw.size():
+			var record:Dictionary=raw_records[i]
+			if record.building.id is String and rejected.has(record.building.id):continue
+			var group:Dictionary=raw[i];var visual:MeshInstance3D=group.visual
+			if visual.material_override!=null or visual.material_overlay!=null:continue
+			var id:String=_cohort(record,visual,cohort_keys)
+			if not candidates.has(id):candidates[id]=[]
+			candidates[id].append(group)
 	var candidate_bounds:Dictionary=_filter_candidates(candidates,origin,material_keys,mesh_keys) if early_distance_admission_enabled else {}
 	profile.eligibility_mesh_evaluations+=int(mesh_keys.get(&"evaluations",0))
 	profile.cohort_key_builds+=int(cohort_keys.builds)
@@ -93,6 +128,26 @@ func tick(origin:Vector3)->void:
 		var task:=_prepare.bind(row.sources,row.origin)
 		if thread.start(task)!=OK:Retirement.complete(lease);return
 		_job={"id":id,"thread":thread,"lease":lease,"row":row};return
+
+static func _building_near(groups:Array,origin:Vector3)->bool:
+	var bounds:=AABB();var first:=true
+	for group:Dictionary in groups:
+		var visual:MeshInstance3D=group.visual
+		# Native reads avoid changing the order of custom script/extension
+		# getters. Such sources retain the original live collection below.
+		if visual.get_script()!=null or visual.get_class()!=&"MeshInstance3D":return false
+		var mesh:Mesh=visual.get_mesh()
+		if mesh==null or mesh.get_script()!=null or mesh.get_class()!=&"ArrayMesh":return false
+		# PrimitiveMesh.get_aabb may generate geometry; only read native
+		# ArrayMesh cached bounds before material admission.
+		var box:AABB=visual.get_global_transform()*mesh.get_aabb()
+		bounds=box if first else bounds.merge(box);first=false
+		var farthest:Vector3=(bounds.position-origin).abs().max((bounds.end-origin).abs())
+		if not farthest.is_finite() or farthest.length_squared()>=ENTER_M*ENTER_M:return false
+	# This superset includes all layer/shadow/material sub-cohorts. Every
+	# possible eligible subset's center lies inside the same near envelope.
+	return not first
+
 func _filter_candidates(candidates:Dictionary,origin:Vector3,material_keys:Dictionary,mesh_keys:Dictionary)->Dictionary:
 	var checked_bounds:Dictionary={}
 	for id:String in candidates.keys():

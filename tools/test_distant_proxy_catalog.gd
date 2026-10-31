@@ -13,6 +13,9 @@ func check(ok:bool,message:String)->void:
 	checks+=1
 	if not ok:failures.append(message);printerr("FAIL ",message)
 func run()->void:
+	# Exercise this stage even when the earlier building proof can skip it.
+	var proxy_script:Variant=Proxy
+	if proxy_script.get("building_admission_enabled")!=null:proxy_script.set("building_admission_enabled",false)
 	if "--scan" in OS.get_cmdline_user_args():Proxy.source_catalog_enabled=false
 	var scene:=Node3D.new();root.add_child(scene)
 	var batches:=Batches.new();batches.name="GroundRenderBatches";scene.add_child(batches)
