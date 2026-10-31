@@ -1741,3 +1741,29 @@ candidate22独立GPU绿样本3次各320项通过，默认已安装4.8最终源�
 新增`tools/test_thread_identity.gd`在原32引擎先通过210项：三代各12个真实Thread、回调ID与start分配ID一致、跨代不复用、48个WorkerThreadPool任务及deferred回到主线程。candidate34正在以32的相同源码和构建参数重新编译，仅工具链与隔离object/binary后缀不同；默认10/已安装诊断17不替换。构建目录`P/engine_native_tls_candidate34/`，原75项源码SHA在启动前全部匹配，构建结束再次核对。
 
 接续入口`P/continue_native_tls34.py`已启动，等构建成功并核对SHA后顺序执行：三次身份合同、原生trace/并发/GPU像素合同、体纹理Vulkan校验、并行绘制工作计数与主RD环形资源生命周期检查；任何失败即停并保存。全部通过才启动**相同源码32(A)/34(B)**正常整图ABBAAB，完整HUD/纹理/TAA、冻结地图、独立用户目录及统一shader缓存种子，统计加载、卸载、返回、初次及返回low。当前未获得候选34运行结果，不能称35 FPS达标、引擎已交付或夜景已验收。
+
+交付预检发现：构建脚本去掉候选文件名的`.tls34`后缀，但PE内`.gnu_debuglink`仍保存原符号文件名。新增`tools/ensure_godot_debuglink.py`读取实际链接名，在引擎目录创建指向同一符号文件的hard link；不修改exe、不复制约2GB符号，不覆盖已存在的不同文件。工具输出的CRC是exe记录的期望值，不冒称重新计算了符号CRC。用32引擎创建重命名的隔离副本，GDB先报析构函数未定义；补齐别名后解析到`gdscript.cpp:2086`，exe SHA完全不变，重复调用不增加文件，既存异物冲突也验证不覆盖。证据`P/native_tls34/debuglink_preflight/`。`P/ensure_native_tls34_symbols.py`已等待构建完成，随后只补齐候选34的别名并写`debuglink_alias.json`；不修改已安装引擎或正在运行的构建脚本，候选34实际符号结果仍待构建结束确认。
+
+### 35：把卸载栈对齐到实际提交阶段；拆开空间索引的资源所有权（候选，整图待验）
+
+重新使用34的原始`stacks.jsonl`、`profile.cpu_time_anchor`及`world_3d.gd`实际提交顺序，将`stopped_unix_ns`换算为ticks_us，再落入各stage的起止区间。不能按照JSON键的字母序累计stage，也不能用持续到空场的`dispose_committed`标签归因。派生结果`P/render34_gdb_01/commit_attribution.json`。找到16份位于提交中的主线程栈：62–64为prepare，65–66为body释放，67为presentation observers，68–76为map.free，77为target_world_map。全停式GDB暂停已包含在区间内，**这些跨度和样本数不是正常CPU耗时或占比**；原回收未归零的功能失败仍保留。
+
+map.free的样本68为`SceneTree::remove_from_group → Vector.erase/find`，尚未取得具体group及规模，不据此修引擎；70为VisualInstance的渲染实例释放。**74的脚本身份是`deferred_asset_loader.gd`（111个成员），75才是`collision_neighborhood_index.gd`（11个成员）**，后者的metadata键确为`stream_collision_neighborhood`；76的metadata键为`stream_prop_index`。三处均进入嵌套Dictionary/Array析构。不能只搜索`Node::~Node`符号后认定没有抓到map.free，也不能把74与75混成同一个索引。Loader成员的进一步归因仍是独立缺口。
+
+当前`prepare_map_disposal`已处理纯标量索引、实际绘制网格、批次及记录，但空间桶保留spec，邻域成员保留Candidate，Candidate又保留spec/mesh。这些混合图没有进入现有回收队列，根metadata释放会连续销毁大量子所有者。它们不满足纯CPU回收接口的合同，不能整包移到worker。
+
+新增`tools/test_map_spatial_owner_retirement.gd`使用真实`Index.build`生成重复粗空间桶、细邻域、fallback查询缓存、spec及嵌套负载。原源码`red02`在256个独立资源中同步释放255个（另1个由外部spec借用），17项仅3条新的退役合同失败；`red01`只有测试的WeakRef类型推断错误，不计有效复现。随后加入建筑/地面关联、空目录和关机排空覆盖。最终同源码关闭新开关的`same_source_baseline03`通过16项原行为合同、仍同步释放255个；打开后的`green03`通过19项，同步释放**0**个，773个浅层所有权单位进入**1个**MAIN票据并完整排空。
+
+候选`stream_index_retirement.gd`仅按生产者已知结构取浅层引用，借用现有private-array队列的pop_back顺序：先根目录，再桶/缓存，再独立Candidate，最后spec。UUID目录已提供独立spec集合，不对每个空间桶重新扫描/去重全部spec，也不递归访问几何或任意metadata。原地图/节点仍立即销毁，退出观察者看到完整目录；临时detach不发起回收。存活借用者的邻域、缓存、spec和负载均不修改；资源析构留在主线程，CPU几何仍沿原有专用合同。空索引不增加票据，重复prepare幂等，关机无未来帧时也能排空。
+
+补测公开可变来源的coarse-only路径时，`optional_neighborhood_red`抓到候选误把`get_meta(key,null)`当作可选读取；Godot不存在该metadata且默认值为nil时会报错。先保存该失败，再改为`has_meta`判别。新增Logger断言，避免脚本exit0掩盖引擎错误。最终`green04` **24项全部通过、引擎错误0**，同步释放仍0；最终组件对照使用此版本，源码SHA见`source_manifest.json`。
+
+这不是零工作量转移：浅层引用快照会增加prepare工作；根容器本身及单个spec内部仍是不可分单位，不预先保证所有后续slice低于1ms。需要把prepare、map.free、后续回收总量/最大slice及返回前归零一起对比，不能只把map.free缩短当作整轮收益。当前小样本与编译器构建并行，**只用于功能/所有权验证，记录的时间不作为性能结论**。没有新的整图加载、low或卸载成绩。
+
+证据`P/spatial_retirement35/`，包含原world_stream源码、候选SHA、原/新小样本及独立project。`P/run_spatial_retirement35_tests.py`已排队：等34整图系列结束且无其他引擎/编译器后，在32引擎、相同候选源码下，以开关运行4096资源的ABBAAB六进程对照，再执行标量索引、运行记录、文档/批次缓存、碰撞邻域四套回归。失败即停，暂不自动启动35整图；先审查34引擎结果及组件结果。主整图fixture仍是累计33，**未混入35候选**，已安装引擎/引擎源码均未修改。
+
+验收顺序继续保持：白天初次进入和返回稳定段的1% low均稳定≥35 FPS后，再检查夜晚灯光、星空及夜间往返加载。白天目前未通过，夜景未启动；本节候选尚未提交或部署。
+
+为继续定位74号Loader析构栈，新增隔离采样扩展`P/spatial_retirement35/member_capture/gdb_export_callstacks.py`，没有覆盖其他会话正在修改的仓库版GDB工具。它读取实际`Variant`析构地址、`GDScriptInstance.members`存储范围及脚本`member_indices`映射，输出具体成员名/序号；不调用被暂停进程的方法，不按声明顺序猜测当前成员。不可读地址、越界/非对齐地址和多候选明确标为不可定位或歧义。
+
+真实32引擎+GDB18的三成员RefCounted小用例已经通过：在`Variant::_clear_internal`中命中第二个成员，解析为`payload`、index1；负例验证越界/非对齐地址不匹配，两个合法地址不冒称唯一成员。首轮测试断点过滤没有限定到目标成员，捕获的是`preface`，断言失败已保留；改为stop回调显式验证地址后通过，未据此声称GDB本身有bug。证据为该目录`first_gdb.log`及最终`gdb.log`/`result.json`。这是编译等待期间的功能诊断，不是耗时样本；尚未用该扩展重采真实地图，旧34栈没有保存Variant地址，不能事后补造Loader成员结论。
