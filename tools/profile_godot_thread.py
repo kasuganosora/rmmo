@@ -12,6 +12,7 @@ from pathlib import Path
 import time
 
 import psutil
+from godot_process_monitor import named_processes
 
 
 def main():
@@ -29,8 +30,12 @@ def main():
     deadline = time.monotonic() + args.timeout
     process = None
     while process is None and time.monotonic() < deadline:
-        for candidate in psutil.process_iter(["name", "cmdline"]):
-            if "godot" in (candidate.info["name"] or "").lower() and "--label=" + args.label in (candidate.info["cmdline"] or []):
+        for candidate in named_processes(("godot",)):
+            try:
+                arguments = candidate.as_dict(attrs=["cmdline"])["cmdline"] or []
+            except psutil.NoSuchProcess:
+                continue
+            if "--label=" + args.label in arguments:
                 process = candidate
                 break
         if process is None:
