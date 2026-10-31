@@ -684,3 +684,19 @@ encoding medians and all slower samples are retained in the linked performance
 log. This candidate has not replaced the default engine; component gains are not
 a claim of full-map loading or low-frame gains. See its JSON manifest for the
 exact executable, parent source and external evidence.
+
+## Frame-end timeline, candidate20 (2026-10-31)
+
+Apply `godot-4.8-beta1-frame-trace-candidate20.patch` after candidate19r2.
+It appends 22 labels for RD frame preparation, graph dependencies/sorting,
+barriers, driver command replay, submission and resource disposal. Two scalar
+marks per draw list report actual draw/binding instruction counts. An indirect
+instruction can represent multiple hardware draws; counts include canvas and
+postprocessing. API wall times are not GPU timestamps.
+
+The real-GPU component passed 53 checks and exactly matched 98,308 recorded draw
+instructions. Three full-map lifecycle captures passed with no dropped events,
+orphan ends, crossing spans or task-name conflicts. The saved-parent patch check
+matches the built sources after newline normalization. See the manifest and
+performance log for retained slow frames, the uninstalled binary and evidence.
+This diagnostic adds no parallel scheduling and does not claim a map speedup.

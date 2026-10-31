@@ -10,6 +10,8 @@
 
 已部署的诊断入口：`D:/tools/godot/debug-trace-4.8/godot.windows.editor.x86_64.exe`。同目录含匹配符号和 `patched_build_manifest.json`。候选 17r3 的 exe SHA256 为 `9f88c2f6a09fa1e164e9f25b1b8fabea89419d45f47a56e77b6b557a9b83ece6`；补丁及前置顺序见 `tools/engine_patches/godot-4.8-beta1-debug-trace-candidate17.json`。
 
+candidate20在18/19r2之上补充RD帧开始/结束、依赖整理、排序、屏障、驱动回放和资源释放，共22个标签。`rd.graph_draw`的task是指令字节数；`rd.graph_run`的task/context是命令数和依赖层级。`rd.graph.draw_bind_work`标记的task/value分别为draw和uniform绑定指令数，`rd.graph.vertex_pipeline_work`分别为顶点绑定和pipeline绑定次数；这些不是worker任务ID。计数包含2D/3D/后处理，indirect指令次数不是展开后的硬件draw数。只在列表结束写汇总，CPU API耗时不等于GPU硬件计时。独立用例精确核对98,308条draw与53项像素/绑定检查，三份冻结地图捕获也完成且无丢失。该候选未覆盖已安装诊断入口，具体构建与证据见性能日志及candidate20清单。
+
 ## GDScript 接口
 
 ```gdscript

@@ -1,0 +1,80 @@
+{
+  "candidate": "20",
+  "inherits": "19r2",
+  "status": "component_and_three_map_captures_verified",
+  "purpose": "Frame end CPU scopes and per-list aggregate draw/binding instruction counts; no rendering or scheduling changes",
+  "engine": "D:\\code\\rmmo_runtime\\review_artifacts\\axel_post_roads_perf_20261030_01\\engine_frame_trace_candidate20\\engine\\godot.windows.editor.x86_64.exe",
+  "engine_sha256": "45d58ac6f7265498f6e258df459a53fc7349d63a2b8783284e81c2d057941de0",
+  "default_engine_changed": false,
+  "source_changes": [
+    {
+      "path": "servers/rendering/rendering_device.cpp",
+      "before_sha256": "c41debbae1e24ff559b22181e8ae0a8bcea5755bcd6093c26d974a1970bfd6b7",
+      "after_sha256": "44748ff48c7317e231445f65061f3980b7b65a677811708cba19295c3c2364bd"
+    },
+    {
+      "path": "servers/rendering/rendering_device_graph.cpp",
+      "before_sha256": "5cf875bcde2b6abb2bc49017feb200a67d3e8a8997330256e3999f7ab2f78783",
+      "after_sha256": "79ef9bcbadcd0b5384463a5b4a92329e4546c7d9b839382c157a2a63b1e9b0d4"
+    },
+    {
+      "path": "core/debugger/rmmo_debug_trace_render.h",
+      "before_sha256": "ccceba62af42989402683bc37d4ce39fa5b839667e8fecc69c2ab5ada36968c8",
+      "after_sha256": "33a1b04b1ea0f0d1bdd3192de108620b4596b311acd479861500508f7e8d64c8"
+    },
+    {
+      "path": "core/debugger/rmmo_debug_trace.cpp",
+      "before_sha256": "cf76b92fb895a43be7d2622941aa7fb9239208f1357c6d1537751e49e0602c0c",
+      "after_sha256": "ac809244d3910ff09c75ea623ecabd673dd7a95298c1b226b0cb79807a81d2d5"
+    }
+  ],
+  "patch_sha256": "2c97906d81b8e771ed58ea2aa3bfdfe1d7b9ec0b048387eb006c61541eafcfcc",
+  "labels": {
+    "54": "rd.begin_frame",
+    "55": "rd.end_frame",
+    "56": "rd.execute_frame",
+    "57": "rd.stall_frame",
+    "58": "rd.free_pending",
+    "59": "rd.transfer_workers",
+    "60": "rd.transfer_barriers",
+    "61": "rd.graph_begin",
+    "62": "rd.begin_segment",
+    "63": "rd.command_begin",
+    "64": "rd.uniform_pool_reset",
+    "65": "rd.graph_end",
+    "66": "rd.graph_run",
+    "67": "rd.graph_draw",
+    "68": "rd.graph_compute",
+    "69": "rd.graph_framebuffer",
+    "70": "rd.graph_barriers",
+    "71": "rd.secondary_wait",
+    "72": "rd.graph_sort",
+    "73": "rd.graph_dependencies",
+    "74": "rd.graph.draw_bind_work",
+    "75": "rd.graph.vertex_pipeline_work"
+  },
+  "component": {
+    "checks": 53,
+    "expected_draw_commands": 98308,
+    "observed_draw_commands": 98308,
+    "work_marks": 25,
+    "pixel_checks_pass": true,
+    "source_sha256": "b87920a5c34d9bf9f89812f0c46ac20d840ef6c24f9a5873b7b4069cc81d93b1",
+    "engine_sha256": "45d58ac6f7265498f6e258df459a53fc7349d63a2b8783284e81c2d057941de0"
+  },
+  "evidence_root": "D:\\code\\rmmo_runtime\\review_artifacts\\axel_post_roads_perf_20261030_01",
+  "known_limits": [
+    "CPU API scopes are not GPU hardware timing",
+    "Draw instructions include 2D and postprocessing; indirect calls may issue more than one hardware draw",
+    "Compiler reports nested Scope variable shadow warnings; no build errors",
+    "No normal-engine performance acceptance is claimed"
+  ],
+  "map_evidence": "D:/code/rmmo_runtime/review_artifacts/axel_post_roads_perf_20261030_01/frame_trace20_three_samples.json",
+  "map_runs": [
+    "native_frame_trace20_01",
+    "native_frame_trace20_02",
+    "native_frame_trace20_03"
+  ],
+  "map_functional_pass": true,
+  "normal_performance_acceptance": false
+}
