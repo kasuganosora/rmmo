@@ -2032,3 +2032,67 @@ GPU ABBAAB三份每组`node_retirement42_series`：旧同步提交81.091 / 55.07
 | 返回加载7986–7988，71.8–76.5ms | draw_list独占15.7–26.8ms，已记录worker.wait约5–8ms | 原生绘制列表内部的管线查找、绑定、命令构建仍需细分 |
 
 旧道路字段/别名问题已确认，后续诊断不必继续做root_alias_probe的重复扫描；但完整证据留档，不删除慢帧。183项尾部仍要继续减少实际回收工作并检查调度，不扩大预算冒充解决。白天总体及35FPS门槛未通过，夜景未开始，默认Godot入口未替换，候选43只用于本轮原生节点接口/时间线复核。
+
+### 42. 协程原生时间线49：66ms缺口进入transfer_map同步恢复段
+
+继续按用户要求直接查时间线，没有恢复正常ABBA评分。候选49继承43，只增加GDScript协程的信号回调、恢复锁等待、完成信号、退出函数、VM栈释放及取消清理范围；不更改调度或销毁顺序，不保留额外Variant/Resource引用。Godot原有脚本计时在完成信号与VM栈析构之前收束，因此需要单独覆盖这两段。构建439.766s，source/default SHA检查通过；候选执行文件SHA为`a484fd06f366b29c7a5f7b687048dda4b3d1b5ef600ccd8c813562b6ff8416dc`，默认引擎未替换。
+
+`script_trace49_smoke_01`用真实await链、带3ms析构的RefCounted及取消等待的Node验证：正常栈释放3.019ms、完成回调链7.365ms、取消栈释放3.026ms，两个payload均实际死亡，取消分支不再执行；引擎/丢失/结构错误0。补丁和等字节用例归档为`tools/engine_patches/godot-4.8-beta1-script-lifetime-trace-candidate49.patch`与`tools/test_script_timeline_lifetime.gd`。补丁按保存前态应用后四个源文件SHA与实际构建一致。
+
+埋点身份有明确边界：连续多次await沿用最初FunctionState的completed Signal，恢复范围使用当前state ID；两者不能按task相等配对。按同线程parent_span关联，若捕获从协程中途开始、VM尾部缺名字，则从直接父state_resume补关联，保留推断标记。49分析只剩捕获起点的两个无父尾部范围未命名，不编造函数名。非恢复调用的VM销毁、clear锁等待及FunctionState原生成员析构尚未全部单独拆开。
+
+`node_trace49_01`双捕获2,399,602 / 4,015,826事件，丢失、导出及结构错误均0；没有并跑，冻结源恢复33。旧map/loader释放检查通过，唯一失败仍是空场12秒回收未排空。诊断完整需求57.268s、卸载峰值193.558ms、返回137.470ms，不能作为正常加载/FPS提升。
+
+返回11707帧94.213ms的关键链已确认：`_prepare_entry_geometry`完成信号 → `transfer_map`恢复，恢复体独占 **61.607ms**（含子范围61.656ms）；恢复锁等待 **1μs**、VM退出2μs、栈清理1μs。原来约66ms缺口主要位于同步恢复体，不能继续称作未归因的scene_process，也不能称为这一次的协程栈销毁或已记录锁等待。下一份50增加入口依赖、驻留configure/observe、导航build与entry_specs的范围，直接定位恢复体内部工作。
+
+49移除了已完成用途的root_alias_probe与47强制逐成员清理，恢复自然loader成员释放。它仍包含37的道路逐字段析构实验；因此private累计不等于生产循环成本。50进一步恢复普通private-value析构，仅保留外层单元时间线。旧证据原样保留，移除探针不当作生产优化收益。
+
+卸载9079另有92.425ms帧，其中worker.wait78.827ms已按任务确认：PipelineCompilation 30004等待10.947ms、后台执行11.289ms；30003等待67.832ms、后台执行79.937ms（粗粒度CPU62.5ms）。后台结束至MAIN恢复分别6μs、24μs，两段等待合计78.779ms。调用链是draw_list→pipeline.wait→worker.wait，属于真实管线编译等待；没有证据把它称为上传锁或资源回收。当前仍缺shader/material/variant、缓存命中及入队来源，尚不能证明为何卸载时产生编译或是否重复。白天总体及夜景仍未验收。
+## 43. 返回阶段补齐调用链：入口完成后才创建驻留服务造成整库补扫（50，2026-11-01）
+
+沿用49带符号候选引擎及同一冻结地图，在同步 continuation 增加 residency `configure/observe`、navigation `build`、entry dependencies/specs 的脚本 scope。50移除已解决的逐道路私有字段拆解，恢复自然 per-value 析构；旧地图最后持有者仍按真实生命周期释放。样本是诊断，不作为正常 FPS/加载评分或49→50速度对照。
+
+- `node_trace50_01` 返回 frame7694 为153.707ms，其中 `_bind_deferred_geometry` 83.326ms：AssetResidency.configure 36.165ms（observe 22.678ms，其余13.487ms），NativeResidency.configure 46.969ms（observe26.914ms，其余20.055ms）。同帧 navigation.build16.113ms、entry_scope_ready30.452ms、entry_candidates9.343ms、navigation._process7.799ms。父子 span 不能重复相加。
+- 这解释了49已定位的 `transfer_map` continuation 大段独占：两套驻留服务到 `_prepare_entry_geometry` 完成后才创建。入口已发布的实例不能使用当时同步有效的 prepared publication packet，只能在 configure 时再次遍历累积 `stream_library`。不需要把 packet 长期留存，也不需要扩大发布预算：消费者应在入口开始发布前订阅，原有 packet 随每次发布即时消费。
+- 实施候选 `residency_startup.ensure` 共用原初始化逻辑，保持 Asset→Native 接管顺序、初始既有 library 的兼容扫描、stream_children adoption 标记、真实 host 的初始/transfer readiness 门控。navigation 仍按原时序创建和绑定。入口中途失败时服务随 prepared map 一起释放；正式导航绑定仅复用服务。
+- 50 trace / return trace 分别2,647,714 /3,743,647事件，drop/export/registration、orphan/crossing/task-name-conflict均0；冻结33文件全部恢复。game exit1仍只有已知 `old resource retirement drains before return` 12秒队列条件，旧对象 WeakRef 已死亡。尚未把该条件写成通过。
+- 50 unload328.130ms、empty69.659ms（1帧>50）、return153.707ms、return_loading70.663ms。return frame7745另有 camera22.938ms、Node exit20.988+17.007ms、script13.486ms、地图投影10.402ms；加载期单帧 draw_list约19.648–28.695ms。这些仍需继续读各自时间线，不因本项改动宣告整个长帧问题完成。
+
+### 提前订阅的上下游复现及修复
+
+`tools/test_entry_residency_startup.gd` 使用实际 private preparation、Index commit 和同步 publication metadata。`node_retirement44_entry_startup51_red01` 的 `--late` 控制恰好失败2项：没有命中 prepared observer，bootstrap 再处理2151行；green01的初步23项通过。早 ensure0.192ms + publication3.884ms、晚configure24.290ms，仅是组件单样本机制证据，不作为地图性能收益。
+
+审查发现提前订阅必须同时解决的依赖边界：建筑发布后，再追加大块地形，Index 会更新旧建筑的共享 envelope/supports，但 `published` 只发送新 additions。有效复现 `node_retirement44_entry_startup51_ground_red02` 使用真实 `Stream.append_specs`：影响2151个旧组件，早期驻留/队列登记仍是64m范围及空支持，晚configure为256m及 `late_ground` 支撑。恰好2项失败，无脚本/引擎错误。此前 ground_red01 是 fixture 错用地形 runtime-owned prep，保留失败但不计有效复现。
+
+修复由 Index 在既有 affected-group 循环返回每组一个代表；Stream 成功提交后立即通知 NativeResidency，仅合并受影响 group/owner 的 bounds/supports 并更新队列，不重新 observe IDs、不保留 spec/packet。另补原先同组多 owner 只给第一个 owner 支撑的问题。标量 group→owner 表在成功完整组退役时直接删除；失败不产生通知。删除地形仍使用既有“保留建筑所需支持不能独立卸载”合同，没有新增全库校验。
+
+最终 `node_retirement44_entry_startup51_ground_green01` **46项通过，脚本/引擎错误0**，冻结项目恢复且测试/三个生产文件SHA一致。2151组件只更新1组/1 owner；共享组2命名空间更新1组/2 owners；覆盖重复追加失败无副作用、真实 `Stream.retire_specs` 后清除映射及重新追加无旧owner残留。此组件覆盖Stream退役事务，不替代Native延迟清理队列的真实地图验收。新profile为 `dependency_group_updates` / `dependency_unit_updates`，append timing含 `residency_dependencies_us`。
+
+证据：`D:/code/rmmo_runtime/review_artifacts/axel_post_roads_perf_20261030_01/node_trace50_01/`，含两次原始CSV、`blocking_attribution_return_csv.json`、`diagnostic.json`。准备与逐文件SHA在 `node_trace50_setup/manifest.json`；早订阅及依赖增量候选在 `node_trace51_setup/manifest.json`。真实地图验证另行追加。
+
+## 44. 51真实时间线：晚绑定消失，但初始库登记仍存在，不能宣布消除全部工作（2026-11-01）
+
+候选49引擎与50完全相同；冻结地图SHA不变；隐藏桌面完整纹理/HUD路径，只采一次卸载/返回时间线，没有重新跑A/B评分。`node_trace51_01` 两段分别2,627,747 /3,714,114事件，丢失、导出、注册及结构错误均0，无脚本/引擎错误，冻结33逐文件恢复。game exit1仍仅因为旧资源队列12秒内未排空，不能写成整套通过。默认4.8入口补跑 `node_retirement44_entry_startup51_default01` 同一46项组件全部通过、错误0、恢复成功。
+
+实际调用链结果：
+
+| MAIN范围 | 50诊断 | 51诊断 | 边界 |
+|---|---:|---:|---|
+| 入口完成后的 `_bind_deferred_geometry` | 83.326ms | 0.045ms | 已复用提前创建的服务，晚期整库登记不再在此调用发生 |
+| Native.configure（包含observe） | 46.969ms | 27.919ms | 51仍存在，在较早的入口准备帧执行 |
+| Asset.configure（包含observe） | 36.165ms | 21.704ms | 同上，不能将父子时间相加 |
+| 两套configure内初始observe | 26.914 +22.678ms | 15.539 +13.162ms | 初始MapLoader库尚无prepared消费者合同，仍逐组件登记 |
+| navigation.build | 16.113ms | 13.428ms | 本轮没有优化它，不将差异归功于本修复 |
+
+**不能把83ms→0.045ms说成消除了83ms总工作。** 51在frame7105仍有111.280ms：两套驻留合计49.623ms，此外Stream.sync12.516ms、entry candidates11.857ms、entry specs10.759ms等。目录配置只是前移，初始observe仍保留。更严格的工作量检查显示，50/51两套observe调用数分别都为789次。51 `deferred_profile.main_thread_budgets.covered_loading` 更直接证明：118帧内 acceptance_units=0、publication_units=0、publication_us=0；initial队列6256/6782/7425/7956ms均为stream_specs2473/deferred_specs0，return新图出现时同为2473/0，下一return_loading才2478/5。因此这张地图的entry阶段没有可被新订阅消除的发布后补扫，主要是把初始2473项观察前移；不声称实际扫描工作量下降。组件证明“早订阅→prepared发布”机制有效，依赖更新边界已修复；下一切片必须复用MapLoader初始后台索引元数据，解决这次实际留下的初始库扫描，而不是再移动它。
+
+本样本保留全部结果：entry8.150246s、full-ready44.213691s；unload194.691ms（1帧>50）、empty43.206ms（0帧>50）、return148.920ms（4帧>50）、return-loading59.406ms（6帧>50）。steady/return-steady low1%为38.138/37.368fps，仅记录诊断样本，不能宣布总体加载目标或夜间验收完成。
+
+后续已知具体工作：
+
+- unload frame4413的194.691ms，主线程 `main.iteration` CPU粗粒度187.5ms；exit_tree独占55.275ms，加native18.690、after13.621、groups9.654、signal7.852、parent signal7.734、script7.587、tree remove7.121ms等。是同步树退出链，后续节点析构分片没有消掉这次退出传播。
+- return frame7224的148.920ms，camera.bind_map24.915ms、退出signal19.967 / tree17.064ms、script continuation13.230ms、地图投影10.267ms；不是只剩下residency。
+- empty phase还有 `rd.free_pending`31.159ms、一个ConcavePolygonShape3D private-value释放30.661ms（该范围独占30.646ms）。未宣告资源回收长帧完成。
+- 51本次最大MAIN worker.wait只有6.908ms（RenderCommandRecord），不抹掉49已捕获的两个PipelineCompilation等待78.779ms。后者下一步补task→shader/cache owner generation/完整variant key及Vulkan阶段关联；源码表明draw_list中真正wait=true的是ubershader fallback，不能据此猜具体材质，也不能把包含re-spirv优化/ShaderModule创建的整个任务称作纯GPU驱动编译。
+
+证据：P/`node_trace51_01/{diagnostic.json,summary.json,blocking_attribution.json,csv/,return_csv/}`；P/`node_trace51_setup/manifest.json`保存候选61个overlay文件SHA。49引擎诊断补丁及组件测试已独立提交 `a2fff9b`；本轮应用改动另提交。保持当前目标active，优先补初始索引消费、同步树退出及实际释放/渲染任务身份，不再重复跑评分矩阵。

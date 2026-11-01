@@ -13,6 +13,7 @@ var _host:Node
 var _queue:Node
 var _units:Dictionary={}
 var _owners:Dictionary={}
+var _group_units:Dictionary={} # Scalar ownership only; retired index groups remove their rows.
 var _model_entries:Dictionary={}
 var _resident:Dictionary={}
 var _retired:Dictionary={}
@@ -82,10 +83,12 @@ func observe(specs:Array)->void:
 				var low:Vector2i=render.chunk_min;var high:Vector2i=render.chunk_max
 				var bounds:=AABB(Vector3(low.x*Stream.CHUNK_M,-100000,low.y*Stream.CHUNK_M),Vector3((high.x-low.x+1)*Stream.CHUNK_M,200000,(high.y-low.y+1)*Stream.CHUNK_M))
 				definition.bounds=definition.bounds.merge(bounds);changed[unit]=true;bound_observations+=1
-				if not group.is_empty():seen[group]=render
+				if not group.is_empty():
+					seen[group]=render;_remember_group_unit(group,unit)
 			if not definition.has("support_ids"):definition.support_ids={}
-			if not group.is_empty() and not support_groups.has(group):
-				support_groups[group]=true
+			if not group.is_empty() and not support_groups.get(group,EMPTY).has(unit):
+				if not support_groups.has(group):support_groups[group]={}
+				support_groups[group][unit]=true
 				for support:Dictionary in spec.get("render_supports",[]):
 					var id:String=support.get("ground_batch_record",EMPTY).get("uuid",str(support.uuid).get_slice("__",0))
 					definition.support_ids[id]=true
@@ -116,6 +119,7 @@ func _observe_publication(packet:RefCounted)->bool:
 				if not state.known_ids.has(id):state.ids.append(id);state.known_ids[id]=true
 		if definition.kind!="building":continue
 		for group:String in members.groups:
+			_remember_group_unit(group,unit)
 			# Index publication binds every member of this prepared group to one
 			# live envelope. Read that envelope after commit, including new ground.
 			var spec:Dictionary=members.groups[group];var render:Dictionary=spec.render_bounds
@@ -123,8 +127,9 @@ func _observe_publication(packet:RefCounted)->bool:
 			var bounds:=AABB(Vector3(low.x*Stream.CHUNK_M,-100000,low.y*Stream.CHUNK_M),Vector3((high.x-low.x+1)*Stream.CHUNK_M,200000,(high.y-low.y+1)*Stream.CHUNK_M))
 			definition.bounds=definition.bounds.merge(bounds);changed[unit]=true;observations+=1
 			if not definition.has("support_ids"):definition.support_ids={}
-			if not support_groups.has(group):
-				support_groups[group]=true
+			if not support_groups.get(group,EMPTY).has(unit):
+				if not support_groups.has(group):support_groups[group]={}
+				support_groups[group][unit]=true
 				for support:Dictionary in spec.get("render_supports",[]):
 					var id:String=support.get("ground_batch_record",EMPTY).get("uuid",str(support.uuid).get_slice("__",0))
 					definition.support_ids[id]=true
@@ -134,6 +139,40 @@ func _observe_publication(packet:RefCounted)->bool:
 	profile.observed_bounds=int(profile.get("observed_bounds",0))+observations
 	profile.prepared_observations=int(profile.get("prepared_observations",0))+1
 	return true
+func _remember_group_unit(group:String,unit:String)->void:
+	if not _group_units.has(group):_group_units[group]={}
+	_group_units[group][unit]=true
+func refresh_building_dependencies(groups:Dictionary)->void:
+	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.native_residency.refresh_building_dependencies") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
+	# New ground can expand an already published building's shared envelope.
+	# The index supplies one representative per changed group after commit;
+	# update only scalar dependency state, never observe its component IDs again.
+	var changed:Dictionary={};var observations:=0
+	for group:String in groups:
+		var owners:Dictionary=_group_units.get(group,EMPTY)
+		if owners.is_empty():continue # Its first ordinary publication will observe the final envelope.
+		var spec:Dictionary=groups[group];var render:Dictionary=spec.render_bounds
+		var low:Vector2i=render.chunk_min;var high:Vector2i=render.chunk_max
+		var bounds:=AABB(Vector3(low.x*Stream.CHUNK_M,-100000,low.y*Stream.CHUNK_M),Vector3((high.x-low.x+1)*Stream.CHUNK_M,200000,(high.y-low.y+1)*Stream.CHUNK_M))
+		var supports:Dictionary={}
+		for support:Dictionary in spec.get("render_supports",[]):
+			var id:String=support.get("ground_batch_record",EMPTY).get("uuid",str(support.uuid).get_slice("__",0))
+			supports[id]=true
+		for unit:String in owners:
+			if not _resident.has(unit):continue
+			var definition:Dictionary=_units[unit]
+			definition.bounds=definition.bounds.merge(bounds)
+			if not definition.has("support_ids"):definition.support_ids={}
+			definition.support_ids.merge(supports,true);changed[unit]=true
+		observations+=1
+	for unit:String in changed:
+		for entry:Dictionary in _units[unit].entries:_queue.register_runtime_building(entry.compact_record.uuid,_units[unit].bounds,_units[unit].support_ids)
+	profile.dependency_group_updates=int(profile.get("dependency_group_updates",0))+observations
+	profile.dependency_unit_updates=int(profile.get("dependency_unit_updates",0))+changed.size()
+func forget_building_groups(groups:Dictionary)->void:
+	# A successful complete retirement already proved no retained member needs
+	# these groups. Keep the scalar owner cache on the same index lifecycle.
+	for group:String in groups:_group_units.erase(group)
 func _drain_cleanup()->void:
 	if _cleanup_pending.is_empty() or not is_instance_valid(_map):return
 	var item:Dictionary=_cleanup_pending.pop_front()

@@ -513,7 +513,13 @@ static func append_specs(map_root:Node,additions:Array,preparation:RefCounted=nu
 	var pending_started:=Time.get_ticks_usec()
 	var pending:Array=map_root.get_meta("stream_append_pending",[])
 	pending.append_array(additions);pending.append_array(result.get("affected_existing_specs",[]));map_root.set_meta("stream_append_pending",pending)
-	var timing:Dictionary={"specs":additions.size(),"preflight_us":preflight_us,"index_us":index_us,"library_us":library_us,"pending_us":Time.get_ticks_usec()-pending_started}
+	var pending_us:=Time.get_ticks_usec()-pending_started
+	var dependency_started:=Time.get_ticks_usec()
+	var changed_groups:Dictionary=result.get("affected_existing_groups",{})
+	if not changed_groups.is_empty():
+		var native:Node=map_root.get_node_or_null("NativeResidency")
+		if native!=null:native.refresh_building_dependencies(changed_groups)
+	var timing:Dictionary={"specs":additions.size(),"preflight_us":preflight_us,"index_us":index_us,"library_us":library_us,"pending_us":pending_us,"residency_dependencies_us":Time.get_ticks_usec()-dependency_started}
 	if result.get("append_timing") is Dictionary:timing.merge(result.append_timing,true)
 	map_root.set_meta("stream_append_timing",timing)
 	if preflight_us+index_us+library_us>5000:
@@ -737,6 +743,8 @@ static func _retire_specs(map_root:Node,ids:Array,complete_unit:bool,navigation:
 		if not preparation.retired(ids):map_root.remove_meta("retirement_schema_preparation")
 	var usage:Node=map_root.get_node_or_null("AssetResidency")
 	if usage!=null:usage.forget_specs(ids)
+	var native:Node=map_root.get_node_or_null("NativeResidency")
+	if native!=null:native.forget_building_groups(result.get("retired_groups",{}))
 	var meshes:=_dict(map_root,&"stream_meshes");var bodies:=_dict(map_root,&"stream_bodies")
 	# Index/navigation already retired the complete identity set. Scene owners
 	# can be sparse after departure; collect them in the existing traversal.

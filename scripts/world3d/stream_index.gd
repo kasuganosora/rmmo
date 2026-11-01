@@ -543,15 +543,17 @@ static func _commit_owned_retire(existing:Dictionary,library:Array,ids:Array,pla
 	if not legacy_owned_rebuild_enabled:return _commit_owned_delta(existing,library,ids,plan if reuse_owned_retirement_plan_enabled else {})
 	var selected:Dictionary={}
 	for id:String in ids:selected[id]=true
-	var survivors:Array=[]
+	var survivors:Array=[];var retired_groups:Dictionary={}
 	for spec:Dictionary in library:
-		if selected.has(spec.uuid):continue
+		if selected.has(spec.uuid):
+			if spec.has("render_building"):retired_groups[spec.render_building]=true
+			continue
 		# Rebind every surviving support/dependent link to live source identities.
 		for field in ["render_building","render_bounds","render_supports","render_dependents"]:spec.erase(field)
 		survivors.append(spec)
 	var rebuilt:=build(survivors)
 	library.clear();library.append_array(survivors)
-	return {"ok":true,"error":"","removed":ids.size(),"removed_ids":ids.duplicate(),"data":rebuilt}
+	return {"ok":true,"error":"","removed":ids.size(),"removed_ids":ids.duplicate(),"data":rebuilt,"retired_groups":retired_groups}
 
 static func _commit_owned_delta(existing:Dictionary,library:Array,ids:Array,plan:Dictionary={})->Dictionary:
 	# validate_owned_retire already proved complete namespaces/groups and that
@@ -638,6 +640,7 @@ static func _commit_owned_delta(existing:Dictionary,library:Array,ids:Array,plan
 		landscape.resize(write)
 	var result:=_commit_retire(existing,library,{"selected":selected,"prefixes":prefixes,"cells":cells,"removed_ids":ids.duplicate(),"removed_specs":removed,"resident_ordered":plan.get("resident_ordered",false)})
 	result.erase("removed_specs")
+	result.retired_groups=groups
 	return result
 
 static func owned_dependency_pinned(existing:Dictionary,ids:Array)->bool:
@@ -750,7 +753,7 @@ static func append(existing:Dictionary,additions:Array,preparation:RefCounted=nu
 	for key in ["namespaces","prefixes","namespace_sizes","retirement_units","fixtures","group_bounds","group_cells","group_order","ground_cells","ground_order","dependents"]:
 		if not state.get(key) is Dictionary:return _append_failure("invalid append bookkeeping")
 	if not existing.get("stream_landscape") is Array or not existing.get("stream_building_count") is int:return _append_failure("invalid existing index")
-	if additions.is_empty():return {"ok":true,"data":existing,"added":0,"affected_groups":0,"affected_existing_specs":[]}
+	if additions.is_empty():return {"ok":true,"data":existing,"added":0,"affected_groups":0,"affected_existing_specs":[],"affected_existing_groups":{}}
 	var schema:=_schema_scope(additions,0,additions.size())
 	var runtime_prepared:bool=preparation!=null and preparation.get_script()==load("res://scripts/world3d/stream_index_preparation.gd") and preparation.valid_runtime_owned(additions)
 	var native_validated:bool=runtime_prepared or (preparation!=null and preparation.get_script()==load("res://scripts/world3d/stream_index_preparation.gd") and preparation.valid_owned_snapshot(additions))
@@ -895,14 +898,18 @@ static func append(existing:Dictionary,additions:Array,preparation:RefCounted=nu
 	append_timing.dependents_us=Time.get_ticks_usec()-append_phase_started
 	# These old entries can change residency without a camera/chunk change.
 	# Return their original references so the caller can replan just this delta.
-	var changed_existing:Dictionary={}
+	var changed_existing:Dictionary={};var changed_groups:Dictionary={}
 	for id:String in plans:
 		if fragment.stream_building_groups.has(id):continue
-		for member:Dictionary in existing.stream_building_groups[id]:
+		var members:Array=existing.stream_building_groups[id]
+		# Residency consumes one live envelope per old group, independently of
+		# the component delta that stream rendering still needs below.
+		changed_groups[id]=members[0]
+		for member:Dictionary in members:
 			if not originals.has(member.uuid):changed_existing[member.uuid]=member
 	for uuid:String in touched:
 		if not originals.has(uuid):changed_existing[uuid]=existing.stream_by_id[uuid]
 	existing.stream_building_count+=additions.size()
 	_collision_membership_changed(existing)
 	if owned_projection:preparation.accept()
-	return {"ok":true,"data":existing,"added":additions.size(),"affected_groups":affected.size(),"affected_existing_specs":changed_existing.values(),"append_timing":append_timing}
+	return {"ok":true,"data":existing,"added":additions.size(),"affected_groups":affected.size(),"affected_existing_specs":changed_existing.values(),"affected_existing_groups":changed_groups,"append_timing":append_timing}

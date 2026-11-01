@@ -382,12 +382,7 @@ func _bind_deferred_geometry(map_root:Node,navigation:Node)->void:
 		return {"ok":complete,"error":deferred.error_for_clip(clip)}
 	if streaming:
 		navigation.configure_streaming_geometry(provide_geometry,deferred.release_demand.bind(demand_id))
-		if map_root.get_node_or_null("AssetResidency")==null:
-			var residency:=preload("res://scripts/world3d/asset_residency.gd").new()
-			var adoption_complete:bool=int(map_root.get_meta("stream_children",-1))==map_root.get_child_count(true)
-			residency.configure(self,map_root,deferred);map_root.add_child(residency)
-			var native:=preload("res://scripts/world3d/native_residency.gd").new();native.configure(self,map_root,deferred);map_root.add_child(native)
-			if adoption_complete:map_root.set_meta("stream_children",map_root.get_child_count(true))
+		preload("res://scripts/world3d/residency_startup.gd").ensure(self,map_root)
 	else:
 		navigation.set_geometry_pending(true)
 		navigation.configure_geometry_provider(provide_geometry,deferred.release_demand.bind(demand_id))
@@ -781,6 +776,9 @@ func _prepare_entry_geometry(map_root:Node,host:Node,origin:Vector3,cover:Node=n
 	loading_profile.entry_core_cell=[plan.cell.x,plan.cell.y]
 	if not Stream.set_entry_scope(map_root,plan.safety_clip):return "入口区块范围无效"
 	var deferred:=map_root.get_node_or_null("DeferredAssets")
+	# Entry publication already prepares per-instance ownership metadata. Attach
+	# its consumers now, while polling is gated by initial/transfer readiness.
+	preload("res://scripts/world3d/residency_startup.gd").ensure(self,map_root)
 	if deferred!=null and not deferred.begin_entry_loading(host,plan.safety_clip,cover):return "无法启动入口区块准备"
 	map_root.set_meta("defer_source_upload",true)
 	if wind_background_enabled:_begin_wind_preparation(map_root,_entry_specs(map_root))
