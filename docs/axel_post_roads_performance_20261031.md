@@ -2181,6 +2181,8 @@ GroundBatchTimeline无丢失，503次residency_request全部immutable_append=fal
 
 初始>=1秒等待的任务15→3。剩余均为道路134/136/138；返回首服务仍分别2674.495/2653.076/2541.329ms，缺少selector/gate原因，不能按建筑原因解释。同path会有不同成员世代，严格用path+token关联，不把重复path自动算重复模型。新ready_service_preference共1793条，旧choose_later分支移除不单独作为收益；上述真实生命周期才证明轮转命中。
 
+完整配对进一步按phase+path+完整dispatch publication_ids唯一对应372/372任务，未混合同路的不同成员世代。1793条新比较器记录中822次继续burst、964次least-served、7次rank平局，全部符合规则；仅33条发生在首服务前。25栋建筑在初始和返回均无>=1秒首服务等待，返回最大301.102ms。仍须保留不利结果：所有job返回accepted→末commit p95 **2575.361→3423.245ms**、max **9450.944→11068.010ms**；首服务改善不等于结果最终排空更快。退休失败当时仍有210 pending。完整报告 `P/trace54_job_analysis/fairness_findings.md`。
+
 合批15次内部pending回放均与当时最新WorldStream请求root数一致，没有53的4次旧snapshot回退标量特征，也无prefix mismatch；首轮与返回最终均3914。此计数日志不冒称对所有Node身份做了整图认证；精确身份/签名由27个组件case覆盖。仍有493次immutable=false（初始248、返回244、宿主退休测试1）；full sync首轮12/返回10轮，collect→prune110/115次。准备阶段首轮prepare1374.615/prune871.512/collect264.094/drop296.483ms；返回1494.507/869.518/246.795/232.857ms。queued304/325、requeue85/106、membership_replace85/42，对应53为295/320、76/101、77/38。**旧状态回退修复成立，但整体重复准备没有下降**，不能包装成全局性能改善。
 
 工作量与材料边界：两轮模型23、reference_records1505、specs2176一致，没有因轮转额外生成这些对象。资格检查却10791→15911；返回_publication_ready exclusive268.739→401.528ms，dependency检查8233→10349、workspace5934→7004。这部分新增调度检查仍需精简，不能称所有工作量不变。返回WorldDocument._mesh同为691次；material step_and_publish同721次，54 max1.715ms，surface_material max0.105ms，未重现历史百毫秒材质首次提交；但surface_material调用3457→3629，不能遗漏增加。材料父子scope不叠加。
@@ -2188,3 +2190,58 @@ GroundBatchTimeline无丢失，503次residency_request全部immutable_append=fal
 全局结果仍未达标：entry **8.106716s**、full-ready **48.572268s**；返回收尾真实连续phase **49.047759s**，53为40.394637s，未缩短。unload206.617ms、empty20.101ms、return142.001ms、return_loading56.842ms/5帧>50；steady/return-steady诊断low1%40.067/36.241fps。不得只取建筑等待下降、初始full-ready变短或>50帧减少，宣告总体加载/长帧验收完成。
 
 后续优先按已证工作量接通真实WorldStream新增源账本，保留删除/替换/恢复/意外销毁及现有worker generation拒收；先保持checkpoint节奏，不直接把false改true或提前加入新dispatch节奏。特别要覆盖_adopt可能不变visibility_revision、_live静默擦除无效visual、同Node语义改变须撤销既有缓存。真实Stream.sync的N+M组件复现先行，不能再次仅以直接调用immutable=true的组件测试冒充已接入。证据 `P/trace54_job_analysis/`、`P/trace54_batch_analysis/`、`P/trace54_flow_extract/native_comparison.json`，下一接入设计 `P/stream_arrivals55_plan.md`。
+
+## 51. 真实Stream→Batcher接线缺口的组件复现（55，2026-11-01）
+
+新 `tools/test_stream_batch_arrival_pipeline.gd` 走真实Stream.append_specs/外部平铺节点adoption→Stream.sync→自动Batcher准备与执行，不直接调用immutable=true。只替代最后GPU批次commit，其余收集、资格、准备、packing、source freeze、generation和生命周期继续使用实际实现。
+
+`stream_arrivals55_red03` 完整55项中50通过、5失败，脚本/引擎错误0，冻结文件恢复：3项为重复准备工作，2项为late-adopt缺少批次。初始N=96只准备96；随后每轮M=16的prepare增量却为112/128/144，最终144源累计准备480次；packing每轮已经仅16，成员/签名对照全量重建仍正确，不能把问题误说成重复打包或重复模型加载。late-adopt中visibility_revision一直8、batch sync_count一直1，4个新节点已经进入stream_meshes，却没有合批更新。离开/返回、同UUID合法退役后替换、意外销毁修复的正确性检查均通过。
+
+red01因runner未带两份新静态依赖而没有运行有效断言；red02的同UUIDfixture在仍被需求pin时请求退役，被正常保护拒绝。二者保留原始结果，不算生产故障；red03先真实离开需求范围再执行complete-unit退役与替换，没有放宽保护。计划仅接入新增源账本及dirty checkpoint，保持原请求节奏、不启用early闭合dispatch、不增加预算；新实现和后续验证结果另追加，不提前宣布真实管线已接通。
+
+### 55最终组件与安全边界
+
+最小实现仅改WorldStream和StreamBatchArrivals：实际spawn/adopt记录Node handle/标量ID，正常checkpoint交付稳定累计roster，dirty可驱动没有visibility_revision变化的late adoption。正常退出、退休、替换撤销roster；显式可变更新及离树后编辑使用已有release_sources撤旧descriptor/group generation，仍分片准备，不同步flush；SUSPENDED_DRAW只是同几何CPU/GPU替换时保持复用。没有保存spec/Mesh强引用，不加逐Node信号，只用map级生命周期入口。第一次挂到已settled旧map不自行制造checkpoint；原三参closure helper语义保留，runtime显式不创建/dispatch closure票据。
+
+额外复现和修复：仅重建相同Node列表不足以刷新变更的geometry/material/record/pose；活跃旧worker可覆盖新CPU数据，故必须立即撤销旧generation。另有初次ledger尚未建立ID基线时，source退出且同帧加入无关child保持child_count的漏修复；已用事件和canonical身份触发已有repair，正常Stream._drop同步free由可嵌套单ID guard区分，不以Node.name猜UUID、不新增逐帧全表扫描。首次旧owner缺少身份元数据时保守处理一次事件，未扩大为全局认证。
+
+`stream_arrivals55_green06` **134/134通过、13场景、错误0**；既有child_adoption14、owned_removal12、stream_delta4均通过，共 **164项**，冻结33文件恢复。原N=96+3×M=16的实际 `_prepare_node` 访问 **480→144**，每轮新增访问112/128/144→16/16/16；这是函数访问工作量，不冒称480次全几何重建。packing仍144、sync_count仍4，completed_prefix_reuses=3、避免336次旧源访问；early_requests=0。late-adopt的revision仍8，必要sync_count1→2，12源全部入批。真正worker线程ID、CPU数组digest、live membership/signature、旧worker拒收、7个suspended原Node恢复均验证；正常新增/离开/中断返回repair=0，等child-count的异常loss repair=1。
+
+失败边界继续保留：补充CPU oracle首版未取Geometry.finish_upload的Cpu缓存，产生14个假差异，改读真实Cpu.capture后复验，没有据假差异改业务。初版ledger自动dirty导致已settled旧fixture无变化也创建batcher，owned回归发现后修为真正变化才请求，未放宽旧断言。最终生产SHA：world_stream `a201dc182a041be1a1520935fae26d587fbb6ccb01e541b3f1f0c376ba00e563`，helper `90ad91ed8a11bbf5a138479893a38c47732ceebb1f958a8089f809a6c85c108d`；证据 `P/stream_arrivals55_results.md`、`P/stream_arrivals55_setup/after_manifest.json`及各red/green回执。真实整图收益仍待trace55，不以164项组件通过代替。
+
+### 回收残留的下一次补证
+
+54共享FrameWorkBudget未启用且denied=0，不是共享预算拒绝。已有小聚合显示Retirement._process1555次、advance1569次、finish_front15次；不是全部空轮询。6个已命名private票据717片，含导航快照259片、空间索引205、合批缓存125；native nodes404片。194个已命名enqueue中183个来自defer_terrain_shape_owners，在卸载capture内均未获得服务，累计554 refs；它们排在仍在处理的private/nodes/PackedScene后。其余27项及截止时确切队头尚不明，不能将全局210 pending直接全归旧地图，也不等于等待其他owner引用归零。
+
+现有PackedScene探针将整数source_id错误按字符串冒号切分，合并为task0，finish又无ticket身份。下一次仅补MAIN单writer的scalar ticket journal与getter计数，内存记录、结束导出，不改队列顺序、fence、预算，不读取活worker私有values，不持资源引用。先独立验证身份与守恒再进入trace55。方案与可复算证据在 `P/trace54_retirement_analysis/findings_and_trace_plan.md`。
+
+
+## 52. 55真实流程：增量准备落地，卸载同步退树与引用释放仍是大头（2026-11-01）
+
+`node_trace55_01` 使用封存69文件、相同地图SHA和candidate49。业务组件164项及新票据探针317项通过，4文件parse通过；额外import headless样本17通过/1失败为原fixture明确要求真实GPU，保留未放宽。真实GPU整图exit0，功能失败/引擎错误/并发引擎均0，冻结33恢复。native两段2767216/3880275 events；票据1177项/11568事件，drop和结构错误0。诊断样本不是正常引擎性能验收，也没有另跑AB序列。
+
+实际计时：entry **11.678216s**，full-ready **53.153918s**，入口后 **41.475686s**；返回收尾连续phase **35.569170s**（54为49.047759s）。初始总加载变慢也完整保留，不将返回收尾变短全部归因给本改动。unload **232.296ms**/1帧>50，return **177.797ms**/6帧>50，return_loading **56.193ms**/2帧>50。steady low1%41.027、return-steady26.691fps（后者有54.615ms帧），未完成35fps稳定目标，夜晚尚未验收。
+
+### 增量账本确实被真实管线使用，但并非所有合批工作下降
+
+54的493次immutable=false改为55的559次true。初始实际prepared_source_visits=3914，prefix累计避免242193次旧源访问；返回prepared=4900、避免193671次旧源访问。避免访问数是复用前缀计数，不冒称同量完整几何重建/模型解析被省略。返回账本arrivals/appended_roots=2928、full_roster_builds=2、rows=1972、owner_loss_repairs=1，early/duplicate均0。map_profile在entry立即复制，只能代表入口时点；return_map_profile在settled复制，才覆盖完整返回。初始全程由BatchTimeline/队列累计计数补证，不能拿入口快照作完整账本。
+
+回收前重新准备的986个源已找到具体调用：返回prepared.reparent(self)把整个incoming map从staging SubViewport移交World，触发tree_exited/child exits。ledger保守视作owner丢失及离树修改，随后release_sources(986)。这是已知同步移交，需与实际删除/离树编辑区分；不能简单关闭生命周期失效。GroundBatcher的source_exit/worker retirement、adoption.full_scan也须一起审查。没有把此处单次重备说成全部35秒尾耗时的原因。
+
+代价仍保留：初始full sync轮12→78、返回10→63；queued304→427/325→459。prune消失、prepare减少，但bin/filter/drop等工作增长。继续分析追加源到现有分组的重排与重复构建，不能以prefix命中宣称合批整体完成。三条道路134/136/138的head priority均10、rank839/837/840；等待期多有priority0竞争项，返回首服务仍约1258/1223/1070ms。字段是slice结束态，缺实际selected-head/gate证据，不能把全部等待武断认定为已合格却被饿死。
+
+### 232ms卸载的顺序段已经对齐，不是后台上传锁
+
+两份spans各只读取一次，MAIN从main.iteration推导为22316，render.draw也运行在MAIN，不能重复计为另一个渲染线程。232.296ms样本内main.iteration231.279ms→scene_process228.411ms→transfer_map continuation206.985ms。后者只是外层容器，自身exclusive9.545ms。
+
+具体顺序段：bodies_detach **79.992ms**（2141次remove_child、5017次node_exit_tree）；map_detach **73.733ms**（一次remove_child递归4437次node_exit_tree）；prepare_disposal **36.873ms**，其中batch.clear23.009ms。两批退出节点ID交集0，不能说同一节点重复退出。整帧MAIN worker.wait总计仅 **146µs**、max68µs。已有原生分片只覆盖退树后的销毁，未覆盖同步退树；下一改造必须保留旧碰撞隔离和新地图可用性，不能后台操作活SceneTree或只加预算。
+
+返回收尾35.569170s的非重叠MAIN exclusive归因：渲染native标签15.689575s、stream/publish/batch9.142980s、其他常驻脚本3.327127s、MAIN外层未细分3.216883s、worker.wait1.705127s。最大具体项含draw_list6.255610s/13882次、batch.prepare2.281688s/1107次、world_stream.sync1.627344s/1559次。均为墙钟scope，不能当CPU时间或把父子重复相加。证据 `P/trace55_native_analysis/report.md`、`unload_named_subtrees.json`及完整帧父子链。
+
+### 回收清零是真实结果，仍没有证明稳定修复
+
+截止快照pending/known均0；但最后票据在112588415µs才完成，距landing settled **11.385021s**，仅剩 **0.618070s**余量。卸载窗口238次入队对应238次完成。9412节点/2458 child snapshots与54相同；普通private条目扣除已释放地形后21937→21942，几乎同量。只是若干同量释放更快且服务次数增加，不能归因于本轮删掉重复回收工作；保留12秒断言，不宣称稳定通过。
+
+最大PackedScene UID512累计318.569ms：纯扫描20片 **21.384ms**，纯引用释放249片 **292.789ms**，其余混合/完成约4.4ms。优化getter只能处理小部分，当前大头是释放。196个terrain票据650引用全服务，第一项110175421µs开始，最后112588415µs完成，MAIN累计456.582ms；最慢单值原生释放 **34.622ms**，类别ConcavePolygonShape3D。不能当作属性扫描或空等待。
+
+cpu_values:509后台耗时231.057ms、队头驻留约237ms，但其真实外层只有1个值（导航元数据根、1828 records）。因此不能用宽外层循环微测解释这个231ms；应继续追踪该嵌套根的实际析构。票据释放仅指服务放弃所有权，不代表其他owner或GPU物理内存已经回收。完整证据 `P/trace55_retirement_analysis/findings.md`、FIFO/phase/terrain逐片CSV；下一轮继续针对真实大块头，不以这次清零结束任务。

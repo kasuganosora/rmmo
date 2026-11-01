@@ -13,6 +13,8 @@ const FRAME_BUDGET := 12
 ## object-count ceiling that otherwise wastes hundreds of loading frames.
 const LOAD_BUDGET := 512
 const GroundBatcher = preload("res://scripts/world3d/ground_batcher.gd")
+const BatchArrivals = preload("res://scripts/world3d/stream_batch_arrivals.gd")
+const BATCH_ARRIVALS_META:=&"runtime_batch_arrivals"
 const CpuMesh = preload("res://scripts/world3d/ground_cpu_mesh.gd")
 const CollisionGeometry = preload("res://scripts/world3d/model_collision_requirements.gd")
 const FortCollision = preload("res://scripts/world3d/fortification_collision_batcher.gd")
@@ -109,6 +111,8 @@ static func _sync_work(map_root:Node,host:Node,origin:Vector3,budget:int,deadlin
 	var library: Array = _library(map_root)
 	var known := _dict(map_root, &"stream_known")
 	var meshes := _dict(map_root, &"stream_meshes")
+	var arrivals:=_batch_arrivals(map_root)
+	var owner_lost:bool=arrivals.take_owner_loss()
 	var bodies := _dict(map_root, &"stream_bodies")
 	_index_buildings(map_root,library)
 	var jobs := _jobs(map_root)
@@ -122,7 +126,7 @@ static func _sync_work(map_root:Node,host:Node,origin:Vector3,budget:int,deadlin
 		if adoption==null:
 			adoption=preload("res://scripts/world3d/stream_adoption_changes.gd").new(map_root,not _child_count_is(map_root,child_count))
 			map_root.set_meta("runtime_adoption_changes",adoption)
-	var adoption_dirty:bool=not _child_count_is(map_root,child_count) or (adoption!=null and adoption.dirty())
+	var adoption_dirty:bool=owner_lost or not _child_count_is(map_root,child_count) or (adoption!=null and adoption.dirty())
 	var previous_chunk:Variant=map_root.get_meta(&"stream_chunk") if map_root.has_meta(&"stream_chunk") else null
 	var unfinished:Array=[]
 	var additions:Array=map_root.get_meta("stream_append_pending",[])
@@ -157,14 +161,16 @@ static func _sync_work(map_root:Node,host:Node,origin:Vector3,budget:int,deadlin
 		if map_root.has_meta(&"stream_candidates"):
 			unfinished.append_array(map_root.get_meta(&"stream_candidates").slice(int(map_root.get_meta(&"stream_plan_cursor",0))))
 		for bin:Array in map_root.get_meta(&"stream_plan_bins",[]):unfinished.append_array(bin)
-	if unfinished.is_empty() and jobs.is_empty() and _chunk_is(map_root, &"stream_chunk", target) and not adoption_dirty:
+	if unfinished.is_empty() and jobs.is_empty() and _chunk_is(map_root, &"stream_chunk", target) and not adoption_dirty and not arrivals.has_pending():
 		return
 	if adoption_dirty:
 		var previous_size:=library.size()
 		var explicit_rebuild:bool=int(map_root.get_meta("stream_children",-1))<0 or (adoption!=null and adoption.full_scan)
 		# A deletion may leave an invalid owner in a residency dictionary. Keep
 		# the existing repair plan without a per-child destruction callback.
-		var lost_owner:bool=child_count<int(map_root.get_meta("stream_children",-1))
+		var lost_owner:bool=owner_lost or child_count<int(map_root.get_meta("stream_children",-1))
+		if explicit_rebuild:arrivals.invalidate_mutable()
+		elif lost_owner:arrivals.invalidate(true)
 		var roots:Variant=adoption.take_roots(int(map_root.get_meta("stream_children",-1))<0) if adoption!=null else null
 		_adopt(map_root, library, known,roots)
 		var changed:bool=not incremental_adoption_enabled or explicit_rebuild or previous_size!=library.size() or lost_owner
@@ -179,7 +185,14 @@ static func _sync_work(map_root:Node,host:Node,origin:Vector3,budget:int,deadlin
 			map_root.set_meta("stream_adoption_profile",profile)
 		child_count = map_root.get_child_count(true)
 		map_root.set_meta("stream_children",child_count)
-		if not changed and unfinished.is_empty() and jobs.is_empty() and _chunk_is(map_root,&"stream_chunk",target):return
+		if not changed and unfinished.is_empty() and jobs.is_empty() and _chunk_is(map_root,&"stream_chunk",target) and not arrivals.has_pending():return
+	if arrivals.take_mutable_invalidation():
+		# Only an explicit global mutation/offline edit revokes every descriptor.
+		# Release also retires the old group generations before a waiting worker
+		# can freeze stale geometry back onto the same edited Node identities.
+		# Ordinary arrivals/departures retain their narrower existing invalidation.
+		var mutable_batcher:=map_root.get_node_or_null("GroundRenderBatches")
+		if mutable_batcher!=null:mutable_batcher.release_sources(meshes.values())
 	if not _chunk_is(map_root, &"stream_target", target):
 		var preparer=map_root.get_node_or_null("StreamCollisionPreparer")
 		if preparer!=null:preparer.cancel_pending()
@@ -294,7 +307,7 @@ static func _sync_work(map_root:Node,host:Node,origin:Vector3,budget:int,deadlin
 		# cached result gets one attachment on the next turn before yielding.
 		if budget>0 and Time.get_ticks_usec()-apply_started>=slice_usec and (cursor>initial_cursor or Time.get_ticks_usec()-prepare_started>=slice_usec):break
 		var item_started:=Time.get_ticks_usec()
-		if _apply(map_root, host, jobs[cursor], draw, solid, meshes, bodies):
+		if _apply(map_root, host, jobs[cursor], draw, solid, meshes, bodies,arrivals):
 			map_root.set_meta("stream_visibility_revision",int(map_root.get_meta("stream_visibility_revision",0))+1)
 		if map_root.has_meta("stream_job_catalog"):
 			var catalog:Dictionary=map_root.get_meta("stream_job_catalog")
@@ -319,10 +332,13 @@ static func _sync_work(map_root:Node,host:Node,origin:Vector3,budget:int,deadlin
 	batcher.work_budget_usec=24000 if budget>=LOAD_BUDGET else 2000
 	var revision:int=map_root.get_meta("stream_visibility_revision",0)
 	var sliced_loading:bool=budget>=LOAD_BUDGET and sliced_loading_batches_enabled
-	if cursor>=jobs.size() and int(map_root.get_meta("stream_batch_revision",-1))!=revision:
-		var batch_sources:Array=meshes.values()
-		if (budget>0 and budget<LOAD_BUDGET) or sliced_loading:batcher.request_residency_sync(batch_sources,[],false)
-		else:batcher.sync(batch_sources)
+	if cursor>=jobs.size() and (int(map_root.get_meta("stream_batch_revision",-1))!=revision or arrivals.has_pending()):
+		if (budget>0 and budget<LOAD_BUDGET) or sliced_loading:
+			batcher.request_residency_sync(arrivals.all_sources(meshes),[],true)
+		else:
+			# Synchronous/editor callers can mutate existing sources. Preserve
+			# their full descriptor invalidation and revoke the runtime roster.
+			batcher.sync(meshes.values());arrivals.submitted_mutable()
 		map_root.set_meta("stream_batch_revision",revision)
 		map_root.set_meta("stream_batch_source_count",meshes.size())
 		map_root.set_meta("stream_batch_checkpoint_msec",Time.get_ticks_msec())
@@ -377,6 +393,8 @@ static func prepare_map_disposal(map_root:Node,tree:SceneTree=null,record_consum
 	# exit callbacks before ANY source exits. Otherwise the first dying member
 	# restores all surviving CPU sources just before the whole map is destroyed.
 	# Temporary tree detach and individual source removal keep their restore path.
+	if map_root.has_meta(BATCH_ARRIVALS_META):
+		map_root.get_meta(BATCH_ARRIVALS_META).dispose();map_root.remove_meta(BATCH_ARRIVALS_META)
 	var deferred:Node=map_root.get_node_or_null("DeferredAssets")
 	if deferred!=null:deferred._retire_document_cache_owners()
 	for service:String in ["GroundRenderBatches","StreamCollisionPreparer"]:
@@ -733,6 +751,8 @@ static func _retire_specs(map_root:Node,ids:Array,complete_unit:bool,navigation:
 	if legacy_retirement_validation_enabled:result=index.retire_owned(checked.data,checked.library,ids) if complete_unit else index.retire(checked.data,checked.library,ids)
 	else:result=index._commit_owned_retire(checked.data,checked.library,ids,checked.plan) if complete_unit else index._commit_retire(checked.data,checked.library,checked.plan)
 	if not result.ok:return result
+	var retirement_arrivals:RefCounted=map_root.get_meta(BATCH_ARRIVALS_META) if map_root.has_meta(BATCH_ARRIVALS_META) else null
+	if retirement_arrivals!=null:retirement_arrivals.invalidate(true)
 	if checked.preparation!=null:
 		checked.preparation.retired(ids)
 		var profile:Dictionary=map_root.get_meta("retirement_schema_profile",{})
@@ -758,7 +778,7 @@ static func _retire_specs(map_root:Node,ids:Array,complete_unit:bool,navigation:
 	var batcher=map_root.get_node_or_null("GroundRenderBatches")
 	if batcher!=null:batcher.retire_sources(owned.nodes)
 	for id:String in owned.ids:
-		if not live_node_retirement_enabled or meshes.has(id):_drop(meshes,id,meshes.get(id))
+		if not live_node_retirement_enabled or meshes.has(id):_drop(meshes,id,meshes.get(id),null,retirement_arrivals)
 		if not live_node_retirement_enabled or bodies.has(id):_drop(bodies,id,bodies.get(id))
 	for key:String in result.data:map_root.set_meta(key,result.data[key])
 	# Index retirement cannot leave transient planning or debug ownership.
@@ -1208,11 +1228,18 @@ static func _dict(node: Node, key: StringName) -> Dictionary:
 	return created
 
 
-static func _live(bag: Dictionary, uuid: String):
+static func _batch_arrivals(map_root:Node)->RefCounted:
+	if map_root.has_meta(BATCH_ARRIVALS_META):return map_root.get_meta(BATCH_ARRIVALS_META)
+	var created:=BatchArrivals.new(_dict(map_root,&"stream_meshes"),map_root)
+	map_root.set_meta(BATCH_ARRIVALS_META,created)
+	return created
+
+
+static func _live(bag: Dictionary, uuid: String,arrivals:RefCounted=null):
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.world_stream._live") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	var node: Variant = bag.get(uuid, null)
 	if node == null or not is_instance_valid(node):
-		bag.erase(uuid)
+		if bag.erase(uuid) and arrivals!=null:arrivals.invalidate(true)
 		return null
 	return node
 
@@ -1279,6 +1306,9 @@ static func _adopt(map_root: Node, library: Array, known: Dictionary,roots:Varia
 		# established paths, and distant sources are still removed by residency.
 		if mesh.get_parent()==map_root and spec.has("ground_batch_record") and not spec.ground_batch_record.has("fortification") and not spec.native_visual:
 			mesh.set_meta("stream_instance",true);_dict(map_root,&"stream_meshes")[adopted]=mesh
+			# No early closure is claimed here: derived index membership follows
+			# adoption. The ordinary checkpoint consumes the complete live roster.
+			_batch_arrivals(map_root).arrived(spec,mesh,{},false)
 			_track_deferred_source(map_root,mesh)
 			preload("res://scripts/world3d/wind_response.gd").register(mesh)
 			preload("res://scripts/world3d/building_shadow_proxy.gd").attach(mesh)
@@ -1606,12 +1636,13 @@ static func _needs_work(spec: Dictionary, draw: Dictionary, solid: Dictionary, m
 	return false
 
 
-static func _apply(map_root: Node, host: Node, spec: Dictionary, draw: Dictionary, solid: Dictionary, meshes: Dictionary, bodies: Dictionary) -> bool:
+static func _apply(map_root: Node, host: Node, spec: Dictionary, draw: Dictionary, solid: Dictionary, meshes: Dictionary, bodies: Dictionary,arrival_ledger:RefCounted=null) -> bool:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.world_stream._apply") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	if draw.has("entry_clip") and not _in_entry_scope(spec,draw.entry_clip):return false
+	if arrival_ledger==null:arrival_ledger=_batch_arrivals(map_root)
 	var key: Vector2i = spec["chunk"]
 	var uuid := str(spec["uuid"])
-	var inst = _live(meshes, uuid) as MeshInstance3D
+	var inst = _live(meshes, uuid,arrival_ledger) as MeshInstance3D
 	var body = _live(bodies, uuid) as StaticBody3D
 	var changed:=false
 	var collides := str(spec.get("extras", {}).get("rmmo_collision", "")) != "none" and not (bool(spec.get("extras", {}).get("hostile", false)) or bool(spec.get("extras", {}).get("ally", false)))
@@ -1633,11 +1664,13 @@ static func _apply(map_root: Node, host: Node, spec: Dictionary, draw: Dictionar
 			inst.global_transform = spec["transform"]
 			meshes[uuid] = inst
 			_track_deferred_source(map_root,inst)
+			arrival_ledger.arrived(spec,inst,{},false)
 			changed=true
 		elif inst.has_meta(GroundBatcher.SUSPENDED_DRAW):
 			GroundBatcher.restore(inst)
 			changed=true
 	elif inst != null:
+		arrival_ledger.invalidate(true)
 		var batcher:Node=map_root.get_node_or_null("GroundRenderBatches")
 		if batcher!=null:
 			# One budgeted node removal can invalidate a much larger batch. Do
@@ -1652,7 +1685,7 @@ static func _apply(map_root: Node, host: Node, spec: Dictionary, draw: Dictionar
 				var owned:Variant=by_id.get(str(member.name))
 				if owned is Dictionary and not owned.get("native_visual",false) and meshes.get(str(member.name))==member and not _draws(owned,draw):suspended[member.get_instance_id()]=true
 			batcher.retire_sources([inst],suspended)
-		_drop(meshes, uuid, inst, map_root)
+		_drop(meshes, uuid, inst, map_root,arrival_ledger)
 		changed=true
 	if collides:
 		if FortCollision.candidate(spec.get("ground_batch_record",{})):
@@ -1676,7 +1709,7 @@ static func _ring_at(chunk: Vector2i, radius: int) -> Dictionary:
 	return {"low": chunk - Vector2i(radius, radius), "high": chunk + Vector2i(radius, radius)}
 
 
-static func _drop(bag: Dictionary, uuid: String, node: Node, map_root:Node=null) -> void:
+static func _drop(bag: Dictionary, uuid: String, node: Node, map_root:Node=null,arrival_ledger:RefCounted=null) -> void:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.world_stream._drop") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	if node != null and is_instance_valid(node):
 		if owned_removal_accounting_enabled and map_root!=null and node.get_parent()==map_root:
@@ -1687,7 +1720,9 @@ static func _drop(bag: Dictionary, uuid: String, node: Node, map_root:Node=null)
 			# Leave prior mismatches/-1 untouched. Account before free so exit
 			# callbacks can still invalidate the count or remove other owners.
 			if _child_count_is(map_root,count):map_root.set_meta("stream_children",count-1)
+		var previous_exit:int=arrival_ledger.begin_owned_exit(node.get_instance_id()) if arrival_ledger!=null else 0
 		node.free()
+		if arrival_ledger!=null:arrival_ledger.end_owned_exit(previous_exit)
 	bag.erase(uuid)
 
 
