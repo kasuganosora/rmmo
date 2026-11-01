@@ -158,6 +158,10 @@ func discard(id: String) -> Dictionary:
 func request_exit(close_window: bool = true) -> void:
 	if editor.saving(): return
 	if editor._playtest != null and editor._playtest.active(): editor._playtest.stop(); return
+	if editor._world_address_tools != null and editor._world_address_tools.has_dirty_catalogs():
+		editor._status.text = "地图编号目录有未保存修改，请在世界地址窗口保存或明确放弃后再退出。"
+		preload("res://scripts/world_editor/world_address_dialog.gd").open(editor)
+		return
 	if is_instance_valid(prompt): return
 	editor._finish_edits()
 	_close_window = close_window
@@ -182,6 +186,8 @@ func close_action(action: String) -> Dictionary:
 	if action == "cancel":
 		if is_instance_valid(prompt): prompt.queue_free(); prompt = null
 		return {"ok": true, "closing": false}
+	if editor._world_address_tools != null and editor._world_address_tools.has_dirty_catalogs():
+		return Store.fail("地图编号目录有未保存修改，请先保存目录或显式 discard_world_catalog；地图关闭操作不会代存或丢弃目录。")
 	if action not in ["save", "keep_draft", "discard"]: return Store.fail("关闭操作无效")
 	editor._finish_edits()
 	var result := {"ok": true}
@@ -206,6 +212,9 @@ func close_after_save() -> void:
 		prompt.popup_centered()
 
 func _finish_exit() -> void:
+	if editor._world_address_tools != null and editor._world_address_tools.has_dirty_catalogs():
+		editor._status.text = "地图编号目录仍有未保存修改，已保留编辑器。"
+		return
 	preload("res://scripts/net/net.gd").session().world3d_editor_doc = null
 	if _close_window: get_tree().quit()
 	else: editor._exit_editor()

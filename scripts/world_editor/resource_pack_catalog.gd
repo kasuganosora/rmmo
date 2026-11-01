@@ -1,5 +1,6 @@
 extends RefCounted
 ## A resource pack owns maps, NPCs, settings and assets. Default is shared.
+const Paths = preload("res://scripts/world3d/map_paths.gd")
 var root: String
 
 func _init(content_root: String = "") -> void:
@@ -10,6 +11,7 @@ func packs() -> Array[Dictionary]:
 	var seen := {}
 	# Direct project/A packs plus the layouts already used by AssetManager.
 	for base in [root, root.path_join("packs"), root.path_join("packs/map_pack")]:
+		if not Paths.allowed(base, root): continue
 		var directory := DirAccess.open(base)
 		if directory == null: continue
 		for folder in directory.get_directories():
@@ -34,6 +36,7 @@ func _is_pack(path: String) -> bool:
 	return _read_metadata(path) is Dictionary
 
 func _read_metadata(path: String) -> Variant:
+	if not Paths.allowed(path.path_join("metadata.json"), root): return null
 	var file := FileAccess.open(path.path_join("metadata.json"), FileAccess.READ)
 	if file == null: return null
 	var parser := JSON.new()
@@ -66,6 +69,7 @@ func maps_in(pack: Dictionary) -> Array[Dictionary]:
 
 func _collect_maps(path: String, base: String, pack: Dictionary, result: Array[Dictionary], depth: int) -> void:
 	if depth > 32: return
+	if not Paths.allowed(path, root): return
 	var directory := DirAccess.open(path)
 	if directory == null: return
 	for file in directory.get_files():

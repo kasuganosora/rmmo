@@ -1,5 +1,11 @@
 # 当前 3D 地图编辑器 MCP
 
+## 世界地址与数字地图编号（2026-11-01，D1）
+
+“文件 → 世界地址与地图编号…”与当前 3D MCP 同步使用共享业务层。新增 `list_world_maps`、`register_world_map`、`save_world_catalog`、`undo_world_edit`、`redo_world_edit`、`discard_world_catalog`、`resolve_world_address` 和 `get_current_world_address`。目录独立保存与撤销；地图文件名、作者 `map_ref` 和地图 `undo/redo` 不变。编号使用精确十进制字符串，地址为 `包ID:数字编号:x,y,z`；坐标保留双精度，每轴地址范围 ±1e12 米，不表示渲染/物理已支持该世界范围。
+
+登记以 `list_world_maps` 返回的入口及文档修订为准，保存同时验证 `expected_edit_revision` 和 `expected_disk_sha`。解析只返回地图内位置，不贴地、不传送、不提供连续世界坐标；选中物件复制作者原点，胶囊行走复制实际脚点。包版本歧义需指定已发现的 `pack_root`。`editor_state.world_addresses` 只读缓存状态；目录未保存时退出保护有效。完整参数、保存合同、限制与验收见 [D1 交付记录](world_address_d1_20261101.md)。
+
 ## 道路端头（2026-10-29）
 
 `update_road_graph` 的完整 `edges[]` 条目增加可选 `cap_start`、`cap_end`，各取 `round`（省略时默认）或 `flat`。分别控制 `from`、`to` 的独立端头；平头在节点横截面结束，已连接的路口不受此样式裁断。UI 线段属性使用相同 schema 和业务操作，沿用 expected_token、锁定/隐藏保护、路缘自动重建、撤销和保存。工具名称与二维下线状态不变。操作说明及实际 HTTP/GPU 回归见 [道路平头](world_editor_roads.md#道路平头2026-10-29)。

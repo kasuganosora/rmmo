@@ -259,7 +259,7 @@ static func tools()->Array:
 	# Runtime lookup avoids a preload cycle: joint schemas reuse native contracts.
 	var joint=load("res://scripts/world_editor/joint_candidate_tools.gd")
 	var schema:Dictionary=joint.joint_schema()
-	return native_tools()+[
+	return native_tools()+load("res://scripts/world_editor/world_address_tools.gd").tool_specs()+[
 		spec("list_joint_candidate_operations","列出联合候选允许的原生操作及共享参数 schema。只读。每步包含唯一 id 和恰好一个操作名字段。",{},[],true),
 		spec("preview_joint_candidate","按顺序在私有文档准备1–64步跨工具候选：整地、道路、住宅/街区、河道、桥梁、城防和植被。每步字段为id及一个操作名，值为该操作参数；不执行保存或文件写入。步骤expected_token均引用原地图，校验后自动绑定前一步结果；不能带单工具plan_token。失败返回step_id/index；最后重验完整道路、住宅入口与街区保留区。最多16栋住宅、8192变化构件、256MiB快照，整地总计64次。返回逐步影响、最终增删改及一个plan_token。",schema.properties,schema.required,true),
 		spec("apply_joint_candidate","应用整组联合候选；地图、资源或快照完整性变化拒绝。一次原生撤销/重做，保留独立选择、碰撞、保存和自动派生批次。成功后仍须save_world。",{"plan_token":text_field()},["plan_token"]),

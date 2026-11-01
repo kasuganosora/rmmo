@@ -23,6 +23,7 @@ func state() -> Dictionary:
 	return ok({"editor": "world3d", "map_path": editor._path, "units": "meters", "up_axis": "Y",
 		"wind_preview":editor._wind_tools.preview_enabled,
 		"walk":editor._walk_mode.state(),
+		"world_addresses":editor._world_address_tools.state() if editor._world_address_tools != null else {},
 		"object_count": editor._doc.records.size(), "selection": editor._selection_tools.ids.duplicate(),
 		"dirty": editor._dirty, "read_only": editor._load_failed, "undo_count": editor._doc._undo.size(), "redo_count": editor._doc._redo.size(),
 		"editor_view": editor._authoring.settings.duplicate(true), "playtest":editor._playtest.state(), "spawn_picking":editor._authoring.picking,
@@ -53,6 +54,15 @@ func state() -> Dictionary:
 		"camera_position": array3(editor._camera.position), "camera_rotation": array3(editor._camera.rotation_degrees)})
 
 func execute(name: String, args: Dictionary) -> Dictionary:
+	match name:
+		"list_world_maps": return editor._world_address_tools.list_maps(args)
+		"register_world_map": return editor._world_address_tools.register_map(args)
+		"save_world_catalog": return editor._world_address_tools.save_catalog(args)
+		"undo_world_edit": return editor._world_address_tools.undo_catalog(args)
+		"redo_world_edit": return editor._world_address_tools.redo_catalog(args)
+		"discard_world_catalog": return editor._world_address_tools.discard_catalog(args)
+		"resolve_world_address": return editor._world_address_tools.resolve_address(args)
+		"get_current_world_address": return editor._world_address_tools.current_address(args)
 	return editor._diagnostics.explain(_execute(name,args),name)
 
 func _execute(name: String, args: Dictionary) -> Dictionary:
@@ -395,6 +405,7 @@ func _execute(name: String, args: Dictionary) -> Dictionary:
 		"restore_editor_draft": return editor._safety.restore(args.draft_id, args.get("discard_changes", false))
 		"discard_editor_draft": return editor._safety.discard(args.draft_id)
 		"close_editor":
+			if args.action != "cancel" and editor._world_address_tools != null and editor._world_address_tools.has_dirty_catalogs(): return error("地图编号目录有未保存修改，请先 save_world_catalog 或明确 discard_world_catalog。")
 			editor._safety._close_window = true
 			if args.action == "save": return editor._save_job.start(editor._path)
 			return editor._safety.close_action(args.action)
