@@ -32,15 +32,15 @@ func spec(r:Dictionary)->Dictionary:
 	return {"uuid":r.uuid,"chunk":r.chunk_min,"chunk_min":r.chunk_min,"chunk_max":r.chunk_max,"ground_batch_record":{"uuid":r.uuid,"terrain_mesh":{}},"render_bounds":{"chunk_min":r.chunk_min,"chunk_max":r.chunk_max},"extras":{}}
 func run()->void:
 	var saved_typed:=Queue.typed_demand_scan_enabled;var saved_incremental:=Queue.incremental_pending_index_enabled
-	var records:Array=[terrain("axel_terrain_00_00",0),terrain("terrain_far",1400),terrain("terrain_return",-500),{"uuid":"road"},{"uuid":"bridge"},{"uuid":"ordinary_global"},{"uuid":"ordinary_model"}]
+	var records:Array=[terrain("axel_terrain_00_00",0),terrain("terrain_far",6000),terrain("terrain_return",-500),{"uuid":"road"},{"uuid":"bridge"},{"uuid":"ordinary_global"},{"uuid":"ordinary_model"}]
 	var rows:Array=[]
 	for i in records.size():
 		records[i].rmmo_ref={"uri":str(i)+".rmres","sha256":"a".repeat(64),"length":32,"version":1}
 		rows.append(row(records[i],i,["","","","native_road","native_bridge","native_box","unknown_geometry"][i]))
 	var index:={"ok":true,"rows":rows,"extras":{"rmmo_records":records},"groups":{},"models":{}}
-	var origin:=Vector3(156.,8.4,209.);var away:=origin+Vector3(2048.,0.,0.)
+	var origin:=Vector3(156.,8.4,209.);var away:=origin+Vector3(10000.,0.,0.)
 	var cell:=Stream.chunk_key(origin);var center:=Vector3((cell.x+.5)*32.,0.,(cell.y+.5)*32.)
-	var player_clip:=AABB(center-Vector3(128,100000,128),Vector3(256,200000,256))
+	var player_clip:=AABB(Vector3((cell.x-4)*32.,-100000,(cell.y-4)*32.),Vector3(288,200000,288))
 	var cold:=Directory.select(index,[player_clip])
 	check(cold.ok and cold.record_indices.has(0) and cold.record_indices.has(1) and cold.record_indices.has(2),"cold global selection initially includes all terrain")
 	var source:=spec(rows[0])
@@ -61,7 +61,7 @@ func run()->void:
 	check(ids(queue).is_empty(),"retired origin tile stays unloaded while far away")
 	queue.prioritize(origin)
 	check(ids(queue)==["axel_terrain_00_00"],"same focus requests the terrain that cold entry displayed")
-	check(queue._demands.has("terrain_render") and queue._demands.terrain_render.kind=="terrain" and queue._demands.terrain_render.priority==10,"terrain has a low-priority dedicated far-view ticket")
+	check(queue._demands.has("visual_render") and queue._demands.visual_render.kind=="all" and queue._demands.visual_render.priority==10,"terrain shares the low-priority visual ticket with all other visible objects")
 	var requests:=queue._reference_requests(queue.pending[0].path)
 	check(requests.size()==1 and requests[0].compact_record.uuid=="axel_terrain_00_00","return request contains the exact retired compact terrain owner")
 	check(queue._demands.player.clip==player_clip and Stream.COLLISION_RADIUS==2,"terrain demand does not enlarge player/physics residency")

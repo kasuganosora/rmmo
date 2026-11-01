@@ -1,11 +1,13 @@
 extends RefCounted
-## Small residency cells index near physics and kilometre-scale landscape views.
+## Small residency cells index near physics and the complete camera view.
 
 const Location = preload("res://scripts/world3d/world_location.gd")
 const CHUNK_M := 32.0
-const RENDER_RADIUS := 1
-const BUILDING_VIEW_M := 1000.0
-const BUILDING_RENDER_RADIUS := int(ceil(BUILDING_VIEW_M / CHUNK_M))
+const VISUAL_VIEW_M := 4000.0
+const VISUAL_RENDER_RADIUS := int(ceil(VISUAL_VIEW_M / CHUNK_M))+1
+const RENDER_RADIUS := VISUAL_RENDER_RADIUS
+const BUILDING_VIEW_M := VISUAL_VIEW_M # Compatibility names; all scenery shares the view.
+const BUILDING_RENDER_RADIUS := VISUAL_RENDER_RADIUS
 const COLLISION_RADIUS := 2
 ## Gameplay spreads a chunk swap across frames. Tests pass 0 and finish in one call.
 const FRAME_BUDGET := 12
@@ -20,6 +22,7 @@ const CollisionGeometry = preload("res://scripts/world3d/model_collision_require
 const FortCollision = preload("res://scripts/world3d/fortification_collision_batcher.gd")
 const Landscape = preload("res://scripts/world3d/stream_landscape.gd")
 const FrameBudget = preload("res://scripts/world3d/frame_work_budget.gd")
+const CellQuery = preload("res://scripts/world3d/stream_cell_query.gd")
 const APPEND_INDEX_FIELDS:Array[StringName]=[&"stream_by_id",&"stream_known",&"stream_index",&"stream_prop_index",&"stream_collision_index",&"stream_building_groups",&"stream_landscape",&"stream_append_state",&"stream_building_count",&"stream_collision_revision",&"stream_collision_candidate_cache",&"stream_collision_neighborhood"]
 
 ## Validated query reuse with an A/B fallback. Only candidates/bounds are cached;
@@ -87,6 +90,19 @@ static func chunk_key(position: Vector3) -> Vector2i:
 		floori(position.x / CHUNK_M) if is_finite(position.x) else 0,
 		floori(position.z / CHUNK_M) if is_finite(position.z) else 0
 	)
+
+
+static func render_radius(map_root:Node)->int:
+	return maxi(0,int(map_root.get_meta("stream_visual_radius",RENDER_RADIUS)))
+
+
+static func set_render_radius(map_root:Node,radius:int)->bool:
+	if radius<0 or render_radius(map_root)==radius:return false
+	map_root.set_meta("stream_visual_radius",radius)
+	# The canonical source-change path rebuilds from live indexes and preserves
+	# append_pending. Never drop an unfinished publication or attachment here.
+	map_root.set_meta("stream_source_revision",int(map_root.get_meta("stream_source_revision",0))+1)
+	return true
 
 
 static func ring(origin: Vector3, radius: int) -> Dictionary:
@@ -270,7 +286,7 @@ static func _sync_work(map_root:Node,host:Node,origin:Vector3,budget:int,deadlin
 		return
 	if planned_work and deadline>0 and Time.get_ticks_usec()>=deadline:return
 	var cursor := int(map_root.get_meta(&"stream_cursor", 0))
-	var draw := _source_ring(map_root,target, RENDER_RADIUS)
+	var draw := _source_ring(map_root,target, render_radius(map_root))
 	var solid := _source_ring(map_root,target, COLLISION_RADIUS)
 	var appended_now:=false
 	if budget>0 and budget<LOAD_BUDGET and not map_root.has_meta("stream_collision_priority_work"):
@@ -617,7 +633,7 @@ static func _retirement_preflight(map_root:Node,ids:Array,complete_unit:bool,all
 	if not barrier.is_empty():return {"ok":false,"error":barrier}
 	var index=preload("res://scripts/world3d/stream_index.gd")
 	var target:Vector2i=map_root.get_meta("stream_chunk")
-	var draw:=_source_ring(map_root,target,RENDER_RADIUS);var solid:=_source_ring(map_root,target,COLLISION_RADIUS)
+	var draw:=_source_ring(map_root,target,render_radius(map_root));var solid:=_source_ring(map_root,target,COLLISION_RADIUS)
 	var specs:Array=[];var by_id:Dictionary=map_root.get_meta("stream_by_id",{})
 	var resident_catalog:bool=allow_preparation and resident_retirement_catalog_enabled and index.reuse_owned_retirement_plan_enabled and not legacy_retirement_validation_enabled
 	var draw_groups:Dictionary={};var solid_cells:Dictionary={}
@@ -1408,16 +1424,17 @@ static func _candidates(map_root: Node, target: Vector2i, meshes: Dictionary, bo
 		selected[key] = by_id[key]
 	for key in _dict(map_root,&"fortification_collision_sources"):
 		selected[key]=by_id[key]
-	var radius:=maxi(COLLISION_RADIUS,RENDER_RADIUS)
+	var visual_radius:=render_radius(map_root)
+	var radius:=maxi(COLLISION_RADIUS,visual_radius)
 	var centers:Array=[target]
 	centers.append_array(map_root.get_meta("stream_sources",{}).values())
 	for center:Vector2i in centers:
-		for z in range(center.y - radius, center.y + radius + 1):
-			for x in range(center.x - radius, center.x + radius + 1):
-				for key in index.get(Vector2i(x, z), []):
-					selected[key] = by_id[key]
+		var query:=CellQuery.new(index,center,center,radius,false)
+		query.finish()
+		for bucket:Array in query.bins:
+			for key:String in bucket:selected[key]=by_id[key]
 	var groups:=_dict(map_root,&"stream_building_groups")
-	var draw:=_source_ring(map_root,target,RENDER_RADIUS)
+	var draw:=_source_ring(map_root,target,visual_radius)
 	for members:Array in groups.values():
 		if not _draws(members[0],draw):continue
 		for member:Dictionary in members:selected[member.uuid]=member
@@ -1438,18 +1455,14 @@ static func _changed_candidates(map_root:Node,previous:Vector2i,target:Vector2i,
 	var selected:Dictionary={}
 	for spec:Dictionary in unfinished:selected[spec.uuid]=spec
 	if previous==target:return selected.values()
-	for radius in [RENDER_RADIUS,COLLISION_RADIUS]:
-		var index:Dictionary=_dict(map_root,&"stream_prop_index" if radius==RENDER_RADIUS else &"stream_collision_index")
-		var old:=_ring_at(previous,radius);var next:=_ring_at(target,radius)
-		for center in [previous,target]:
-			for z in range(center.y-radius,center.y+radius+1):
-				for x in range(center.x-radius,center.x+radius+1):
-					var key:=Vector2i(x,z)
-					var inside_old:bool=x>=old.low.x and x<=old.high.x and z>=old.low.y and z<=old.high.y
-					var inside_next:bool=x>=next.low.x and x<=next.high.x and z>=next.low.y and z<=next.high.y
-					if inside_old==inside_next:continue
-					for spec:Dictionary in index.get(key,[]):selected[spec.uuid]=spec
-	var old_draw:=_ring_at(previous,RENDER_RADIUS);var next_draw:=_ring_at(target,RENDER_RADIUS)
+	var visual_radius:=render_radius(map_root)
+	for field:StringName in [&"stream_prop_index",&"stream_collision_index"]:
+		var radius:=visual_radius if field==&"stream_prop_index" else COLLISION_RADIUS
+		var query:=CellQuery.new(_dict(map_root,field),previous,target,radius)
+		query.finish()
+		for bucket:Array in query.bins:
+			for spec:Dictionary in bucket:selected[spec.uuid]=spec
+	var old_draw:=_ring_at(previous,visual_radius);var next_draw:=_ring_at(target,visual_radius)
 	for members:Array in _dict(map_root,&"stream_building_groups").values():
 		if _draws(members[0],old_draw)==_draws(members[0],next_draw):continue
 		for spec:Dictionary in members:selected[spec.uuid]=spec
@@ -1475,11 +1488,9 @@ static func _draws(spec:Dictionary,draw:Dictionary)->bool:
 	for area:Dictionary in draw.get("sources",[]):
 		if _draws(spec,area):return true
 	if not spec.has("render_bounds"):return _overlaps(spec,draw)
-	var extra:=BUILDING_RENDER_RADIUS-RENDER_RADIUS
-	var far:={"low":draw.low-Vector2i(extra,extra),"high":draw.high+Vector2i(extra,extra)}
-	if _overlaps(spec.render_bounds,far):return true
+	if _overlaps(spec.render_bounds,draw):return true
 	for bounds:Dictionary in spec.get("render_dependents",[]):
-		if _overlaps(bounds,far):return true
+		if _overlaps(bounds,draw):return true
 	return false
 
 
@@ -1495,7 +1506,7 @@ static func _plan_jobs(map_root: Node, jobs: Array, meshes: Dictionary, bodies: 
 	var bins: Array = map_root.get_meta(&"stream_plan_bins")
 	var plan_ids:Dictionary=map_root.get_meta("stream_plan_ids",{})
 	map_root.set_meta("stream_plan_ids",plan_ids)
-	var draw := _source_ring(map_root,target, RENDER_RADIUS)
+	var draw := _source_ring(map_root,target, render_radius(map_root))
 	var solid := _source_ring(map_root,target, COLLISION_RADIUS)
 	var batched:=_dict(map_root,&"fortification_collision_sources")
 	var draw_groups:Dictionary={};var solid_cells:Dictionary={}

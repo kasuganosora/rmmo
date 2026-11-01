@@ -1,0 +1,466 @@
+{
+  "schema_version": 1,
+  "candidate": "10+shutdown13",
+  "status": "installed_sha_verified",
+  "date": "2026-11-01",
+  "version": "4.8.beta.custom_build.4d10419ca",
+  "purpose": "Fix PRE_EXIT_LANGUAGES idle-registration deadlock after pending low-priority WorkerThreadPool jobs finish.",
+  "baseline": {
+    "candidate": "10",
+    "engine_sha256": "7a8029a67b0e0bbc442c12f5ebf0aa67baf2e53f65c8750dd5fbb6b4adabdb53",
+    "symbols_sha256": "bd2749d59db19ef16b32351530922b81af52e7a6372a238a1331f0131b52c7c7",
+    "build_result": {
+      "path": "D:/code/rmmo_runtime/review_artifacts/axel_post_roads_perf_20261030_01/engine_shader_rid_candidate10/result.json",
+      "sha256": "85d0728229eff3bf7a97b25336539c489e1c6ebc9f6ced484589c9fe912db900"
+    },
+    "installed_manifest_sha256_before": "89638792af31e21041a6b8b50232125bb2ae6be41236a92dab01d3ed0bae8c71"
+  },
+  "source": {
+    "patch": {
+      "path": "D:/code/rmmo/tools/engine_patches/godot-4.8-beta1-worker-shutdown-candidate13.patch",
+      "sha256": "0b55aad374d07ffdef1dae355209363ec8fb7d6d35ede8350a9787b40e51afbc"
+    },
+    "patch_sequence": [
+      "08",
+      "09",
+      "10",
+      "13-shutdown-only"
+    ],
+    "source_plan": {
+      "path": "D:/code/rmmo_runtime/review_artifacts/runtime_blackout_exit_20261101/engine10_shutdown_only_setup/source_plan.json",
+      "sha256": "2e31beb2beac9a3621e65c8dce600b80d6408868f5f049214eba6d9176f2b868"
+    },
+    "tracked_source_count": 55,
+    "only_changed_source": "core/object/worker_thread_pool.cpp",
+    "before_sha256": "7d8a76de17e61e87e00f312a0e4ddf1cb37e9af9932603f644e7d58259c2937a",
+    "after_sha256": "65d8a23ae18aa4361e0f18eeda04a9e05bd55fb95e4a1e668c1c57779c23441e",
+    "isolated_tree": "D:\\code\\rmmo_runtime\\review_artifacts\\runtime_blackout_exit_20261101\\engine10_shutdown_only_setup\\source\\godot-4.8-beta1",
+    "source55_unchanged_during_build": true,
+    "shared_candidate58_source_untouched": true,
+    "default_unchanged_during_build": true,
+    "not_included": [
+      "candidate11 instance-release changes",
+      "candidate12 pipeline-flag changes",
+      "candidate58 and other unqualified engine changes"
+    ],
+    "official_source_release": "4.8-beta1",
+    "runtime_version_boundary": "The official 4.8-beta1 archive and upstream commit identify the source release; this isolated build displays 4.8.beta.custom_build.4d10419ca because version.py STATUS is beta. This is display metadata, not a different source commit."
+  },
+  "build": {
+    "result": {
+      "path": "D:/code/rmmo_runtime/review_artifacts/runtime_blackout_exit_20261101/engine10_shutdown_only_setup/build_result.json",
+      "sha256": "85833dea9bb19aad9c0fa896bcb996a9958bd3acea0083423570440c3cbdca85"
+    },
+    "exit": 0,
+    "command": [
+      "D:\\tools\\godot-4.8-build\\python-env\\Scripts\\python.exe",
+      "-m",
+      "SCons",
+      "platform=windows",
+      "arch=x86_64",
+      "target=editor",
+      "use_mingw=yes",
+      "debug_symbols=yes",
+      "separate_debug_symbols=yes",
+      "dev_build=no",
+      "optimize=speed",
+      "lto=none",
+      "d3d12=no",
+      "accesskit=no",
+      "angle=no",
+      "-j4",
+      "tests=no"
+    ],
+    "artifacts": {
+      "godot.windows.editor.x86_64.exe": {
+        "path": "D:\\code\\rmmo_runtime\\review_artifacts\\runtime_blackout_exit_20261101\\engine10_shutdown_only_setup\\engine\\godot.windows.editor.x86_64.exe",
+        "bytes": 163201418,
+        "sha256": "b981f16e36c93cd3f1ad8eeb2be519339c22ade1d8888f70b3a3eca066c9bf86"
+      },
+      "godot.windows.editor.x86_64.exe.debugsymbols": {
+        "path": "D:\\code\\rmmo_runtime\\review_artifacts\\runtime_blackout_exit_20261101\\engine10_shutdown_only_setup\\engine\\godot.windows.editor.x86_64.exe.debugsymbols",
+        "bytes": 2167792231,
+        "sha256": "b74861e86ada3a4cd38328e0c95be8abb32de912e7c03812d928cd3df306c3ec"
+      },
+      "godot.windows.editor.x86_64.console.exe": {
+        "path": "D:\\code\\rmmo_runtime\\review_artifacts\\runtime_blackout_exit_20261101\\engine10_shutdown_only_setup\\engine\\godot.windows.editor.x86_64.console.exe",
+        "bytes": 199477,
+        "sha256": "ef71400bc124300d180b15c0c8e66419d7ed0b7866f66db985e7df6c9d6a5b5b"
+      },
+      "godot.windows.editor.x86_64.console.exe.debugsymbols": {
+        "path": "D:\\code\\rmmo_runtime\\review_artifacts\\runtime_blackout_exit_20261101\\engine10_shutdown_only_setup\\engine\\godot.windows.editor.x86_64.console.exe.debugsymbols",
+        "bytes": 78178,
+        "sha256": "5c67d787a8a7de48cb69fb102c9e300e525dbd743b6d4f44fdda1cef27bb1cab"
+      }
+    },
+    "debuglinks": {
+      "godot.windows.editor.x86_64.exe": {
+        "symbol_basename": "godot.windows.editor.x86_64.exe.debugsymbols",
+        "expected_crc32": "91fef547",
+        "actual_crc32": "91fef547",
+        "matches": true
+      },
+      "godot.windows.editor.x86_64.console.exe": {
+        "symbol_basename": "godot.windows.editor.x86_64.console.exe.debugsymbols",
+        "expected_crc32": "5119f673",
+        "actual_crc32": "5119f673",
+        "matches": true
+      }
+    },
+    "aggregate_library_source_audit": {
+      "core": {
+        "members": 273,
+        "members_without_source": []
+      },
+      "scene": {
+        "members": 346,
+        "members_without_source": []
+      },
+      "servers": {
+        "members": 174,
+        "members_without_source": []
+      }
+    },
+    "version_probe": {
+      "path": "D:\\code\\rmmo_runtime\\review_artifacts\\runtime_blackout_exit_20261101\\engine10_shutdown_only_setup\\version_probe_after_rollback.json",
+      "bytes": 526,
+      "sha256": "97cc9651f05955cc0fb8edc255d2387dd57826a5ea6a563b17ddb793f009cbcb"
+    }
+  },
+  "qualification": {
+    "index": {
+      "path": "D:/code/rmmo_runtime/review_artifacts/runtime_blackout_exit_20261101/qualification10_shutdown.json",
+      "sha256": "0fecbb5730d08467b1bc402a092188bff3146ca0e47834d72175217514921834"
+    },
+    "baseline_pending_shutdown": {
+      "result": {
+        "path": "D:/code/rmmo_runtime/review_artifacts/runtime_blackout_exit_20261101/default10_shutdown_red01/result.json",
+        "sha256": "0496b6b5106d7b3ad1a54992127fed60f79d789f43c7b656c63d1f4a4d159c9b"
+      },
+      "runs": [
+        {
+          "mode": "low",
+          "exit": 124,
+          "seconds": 8.063,
+          "enqueued": true,
+          "errors": false
+        },
+        {
+          "mode": "low",
+          "exit": 124,
+          "seconds": 8.031,
+          "enqueued": true,
+          "errors": false
+        },
+        {
+          "mode": "low",
+          "exit": 124,
+          "seconds": 8.063,
+          "enqueued": true,
+          "errors": false
+        },
+        {
+          "mode": "high",
+          "exit": 0,
+          "seconds": 0.718,
+          "enqueued": true,
+          "errors": false
+        },
+        {
+          "mode": "high",
+          "exit": 0,
+          "seconds": 0.688,
+          "enqueued": true,
+          "errors": false
+        },
+        {
+          "mode": "high",
+          "exit": 0,
+          "seconds": 0.687,
+          "enqueued": true,
+          "errors": false
+        }
+      ],
+      "interpretation": "Three low-priority runs reached the 8-second owned timeout; three high-priority controls exited. Timeout alone is not the deadlock proof; GDB state below supplies that proof."
+    },
+    "baseline_gdb": {
+      "result": {
+        "path": "D:/code/rmmo_runtime/review_artifacts/runtime_blackout_exit_20261101/default10_shutdown_gdb01/result.json",
+        "sha256": "73f48ea2206b9c051c498cdf63927c4005fbb7a0c683956dc41cc283aaab49f6"
+      },
+      "summary": {
+        "path": "D:/code/rmmo_runtime/review_artifacts/runtime_blackout_exit_20261101/default10_shutdown_gdb01/summary.json",
+        "sha256": "50165a0c783e3aacc2706661a335c8a86ff6c6f38c134713f35c1a8f473372f6"
+      },
+      "mi_log": {
+        "path": "D:/code/rmmo_runtime/review_artifacts/runtime_blackout_exit_20261101/default10_shutdown_gdb01/gdb.mi.log",
+        "sha256": "8cddffec5d0a0596c07c9ee4c4604284849f2813dd0809acb0298595bc370aaf"
+      },
+      "main_wait": "WorkerThreadPool::exit_languages_threads at core/object/worker_thread_pool.cpp:870, called by Main::cleanup:5302",
+      "runlevel": "RUNLEVEL_PRE_EXIT_LANGUAGES",
+      "threads": 12,
+      "registered_idle": 3,
+      "ordinary_queue_empty": true,
+      "low_priority_queue_empty": true,
+      "low_priority_threads_used": 0,
+      "sleeping_worker_count": 12,
+      "diagnostic_only": true,
+      "owned_target_terminated_after_detach": true
+    },
+    "fixed_pending_shutdown": {
+      "result": {
+        "path": "D:/code/rmmo_runtime/review_artifacts/runtime_blackout_exit_20261101/shutdown_fixed01/result.json",
+        "sha256": "9152f3666cf61d193ca553da6d5d1e9a9e39c04810bb063fb65daca5de8d95a9"
+      },
+      "engine_sha256": "b981f16e36c93cd3f1ad8eeb2be519339c22ade1d8888f70b3a3eca066c9bf86",
+      "runs": [
+        {
+          "mode": "low",
+          "exit": 0,
+          "seconds": 2.203,
+          "enqueued": true,
+          "errors": false
+        },
+        {
+          "mode": "low",
+          "exit": 0,
+          "seconds": 1.75,
+          "enqueued": true,
+          "errors": false
+        },
+        {
+          "mode": "low",
+          "exit": 0,
+          "seconds": 1.734,
+          "enqueued": true,
+          "errors": false
+        },
+        {
+          "mode": "high",
+          "exit": 0,
+          "seconds": 0.703,
+          "enqueued": true,
+          "errors": false
+        },
+        {
+          "mode": "high",
+          "exit": 0,
+          "seconds": 0.719,
+          "enqueued": true,
+          "errors": false
+        },
+        {
+          "mode": "high",
+          "exit": 0,
+          "seconds": 0.75,
+          "enqueued": true,
+          "errors": false
+        }
+      ],
+      "completed_processes": 6,
+      "timing_claim": "Functional shutdown qualification; no FPS or full-map loading comparison."
+    },
+    "fixed_pending_gpu_wind": {
+      "result": {
+        "path": "D:/code/rmmo_runtime/review_artifacts/runtime_blackout_exit_20261101/wind_pending_fixed01/result.json",
+        "sha256": "656498a04625bc78bd98166dd36a60e28f99bc5da86c5b03639b42e87b066bb1"
+      },
+      "engine_sha256": "b981f16e36c93cd3f1ad8eeb2be519339c22ade1d8888f70b3a3eca066c9bf86",
+      "exit": 0,
+      "errors": [],
+      "private_desktop": true,
+      "pending_before_quit": {
+        "active": 1,
+        "blocking": false,
+        "cancelled": 0,
+        "completed": 0,
+        "main_thread_builds": 0,
+        "mode": "background_variants",
+        "pending": 2,
+        "started": 1,
+        "worker_usec": 0
+      },
+      "pending_at_finalize": {
+        "active": 1,
+        "blocking": false,
+        "cancelled": 0,
+        "completed": 0,
+        "main_thread_builds": 0,
+        "mode": "background_variants",
+        "pending": 2,
+        "started": 1,
+        "worker_usec": 0
+      },
+      "engine_log": {
+        "path": "D:/code/rmmo_runtime/review_artifacts/runtime_blackout_exit_20261101/wind_pending_fixed01/engine.log",
+        "sha256": "3266d93e8002988f8a36b7ae6d3be4028986649c9e363c7313beb98961fe0ed4"
+      }
+    },
+    "baseline_actual_game_window_close": {
+      "result": {
+        "path": "D:/code/rmmo_runtime/review_artifacts/runtime_blackout_exit_20261101/game_close_default10_05/result.json",
+        "sha256": "0f34ec460ee64f59f4b1d6422bfb620a146abc6e5e0eeb64ec9a6a10ff5859be"
+      },
+      "engine_sha256": "7a8029a67b0e0bbc442c12f5ebf0aa67baf2e53f65c8750dd5fbb6b4adabdb53",
+      "exit": 0,
+      "errors": [],
+      "close_event_to_scene_finalize_us": 555392,
+      "host_close_to_runner_return_upper_bound_s": 3.063,
+      "native_events": [
+        "entry_started",
+        "playable",
+        "waiting_for_native_close",
+        "native_close_received",
+        "world_tree_exited",
+        "root_tree_exited",
+        "scene_tree_finalized"
+      ],
+      "private_desktop": true,
+      "viewport_disabled_at_close": false,
+      "watchdog_fired": false
+    },
+    "fixed_actual_game_window_close": {
+      "result": {
+        "path": "D:/code/rmmo_runtime/review_artifacts/runtime_blackout_exit_20261101/game_close_fixed01/result.json",
+        "sha256": "cb7967ebe02bcf9a99e3fe5010d6c9afdcf020428cfb058bc3e1962f3c073b74"
+      },
+      "engine_sha256": "b981f16e36c93cd3f1ad8eeb2be519339c22ade1d8888f70b3a3eca066c9bf86",
+      "exit": 0,
+      "errors": [],
+      "close_event_to_scene_finalize_us": 500046,
+      "host_close_to_runner_return_upper_bound_s": 2.844,
+      "native_events": [
+        "entry_started",
+        "playable",
+        "waiting_for_native_close",
+        "native_close_received",
+        "world_tree_exited",
+        "root_tree_exited",
+        "scene_tree_finalized"
+      ],
+      "private_desktop": true,
+      "viewport_disabled_at_close": false,
+      "watchdog_fired": false
+    },
+    "window_close_method": "Formal session.go_world_3d with a temporary map; wait until playable and uncovered, then host posts WM_CLOSE to the owned HWND on a never-activated private desktop. Lifecycle and process exit0 are both required."
+  },
+  "installation": {
+    "status": "installed_sha_verified",
+    "default_entry": "D:/tools/godot/godot.windows.editor.x86_64.exe",
+    "default_symbols": "D:/tools/godot/godot.windows.editor.x86_64.exe.debugsymbols",
+    "console_entry": "D:/tools/godot/godot.windows.editor.x86_64.console.exe",
+    "console_symbols": "D:/tools/godot/godot.windows.editor.x86_64.console.exe.debugsymbols",
+    "aliases": {
+      "Godot_v4.8-beta1_win64.exe": "godot.windows.editor.x86_64.exe",
+      "Godot_v4.8-beta1_win64_console.exe": "godot.windows.editor.x86_64.console.exe",
+      "godot.exe": "godot.windows.editor.x86_64.exe"
+    },
+    "installer": {
+      "path": "D:\\code\\rmmo_runtime\\review_artifacts\\runtime_blackout_exit_20261101\\install_default10_shutdown.py",
+      "bytes": 24649,
+      "sha256": "f4bac9dbf12232e3af3a98515311a39a44553858f86f15fad65d31192c572074"
+    },
+    "plan": {
+      "path": "D:\\code\\rmmo_runtime\\review_artifacts\\runtime_blackout_exit_20261101\\engine10_shutdown_only_setup\\install_plan.json",
+      "bytes": 2955,
+      "sha256": "70e1cf682ab4c75890fae85f782cb7c118a54529c119b2848cfe71491c30c7be"
+    },
+    "failed_attempt_rollback": {
+      "path": "D:\\code\\rmmo_runtime\\review_artifacts\\runtime_blackout_exit_20261101\\engine10_shutdown_only_setup\\installation_attempts\\20261101_194749_514422\\rollback.json",
+      "bytes": 774,
+      "sha256": "fce1904264e989336d8ab6565c208581a0439f83b93c4d13ef455e120e4f2de3"
+    },
+    "version_failure_diagnosis": {
+      "path": "D:\\code\\rmmo_runtime\\review_artifacts\\runtime_blackout_exit_20261101\\engine10_shutdown_only_setup\\version_failure_diagnosis.json",
+      "bytes": 1884,
+      "sha256": "3a4a86a4264588eadfb8e1ee4c98bdebb81706ba1ca7201d53bce41db737d0f8"
+    },
+    "installed": true,
+    "installed_at": "2026-11-01T19:55:44.001919+08:00",
+    "actual_receipt": {
+      "path": "D:/code/rmmo_runtime/review_artifacts/runtime_blackout_exit_20261101/engine10_shutdown_only_setup/installation_attempts/20261101_195410_525953/installation.json",
+      "bytes": 24251,
+      "sha256": "042c57382d9caf32003d8255133195e5f7925a4bf05468f79a57b511d679a70d"
+    },
+    "installed_manifest": {
+      "path": "D:/tools/godot/patched_build_manifest.json",
+      "bytes": 24251,
+      "sha256": "042c57382d9caf32003d8255133195e5f7925a4bf05468f79a57b511d679a70d"
+    },
+    "backup": "D:\\tools\\godot\\_backup\\before_10_shutdown13_20261101_195410_525953",
+    "actual_installed_files": {
+      "godot.windows.editor.x86_64.exe": {
+        "path": "D:/tools/godot/godot.windows.editor.x86_64.exe",
+        "bytes": 163201418,
+        "sha256": "b981f16e36c93cd3f1ad8eeb2be519339c22ade1d8888f70b3a3eca066c9bf86"
+      },
+      "godot.windows.editor.x86_64.exe.debugsymbols": {
+        "path": "D:/tools/godot/godot.windows.editor.x86_64.exe.debugsymbols",
+        "bytes": 2167792231,
+        "sha256": "b74861e86ada3a4cd38328e0c95be8abb32de912e7c03812d928cd3df306c3ec"
+      },
+      "godot.windows.editor.x86_64.console.exe": {
+        "path": "D:/tools/godot/godot.windows.editor.x86_64.console.exe",
+        "bytes": 199477,
+        "sha256": "ef71400bc124300d180b15c0c8e66419d7ed0b7866f66db985e7df6c9d6a5b5b"
+      },
+      "godot.windows.editor.x86_64.console.exe.debugsymbols": {
+        "path": "D:/tools/godot/godot.windows.editor.x86_64.console.exe.debugsymbols",
+        "bytes": 78178,
+        "sha256": "5c67d787a8a7de48cb69fb102c9e300e525dbd743b6d4f44fdda1cef27bb1cab"
+      },
+      "Godot_v4.8-beta1_win64.exe": {
+        "path": "D:/tools/godot/Godot_v4.8-beta1_win64.exe",
+        "bytes": 163201418,
+        "sha256": "b981f16e36c93cd3f1ad8eeb2be519339c22ade1d8888f70b3a3eca066c9bf86"
+      },
+      "Godot_v4.8-beta1_win64_console.exe": {
+        "path": "D:/tools/godot/Godot_v4.8-beta1_win64_console.exe",
+        "bytes": 199477,
+        "sha256": "ef71400bc124300d180b15c0c8e66419d7ed0b7866f66db985e7df6c9d6a5b5b"
+      },
+      "godot.exe": {
+        "path": "D:/tools/godot/godot.exe",
+        "bytes": 163201418,
+        "sha256": "b981f16e36c93cd3f1ad8eeb2be519339c22ade1d8888f70b3a3eca066c9bf86"
+      }
+    },
+    "version_probes": {
+      "path": "D:/code/rmmo_runtime/review_artifacts/runtime_blackout_exit_20261101/engine10_shutdown_only_setup/installation_attempts/20261101_195410_525953/version_probes.json",
+      "bytes": 1756,
+      "sha256": "9259b4a3bd3e8f8f6697ab47cd470ca9a905ae908f53afa5916819955e414bb5"
+    },
+    "verified_version": "4.8.beta.custom_build.4d10419ca",
+    "official_source_release": "4.8-beta1",
+    "preserved_metadata": {
+      "dds_partial_blocks_build_manifest_20261025.json": {
+        "path": "D:\\tools\\godot\\dds_partial_blocks_build_manifest_20261025.json",
+        "bytes": 1707,
+        "sha256": "aabe6c85c14bbca837d85917e1f9a495263aa05ad3fcfe3b1f4391267b59e9c8"
+      },
+      "editor_cpu_dds_build_manifest_20261029.json": {
+        "path": "D:\\tools\\godot\\editor_cpu_dds_build_manifest_20261029.json",
+        "bytes": 2529,
+        "sha256": "8806c57eba7e26c4e6dd1b2ca9ffd1aa27c5aecaecf0268b256e674e0364dc49"
+      },
+      "respv_tls_build_manifest_20261026.json": {
+        "path": "D:\\tools\\godot\\respv_tls_build_manifest_20261026.json",
+        "bytes": 1440,
+        "sha256": "93369add842c7392f19bcc84856fdb57105a2ed2c8f7ce586faf84f3444876ce"
+      },
+      "shader_residency_build_manifest_20261025.json": {
+        "path": "D:\\tools\\godot\\shader_residency_build_manifest_20261025.json",
+        "bytes": 1708,
+        "sha256": "e885e07ea9e6a6320c583a4de0e1be82ebc5c37e352e74c3d0b4e7c7e1191a0f"
+      }
+    },
+    "verification_boundary": "All seven installed binary/symbol/alias files independently rehashed after successful ROOT installation. All five persisted version probes exit0 with empty stderr and exact recorded beta display version. No engine launched during this final verification."
+  },
+  "limits": [
+    "The default10 actual-game WM_CLOSE sample also passed. This is a conditional engine shutdown deadlock, not proof that every X press hangs or that all user-observed shutdown delay has one cause.",
+    "The fixed actual-game native close event to SceneTree finalization was 500046 microseconds. Host close-to-return 2.844 seconds is an upper bound including host polling/output cleanup, not exact native cleanup duration.",
+    "The minimal low-priority fixture and matched-symbol GDB state demonstrate the repaired idle-registration defect. Legitimate draining of outstanding work can still wait synchronously at process shutdown.",
+    "Early game_close_default10_01..04 were fixture entry/desktop-delivery failures and are not counted as successful closes or evidence of an engine deadlock.",
+    "This manifest does not qualify all renderer backends, improve FPS claims, or resolve the separately tracked historical 0xC0000005 cases."
+  ]
+}

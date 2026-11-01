@@ -228,7 +228,9 @@ static func prepare(index: Dictionary, requested_entries: Array, path: String, c
 	var profile: Dictionary = restored.get("read_profile", {}).duplicate()
 	profile.preflight_us = preflight_us; profile.preflight_ownership_us = preflight_ownership_us
 	profile.selected_ownership_us = int(ownership.get("ownership_validation_us", 0)); profile.selected_uuid_lookup_us = int(ownership.get("uuid_lookup_us", 0))
-	profile.ownership_proof_used = ownership.get("ownership_proof_used", false)
+	# The successful preflight above already used this proof. Trusted packages
+	# skip selected-record revalidation; that must not be reported as a full scan.
+	profile.ownership_proof_used = ownership_proof != null or ownership.get("ownership_proof_used", false)
 	profile.validation_us = validation_us; profile.final_verification_us = Time.get_ticks_usec() - verify_started
 	profile.map_authentications=0 if mounted_snapshot else 2
 	profile.directory_rows_recomputed=recomputed.size();profile.groups_checked=checked_groups.size()

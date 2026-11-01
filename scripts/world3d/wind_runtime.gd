@@ -15,8 +15,8 @@ var enabled := true
 # One private world-state texel keeps every rendered LOD current without a
 # synchronous camera-range sweep. The uniform path remains an A/B reference.
 var shared_state_enabled:=true
-# Cache-only bindings retain authored materials until an automatic drawn cover
-# prepares unseen variants. Cold reflection can stall the renderer even on a worker.
+# Cache-only bindings keep authored materials visible while a shared worker
+# prepares unseen shader variants. Receiver installation stays frame-budgeted.
 var cached_variants_only:=false
 var _variant_pending:Dictionary={}
 var covered_preparation:=false
@@ -75,7 +75,7 @@ func capability_status()->Dictionary:
 	var keys:Dictionary={}
 	for row:Dictionary in _variant_pending.values():
 		for key:String in row["keys"]:keys[key]=true
-	return {"mode":"cached_variants" if cached_variants_only else "legacy","ready":not enabled or (_initial_refresh_completed and keys.is_empty()),"scanning":_scan_pending,"ready_receivers":receivers.size(),"pending_receivers":_variant_pending.size(),"pending_variants":keys.keys(),"reason":"covered_variant_preparation_pending" if not keys.is_empty() else "","covered_preparation":covered_preparation,"last_recovery":last_recovery.duplicate(true)}
+	return {"mode":"cached_variants" if cached_variants_only else "legacy","ready":not enabled or (_initial_refresh_completed and keys.is_empty()),"scanning":_scan_pending,"ready_receivers":receivers.size(),"pending_receivers":_variant_pending.size(),"pending_variants":keys.keys(),"reason":"background_variant_preparation_pending" if not keys.is_empty() else "","covered_preparation":covered_preparation,"last_recovery":last_recovery.duplicate(true),"variant_preparation":Materials.background_profile()}
 
 func _prune_variant_pending()->void:
 	for id:int in _variant_pending.keys():
@@ -242,10 +242,12 @@ func _bind(node: MeshInstance3D) -> void:
 	if cached_variants_only:
 		var missing:Dictionary={}
 		for slot in node.mesh.get_surface_count():
-			var key:=Materials.variant_key(node.get_active_material(slot))
-			if not Materials.variant_is_prepared(key):missing[key]=true
+			var source:StandardMaterial3D=node.get_active_material(slot)
+			var key:=Materials.variant_key(source)
+			if not Materials.variant_is_prepared(key):missing[key]=source
 		if not missing.is_empty():
 			_variant_pending[node.get_instance_id()]={"node":weakref(node),"keys":missing.keys()}
+			for key:String in missing:Materials.request_variant(missing[key],self,key)
 			_last_bind_timing.cache_miss=true;_last_bind_timing.pending_variants=missing.keys();_last_bind_timing.total_ms=(Time.get_ticks_usec()-started)/1000.0
 			return
 	var config: Dictionary = Response.defaults().merged(node.get_meta("extras").rmmo_wind,true)
@@ -395,3 +397,10 @@ func prepare_pending_covered(cover:CanvasLayer)->Dictionary:
 		refresh()
 	covered_preparation=false;last_recovery=queue.snapshot()
 	return {"ok":true,"preparation":last_recovery}
+
+func needs_wind_variant(key:String)->bool:
+	if not enabled or not is_inside_tree():return false
+	_prune_variant_pending()
+	for row:Dictionary in _variant_pending.values():
+		if row["keys"].has(key):return true
+	return false

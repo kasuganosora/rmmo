@@ -71,6 +71,10 @@ func step_covered(covered:bool,budget_usec:int=2000,max_variants:int=1)->Diction
 			if not _seen_invalid.has(id):_seen_invalid[id]=true;_report.skipped+=1
 		_report.scan_ms+=(Time.get_ticks_usec()-mark)/1000.0
 		if not key.is_empty() and not _seen.has(key):
+			# A prior live world may already own this shared variant task. Yield
+			# instead of compiling a duplicate or joining its worker on main.
+			if Materials.variant_is_preparing(key):
+				_slot_cursor-=1;break
 			_seen[key]=true;_report.materials+=1
 			if Materials.variant_is_prepared(key):_report.reused+=1
 			else:

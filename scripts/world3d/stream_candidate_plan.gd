@@ -12,6 +12,9 @@ var draws:Callable
 var stage:=0
 var cursor:=0
 var bin_cursor:=0
+var cell_queries:Array=[]
+var cell_query_cursor:=0
+var visited_cells:=0
 
 func _init(root:Node,from:Vector2i,to:Vector2i,pending:Array,stream:Script)->void:
 	previous=from;unfinished=pending;draws=stream._draws
@@ -20,16 +23,11 @@ func _init(root:Node,from:Vector2i,to:Vector2i,pending:Array,stream:Script)->voi
 	# and new residency rings are then identical: only unfinished/new records
 	# can change. Do not compare every building and landscape item to itself.
 	if from==to:return
-	for radius in [stream.RENDER_RADIUS,stream.COLLISION_RADIUS]:
-		var index:Dictionary=root.get_meta("stream_prop_index" if radius==stream.RENDER_RADIUS else "stream_collision_index",{})
-		var old:Dictionary=stream._ring_at(from,radius);var next:Dictionary=stream._ring_at(to,radius)
-		for center in [from,to]:
-			for z in range(center.y-radius,center.y+radius+1):
-				for x in range(center.x-radius,center.x+radius+1):
-					var inside_old:bool=x>=old.low.x and x<=old.high.x and z>=old.low.y and z<=old.high.y
-					var inside_next:bool=x>=next.low.x and x<=next.high.x and z>=next.low.y and z<=next.high.y
-					if inside_old!=inside_next:bins.append(index.get(Vector2i(x,z),[]))
-	old_draw=stream._ring_at(from,stream.RENDER_RADIUS);next_draw=stream._ring_at(to,stream.RENDER_RADIUS)
+	var visual_radius:int=stream.render_radius(root)
+	for field:StringName in [&"stream_prop_index",&"stream_collision_index"]:
+		var radius:int=visual_radius if field==&"stream_prop_index" else stream.COLLISION_RADIUS
+		cell_queries.append(preload("res://scripts/world3d/stream_cell_query.gd").new(root.get_meta(field,{}),from,to,radius))
+	old_draw=stream._ring_at(from,visual_radius);next_draw=stream._ring_at(to,visual_radius)
 	groups=root.get_meta("stream_building_groups",{}).values()
 	landscape=root.get_meta("stream_landscape",[])
 
@@ -39,6 +37,11 @@ func advance(budget_usec:int)->bool:
 	var advanced:=false
 	while not advanced or Time.get_ticks_usec()<deadline:
 		advanced=true
+		if cell_query_cursor<cell_queries.size():
+			var query:RefCounted=cell_queries[cell_query_cursor]
+			if not query.advance(maxi(1,deadline-Time.get_ticks_usec())):return false
+			bins.append_array(query.bins);visited_cells+=query.visited_cells;cell_query_cursor+=1
+			continue
 		if stage==0:
 			if bin_cursor>=bins.size():stage=1;cursor=0;continue
 			var bin:Array=bins[bin_cursor]

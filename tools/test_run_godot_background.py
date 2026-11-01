@@ -1,5 +1,7 @@
 """Windows capture contracts, using owned tiny Python child processes only."""
 import os
+import ctypes
+from ctypes import wintypes
 from pathlib import Path
 import subprocess
 import sys
@@ -30,6 +32,62 @@ class BackgroundCaptureTests(unittest.TestCase):
         result = self.child("import os;os.write(2,b'last error');os._exit(7)")
         self.assertEqual(result.returncode, 7)
         self.assertEqual(result.stdout, b'last error')
+
+    def test_borrowed_desktop_allows_owned_native_window_close(self):
+        user = ctypes.WinDLL('user32', use_last_error=True)
+        user.SetThreadDesktop.argtypes = [wintypes.HANDLE]
+        user.GetWindowThreadProcessId.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.DWORD)]
+        user.PostMessageW.argtypes = [wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM]
+        state = {}
+        source = '''import ctypes,sys,time
+from ctypes import wintypes as w
+from pathlib import Path
+u=ctypes.WinDLL('user32',use_last_error=True)
+u.CreateWindowExW.argtypes=[w.DWORD,w.LPCWSTR,w.LPCWSTR,w.DWORD,ctypes.c_int,ctypes.c_int,ctypes.c_int,ctypes.c_int,w.HWND,w.HMENU,w.HINSTANCE,ctypes.c_void_p]
+u.CreateWindowExW.restype=w.HWND
+u.IsWindow.argtypes=[w.HWND]
+u.PeekMessageW.argtypes=[ctypes.POINTER(w.MSG),w.HWND,w.UINT,w.UINT,w.UINT]
+u.DispatchMessageW.argtypes=[ctypes.POINTER(w.MSG)]
+hwnd=u.CreateWindowExW(0,'STATIC','Owned native close',0xcf0000,0,0,32,32,None,None,None,None)
+assert hwnd,ctypes.get_last_error()
+Path(sys.argv[1]).write_text(str(hwnd))
+message=w.MSG()
+while u.IsWindow(hwnd):
+    if u.PeekMessageW(ctypes.byref(message),None,0,0,1):u.DispatchMessageW(ctypes.byref(message))
+    else:time.sleep(.01)
+print('NATIVE_WINDOW_CLOSED',flush=True)
+'''
+        with tempfile.TemporaryDirectory(prefix='rmmo_native_close_') as folder:
+            ready = Path(folder) / 'hwnd.txt'
+
+            def poll():
+                if state.get('sent') or not ready.exists():
+                    return
+                hwnd = int(ready.read_text())
+                errors = []
+
+                def send():
+                    try:
+                        self.assertTrue(user.SetThreadDesktop(state['desktop']))
+                        owner = wintypes.DWORD()
+                        self.assertTrue(user.GetWindowThreadProcessId(hwnd, ctypes.byref(owner)))
+                        self.assertEqual(owner.value, state['pid'])
+                        self.assertTrue(user.PostMessageW(hwnd, 0x10, 0, 0))
+                    except BaseException as error:
+                        errors.append(error)
+
+                sender = threading.Thread(target=send)
+                sender.start(); sender.join(timeout=3)
+                self.assertFalse(sender.is_alive())
+                if errors:
+                    raise errors[0]
+                state['sent'] = True
+
+            result = self.child(source, str(ready), on_start=lambda pid, tid: state.update(pid=pid),
+                                on_desktop=lambda handle: state.update(desktop=handle), on_poll=poll)
+            self.assertEqual(result.returncode, 0)
+            self.assertTrue(state['sent'])
+            self.assertIn(b'NATIVE_WINDOW_CLOSED', result.stdout)
 
     def test_timeout_drains_output_and_stops_only_owned_child(self):
         owned = []

@@ -86,6 +86,7 @@ func bind(view: Camera3D, light: DirectionalLight3D, env: Environment, actor: No
 		precipitation.camera = view
 		wind_objects.camera = view
 		streetlamps.camera=view
+		streetlamps.observer=actor
 		wet_surfaces.camera = view
 		return
 	rng.seed = 39517
@@ -94,7 +95,7 @@ func bind(view: Camera3D, light: DirectionalLight3D, env: Environment, actor: No
 	wind_objects = preload("res://scripts/world3d/wind_runtime.gd").new()
 	add_child(wind_objects); wind_objects.camera = camera
 	streetlamps=preload("res://scripts/world3d/streetlamp_lights.gd").new()
-	streetlamps.weather=self;streetlamps.camera=camera;add_child(streetlamps)
+	streetlamps.weather=self;streetlamps.camera=camera;streetlamps.observer=actor;add_child(streetlamps)
 	wet_surfaces = preload("res://scripts/world3d/wet_surface_runtime.gd").new()
 	add_child(wet_surfaces); wet_surfaces.camera = camera
 	wet_surfaces.scene_root = light.get_parent()
