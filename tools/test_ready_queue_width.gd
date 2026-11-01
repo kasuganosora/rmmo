@@ -33,10 +33,20 @@ func fixture(buildings:int,members:int,props:int=0)->Probe:
 	return p
 func dispose(p:Probe)->void:p._jobs.clear();p.free()
 func drain(p:Probe)->Dictionary:
-	var selected:Dictionary={};var groups:Array=[];var began:=Time.get_ticks_usec()
+	var selected:Dictionary={};var groups:Array=[];var began:=Time.get_ticks_usec();var discard_yields:=0
 	while not p._demanded_by_id.is_empty():
+		var cursor_before:=0
+		for queue:Dictionary in p._publication_queues.values():cursor_before+=int(queue.cursor)
 		var heads:Array=p._publication_ready()
-		if heads.is_empty():break
+		if heads.is_empty():
+			# Out-of-order service can leave published holes in a borrowed queue.
+			# The bounded 64-row prefix discard may yield before finding its next
+			# live member. Retry only if the real consumption cursors advanced;
+			# an empty scan without progress is still a failed drain, not success.
+			var cursor_after:=0
+			for queue:Dictionary in p._publication_queues.values():cursor_after+=int(queue.cursor)
+			if cursor_after<=cursor_before:break
+			discard_yields+=1;continue
 		var item:Dictionary=p._publication_order.choose(heads,p._demanded_priority,p._demanded_rank,p._jobs)
 		var id:String=item.record.uuid
 		if selected.has(id):break
@@ -46,7 +56,7 @@ func drain(p:Probe)->Dictionary:
 		if remaining.is_empty():
 			groups.append(item.path);p._path_first.erase(item.path);p._jobs.erase(item.path)
 		else:p._path_first[item.path]=remaining[0]
-	return {"selected":selected.size(),"remaining":p._demanded_by_id.size(),"groups":groups,"eligible_calls":p.eligibility_calls,"index_calls":p.index_calls,"us":Time.get_ticks_usec()-began}
+	return {"selected":selected.size(),"remaining":p._demanded_by_id.size(),"groups":groups,"eligible_calls":p.eligibility_calls,"index_calls":p.index_calls,"discard_yields":discard_yields,"prefix_discard_checks":int(p.profile.get("ready_prefix_discard_checks",0)),"us":Time.get_ticks_usec()-began}
 func run()->void:
 	for width:int in [3,12,24]:
 		var p:=fixture(width,int(768/width),4);var row:=drain(p)

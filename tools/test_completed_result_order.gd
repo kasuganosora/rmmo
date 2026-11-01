@@ -52,6 +52,9 @@ func _initialize()->void:
 		if selected.path=="large":large_turns+=1
 		else:peer_turns+=1
 	check(large_turns>=96 and peer_turns>=6,"protected owner makes sustained progress while peers retain bounded service")
-	check(choose(order,[a,short_head],jobs,costs,"",false).path=="large" and order._drain_path.is_empty(),"pressure disappearance immediately restores original priority policy")
+	# Drain service also advances the ordinary served ledger. Once pressure
+	# disappears, a nearer house cannot bypass its less-served ready peer.
+	var expected:String=a.path if int(order._served.get(a.path,0))<=int(order._served.get(short_head.path,0)) else short_head.path
+	check(choose(order,[a,short_head],jobs,costs,"",false).path==expected and order._drain_path.is_empty() and not order.drain_selected,"pressure disappearance resumes ordinary least-served priority without a sticky drain target")
 	Order.completed_owner_drain_enabled=old
 	print("COMPLETED_RESULT_ORDER checks=",checks," failures=",failures);quit(1 if failures else 0)

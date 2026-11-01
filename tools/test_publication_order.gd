@@ -41,7 +41,7 @@ func _initialize()->void:
 	jobs={"house":{},"grass":{},"tree":{}};priorities={"house_part":0,"grass_instance":0,"tree_instance":0}
 	selected=[]
 	for i in 16:selected.append(order.choose(heads,priorities,ranks,jobs).path)
-	check(selected.count("house")==8 and selected.count("grass")==8 and not selected.has("tree"),"props share turns without changing the ready-building material order")
+	check(selected.count("house")==8 and selected.count("grass")==4 and selected.count("tree")==4,"ready buildings and independent props all receive bounded visual service")
 	jobs.erase("house")
 	var reached_far:=false
 	for i in 8:

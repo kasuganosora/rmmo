@@ -2153,3 +2153,38 @@ GroundBatchTimeline无丢失，503次residency_request全部immutable_append=fal
 `green01` **174/174通过**；既有completed_batch_bins102、interleaved_batch_preparation40、batch_retirement_reconciliation81、closed_batch_preparation19，共 **416/416通过**，每轮错误0、冻结工程逐文件SHA恢复。明确复现序列从 `[40,40,41,42,41]` 变 `[40,40,41,42]`；最终成员41→正确42，准备访问123→82、装箱访问83→42。这些是同一fixture的实际工作量及正确性，不是整图速度收益；真实整图下一dump确认不再回放旧状态。
 
 证据 `P/batch_latest54_setup/{review.md,patch.json,latest_request.patch}`、`P/batch_latest54_{red01,green01,completed01,interleaved01,retirement01,closed01}/`。生产ground_batcher的其余render_region和stained-glass改动属另一会话，原字节保留；本次只选择自己的5行补丁提交，不混入对方工作。503次false的真实接入缺口仍待后续处理，不将这次修复等同immutable流程已启用。
+
+## 49. 建筑排序门槛的确定性复现与有限轮转修复（2026-11-01）
+
+53的完整关联在 `P/trace53_job_analysis/selector_findings.md`：返回最慢三栋的113/113、99/99、74/74个记录等待slice都有later_ready_building；priority都是0且不变。返回19个首服务等待>=1秒的job里16个有此原因，道路134/136/138没有selector/gate证据，原因仍待定位。实际源代码的两个门槛来自旧同步贴图管线局部性策略，不能作为跨建筑依赖合同，也不能只因现在规则触发就假定被挡住对象一定可运行。
+
+新 `tools/test_building_publication_fairness.gd` 使用实际Deferred需求刷新、碰撞/支撑/工作区/整包资格、私有实例游标、staging、原子append和所有权释放。先显式确认A（12组件）/B（1组件）同优先级且全部资格满足；只把fixture空Node3D的遍历预算设为一次服务可完成，未替代选择与发布逻辑。`building_fairness54_red01` **34通过、恰好2个公平性失败、错误0**：直接选择AAAAA，真实B要到第13单位才开始，其余不重复构建、原子性、取消、优先级及容量约束均通过。
+
+修复将同优先级的burst→least-served→rank比较收拢为只读 `PublicationOrder.prefers`，最终choose和候选剪枝使用同一规则。只在已有真正可工作的建筑优于后续建筑的乐观首成员rank时剪枝；保留负优先级抢占、共享模型路径、过期rank和依赖保护。删除无条件building_seen串行排除，没有启用completed_owner_drain，也未增加预算、worker、工作区或队列容量。
+
+`green01` **36通过**，B首服务 **13→5单位**，总计仍13组件/13单位、各一次；两个建筑整组发布、私有游标取消释放及紧急需求立即抢占通过。必要回归共 **190/190通过、错误0**：新fixture36、publication_order29、ready_queue_width16、ready_progress16、collision_publication32、backpressure26、completed_result_order12、private_publication_packet23。全部冻结文件恢复，生产两文件SHA与green及后续回执一致。
+
+宽队列仍保留800项完整完成与资格检查<=4800的原上限，宽度3/12/24实际3294/2804/3228，prefix检查2274/2716/3064。旧fixture逐项标published并在第一次空heads就退出；乱序后出现受64项丢弃预算约束的洞，宿主已改成仅在真实cursor前进时继续，empty-progress yields为3/0/0，无进展仍失败。此为测试宿主修正，不冒称生产空候选卡顿已修复；真实building原子性由新Deferred测试独立证明。completed_result_order最后一项也从“压力结束强制最近”改为验证现有服务账目决定的正常公平选择，同时继续确认drain状态清空。
+
+下一统一 `node_trace54_01` 保持53的同地图、同49引擎和全部预算，只纳入过时batch请求及这两个publication文件的改动。新剪枝诊断reason为ready_service_preference，记录双方path/rank、priority、burst和served；旧choose_later分支随生产移除，其事件消失不能单独当作服务改善。其余64个overlay文件逐字节保持，原21个深层scope、初始接管、BatchTimeline和slice均保留。材质局部性及真实长帧影响仍以该时间线核对，不用组件顺序收益替代整图验收。
+
+## 50. 54时间线验收：建筑首服务等待消除，整体收尾仍被重复准备拖住（2026-11-01）
+
+真实54完整结束，冻结33全部恢复；两段native事件2,488,278 /4,072,844，drop/export/registration及结构错误均0，脚本/引擎错误0。仍只有原12秒退休队列条件失败，不写成整套通过。CompletedJobTrace372任务、3010提交、丢失0、生命周期完整。此为修复后的流程dump，不是新增ABAB评分系列。
+
+| 返回job的accepted→首次服务 | 53 | 54 |
+|---|---:|---:|
+| building_2d20a149e625d009e719 | 3217.728ms | **0.333ms** |
+| building_b489fbca928d0d5ddb4c | 2729.287ms | **56.675ms** |
+| building_cbb9335d616045ab7a33 | 2133.312ms | **115.041ms** |
+| >=1秒等待的返回任务 | 19 | **3** |
+
+初始>=1秒等待的任务15→3。剩余均为道路134/136/138；返回首服务仍分别2674.495/2653.076/2541.329ms，缺少selector/gate原因，不能按建筑原因解释。同path会有不同成员世代，严格用path+token关联，不把重复path自动算重复模型。新ready_service_preference共1793条，旧choose_later分支移除不单独作为收益；上述真实生命周期才证明轮转命中。
+
+合批15次内部pending回放均与当时最新WorldStream请求root数一致，没有53的4次旧snapshot回退标量特征，也无prefix mismatch；首轮与返回最终均3914。此计数日志不冒称对所有Node身份做了整图认证；精确身份/签名由27个组件case覆盖。仍有493次immutable=false（初始248、返回244、宿主退休测试1）；full sync首轮12/返回10轮，collect→prune110/115次。准备阶段首轮prepare1374.615/prune871.512/collect264.094/drop296.483ms；返回1494.507/869.518/246.795/232.857ms。queued304/325、requeue85/106、membership_replace85/42，对应53为295/320、76/101、77/38。**旧状态回退修复成立，但整体重复准备没有下降**，不能包装成全局性能改善。
+
+工作量与材料边界：两轮模型23、reference_records1505、specs2176一致，没有因轮转额外生成这些对象。资格检查却10791→15911；返回_publication_ready exclusive268.739→401.528ms，dependency检查8233→10349、workspace5934→7004。这部分新增调度检查仍需精简，不能称所有工作量不变。返回WorldDocument._mesh同为691次；material step_and_publish同721次，54 max1.715ms，surface_material max0.105ms，未重现历史百毫秒材质首次提交；但surface_material调用3457→3629，不能遗漏增加。材料父子scope不叠加。
+
+全局结果仍未达标：entry **8.106716s**、full-ready **48.572268s**；返回收尾真实连续phase **49.047759s**，53为40.394637s，未缩短。unload206.617ms、empty20.101ms、return142.001ms、return_loading56.842ms/5帧>50；steady/return-steady诊断low1%40.067/36.241fps。不得只取建筑等待下降、初始full-ready变短或>50帧减少，宣告总体加载/长帧验收完成。
+
+后续优先按已证工作量接通真实WorldStream新增源账本，保留删除/替换/恢复/意外销毁及现有worker generation拒收；先保持checkpoint节奏，不直接把false改true或提前加入新dispatch节奏。特别要覆盖_adopt可能不变visibility_revision、_live静默擦除无效visual、同Node语义改变须撤销既有缓存。真实Stream.sync的N+M组件复现先行，不能再次仅以直接调用immutable=true的组件测试冒充已接入。证据 `P/trace54_job_analysis/`、`P/trace54_batch_analysis/`、`P/trace54_flow_extract/native_comparison.json`，下一接入设计 `P/stream_arrivals55_plan.md`。

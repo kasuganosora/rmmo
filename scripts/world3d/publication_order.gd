@@ -45,25 +45,25 @@ func choose(heads:Array,priorities:Dictionary,ranks:Dictionary,jobs:Dictionary,p
 		return nearest
 	if drain_mode:return _choose_drain(heads,ranks,jobs,remaining)
 	var selected:Dictionary={}
-	var oldest:=9223372036854775807
-	var building_seen:=false
 	for item:Dictionary in heads:
 		if int(priorities.get(item.record.uuid,2147483647))!=priority:continue
-		# Keep the original ready-building order: interleaving distant house
-		# materials can concentrate texture uploads into a worse single hitch.
-		# Independent props/vegetation still get bounded turns between its units.
-		if str(item.get("group_id","")).begins_with("building:"):
-			if building_seen:continue
-			building_seen=true
-		if item.path==_burst_path and _burst_count<MAX_BURST:
-			_burst_count+=1
-			return item
-		var turn:int=_served.get(item.path,0)
-		if selected.is_empty() or turn<oldest or (turn==oldest and int(ranks[item.record.uuid])<int(ranks[selected.record.uuid])):
-			selected=item;oldest=turn
+		if selected.is_empty() or prefers(item.path,int(ranks[item.record.uuid]),selected.path,int(ranks[selected.record.uuid])):selected=item
+	if selected.path==_burst_path and _burst_count<MAX_BURST:
+		_burst_count+=1;return selected
 	_serial+=1;_served[selected.path]=_serial
 	_burst_path=selected.path;_burst_count=1
 	return selected
+
+func prefers(path:String,rank:int,other_path:String,other_rank:int)->bool:
+	# Read-only comparison for ALREADY qualified heads at the same priority.
+	# The ready scan also uses this order with an optimistic first-member rank:
+	# it may skip a later house only when a qualified peer already dominates it.
+	# Do not advance service state while merely examining an unselected path.
+	var continuing:bool=path==_burst_path and _burst_count<MAX_BURST
+	var other_continuing:bool=other_path==_burst_path and _burst_count<MAX_BURST
+	if continuing!=other_continuing:return continuing
+	var turn:int=_served.get(path,0);var other_turn:int=_served.get(other_path,0)
+	return turn<other_turn or (turn==other_turn and rank<other_rank)
 
 func _clear_drain()->void:
 	_drain_path="";_drain_generation=0;_drain_burst=0

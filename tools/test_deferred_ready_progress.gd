@@ -91,14 +91,14 @@ func run()->void:
 	check(service._jobs.size()==2 and service._admission.count()==2 and service.request_calls==0,"full admission skips every waiting reference-closure construction")
 	check(service.profile.has("dispatch_scan_us") and service.profile.has("max_dispatch_scan_us"),"dispatch overhead has separate cumulative and peak diagnostics")
 	f.map.free()
-	# Independent objects get turns within a long building, while building
-	# order, whole-group publication and one-time construction stay intact.
+	# Independent objects and other houses get turns within a long building,
+	# while whole-group publication and one-time construction stay intact.
 	f=fixture(12,true);service=f.service
-	for i in 8:service._publish_ready(Time.get_ticks_usec()-1000000)
-	check(f.document.calls.size()==8 and f.document.calls.keys().filter(func(id):return id.begins_with("ready_0_")).size()==4 and f.document.calls.keys().filter(func(id):return id.begins_with("prop_")).size()==4,"independent objects receive bounded turns within a long prepared building")
-	check(service.pending.size()==10032 and int(service.profile.instances)==4 and not f.document.calls.keys().any(func(id):return id.begins_with("ready_1_")),"independent publication preserves whole-building staging and original house order")
-	for i in 28:service._publish_ready(Time.get_ticks_usec()-1000000)
-	check(service.pending.size()==10000 and int(service.profile.instances)==36 and f.document.calls.values().all(func(value):return value==1),"ordered buildings finish atomically alongside independent props with one construction each")
+	for i in 12:service._publish_ready(Time.get_ticks_usec()-1000000)
+	check(f.document.calls.size()==12 and f.document.calls.keys().filter(func(id):return id.begins_with("ready_0_")).size()==4 and f.document.calls.keys().filter(func(id):return id.begins_with("ready_1_")).size()==4 and f.document.calls.keys().filter(func(id):return id.begins_with("prop_")).size()==4,"both ready buildings and independent objects receive one bounded turn")
+	check(service.pending.size()==10032 and int(service.profile.instances)==4,"interleaving ready houses never exposes a partial building")
+	for i in 24:service._publish_ready(Time.get_ticks_usec()-1000000)
+	check(service.pending.size()==10000 and int(service.profile.instances)==36 and f.document.calls.values().all(func(value):return value==1),"interleaved buildings finish atomically alongside props with one construction each")
 	service._process(0)
 	check(service._jobs.is_empty() and service._admission.reserved_bytes==0,"interleaved completion retires every prepared job and reservation")
 	f.map.free()

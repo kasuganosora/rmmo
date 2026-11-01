@@ -2649,7 +2649,7 @@ func _stage_building(item:Dictionary,specs:Array)->void:
 
 func _publication_ready(completion_pressure:bool=false)->Array:
 	var began:=Time.get_ticks_usec();var ready:Array=[]
-	var building_ranks:Dictionary={};var pruned:=0
+	var building_heads:Dictionary={};var pruned:=0
 	var paths_checked:=0;var prefix_checks:=0;var eligible_calls:=0
 	# At most one ready item per admitted closure. A collision-owned waiting
 	# head retains its consumption cursor. A separate bounded scan lets ready
@@ -2661,18 +2661,21 @@ func _publication_ready(completion_pressure:bool=false)->Array:
 		var job:Dictionary=_jobs[path]
 		if not job.get("accepted",false) or not _prepared_paths.has(path) or path_errors.has(path):continue
 		if job.has("collision_staged"):_prune_publication_packets(job)
-		# Fair publication can select only the earliest READY house at a visual
-		# priority. A native house path contains that one atomic closure. Its
-		# first demanded rank is a lower bound, including staged/private members:
-		# once an earlier house is ready, checking this one cannot change choice.
+		# A native house path contains one atomic closure. Its first demanded
+		# rank is an optimistic lower bound, including staged/private members.
+		# Skip it only if an ALREADY qualified house dominates that bound under
+		# the exact burst/least-served/rank order used by the final selector.
 		# Never apply this to shared model paths, safety priorities, stale ranks,
-		# or when the earlier house was blocked. Re-evaluate on every selection.
+		# or based on a blocked house. Re-evaluate on every selection.
 		if fair_publication_enabled and not completion_pressure and _candidates_revision==_demand_revision and path.begins_with("reference:building:"):
 			var first:Dictionary=_path_first.get(path,EMPTY_DEMAND)
 			if not first.is_empty():
 				var priority:int=_demanded_priority.get(first.record.uuid,2147483647)
-				if priority>=0 and building_ranks.has(priority) and int(_demanded_rank.get(first.record.uuid,-1))>=int(building_ranks[priority]):
-					pruned+=1;continue
+				var first_rank:int=_demanded_rank.get(first.record.uuid,-1)
+				if priority>=0 and first_rank>=0 and building_heads.has(priority):
+					var best:Dictionary=building_heads[priority]
+					if _publication_order.prefers(best.path,int(_demanded_rank[best.record.uuid]),path,first_rank):
+						pruned+=1;continue
 		var instance:Dictionary=job.get("instance_preparation",EMPTY_DEMAND)
 		if not instance.is_empty() and (not _demanded_by_id.has(instance.uuid) or instance_errors.has(instance.uuid)):
 			instance.cursor.dispose();_record_instance_work(instance.cursor,true,instance.get("worker_prepared",false));job.erase("instance_preparation");instance=EMPTY_DEMAND
@@ -2696,7 +2699,8 @@ func _publication_ready(completion_pressure:bool=false)->Array:
 				ready.append(active)
 				if str(active.get("group_id","")).begins_with("building:"):
 					var priority:int=_demanded_priority.get(active.record.uuid,2147483647)
-					building_ranks[priority]=mini(int(building_ranks.get(priority,2147483647)),int(_demanded_rank[active.record.uuid]))
+					var best:Dictionary=building_heads.get(priority,EMPTY_DEMAND)
+					if best.is_empty() or _publication_order.prefers(active.path,int(_demanded_rank[active.record.uuid]),best.path,int(_demanded_rank[best.record.uuid])):building_heads[priority]=active
 			continue
 		var checked:=0
 		while queue.cursor<queue.items.size() and checked<64:
@@ -2726,7 +2730,8 @@ func _publication_ready(completion_pressure:bool=false)->Array:
 			ready.append(item)
 			if str(item.get("group_id","")).begins_with("building:"):
 				var priority:int=_demanded_priority.get(item.record.uuid,2147483647)
-				building_ranks[priority]=mini(int(building_ranks.get(priority,2147483647)),int(_demanded_rank[item.record.uuid]))
+				var best:Dictionary=building_heads.get(priority,EMPTY_DEMAND)
+				if best.is_empty() or _publication_order.prefers(item.path,int(_demanded_rank[item.record.uuid]),best.path,int(_demanded_rank[best.record.uuid])):building_heads[priority]=item
 			break
 	ready.sort_custom(func(a,b):return _demanded_rank[a.record.uuid]<_demanded_rank[b.record.uuid])
 	var elapsed:=Time.get_ticks_usec()-began
