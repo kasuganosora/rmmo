@@ -1,0 +1,177 @@
+diff --git a/core/debugger/rmmo_debug_trace_script.h b/core/debugger/rmmo_debug_trace_script.h
+new file mode 100644
+--- /dev/null
++++ b/core/debugger/rmmo_debug_trace_script.h
+@@ -0,0 +1,34 @@
++#pragma once
++#include "rmmo_debug_trace.h"
++#include "rmmo_debug_trace_tasks.h"
++
++// Trace-only: no retained script/Variant/Resource owners; ordinary calls are
++// not instrumented. Metadata is made only after an active capture accepted
++// a span. Context is separate from native Object lifetime task names.
++namespace RmmoDebugTrace {
++enum ScriptLabel {
++	SCRIPT_SIGNAL_CALLBACK = 117,
++	SCRIPT_RESUME,
++	SCRIPT_RESUME_LOCK,
++	SCRIPT_CLEAR,
++	SCRIPT_CLEAR_CONNECTIONS,
++	SCRIPT_CLEAR_STACK,
++	SCRIPT_COMPLETED,
++	SCRIPT_EXIT,
++	SCRIPT_STACK_RELEASE,
++};
++class ScriptScope {
++    uint64_t span;
++public:
++    ScriptScope(uint32_t label, int64_t task, bool enabled = true) :
++            span(enabled ? begin(label, task, -249) : 0) {}
++    template <typename Path, typename Name>
++    ScriptScope(uint32_t label, int64_t task, const Path &path, const Name &name) :
++            span(begin(label, task, -249)) {
++        if (span) name_task(task, -249, String(path) + "::" + String(name));
++    }
++    ~ScriptScope() { if (span) end(span); }
++    ScriptScope(const ScriptScope &) = delete;
++    ScriptScope &operator=(const ScriptScope &) = delete;
++};
++}
+diff --git a/core/debugger/rmmo_debug_trace.cpp b/core/debugger/rmmo_debug_trace.cpp
+--- a/core/debugger/rmmo_debug_trace.cpp
++++ b/core/debugger/rmmo_debug_trace.cpp
+@@ -115,7 +115,7 @@
+ 	if (!labels.is_empty()) return;
+ 	for (const char *name : {"unknown", "main.iteration", "render.sync", "render.draw", "worker.execute", "worker.wait",
+ 			"resource.load", "mesh.surface_material", "pipeline.wait", "device.stall", "vulkan.fence_wait", "vulkan.submit_present", "worker.enqueue", "worker.name",
+-			"render.begin_frame", "render.scene_update", "render.canvas_update", "render.particles", "render.probes", "render.viewports", "render.canvas_renderer_update", "render.end_frame", "render.canvas_notifiers", "render.scene_notifiers", "render.memory_info", "render.post_draw", "render.viewport", "render.viewport_3d", "render.dirty_instances", "render.cull_scene", "render.cull_range", "render.particle_colliders", "render.rd_scene", "render.rd_update", "render.forward_scene", "render.instance_data", "render.fill_list", "render.draw_list", "render.dirty_geometry", "render.dirty_pipelines", "render.shadow_pass", "render.shadow_process", "render.shadow_end", "render.contact_shadows", "render.global_uniforms", "render.material_updates", "render.multimesh_updates", "render.skeleton_updates", "render.decal_redraw", "render.decal_atlas", "render.area_light_atlas", "main.scene_process", "main.audio", "main.message_queue", "rd.begin_frame", "rd.end_frame", "rd.execute_frame", "rd.stall_frame", "rd.free_pending", "rd.transfer_workers", "rd.transfer_barriers", "rd.graph_begin", "rd.begin_segment", "rd.command_begin", "rd.uniform_pool_reset", "rd.graph_end", "rd.graph_run", "rd.graph_draw", "rd.graph_compute", "rd.graph_framebuffer", "rd.graph_barriers", "rd.secondary_wait", "rd.graph_sort", "rd.graph_dependencies", "rd.graph.draw_bind_work", "rd.graph.vertex_pipeline_work", "windows.loop", "windows.events", "windows.sdl", "windows.lock_wait", "windows.raw_input", "windows.messages", "windows.dispatch", "windows.tts", "windows.key_events", "windows.input_flush", "windows.hdr_poll", "windows.dialogs", "sdl.poll", "sdl.event", "lifetime.object_predelete", "lifetime.object_predelete_notify", "lifetime.object_predelete_cleanup", "lifetime.object_script_release", "lifetime.object_destructor_body", "lifetime.object_signal_outgoing", "lifetime.object_signal_incoming", "lifetime.object_db_remove", "lifetime.node_predelete", "lifetime.node_delete_child", "lifetime.node_exit_tree", "lifetime.node_exit_script", "lifetime.node_exit_signal", "lifetime.node_exit_native", "lifetime.node_exit_tree_remove", "lifetime.node_exit_parent_signal", "lifetime.node_exit_groups", "lifetime.node_exit_after", "lifetime.render_rid_free", "lifetime.render_rid_utilities", "lifetime.render_rid_canvas", "lifetime.render_rid_viewport", "lifetime.render_rid_scene", "lifetime.visual_instance_destructor", "lifetime.physics_object_destructor", "lifetime.node_remove_child", "lifetime.node_destructor_body"}) labels.push_back(name);
++			"render.begin_frame", "render.scene_update", "render.canvas_update", "render.particles", "render.probes", "render.viewports", "render.canvas_renderer_update", "render.end_frame", "render.canvas_notifiers", "render.scene_notifiers", "render.memory_info", "render.post_draw", "render.viewport", "render.viewport_3d", "render.dirty_instances", "render.cull_scene", "render.cull_range", "render.particle_colliders", "render.rd_scene", "render.rd_update", "render.forward_scene", "render.instance_data", "render.fill_list", "render.draw_list", "render.dirty_geometry", "render.dirty_pipelines", "render.shadow_pass", "render.shadow_process", "render.shadow_end", "render.contact_shadows", "render.global_uniforms", "render.material_updates", "render.multimesh_updates", "render.skeleton_updates", "render.decal_redraw", "render.decal_atlas", "render.area_light_atlas", "main.scene_process", "main.audio", "main.message_queue", "rd.begin_frame", "rd.end_frame", "rd.execute_frame", "rd.stall_frame", "rd.free_pending", "rd.transfer_workers", "rd.transfer_barriers", "rd.graph_begin", "rd.begin_segment", "rd.command_begin", "rd.uniform_pool_reset", "rd.graph_end", "rd.graph_run", "rd.graph_draw", "rd.graph_compute", "rd.graph_framebuffer", "rd.graph_barriers", "rd.secondary_wait", "rd.graph_sort", "rd.graph_dependencies", "rd.graph.draw_bind_work", "rd.graph.vertex_pipeline_work", "windows.loop", "windows.events", "windows.sdl", "windows.lock_wait", "windows.raw_input", "windows.messages", "windows.dispatch", "windows.tts", "windows.key_events", "windows.input_flush", "windows.hdr_poll", "windows.dialogs", "sdl.poll", "sdl.event", "lifetime.object_predelete", "lifetime.object_predelete_notify", "lifetime.object_predelete_cleanup", "lifetime.object_script_release", "lifetime.object_destructor_body", "lifetime.object_signal_outgoing", "lifetime.object_signal_incoming", "lifetime.object_db_remove", "lifetime.node_predelete", "lifetime.node_delete_child", "lifetime.node_exit_tree", "lifetime.node_exit_script", "lifetime.node_exit_signal", "lifetime.node_exit_native", "lifetime.node_exit_tree_remove", "lifetime.node_exit_parent_signal", "lifetime.node_exit_groups", "lifetime.node_exit_after", "lifetime.render_rid_free", "lifetime.render_rid_utilities", "lifetime.render_rid_canvas", "lifetime.render_rid_viewport", "lifetime.render_rid_scene", "lifetime.visual_instance_destructor", "lifetime.physics_object_destructor", "lifetime.node_remove_child", "lifetime.node_destructor_body", "script.state_signal_callback", "script.state_resume", "script.state_resume_lock_wait", "script.state_clear", "script.state_clear_connections", "script.state_clear_stack", "script.resume_completed", "script.resume_exit", "script.resume_stack_release"}) labels.push_back(name);
+ }
+ Slot *enter_writer(uint64_t p_epoch) {
+ 	if (!local.slot) {
+diff --git a/modules/gdscript/gdscript_function.cpp b/modules/gdscript/gdscript_function.cpp
+--- a/modules/gdscript/gdscript_function.cpp
++++ b/modules/gdscript/gdscript_function.cpp
+@@ -29,6 +29,7 @@
+ /**************************************************************************/
+ 
+ #include "gdscript_function.h"
++#include "core/debugger/rmmo_debug_trace_script.h"
+ 
+ #include "gdscript.h"
+ 
+@@ -235,6 +236,12 @@
+ /////////////////////
+ 
+ Variant GDScriptFunctionState::_signal_callback(const Variant **p_args, int p_argcount, Callable::CallError &r_error) {
++#ifdef DEBUG_ENABLED
++	RmmoDebugTrace::ScriptScope script_trace(RmmoDebugTrace::SCRIPT_SIGNAL_CALLBACK, int64_t(get_instance_id()), state.script_path, state.function_name);
++#else
++	RmmoDebugTrace::ScriptScope script_trace(RmmoDebugTrace::SCRIPT_SIGNAL_CALLBACK, int64_t(get_instance_id()));
++#endif
++
+ 	Variant arg;
+ 	r_error.error = Callable::CallError::CALL_OK;
+ 
+@@ -267,9 +274,17 @@
+ }
+ 
+ Variant GDScriptFunctionState::resume(const Variant &p_arg) {
++#ifdef DEBUG_ENABLED
++	RmmoDebugTrace::ScriptScope script_trace(RmmoDebugTrace::SCRIPT_RESUME, int64_t(get_instance_id()), state.script_path, state.function_name);
++#else
++	RmmoDebugTrace::ScriptScope script_trace(RmmoDebugTrace::SCRIPT_RESUME, int64_t(get_instance_id()));
++#endif
++
+ 	ERR_FAIL_NULL_V(function, Variant());
+ 	{
++		uint64_t lock_trace = RmmoDebugTrace::begin(RmmoDebugTrace::SCRIPT_RESUME_LOCK, int64_t(get_instance_id()), -249);
+ 		MutexLock lock(GDScriptLanguage::singleton->mutex);
++		if (lock_trace) RmmoDebugTrace::end(lock_trace);
+ 
+ 		if (!scripts_list.in_list()) {
+ #ifdef DEBUG_ENABLED
+@@ -301,6 +316,12 @@
+ }
+ 
+ void GDScriptFunctionState::_clear_stack() {
++#ifdef DEBUG_ENABLED
++	RmmoDebugTrace::ScriptScope script_trace(RmmoDebugTrace::SCRIPT_CLEAR_STACK, int64_t(get_instance_id()), state.script_path, state.function_name);
++#else
++	RmmoDebugTrace::ScriptScope script_trace(RmmoDebugTrace::SCRIPT_CLEAR_STACK, int64_t(get_instance_id()));
++#endif
++
+ 	if (state.stack_size) {
+ 		Variant *stack = (Variant *)state.stack.ptr();
+ 		// First `GDScriptFunction::FIXED_ADDRESSES_MAX` stack addresses are special
+@@ -313,6 +334,12 @@
+ }
+ 
+ void GDScriptFunctionState::_clear_connections() {
++#ifdef DEBUG_ENABLED
++	RmmoDebugTrace::ScriptScope script_trace(RmmoDebugTrace::SCRIPT_CLEAR_CONNECTIONS, int64_t(get_instance_id()), state.script_path, state.function_name);
++#else
++	RmmoDebugTrace::ScriptScope script_trace(RmmoDebugTrace::SCRIPT_CLEAR_CONNECTIONS, int64_t(get_instance_id()));
++#endif
++
+ 	List<Object::Connection> conns;
+ 	get_signals_connected_to_this(&conns);
+ 
+@@ -333,6 +360,12 @@
+ }
+ 
+ void GDScriptFunctionState::clear() {
++#ifdef DEBUG_ENABLED
++	RmmoDebugTrace::ScriptScope script_trace(RmmoDebugTrace::SCRIPT_CLEAR, int64_t(get_instance_id()), state.script_path, state.function_name);
++#else
++	RmmoDebugTrace::ScriptScope script_trace(RmmoDebugTrace::SCRIPT_CLEAR, int64_t(get_instance_id()));
++#endif
++
+ 	if (cleared) {
+ 		return;
+ 	}
+diff --git a/modules/gdscript/gdscript_vm.cpp b/modules/gdscript/gdscript_vm.cpp
+--- a/modules/gdscript/gdscript_vm.cpp
++++ b/modules/gdscript/gdscript_vm.cpp
+@@ -30,6 +30,7 @@
+ 
+ #include "gdscript.h"
+ #include "gdscript_function.h"
++#include "core/debugger/rmmo_debug_trace_script.h"
+ #include "gdscript_helper.h"
+ #include "gdscript_lambda_callable.h"
+ 
+@@ -4025,7 +4026,9 @@
+ 	}
+ #endif
+ 
++	const int64_t resume_task = p_state ? int64_t(p_state->completed.get_object_id()) : 0;
+ 	if (p_state && !awaited) {
++		RmmoDebugTrace::ScriptScope script_trace(RmmoDebugTrace::SCRIPT_COMPLETED, resume_task);
+ 		// This means we have finished executing a resumed function and it was not awaited again.
+ 		// Exit function only after executing the remaining function states to preserve async call stack.
+ 		// Postpone the function exiting and the call stack clearing until the last `await` is completed.
+@@ -4036,8 +4039,13 @@
+ 		p_state->completed.emit(args, 1);
+ 	}
+ 
+-	GDScriptLanguage::get_singleton()->exit_function();
+-
++	{
++		RmmoDebugTrace::ScriptScope script_trace(RmmoDebugTrace::SCRIPT_EXIT, resume_task, p_state != nullptr);
++		GDScriptLanguage::get_singleton()->exit_function();
++	}
++
++	{
++	RmmoDebugTrace::ScriptScope script_trace(RmmoDebugTrace::SCRIPT_STACK_RELEASE, resume_task, p_state != nullptr);
+ 	// We deliberately avoid calling the destructor for `ADDR_STACK_CLASS`, since we initialized it
+ 	// without incrementing any reference count that it might have.
+ 	stack[ADDR_STACK_SELF].~Variant();
+@@ -4047,6 +4055,7 @@
+ 		stack[i].~Variant();
+ 	}
+ 
++	}
+ 	call_depth--;
+ 
+ 	return retvalue;
