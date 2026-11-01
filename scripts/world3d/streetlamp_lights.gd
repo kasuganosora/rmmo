@@ -3,6 +3,7 @@ extends Node3D
 const GROUP:="rmmo_streetlamp_crystals"
 var weather:Node
 var camera:Camera3D
+var observer:Node3D
 var fixtures:Dictionary={}
 var lights:Array[OmniLight3D]=[]
 var elapsed:=0.0
@@ -185,12 +186,17 @@ func _refresh_model_light(node:MeshInstance3D,night:bool,candidates:Array)->void
 	if row.light.global_position!=at:row.light.global_position=at
 	var enabled:bool=node.is_visible_in_tree() and (night or socket.get("indoor",false))
 	row.glow.visible=enabled
-	var observer:Camera3D=camera if is_instance_valid(camera) else get_viewport().get_camera_3d()
-	var eye:Vector3=observer.global_position if is_instance_valid(observer) else Vector3.ZERO
-	var distance:float=eye.distance_squared_to(at) if is_instance_valid(observer) else 0.0
+	# The camera orbits and shortens its arm at pillars while the player remains
+	# in the same room. Reranking by that eye position swaps shadow owners (and
+	# nearby lamps), making the room change brightness when only looking around.
+	# Editors have no actor, so retain their camera-based preview selection.
+	var anchor:Node3D=observer if is_instance_valid(observer) else camera
+	if not is_instance_valid(anchor):anchor=get_viewport().get_camera_3d()
+	var eye:Vector3=anchor.global_position if is_instance_valid(anchor) else Vector3.ZERO
+	var distance:float=eye.distance_squared_to(at) if is_instance_valid(anchor) else 0.0
 	var score:=distance
 	# Nearby upstairs candles must not consume the occupied hall's light budget.
-	if is_instance_valid(observer) and absf(eye.y-at.y)>3.1:score+=10000.0
+	if is_instance_valid(anchor) and absf(eye.y-at.y)>3.1:score+=10000.0
 	if enabled and distance<18.0*18.0:candidates.append({"light":row.light,"distance":score})
 	elif row.light.visible:row.light.visible=false
 
