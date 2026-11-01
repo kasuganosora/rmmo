@@ -42,6 +42,7 @@ func list_building_components(building_id: String) -> Array:
 	return preload("res://scripts/world3d/building_fixtures.gd").list_runtime(_map_root,building_id) if is_instance_valid(_map_root) else []
 
 func set_building_component_state(building_id: String, component_id: String, open: float, duration := .35) -> Dictionary:
+	if not _outgoing_disposal.is_empty():return {"ok":false,"error":"Map is being permanently replaced"}
 	if not is_instance_valid(_map_root): return {"ok":false,"error":"地图未加载"}
 	if building_entry_protocol_enabled() and not building_id.begins_with("fortification:"):
 		return _building_authority().set_runtime_fixture(_map_root,_map_ref(),str(_map_root.get_meta("source_map_sha256","")),building_id,component_id,open,duration)
@@ -62,6 +63,7 @@ var _warp_arrivals:Array[Node]=[]
 var _warp_order_dirty:=false
 var _warp_candidate_visits:=0
 var _transfer_pending := false
+var _outgoing_disposal:Dictionary={}
 var _transfer_loader: Node
 var _transfer_request_serial := 0
 var _local_transfer: Dictionary = {}
@@ -253,6 +255,7 @@ func request_facial_expression(id:String,combine:bool=false)->bool:
 	return _send_facial_expression(values)
 
 func request_remote_debug_spawn(display_name:String="")->void:
+	if not _outgoing_disposal.is_empty():return
 	var feet:Vector3=_player.global_position-Vector3(0,.9,0)+Vector3(2,0,0)
 	var result:Dictionary=Net.server().facial_expressions.spawn_peer(display_name,_map_path,feet)
 	apply_actions(result.get("actions",[]))
@@ -448,6 +451,7 @@ func _guard_deferred_geometry()->void:
 
 
 func _exit_tree() -> void:
+	_interrupt_outgoing_disposal()
 	_approach_preparation.release()
 	if _transfer_viewport_restore!=null:get_viewport().disable_3d=bool(_transfer_viewport_restore)
 	_retire_building_traversal()
@@ -660,6 +664,7 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _process(delta: float) -> void:
+	if not _outgoing_disposal.is_empty():return
 	_update_preparation_hint()
 	var profiling:bool=has_meta("profile_frame")
 	var marks:Variant=null
@@ -1187,6 +1192,7 @@ func _add_hud() -> void:
 	_revive.position = Vector2(530, 80)
 	_revive.visible = false
 	_revive.pressed.connect(func():
+		if not _outgoing_disposal.is_empty() or not is_instance_valid(_combat):return
 		if building_entry_protocol_enabled():
 			if await _combat.request_respawn():_revive.hide()
 		elif _combat.respawn():_revive.hide()
@@ -1238,6 +1244,7 @@ func _apply_actor_view() -> void:
 
 
 func _apply_residency(budget: int = 0) -> void:
+	if not _outgoing_disposal.is_empty():return
 	if _map_root == null or _player == null:
 		return
 	# The same-map transaction drives target residency while its origin is
@@ -1683,39 +1690,17 @@ func transfer_map(target: String, destination: Vector3, before_commit: Callable 
 	cancel_sit_preparation()
 	if Net.server().sitting:apply_actions(Net.server().try_sit(false).get("actions",[]))
 	furniture.cancel()
-	_combat.free()
-	_transfer_commit_mark(commit_timing,"outgoing_combat")
-	# Reserve the MAIN node ticket before prepare donates any final CPU owners.
-	# The roots leave scene/physics now; native destruction shares the ordinary
-	# retirement budget. Older unpatched engines keep synchronous destruction.
-	var outgoing_bodies:Array=_map_root.get_meta("stream_bodies",{}).values()
-	var outgoing_nodes:Array[Node]=[];outgoing_nodes.assign(outgoing_bodies);outgoing_nodes.append(_map_root)
-	var sliced_nodes:bool=preload("res://scripts/world3d/resource_retirement.gd").defer_node_trees(outgoing_nodes)
-	# Detached CPU workers retain their immutable inputs in the shared drainer;
-	# freeing the outgoing map must not synchronously join unfinished geometry.
-	Stream.prepare_map_disposal(_map_root,get_tree(),_navigation)
-	_transfer_commit_mark(commit_timing,"prepare_disposal")
-	for body:Variant in outgoing_bodies:
-		if not is_instance_valid(body):continue
-		if sliced_nodes:
-			if body.get_parent()!=null:body.get_parent().remove_child(body)
-		else:body.free()
+	var disposal:Dictionary=_prepare_outgoing_disposal(cover,viewport,navigation,commit_timing)
+	if not await _detach_outgoing_bodies(disposal):return _outgoing_disposal_failed(disposal)
 	_transfer_commit_mark(commit_timing,"outgoing_bodies")
-	# Clear presentation observers while outgoing meshes still have valid owners.
-	if is_instance_valid(_house_candles):_house_candles.bind_map(null)
-	if is_instance_valid(_camera):_camera.cutaway.bind(null)
-	if not building_entry_protocol_enabled() and _building_entry!=null:_building_entry.cancel("full_wait_handoff");_building_entry=null
-	_transfer_commit_mark(commit_timing,"presentation_observers")
-	if sliced_nodes:_map_root.get_parent().remove_child(_map_root)
-	else:_map_root.free()
+	# MapRoot is intentionally still one synchronous detach in this iteration.
+	if not _detach_outgoing_map(disposal):return _outgoing_disposal_failed(disposal)
 	_transfer_commit_mark(commit_timing,"outgoing_map")
-	if not _navigation.retire_background("map_replaced"):_navigation.free()
-	_transfer_commit_mark(commit_timing,"outgoing_navigation")
-	for lamp in _lamps: lamp.free()
+	if disposal.hold!=null and not disposal.hold.commit():
+		disposal.hold.cancel();disposal.reason="root_commit_refused"
+		return _outgoing_disposal_failed(disposal)
+	for lamp in _lamps:lamp.free()
 	_lamps.clear()
-	Net.server().world3d_release_actors()
-	if is_instance_valid(_actor_host): _actor_host.free()
-	_actor_host = null
 	_transfer_commit_mark(commit_timing,"outgoing_lamps_actors")
 	_map_root = prepared
 	_geometry_wait_locked=false
@@ -1736,6 +1721,10 @@ func transfer_map(target: String, destination: Vector3, before_commit: Callable 
 	_previous_feet = feet
 	_player.map_ref = _map_ref()
 	_player.navigation = navigation
+	# Keep the paused Combat valid across every detach/adoption refusal. Once
+	# adoption succeeds, replace it synchronously before any following await.
+	_combat.free()
+	_transfer_commit_mark(commit_timing,"outgoing_combat")
 	Net.server().world3d_authority.mount(_player, navigation, _map_ref())
 	_bind_manual_authority()
 	_combat = preload("res://scripts/world3d/world_combat.gd").new()
@@ -1754,6 +1743,7 @@ func transfer_map(target: String, destination: Vector3, before_commit: Callable 
 	_transfer_commit_mark(commit_timing,"target_world_map")
 	_apply_map_environment()
 	_transfer_commit_mark(commit_timing,"target_environment")
+	_finish_outgoing_disposal(disposal)
 	if not commit_timing.is_empty():
 		commit_timing.elapsed_us=int(commit_timing.last_us)-int(commit_timing.started_us)
 		set_meta("transfer_commit_profile",commit_timing)
@@ -1783,6 +1773,112 @@ func transfer_map(target: String, destination: Vector3, before_commit: Callable 
 	_status.text = "已进入目标地图。"
 	return true
 
+func _prepare_outgoing_disposal(cover:Node,stage:Node,target_navigation:Node,timing:Dictionary={})->Dictionary:
+	var bodies:Array=_map_root.get_meta("stream_bodies",{}).values()
+	var roots:Array[Node]=[];roots.assign(bodies);roots.append(_map_root)
+	var retirement=preload("res://scripts/world3d/resource_retirement.gd")
+	var hold:RefCounted=retirement.reserve_node_trees(roots,self)
+	var sliced:bool=hold!=null or retirement.defer_node_trees(roots)
+	var context:Dictionary={"map":weakref(_map_root),"bodies":bodies,"hold":hold,"sliced_nodes":sliced,"ready":_ready_for_play,"cover":weakref(cover),"stage":weakref(stage),"target_navigation":weakref(target_navigation),"tree":weakref(get_tree()),"reason":"","cancelled":false}
+	_outgoing_disposal=context;_ready_for_play=false
+	if hold!=null:hold.begin_disposal()
+	_map_root.process_mode=Node.PROCESS_MODE_DISABLED
+	# The outgoing queue was already quiesced before destination preparation.
+	# Seal the producer without repeating its bulk shutdown/ownership scans.
+	var deferred:=_map_root.get_node_or_null("DeferredAssets")
+	if deferred!=null:deferred._cancelled=true
+	_navigation.cancel_background("map_replaced")
+	_retire_building_traversal()
+	if is_instance_valid(_weather):_weather.suspend_map_observation()
+	if is_instance_valid(_outline):_outline.suspend_map_observation()
+	if is_instance_valid(_house_candles):_house_candles.bind_map(null)
+	if is_instance_valid(_camera):_camera.cutaway.bind(null)
+	if not building_entry_protocol_enabled() and _building_entry!=null:_building_entry.cancel("full_wait_handoff");_building_entry=null
+	_transfer_commit_mark(timing,"presentation_observers")
+	var proxy:=_map_root.get_node_or_null("DistantBuildingProxy")
+	if proxy!=null:proxy.close_permanently()
+	Stream.prepare_map_disposal(_map_root,get_tree(),_navigation)
+	_transfer_commit_mark(timing,"prepare_disposal")
+	# Reparenting fires the existing signal disconnect while the record fence
+	# has already been transferred; late bake callbacks see the terminal state.
+	if not _navigation.retire_background("map_replaced"):_navigation.free()
+	_transfer_commit_mark(timing,"outgoing_navigation")
+	Net.server().world3d_release_actors()
+	if is_instance_valid(_actor_host):_actor_host.free()
+	_actor_host=null
+	return context
+
+func _detach_outgoing_bodies(context:Dictionary)->bool:
+	if context.hold==null:
+		# Unsupported engine: preserve synchronous topology/destruction semantics.
+		for body:Variant in context.bodies:
+			if not is_instance_valid(body):continue
+			if context.sliced_nodes:
+				if body.get_parent()!=null:body.get_parent().remove_child(body)
+			else:body.free()
+		return true
+	var driver:=preload("res://scripts/world3d/map_body_detachment.gd").new()
+	add_child(driver)
+	driver.configure(self,context.bodies,context.hold,context.cover.get_ref(),context.stage.get_ref())
+	driver.advance()
+	var ok:bool=driver.succeeded if driver.done else await driver.finished
+	context.reason=driver.profile.reason
+	set_meta("body_detach_profile",driver.profile.duplicate())
+	return ok
+
+func _detach_outgoing_map(context:Dictionary)->bool:
+	# The body phase yielded. Preserve the same foreign-parent boundary as the
+	# held commit instead of unconditionally detaching a newly adopted MapRoot.
+	var outgoing:Node=context.map.get_ref()
+	if outgoing==null or outgoing!=_map_root or outgoing.is_queued_for_deletion():context.reason="map_changed";return false
+	var parent:Node=outgoing.get_parent()
+	if parent!=null and not is_ancestor_of(outgoing):context.reason="map_adopted";return false
+	if context.sliced_nodes:
+		if parent!=null:parent.remove_child(outgoing)
+		if not is_instance_valid(outgoing) or outgoing.is_inside_tree() or outgoing.get_parent()!=null:context.reason="map_not_detached";return false
+	else:outgoing.free()
+	return true
+
+func _interrupt_outgoing_disposal()->void:
+	if _outgoing_disposal.is_empty():return
+	var context:Dictionary=_outgoing_disposal
+	if context.cancelled:return
+	context.cancelled=true
+	_discard_interrupted_transfer.call_deferred(context)
+	if context.hold!=null:context.hold.cancel()
+	var stage:Node=context.stage.get_ref()
+	if stage==null or not stage.has_meta("transfer_prepared_map"):return
+	var target:Node=stage.get_meta("transfer_prepared_map").get_ref()
+	if not is_instance_valid(target):return
+	var deferred:=target.get_node_or_null("DeferredAssets")
+	if deferred!=null:deferred.end_scene_handoff(null)
+
+func _outgoing_disposal_failed(context:Dictionary)->bool:
+	_interrupt_outgoing_disposal()
+	# Failure on a tree-exit stack must not alter either busy scene hierarchy.
+	# The existing World/viewport ownership handles destruction on World exit.
+	if context.reason=="owner_exited":return false
+	var cover:Node=context.cover.get_ref()
+	if context.reason=="cover_exited" or not is_instance_valid(cover):return false
+	return _hold_transfer_presentation(cover)
+
+func _discard_interrupted_transfer(context:Dictionary)->void:
+	var tree:SceneTree=context.tree.get_ref()
+	if tree==null:return
+	var stage:Node=context.stage.get_ref()
+	var navigation:Node=context.target_navigation.get_ref()
+	if stage!=null and stage.has_meta("transfer_prepared_map"):
+		var target:Node=stage.get_meta("transfer_prepared_map").get_ref()
+		if is_instance_valid(target) and stage.is_ancestor_of(target):Stream.prepare_map_disposal(target,tree,navigation)
+	if navigation!=null and not navigation.retire_background("transfer_disposal_interrupted"):navigation.free()
+	if stage!=null:stage.queue_free()
+
+func _finish_outgoing_disposal(context:Dictionary)->void:
+	if is_instance_valid(_weather):_weather.resume_map_observation()
+	if is_instance_valid(_outline):_outline.resume_map_observation()
+	_ready_for_play=bool(context.ready)
+	_outgoing_disposal={}
+
 func _adopt_transfer_target(prepared:Node3D,deferred:Node,cover:CanvasLayer)->bool:
 	var attached:=Stream.reparent_prepared_map(prepared,self)
 	if is_instance_valid(deferred):deferred.end_scene_handoff(self)
@@ -1793,8 +1889,8 @@ func _adopt_transfer_target(prepared:Node3D,deferred:Node,cover:CanvasLayer)->bo
 	return _hold_transfer_presentation(cover)
 
 func _transfer_commit_mark(timing:Dictionary,stage:String)->void:
-	# Opt-in clocks for the contiguous synchronous handoff; no awaits or graph
-	# inspection. Ordinary gameplay does not construct this timing dictionary.
+	# Opt-in elapsed wall intervals. Body detach includes frame waits; its
+	# separate body_detach_profile records active slices and exact root work.
 	if timing.is_empty():return
 	var now:=Time.get_ticks_usec()
 	timing.stages_us[stage]=now-int(timing.get("last_us",timing.started_us));timing.last_us=now

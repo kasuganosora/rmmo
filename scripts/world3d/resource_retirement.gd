@@ -1,4 +1,5 @@
 extends Node
+const NodeDetachReservation=preload("res://scripts/world3d/node_detach_reservation.gd")
 const ModelOwners=preload("res://scripts/world3d/model_resource_owners.gd")
 ## Unused large templates relinquish GPU/CPU Resource owners on bounded main
 ## thread slices. Logical cache eviction is immediate; this queue owns disposal.
@@ -27,6 +28,7 @@ var exiting:=false
 var serial:=0
 var _advancing_ticket:Dictionary={}
 var _open_geometry_batch:Dictionary={}
+var _shutdown_tail:=false
 var _open_pixel_batch:Dictionary={}
 var profile:Dictionary={"scenes":0,"imports":0,"slices":0,"max_slice_us":0,"resources":0,"import_values":0,"import_slices":0,"import_max_slice_us":0,"truncated_imports":0,"private_arrays":0,"private_values":0,"private_slices":0,"private_max_slice_us":0,"models":0,"model_values":0,"model_slices":0,"model_max_slice_us":0,"terrain_shape_arrays":0,"terrain_shape_refs":0}
 static func _service()->Node:
@@ -70,10 +72,16 @@ func _enqueue_private_array(values:Array)->Dictionary:
 	pending.append(ticket);known[id]=true;profile.private_arrays+=1;set_process(true)
 	return ticket
 static func defer_node_trees(roots:Array[Node])->bool:
-	# Permanent disposal only. Reserve BEFORE donating any metadata/cache owners,
-	# then detach every root in the same synchronous commit. The native cursor
-	# refuses live roots, so callbacks cannot release their CPU fence early.
-	# The caller transfers this private outer array; never clear or reuse it.
+	# Legacy synchronous detach callers retain their exact admission semantics.
+	return _enqueue_node_trees(roots)
+static func reserve_node_trees(roots:Array[Node],owner:Node)->RefCounted:
+	if not is_instance_valid(owner) or not owner.is_inside_tree():return null
+	var state:=NodeDetachReservation.new()
+	if not _enqueue_node_trees(roots,state):return null
+	state.configure(roots,owner)
+	return NodeDetachReservation.Hold.new(state)
+static func _enqueue_node_trees(roots:Array[Node],reservation:RefCounted=null)->bool:
+	# Caller donates this private outer array. Node handles are not Ref owners.
 	if not native_node_retirement_enabled or roots.is_empty() or not Thread.is_main_thread():return false
 	if _native_node_retirement_available<0:
 		_native_node_retirement_available=int(ClassDB.class_has_method("Node","rmmo_retire_detached_nodes_step"))
@@ -82,7 +90,9 @@ static func defer_node_trees(roots:Array[Node])->bool:
 	if service==null:return false
 	var stack:Array[Node]=[];var expanded:Array[bool]=[]
 	service.serial+=1;var id:="nodes:%d"%service.serial
-	service.pending.append({"kind":"node_trees","source_id":id,"roots":roots,"stack":stack,"expanded":expanded,"root_cursor":0,"freed":0,"snapshots":0,"cancelled":0,"atomic_subtrees":0})
+	var ticket:Dictionary={"kind":"node_trees","source_id":id,"roots":roots,"stack":stack,"expanded":expanded,"root_cursor":0,"freed":0,"snapshots":0,"cancelled":0,"atomic_subtrees":0}
+	if reservation!=null:ticket.detachment=reservation
+	service.pending.append(ticket)
 	service.known[id]=true;service.set_process(true)
 	service.profile.node_trees=int(service.profile.get("node_trees",0))+roots.size()
 	return true
@@ -335,6 +345,11 @@ func _advance_ticket(ticket:Dictionary,budget_usec:int)->bool:
 	return ticket.phase==2
 func _advance_node_trees(ticket:Dictionary,budget_usec:int)->bool:
 	var began:=Time.get_ticks_usec()
+	if ticket.has("detachment") and ticket.detachment.held:
+		if not ticket.detachment.advance_abort(budget_usec):return false
+		if budget_usec>0:
+			budget_usec-=Time.get_ticks_usec()-began
+			if budget_usec<=0:return false
 	var freed:int=ticket.freed;var snapshots:int=ticket.snapshots
 	var atomic:int=ticket.atomic_subtrees;var cancelled:int=ticket.cancelled
 	var complete:bool=ClassDB.class_call_static("Node","rmmo_retire_detached_nodes_step",ticket,budget_usec)
@@ -357,7 +372,9 @@ func _finish_node_trees_shutdown(ticket:Dictionary)->void:
 	# Release only the remaining detached nodes; never destroy a live borrower.
 	for values:Array in [ticket.stack,ticket.roots]:
 		for value:Variant in values:
-			if is_instance_valid(value) and not value.is_inside_tree():value.free()
+			# Off-tree parents still own children; only independent roots belong
+			# to this final fallback, including adoption by an exit callback.
+			if is_instance_valid(value) and not value.is_inside_tree() and value.get_parent()==null:value.free()
 		values.clear()
 func _advance_canvas_items(ticket:Dictionary,budget_usec:int)->bool:
 	var began:=Time.get_ticks_usec();var progressed:=false;var released:=0
@@ -609,6 +626,7 @@ func _finish_cpu_buffers(ticket:Dictionary,shutdown:bool)->bool:
 	return true
 func _finish_front()->void:
 	var ticket:Dictionary=pending.pop_front();known.erase(ticket.source_id)
+	if ticket.has("detachment"):ticket.detachment.finish();ticket.erase("detachment")
 	if ticket.get("kind","")=="pixel_buffers":
 		_finish_pixel_ticket(ticket)
 	if ticket.has("geometry_tail"):
@@ -646,8 +664,20 @@ func _process(_delta:float)->void:
 	if pending.is_empty():set_process(false)
 func _exit_tree()->void:
 	exiting=true
-	# Engine exit has no future frames; finish all queued dependencies on main.
+	_drain_shutdown(false)
+func _drain_shutdown(after_exit_callbacks:bool)->void:
 	while not pending.is_empty():
 		var ticket:Dictionary=pending[0]
+		if ticket.has("detachment") and not after_exit_callbacks:
+			# SceneTree.finalize flushes this deletion after root EXIT/AFTER_EXIT
+			# and destruction. Normal service.free also returns from exit signals
+			# before the deletion queue runs. Preserve the entire FIFO owner tail.
+			var tail:Node=get_script().new()
+			tail.pending=pending;tail.known=known;tail.profile=profile
+			pending=[];known={};tail.exiting=true;tail._shutdown_tail=true
+			tail.queue_free();return
+		if ticket.has("detachment"):ticket.detachment.request_abort("service_shutdown")
 		if not _advance(ticket,0) and ticket.get("kind","")=="node_trees":_finish_node_trees_shutdown(ticket)
 		_finish_front()
+func _notification(what:int)->void:
+	if what==NOTIFICATION_PREDELETE and _shutdown_tail:_drain_shutdown(true)

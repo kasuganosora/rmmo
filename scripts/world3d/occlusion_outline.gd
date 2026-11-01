@@ -13,6 +13,31 @@ var tagged: Array[GeometryInstance3D] = []
 var scan_time := 0.0
 var visual_exclusions:Array[RID]=[]
 
+var _map_observation_suspended:=false
+var _map_observation_process_mode:Node.ProcessMode=Node.PROCESS_MODE_INHERIT
+var _map_observation_mask_mode:SubViewport.UpdateMode=SubViewport.UPDATE_DISABLED
+var _map_observation_overlay_visible:=false
+
+func suspend_map_observation()->void:
+	if _map_observation_suspended:return
+	_map_observation_process_mode=process_mode
+	if is_instance_valid(mask):
+		_map_observation_mask_mode=mask.render_target_update_mode
+		mask.render_target_update_mode=SubViewport.UPDATE_DISABLED
+	if is_instance_valid(overlay):
+		_map_observation_overlay_visible=overlay.visible
+		overlay.hide()
+	_map_observation_suspended=true
+	process_mode=Node.PROCESS_MODE_DISABLED
+
+func resume_map_observation()->void:
+	if not _map_observation_suspended:return
+	_map_observation_suspended=false
+	# World restores only after the replacement physics graph and bindings exist.
+	if is_instance_valid(mask):mask.render_target_update_mode=_map_observation_mask_mode if enabled else SubViewport.UPDATE_DISABLED
+	if is_instance_valid(overlay):overlay.visible=_map_observation_overlay_visible and enabled
+	process_mode=_map_observation_process_mode
+
 func bind(body: CharacterBody3D, view: Camera3D) -> void:
 	player = body; source = view; layer = 5
 	mask = SubViewport.new()
@@ -49,6 +74,7 @@ func _tag(node: Node) -> void:
 	for child in node.get_children(): _tag(child)
 
 func _process(delta: float) -> void:
+	if _map_observation_suspended:return
 	if not has_meta("profile_frame"):
 		_tick_frame(delta);return
 	var began:=Time.get_ticks_usec()
@@ -56,6 +82,7 @@ func _process(delta: float) -> void:
 	set_meta("frame_timing",{"frame":Engine.get_process_frames(),"begin_us":began,"end_us":Time.get_ticks_usec(),"ms":(Time.get_ticks_usec()-began)/1000.0})
 
 func _tick_frame(delta:float)->void:
+	if _map_observation_suspended:return
 	if not is_instance_valid(source) or not is_instance_valid(player): return
 	scan_time -= delta
 	if scan_time <= 0:

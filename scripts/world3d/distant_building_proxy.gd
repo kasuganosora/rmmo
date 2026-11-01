@@ -20,8 +20,10 @@ var _job:Dictionary={}
 var _cooldown:Dictionary={} # Scalar retry times, never rejected mesh owners.
 var _clock:=0.
 var _switching:=false
+var _closed:=false
 func _ready()->void:set_meta("stream_instance",true)
 func _process(delta:float)->void:
+	if _closed:return
 	_poll()
 	_clock+=delta
 	if _clock<.25:return
@@ -29,6 +31,7 @@ func _process(delta:float)->void:
 	var camera:=get_viewport().get_camera_3d()
 	if camera!=null:tick(camera.global_position)
 func tick(origin:Vector3)->void:
+	if _closed:return
 	if not _job.is_empty() and _job.row.bounds.get_center().distance_to(origin)<EXIT_M:_job.cancelled=true
 	var batcher:=get_parent().get_node_or_null("GroundRenderBatches")
 	if batcher==null:return
@@ -267,6 +270,7 @@ func _current(row:Dictionary,groups:Array)->bool:
 		if not is_instance_valid(node) or not node.is_visible_in_tree():return false
 	return true
 func _poll()->void:
+	if _closed:return
 	if _job.is_empty() or _job.thread.is_alive():return
 	var data:Dictionary=_job.thread.wait_to_finish();Retirement.complete(_job.lease)
 	var id:String=_job.id;var row:Dictionary=_job.row;var cancelled:bool=_job.get("cancelled",false);_job={}
@@ -316,6 +320,10 @@ func _drop(id:String)->void:
 	# This also runs inside transform/visibility notifications. Withdraw now,
 	# destroy after the engine finishes iterating its Node3D notification list.
 	row.proxy.hide();row.proxy.queue_free();_switching=false;profile.active=_rows.size();profile.invalidated+=1
+func close_permanently()->void:
+	if _closed:return
+	_closed=true;set_process(false);clear()
+	if not _job.is_empty():Retirement.abandon(_job.lease);_job={}
 func clear()->void:
 	_cooldown.clear()
 	if not _job.is_empty():_job.cancelled=true

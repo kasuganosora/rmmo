@@ -53,6 +53,28 @@ var server_environment_key := ""
 var server_environment_dirty := false
 signal environment_changed(config: Dictionary)
 
+# A permanent map close may yield before the old graph exits. Node process_mode
+# does not suppress signals or World._request_environment's explicit _process.
+var _map_observation_suspended:=false
+var _map_observation_process_mode:Node.ProcessMode=Node.PROCESS_MODE_INHERIT
+var _map_observation_settings_pending:=false
+
+func suspend_map_observation()->void:
+	if _map_observation_suspended:return
+	_map_observation_process_mode=process_mode
+	_map_observation_suspended=true
+	process_mode=Node.PROCESS_MODE_DISABLED
+
+func resume_map_observation()->void:
+	if not _map_observation_suspended:return
+	_map_observation_suspended=false
+	# The caller has adopted the target and synchronously configured its weather.
+	# Coalesce settings signals received while the old graph was being detached.
+	if _map_observation_settings_pending:
+		_map_observation_settings_pending=false
+		_settings_changed()
+	process_mode=_map_observation_process_mode
+
 func bind_sky(map_id: String, provider: Callable) -> void:
 	sky_map = map_id; sky_provider = provider; sky_poll = 0; night_sky.reset()
 	server_environment_key = ""
@@ -113,6 +135,9 @@ func configure(config: Dictionary, instant := false) -> void:
 	_apply()
 
 func _settings_changed() -> void:
+	if _map_observation_suspended:
+		_map_observation_settings_pending=true
+		return
 	var settings := get_node_or_null("/root/GameSettings")
 	cloud_quality = ["low","medium","high"].find(str(settings.cloud_quality)) if settings != null else 1
 	if not cloud_resources_ready: cloud_quality = -1
@@ -132,6 +157,7 @@ func _settings_changed() -> void:
 	if wind_objects != null: wind_objects.advance(wind_velocity if visuals_enabled else Vector3.ZERO,wind_time)
 
 func _process(delta: float) -> void:
+	if _map_observation_suspended:return
 	if values.is_empty() or environment == null: return
 	var profile_start:=Time.get_ticks_usec() if has_meta("profile_frame") else 0
 	_tick_night_sky(delta)
@@ -178,6 +204,7 @@ func _process(delta: float) -> void:
 	if profile_start>0:set_meta("frame_timing",{"frame":Engine.get_process_frames(),"sky_ms":(sky_end-profile_start)/1000.0,"simulation_ms":(simulation_end-sky_end)/1000.0,"lightning_ms":(lightning_end-simulation_end)/1000.0,"apply_ms":(apply_end-lightning_end)/1000.0,"wind_ms":(wind_end-apply_end)/1000.0,"audio_ms":(Time.get_ticks_usec()-wind_end)/1000.0,"ms":(Time.get_ticks_usec()-profile_start)/1000.0})
 
 func _physics_process(delta: float) -> void:
+	if _map_observation_suspended:return
 	if precipitation == null or not is_instance_valid(camera): return
 	shelter_tick -= delta
 	if shelter_tick > 0: return

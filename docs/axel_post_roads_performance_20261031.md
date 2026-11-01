@@ -2319,3 +2319,17 @@ root审查又发现：`_drop`同步释放visual，合法的`tree_exited`观察�
 最终candidate02生产SHA `c8269ca842dc99270b2e07b78509088cf348ded40dda90f56f2952dba94793e8`（不含其他会话三行）。入库 `tools/test_batch_incremental_finalization.gd` 同一oracle普通运行96/96，18项只能依赖插桩的工作断言明确SKIP；注入实际循环计数后 `--require-work-ledger` 115/115、0 SKIP。严格模式缺ledger时正常失败，不能将缺计数当0。最终cache/prep两个相关回归250项通过；前版另有1069项组合覆盖，数字存在重叠，不相加冒称独立断言数。每次冻结工程逐SHA恢复、引擎错误0、无并发测试。证据 `P/batch_finalization57_candidate02/{results.md,validation_receipt.json,production.patch}`、`P/batch_finalization57_portable_setup`。
 
 本节是工作量和正确性结论，没有新的整图时间或FPS数字。body分帧、held生命周期和MapRoot拆分仍在独立验证；56正式配置也尚未发布：其secondary draw recording为4，而默认candidate10为0且没有原生节点退休API。已准备engine默认0、仅RMMO项目配置4、保留显式环境0覆盖的窄配置补丁，尚未编译/安装。后续先完成剩余候选，再以正式配置复测昼夜、编辑器与卸载/返回，不能拿诊断构建结果直接宣称普通启动已达标。
+
+## 56. 身体退树接入共享预算，回收等待所有退出回调结束（2026-11-01）
+
+针对56的68.335ms body detach，在原传送不可逆提交点接入held reservation：reserve在捐交owner之前，begin_disposal在永久关闭之前；全部body和MapRoot退出后才允许同一FIFO票据开始原生销毁。普通reserve后取消仍保留有效地图，进入永久处置后取消只完成清理、不恢复旧图。当前独立根API不支持嵌套别名；MapRoot自身63.611ms仍同步，另做范围受控的直接孩子方案。
+
+实际World helper由独立driver在既有retire lane下移除body，每帧至多一个slice，仍请求原1000µs额度并计费，没有增加worker或预算。保留现有cover/落点/physics和目标绘制屏障；旧玩家与Combat暂停，旧Combat跨全部yield保留，因为radar仍读取其actors，目标成功adopt后才同步替换。World入口阻止处置期间的process/residency/危险回调；老Deferred沿用已完成quiesce，直接封闭生产者，Navigation终态取消并保留元数据借用期。Proxy永久关闭不能由显式tick/poll重新启动，普通clear仍可复用。天气的设置signal和显式process/physics也暂停、合并待应用设置；outline独立tick及mask viewport暂停，目标绑定后恢复。仅关process_mode不足以覆盖这些入口。
+
+首个有效预算红例仅忽略共享额度/集中单帧两项失败。最终真实World、Navigation、Deferred、Batch、Proxy和隔离目标SubViewport用例 **123/123**；天气/outline真实入口和signal **18/18**。测试仅将共享lane设为1µs强制分片，32个body实际visited=detached=32、32片、1次额度拒绝，最后检查33个根；不用微测墙钟阈值冒充真实68ms下降。正式代码仍1000µs。
+
+另外两个所有权红例均已真实复现：跨body yield后MapRoot被离树foreign parent接管，旧逻辑仍偷拆/销毁（4通过/2预期失败）；`tree_exited`在remove返回前将body接到foreign parent，shutdown尾票和最后fallback误删它并丢失其余借用栅栏（21通过/5预期失败）。同步MapRoot入口现在检查原身份和当前所有者；abort在remove返回后重新分类接管，fallback仅释放无父节点的独立根。回调接管绿例26/26，原held主59、foreign28、两种shutdown顺序各4保持通过。缺原生API的默认4.8走原同步路径，实际fallback6/6。最终 **268项通过，0引擎/脚本错误**；各独立失败样本保留，冻结55路径全部恢复，无并发引擎。
+
+四个未插桩的复现工具入库：`test_world_body_detachment.gd`、`test_body_detach_observers.gd`、`test_held_node_reservation.gd`、`test_held_post_remove_foreign.gd`。使用`--headless --path <project> --script res://tools/<fixture>`；held另有`-- --foreign-only`、`-- --shutdown=service_first`及`owner_first`。缺API的World/held使用`-- --unsupported`；不把native跳过称作正向通过。完整参数、保存字节SHA及资格在 `P/body_detach58_setup/{README.md,business_manifest.json,fixture_delivery.json}`。候选保存件含CRLF，入库仅统一文本换行；Weather只施加本轮hunk，保留其他会话10行，Batcher也保留其3行WIP。早期混入Weather WIP和缺旧Navigation方法的样本均排除在最终隔离资格外。
+
+这只是独立正确性及分帧工作量资格，尚无新的整图收益。body阶段墙钟会包含新增覆盖帧，后续须同时记录active slice、总传送时间和最大帧。旧map process_mode传播、MapRoot退出、最终根检查及返回adoption仍是实际工作，不能宣称卸载已全部解决。MapRoot的现有native时间线进一步确认3922个直接子树共52.176ms、最大1.828ms，下一步只针对这一层拆帧，保留一般scripted根的原子退出合同。正式引擎配置候选正在外部构建，默认安装入口尚未替换。
