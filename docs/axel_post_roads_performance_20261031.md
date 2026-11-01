@@ -2360,3 +2360,32 @@ root审查又发现：`_drop`同步释放visual，合法的`tree_exited`观察�
 candidate58上新fixture **24/24**，累计MapChildren **183/183**、实际World **138/138**，合计 **345项、0错误**；有限FIFO前置任务最终完成，body/children和后置标记各执行一次。fixture刻意使用2ms原子回调证明同帧准入，数字不是生产帧耗时。首个green因推断Dictionary类型失败未执行有效断言，保留为无效解析样本；只补显式类型后通过。55个冻结路径全部恢复，三次绿例前后无其他引擎/编译/Blender工作负载。
 
 证据`P/disposal_budget60_revision02_setup/{README.md,validation_receipt.json,repo_integration_receipt.json}`；独立fixture `tools/test_disposal_frame_budget.gd`。生产四文件与通过样本文本一致。后续累计整图需同时确认新的额度拒绝、总卸载等待、12秒回收窗口、最终提交回调和真实最大帧，尚未以组件准入结果宣称整图低帧或加载时间改善。
+
+## 59. 累计59时间线：退树峰值下降，保留加载变慢和12秒回收失败（2026-11-01）
+
+`node_trace59_01`使用固定地图、55530c65累计生产改动和candidate58，项目secondary_draw_lists=4、环境覆盖不存在。74份诊断overlay在3入口parse及实际World带探针143项检查后封存；先前缺少WorldMapData新参数转发的诊断wrapper被parse拒绝，只修wrapper，保留无效样本。正式生产代码无此问题。此次无GDB、无其他引擎/Blender/编译并发；引擎日志错误0，唯一功能失败仍为原12秒回收条件。进程191.89s后正常结束，全部冻结文件恢复。
+
+| 既有阶段口径 | 56诊断样本 | 59累计诊断样本 |
+|---|---:|---:|
+| entry |9.393786s|16.238871s|
+| full-ready |39.564826s|60.851585s|
+| entry后收尾 |30.171040s|44.612714s|
+| map_unload阶段墙钟 |0.934375s|1.733806s|
+| map_unload最大帧 |198.417ms|63.016ms|
+| map_return最大帧 |121.843ms|149.887ms|
+| return_loading阶段墙钟 |31.961553s|40.218565s|
+| return_loading最大帧/>50ms帧 |44.706ms/0|84.066ms/8|
+| 初始steady 1% low |53.596fps|29.440fps|
+| return_steady 1% low |49.084fps|39.993fps|
+
+这是累计时间线观测，不是将时间差全部归因某条补丁的AB试验。59不能宣告总体通过。约15.2fps是map_return加载中1% low，不是加载完成后的39.993fps；初始steady实际降到29.440fps也必须保留，不能只用阶段口径解释退步。56/59的初始steady实际均约30秒，return_steady约15秒。尚未运行的normal v02配置为5秒初始窗口，不能混称相同口径；后续正常验收另准备30秒版本，保留v02历史。详见`P/loading59_analysis01/duration_audit.*`。
+
+已命中修复的真实链：2141个body共96片，active84.008ms/max1.079ms；3922个直接孩子97片，active87.267ms/max2.224ms；最终MapRoot退出 **63.611ms→0.062ms**。held commit检查6064根5.609ms。body/child总工作没有变成零，也未变得更少；以额外覆盖帧换掉了集中退出。最大child advance整体20.582ms包括finished.emit后的World续体，不能冒充child自身的2.224ms。卸载余下63.016ms帧主要为prepare_map_disposal33.174ms，包含Batcher.close_permanently20.773ms；这是后续要拆解的实际工作，不是后台上传锁等待。
+
+回收截止仍剩 **23个terrain_shape private_array**，不是node票或worker没完成；所有9412 node units已经释放，旧Map/Deferred实际死亡通过。首张剩余票private720于113.425842s入队，116.232729s才到队首，116.235900s截止时执行过一次1.220ms、剩2个值。其前面确有PackedScene、CPU几何及其他private数组工作。剩余23票实际advance合计147.294ms，最后117.266270s完成；尾部跨过宿主export/start的190/284ms间隔，不能把截止后1.030s全说成释放CPU。节点票含191次held等待，首次释放103.706501s；56/59节点工作数相同，但总票据墙钟1.966→3.584s。证据`P/trace59_retirement_analysis/`，不放宽原期限或预算掩盖失败。
+
+返回最大149.887ms帧的MAIN实做工作集中在loader前缀：AssetLibrary实例化inclusive79.993ms（其中材质apply31.255ms）、cooked mesh restore39.264ms、prefetch11.340ms。另一个84.066ms返回收尾帧有Deferred._process48.717ms，其中publish_items33.023ms，随后render.draw16.772ms；以上嵌套区间不可相加。目标adoption46.047ms、outline/camera23.223ms和地图projection18.204ms也仍存在。
+
+初始变慢的已有证据：reference_index_read0.248→3.349s，唯一initial native compiled_read3.037→6.726s，任务/字节/原生SHA相同，不能称重复模型加载。后续仍同323初始记录、1505实例、23模型、302道路、2928 arrivals且duplicate0，但worker墙钟显著增加；这些不是CPU计时，原因尚未完全定位。合批额外重复则已精确对应：packed visits5515→6233，invalidated rows2905→3623，两者相减均2610，新增718次访问全部来自桶失效；最终219groups/367surfaces/2100849vertices相同。晚到name插入已排序桶触发整个桶重排，是可独立复现的下一项工作，不取消canonical排序或偷偷放大队列。
+
+两份native capture事件2,727,919/5,037,074，drop、registration drop、export error、orphan、crossing及task冲突均0；回收journal12,861事件/1,235票、最终pending0。证据`P/trace59_flow_extract`、`P/trace59_native_analysis`、`P/cumulative59_quick01`，每个spans.csv只顺序读取一次生成归因。下步限定已发现的永久关闭、SceneState重复计数查询、晚到源造成的重复装箱与返回前缀，不因此切换到其他外围优化；默认引擎安装和普通日夜/编辑器验收仍待完成。
