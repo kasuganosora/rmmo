@@ -2143,3 +2143,13 @@ CompletedJobTrace共19,849条，dropped0；initial/return各186个job，全部7�
 selector事件实际捕获4006次建筑剪枝（later_ready_building3826、choose_later_building180），没有collision/support gate事件。返回2d20 accepted→首次服务3.217728s，被剪枝164次；b489 2.729287s/143次；cbb 2.133312s/118次。此前源码规则确实作用于真实等待者，但剪枝在资格检查之前，仍不能用“没有gate”断言它们当时满足全部依赖。历史规则为旧同步材质路径局部性折衷，非跨建筑依赖；后续确定性fixture需显式证明被跳过对象的资格，并保持原子发布/预算/资源所有权。
 
 GroundBatchTimeline无丢失，503次residency_request全部immutable_append=false。正式WorldStream调用全量权威meshes；已有StreamBatchArrivals helper未在实测project的scripts中被引用，因此组件中的immutable优化不能等同正式路径已接入。不能直接翻转flag：通用meshes包含恢复、替换、删除、外部adoption。更急的正确性缺口是待执行旧请求：prune/final保存_next_residency后，prepare/bin新请求直接更新当前preparation，却没有更新或清除旧_next_residency；完成时会回放更旧成员集合。实测g2已收到2848 roots@30.822s，g3却回放2841@31.802s；返回最新3914@155.659s，g9回放3898@156.432s。此项先做真实Batcher组件复现、保留最新权威状态后修复，再接新增源账本，不能以扩大预算掩盖重复和状态倒退。
+
+## 48. 先复现再修复过时合批请求：恢复正确成员并移除一轮重复准备（2026-11-01）
+
+`tools/test_batch_latest_request.gd` 使用真实Batcher分片收集、准备、成员签名和generation保护。分别在collect/prune/prepare/bin/unique/filter/drop/add收到增长、取消待追加或删除请求，最终与重新全量准备的成员/签名比较；另使用Semaphore暂停实际Thread，在旧worker活跃时替换成员，再释放worker确认过期generation不能发布。只替代fixture的CPU restore/GPU commit观察，未替代调度或资格逻辑。
+
+稳定4.8 `batch_latest54_red01` 174项中18项出现预期stale/latest失败，其余156项通过，脚本/引擎错误0。最小修复在每次request_residency_sync接收新请求时先撤销原_next_residency，再由既有逻辑接纳、排队本次请求或开启新一轮；因此直接并入的更新及撤销待追加都会覆盖旧快照。只增加5行，不改变预算、worker数量、immutable标志或合批次序。
+
+`green01` **174/174通过**；既有completed_batch_bins102、interleaved_batch_preparation40、batch_retirement_reconciliation81、closed_batch_preparation19，共 **416/416通过**，每轮错误0、冻结工程逐文件SHA恢复。明确复现序列从 `[40,40,41,42,41]` 变 `[40,40,41,42]`；最终成员41→正确42，准备访问123→82、装箱访问83→42。这些是同一fixture的实际工作量及正确性，不是整图速度收益；真实整图下一dump确认不再回放旧状态。
+
+证据 `P/batch_latest54_setup/{review.md,patch.json,latest_request.patch}`、`P/batch_latest54_{red01,green01,completed01,interleaved01,retirement01,closed01}/`。生产ground_batcher的其余render_region和stained-glass改动属另一会话，原字节保留；本次只选择自己的5行补丁提交，不混入对方工作。503次false的真实接入缺口仍待后续处理，不将这次修复等同immutable流程已启用。

@@ -396,6 +396,11 @@ static func _expanded_exclusions(nodes:Array,excluded:Array)->Array:
 func request_residency_sync(nodes:Array,excluded:Array=[],immutable_append:bool=false)->void:
 	if Timeline.enabled:
 		Timeline.record("residency_request",sync_count,Time.get_ticks_usec(),[nodes.size(),excluded.size(),immutable_append,_preparation.get("phase",""),_trace_prefix(_preparation.get("runtime_roots",[]),nodes),_trace_prefix(_residency_bins.get("runtime_roots",[]),nodes),_residency_bins.get("immutable_append",false),get_stack()])
+	# Every request supersedes the pending snapshot, even when its sources can
+	# be merged into this active pass. Otherwise a request queued during prune
+	# can replay after newer prepare/bin arrivals and remove their membership.
+	# Returning to the active prefix also cancels an unaccepted append.
+	_next_residency={}
 	# Streaming appends immutable sources. Keep the already collected names
 	# while that exact root prefix survives; arbitrary editor requests still
 	# supersede preparation through request_sync. Native array comparison uses
