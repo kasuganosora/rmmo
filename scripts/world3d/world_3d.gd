@@ -1687,19 +1687,29 @@ func transfer_map(target: String, destination: Vector3, before_commit: Callable 
 	furniture.cancel()
 	_combat.free()
 	_transfer_commit_mark(commit_timing,"outgoing_combat")
+	# Reserve the MAIN node ticket before prepare donates any final CPU owners.
+	# The roots leave scene/physics now; native destruction shares the ordinary
+	# retirement budget. Older unpatched engines keep synchronous destruction.
+	var outgoing_bodies:Array=_map_root.get_meta("stream_bodies",{}).values()
+	var outgoing_nodes:Array[Node]=[];outgoing_nodes.assign(outgoing_bodies);outgoing_nodes.append(_map_root)
+	var sliced_nodes:bool=preload("res://scripts/world3d/resource_retirement.gd").defer_node_trees(outgoing_nodes)
 	# Detached CPU workers retain their immutable inputs in the shared drainer;
 	# freeing the outgoing map must not synchronously join unfinished geometry.
 	Stream.prepare_map_disposal(_map_root,get_tree(),_navigation)
 	_transfer_commit_mark(commit_timing,"prepare_disposal")
-	for body in _map_root.get_meta("stream_bodies", {}).values():
-		if is_instance_valid(body): body.free()
+	for body:Variant in outgoing_bodies:
+		if not is_instance_valid(body):continue
+		if sliced_nodes:
+			if body.get_parent()!=null:body.get_parent().remove_child(body)
+		else:body.free()
 	_transfer_commit_mark(commit_timing,"outgoing_bodies")
 	# Clear presentation observers while outgoing meshes still have valid owners.
 	if is_instance_valid(_house_candles):_house_candles.bind_map(null)
 	if is_instance_valid(_camera):_camera.cutaway.bind(null)
 	if not building_entry_protocol_enabled() and _building_entry!=null:_building_entry.cancel("full_wait_handoff");_building_entry=null
 	_transfer_commit_mark(commit_timing,"presentation_observers")
-	_map_root.free()
+	if sliced_nodes:_map_root.get_parent().remove_child(_map_root)
+	else:_map_root.free()
 	_transfer_commit_mark(commit_timing,"outgoing_map")
 	if not _navigation.retire_background("map_replaced"):_navigation.free()
 	_transfer_commit_mark(commit_timing,"outgoing_navigation")

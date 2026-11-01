@@ -12,6 +12,8 @@ static var background_decoded_release_enabled:=true
 static var geometry_size_reuse_enabled:=true
 static var batched_geometry_release_enabled:=true # Diagnostic threshold-scan baseline.
 static var ordered_retirement_tail_enabled:=true # Diagnostic old-batch fence control.
+static var native_node_retirement_enabled:=true
+static var _native_node_retirement_available:=-1
 static var pixel_retirement_test_gate:Semaphore # Test only; production remains null.
 static var pixel_retirement_test_start_failure:=false # Test only.
 static var _pixel_service_requested:=false
@@ -58,6 +60,23 @@ func _enqueue_private_array(values:Array)->Dictionary:
 	var ticket:Dictionary={"kind":"private_array","source_id":id,"values":values}
 	pending.append(ticket);known[id]=true;profile.private_arrays+=1;set_process(true)
 	return ticket
+static func defer_node_trees(roots:Array[Node])->bool:
+	# Permanent disposal only. Reserve BEFORE donating any metadata/cache owners,
+	# then detach every root in the same synchronous commit. The native cursor
+	# refuses live roots, so callbacks cannot release their CPU fence early.
+	# The caller transfers this private outer array; never clear or reuse it.
+	if not native_node_retirement_enabled or roots.is_empty() or not Thread.is_main_thread():return false
+	if _native_node_retirement_available<0:
+		_native_node_retirement_available=int(ClassDB.class_has_method("Node","rmmo_retire_detached_nodes_step"))
+	if _native_node_retirement_available==0:return false
+	var service:Node=_service()
+	if service==null:return false
+	var stack:Array[Node]=[];var expanded:Array[bool]=[]
+	service.serial+=1;var id:="nodes:%d"%service.serial
+	service.pending.append({"kind":"node_trees","source_id":id,"roots":roots,"stack":stack,"expanded":expanded,"root_cursor":0,"freed":0,"snapshots":0,"cancelled":0,"atomic_subtrees":0})
+	service.known[id]=true;service.set_process(true)
+	service.profile.node_trees=int(service.profile.get("node_trees",0))+roots.size()
+	return true
 static func defer_canvas_items(items:Array[RID])->bool:
 	# The producer first detaches its exclusive canvas parent. These children
 	# cannot render or be reused, but native destruction still belongs on main.
@@ -267,6 +286,7 @@ func _advance(ticket:Dictionary,budget_usec:int)->bool:
 	_advancing_ticket=previous
 	return complete
 func _advance_ticket(ticket:Dictionary,budget_usec:int)->bool:
+	if ticket.get("kind","")=="node_trees":return _advance_node_trees(ticket,budget_usec)
 	if ticket.get("kind","")=="canvas_items":return _advance_canvas_items(ticket,budget_usec)
 	if ticket.get("kind","")=="pixel_buffers":return _advance_pixel_buffers(ticket,budget_usec)
 	if ticket.get("kind","")=="cpu_geometry":return _advance_cpu_geometry(ticket,budget_usec<=0)
@@ -301,6 +321,32 @@ func _advance_ticket(ticket:Dictionary,budget_usec:int)->bool:
 	var elapsed:=Time.get_ticks_usec()-began
 	profile.slices+=1;profile.max_slice_us=maxi(int(profile.max_slice_us),elapsed)
 	return ticket.phase==2
+func _advance_node_trees(ticket:Dictionary,budget_usec:int)->bool:
+	var began:=Time.get_ticks_usec()
+	var freed:int=ticket.freed;var snapshots:int=ticket.snapshots
+	var atomic:int=ticket.atomic_subtrees;var cancelled:int=ticket.cancelled
+	var complete:bool=ClassDB.class_call_static("Node","rmmo_retire_detached_nodes_step",ticket,budget_usec)
+	var elapsed:=Time.get_ticks_usec()-began
+	# Scripted/specialized subtrees preserve their original PREDELETE order and
+	# count as one opaque unit. Do not report this as an exact recursive count.
+	profile.node_units=int(profile.get("node_units",0))+int(ticket.freed)-freed
+	profile.node_child_snapshots=int(profile.get("node_child_snapshots",0))+int(ticket.snapshots)-snapshots
+	profile.node_atomic_subtrees=int(profile.get("node_atomic_subtrees",0))+int(ticket.atomic_subtrees)-atomic
+	profile.node_cancelled=int(profile.get("node_cancelled",0))+int(ticket.cancelled)-cancelled
+	profile.node_slices=int(profile.get("node_slices",0))+1
+	profile.node_release_us=int(profile.get("node_release_us",0))+elapsed
+	profile.node_max_slice_us=maxi(int(profile.get("node_max_slice_us",0)),elapsed)
+	profile.slices+=1;profile.max_slice_us=maxi(int(profile.max_slice_us),elapsed)
+	return complete
+
+func _finish_node_trees_shutdown(ticket:Dictionary)->void:
+	# Normally step(0) drains the detached graph. If a reservation was never
+	# committed or a node re-entered the tree, it still belongs to that tree.
+	# Release only the remaining detached nodes; never destroy a live borrower.
+	for values:Array in [ticket.stack,ticket.roots]:
+		for value:Variant in values:
+			if is_instance_valid(value) and not value.is_inside_tree():value.free()
+		values.clear()
 func _advance_canvas_items(ticket:Dictionary,budget_usec:int)->bool:
 	var began:=Time.get_ticks_usec();var progressed:=false;var released:=0
 	while not ticket.items.is_empty() and (not progressed or budget_usec<=0 or Time.get_ticks_usec()-began<budget_usec):
@@ -569,18 +615,27 @@ func _process(_delta:float)->void:
 	var allowed:=Budget.allowance("retire",1000,false)
 	if allowed<=0 or pending.is_empty():return
 	var began:=Time.get_ticks_usec()
-	var front:Dictionary=pending[0]
-	if _advance(front,allowed):
-		_finish_front()
-	elif front.get("kind","")=="pixel_buffers" and front.get("slot_blocked",false) and pending.size()>1:
-		# A later main-thread retirement may free the slot held by this ledger.
-		# Move only this unstarted independent ticket; preserve all other FIFO
-		# tail/fence ordering, and attempt at most one ticket per frame.
-		pending.pop_front();pending.append(front)
+	var remaining:=allowed
+	while not pending.is_empty() and remaining>0:
+		var front:Dictionary=pending[0]
+		if _advance(front,remaining):
+			_finish_front()
+			# A cheap completed ticket need not waste the rest of this callback.
+			# Continue FIFO under the SAME allowance, including completion work.
+			remaining=maxi(0,allowed-(Time.get_ticks_usec()-began))
+			if remaining>0 and not pending.is_empty():profile.queue_continuations=int(profile.get("queue_continuations",0))+1
+			continue
+		if front.get("kind","")=="pixel_buffers" and front.get("slot_blocked",false) and pending.size()>1:
+			# Only this unstarted independent ticket may rotate. Never spin on a
+			# blocked worker/lease, or skip another ticket's ownership fence.
+			pending.pop_front();pending.append(front)
+		break
 	Budget.charge("retire",began)
 	if pending.is_empty():set_process(false)
 func _exit_tree()->void:
 	exiting=true
 	# Engine exit has no future frames; finish all queued dependencies on main.
 	while not pending.is_empty():
-		_advance(pending[0],0);_finish_front()
+		var ticket:Dictionary=pending[0]
+		if not _advance(ticket,0) and ticket.get("kind","")=="node_trees":_finish_node_trees_shutdown(ticket)
+		_finish_front()

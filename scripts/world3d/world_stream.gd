@@ -384,6 +384,11 @@ static func prepare_map_disposal(map_root:Node,tree:SceneTree=null,record_consum
 		if outgoing==null:continue
 		outgoing.retire_workers(tree)
 		if service=="GroundRenderBatches":
+			# Completed descriptors and raw bins can own thousands of WeakRefs,
+			# arrays and CPU meshes. Keep their final owners off this commit too.
+			if sliced_cache_disposal_enabled:
+				var catalog_owners:Array=preload("res://scripts/world3d/batch_catalog_retirement.gd").owners(outgoing)
+				preload("res://scripts/world3d/resource_retirement.gd").defer_private_array(catalog_owners,true)
 			# clear() disconnects and removes visuals immediately, but its temporary
 			# groups.values() used to destroy all group.data.mesh owners on return.
 			# Retain individual groups, not one outer dictionary, on the MAIN lane.
