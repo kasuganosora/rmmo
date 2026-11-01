@@ -36,7 +36,7 @@ func run()->void:
 	DirAccess.make_dir_recursive_absolute(folder)
 	var path:=folder.path_join("map.gltf");var doc:=Doc.new()
 	doc.records=Source.records(Paths.external_root())
-	doc.records.append(Source.wall("out_of_view",1600,"remote_ring"))
+	doc.records.append(Source.wall("out_of_view",6000,"remote_ring"))
 	doc.map_meta=Source.metadata(doc.records)
 	check(doc.save(path)==OK,"save disposable complete frozen structure definitions")
 	var sha:=FileAccess.get_sha256(path)
@@ -54,6 +54,13 @@ func run()->void:
 	check(queue.pending.size()==6 and map.get_meta("stream_library").size()==1,"far walls, gate leaves and bridge stay compact at initial handoff")
 	queue.activate(host);queue.prioritize(Vector3.ZERO);queue.set_process(false);queue._refresh_demanded()
 	check(queue._demanded_by_id.has("whole_bridge") and queue._demanded_by_id.has("far_wall") and not queue._demanded_by_id.has("out_of_view"),"structure background demand preserves landscape distance without loading the whole map")
+	# Typed requests remain a public API for exclusive consumers. The normal
+	# runtime now asks for every visible category through one shared ticket.
+	queue.release_demand("visual_render")
+	var radius:int=Stream.BUILDING_RENDER_RADIUS
+	var visual_clip:=AABB(Vector3(-radius*32.,-100000,-radius*32.),Vector3((2*radius+1)*32.,200000,(2*radius+1)*32.))
+	queue.set_demand("building_render",visual_clip,10,"building")
+	queue.set_demand("structure_render",visual_clip,10,"structure")
 	queue.set_demand_scope(["building_render"]);queue._refresh_demanded()
 	check(queue._demanded.is_empty(),"building-only demand cannot accidentally widen to fortification groups")
 	queue.set_demand_scope(["structure_render"])

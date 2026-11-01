@@ -1,5 +1,7 @@
 extends SceneTree
 ## Chunk residency on the Axel check whitebox. Not a shipped-map test.
+## Historical near-only visual assertions below predate full camera-view streaming.
+## Current contract: test_visible_object_residency.gd + test_visible_world_completion.gd.
 
 const Stream = preload("res://scripts/world3d/world_stream.gd")
 const GUILD := Vector3(112.5, 0.95, 119.5)

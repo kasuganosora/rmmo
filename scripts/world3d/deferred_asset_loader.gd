@@ -36,6 +36,7 @@ const CollisionProducts=preload("res://scripts/world3d/collision_product_cache.g
 const FrameBudget=preload("res://scripts/world3d/frame_work_budget.gd")
 const CompletedTrace=preload("res://scripts/world3d/completed_job_trace.gd")
 const LoadTrace=preload("res://scripts/world3d/load_trace.gd")
+const VisualPriority=preload("res://scripts/world3d/visual_chunk_priority.gd")
 const CollisionGeometry=preload("res://scripts/world3d/model_collision_requirements.gd")
 static var shared_prefab_texture_preparation_enabled:=true # Shared source tasks retain and charge pixels once.
 static var parallel_texture_preparation_enabled:=true # Same byte lease and total worker cap; diagnostic serial control.
@@ -103,6 +104,8 @@ var _native_plan_claims:Dictionary={}
 var _native_plan_serial:=0
 var _texture_attempt_generation:=-1
 var loading_worker_limit:=0 # 0 selects production CPU-based capacity; probes may override 2/4/6.
+var visual_render_radius:int=Stream.RENDER_RADIUS # Synchronized with the active camera's visual envelope.
+var _view_heading:=-1 # No camera direction preserves standalone consumers' distance order.
 var _saved_interactive_worker_limit:=-1
 var _demands:Dictionary={}
 var _demand_scope:Dictionary={}
@@ -1271,7 +1274,11 @@ func _refresh_demanded()->void:
 		var demand:Dictionary=_demands[id]
 		var kind:String=demand.get("kind","all");var grouped:bool=demand.has("group_id")
 		var priority:int=int(demand.priority);var base_score:=float(priority)*1e15
+		var view_ordered:bool=_view_heading>=0 and (id=="player" or id=="visual_render")
 		var origin:Vector3=_priority if id=="player" or demand.get("rank_from_player",false) else demand.clip.get_center()
+		if view_ordered:
+			var focus:=Stream.chunk_key(_priority)
+			origin=Vector3(focus.x*Stream.CHUNK_M,0,focus.y*Stream.CHUNK_M)
 		var candidates_for_demand:Array
 		var typed_saw_published:=false
 		# Spatial and typed queries already own an ordered, UUID-deduplicated
@@ -1314,10 +1321,17 @@ func _refresh_demanded()->void:
 			# Distance is nonnegative. A score already below this ticket's base
 			# cannot lose; the same immutable owner/origin also cannot improve at
 			# an equal or weaker priority. Support closure still runs below.
-			var dominated:bool=demand_score_pruning_enabled and present and (float(winner[0])<=base_score or (is_same(winner[2],item) and winner[4]==origin and int(winner[3])<=priority))
+			# Equal origins only imply equal scores while all tickets use distance.
+			# Camera-ordered visual tickets can share an origin/tier with explicit
+			# distance consumers; retain the always-valid base-score shortcut there.
+			var dominated:bool=demand_score_pruning_enabled and present and (float(winner[0])<=base_score or (_view_heading<0 and is_same(winner[2],item) and winner[4]==origin and int(winner[3])<=priority))
 			var score:float=0.
 			if dominated:scores_reused+=1
-			else:score=base_score+_distance_from(item,origin);distance_evaluations+=1
+			else:
+				# Scale the fractional spatial key above double precision at the
+				# existing 10*1e15 visual tier. It remains far below one tier.
+				score=base_score+(VisualPriority.bounds_rank(item.bounds,origin,Stream.CHUNK_M,_view_heading)*1e9 if view_ordered else _distance_from(item,origin))
+				distance_evaluations+=1
 			# Numeric keys precede the borrowed item. Native lexicographic sorting
 			# compares doubles without one GDScript callback per comparison, and
 			# insertion rank makes equal-score order deterministic.
@@ -1823,6 +1837,13 @@ func _moving_demand_envelope(id:String,clip:AABB,priority:int)->AABB:
 	# invalidate the entire town demand set. Do not snap inward at cell edges.
 	return AABB(Vector3(clip.position.x-MOVING_DEMAND_HALO_M,0,clip.position.z-MOVING_DEMAND_HALO_M),Vector3(clip.size.x+2*MOVING_DEMAND_HALO_M,1,clip.size.z+2*MOVING_DEMAND_HALO_M))
 
+func set_view_direction(direction:Vector3)->void:
+	var next:int=VisualPriority.heading(direction,_view_heading)
+	if next==_view_heading:return
+	var previous:=_view_heading
+	_view_heading=next;_demand_revision+=1;set_process(_active)
+	if _demand_revision_trace!=null:_demand_revision_trace.change("view_heading","",previous,next,_demand_revision)
+
 func prioritize(position:Vector3)->void:
 	# The membership tickets below already invalidate on chunk changes. Sorting
 	# every remaining town object for centimetres of movement only changes tie
@@ -1843,22 +1864,22 @@ func prioritize(position:Vector3)->void:
 	# A chunk-aligned ticket is stable while walking inside one cell. Nothing
 	# outside live tickets is parsed just because the queue still has entries.
 	var cell:=Stream.chunk_key(position)
-	var center:=Vector3((cell.x+.5)*Stream.CHUNK_M,0,(cell.y+.5)*Stream.CHUNK_M)
-	set_demand("player",AABB(center-Vector3(128,100000,128),Vector3(256,200000,256)),0)
-	# Preserve the existing long building view as a lower priority visual demand.
-	# Stream still controls collision by its short physical residency ring.
-	if not _reference_index.is_empty():set_demand("building_render",AABB(center-Vector3(1000,100000,1000),Vector3(2000,200000,2000)),10,"building")
-	if not _reference_index.is_empty():
-		# Match the existing landscape draw cells. This is a background visual
-		# demand only; Stream continues to attach physics within its short ring.
-		var radius:int=Stream.BUILDING_RENDER_RADIUS
-		var corner:=Vector3((cell.x-radius)*Stream.CHUNK_M,-100000,(cell.y-radius)*Stream.CHUNK_M)
-		var width:float=(2*radius+1)*Stream.CHUNK_M
-		set_demand("road_render",AABB(corner,Vector3(width,200000,width)),10,"road")
-		set_demand("structure_render",AABB(corner,Vector3(width,200000,width)),10,"structure")
-		# Cold entry initially includes global terrain. After retirement its
-		# compact rows need the same far draw coverage as their live specs.
-		set_demand("terrain_render",AABB(corner,Vector3(width,200000,width)),10,"terrain")
+	# Whole near rings keep both sides of a boundary cell in the same priority
+	# tier. The former centre +/-128m rectangle split the fourth ring in half.
+	# This is preparation priority only; collision/safety clips are unchanged.
+	var near_radius:=4
+	var near_corner:=Vector3((cell.x-near_radius)*Stream.CHUNK_M,-100000,(cell.y-near_radius)*Stream.CHUNK_M)
+	var near_width:float=(2*near_radius+1)*Stream.CHUNK_M
+	set_demand("player",AABB(near_corner,Vector3(near_width,200000,near_width)),0)
+	# Initial safety is a readiness gate, not the full gameplay view. Every
+	# visible kind needs background demand, including first-time imported
+	# houses whose building metadata can only be learned after publication.
+	# One shared ticket uses Stream's exact cells; it neither duplicates the
+	# four typed scans nor enlarges the separate short physics residency ring.
+	var radius:int=maxi(0,visual_render_radius)
+	var corner:=Vector3((cell.x-radius)*Stream.CHUNK_M,-100000,(cell.y-radius)*Stream.CHUNK_M)
+	var width:float=(2*radius+1)*Stream.CHUNK_M
+	set_demand("visual_render",AABB(corner,Vector3(width,200000,width)),10)
 
 func _reference_requests(path:String)->Array:
 	var requests:Array=[];var ids:Dictionary={};var groups:Dictionary={}

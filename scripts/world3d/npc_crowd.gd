@@ -5,6 +5,7 @@ const Stream = preload("res://scripts/world3d/world_stream.gd")
 const Motion = preload("res://scripts/world3d/world_motion.gd")
 const N := 256
 const COUNT := 500
+const DISPLAY_RADIUS := 1 # Check-only physical crowd, independent of static scenery.
 
 var land := PackedByteArray()
 var agents: Array = []
@@ -44,7 +45,7 @@ func setup(walkable: PackedByteArray, seed: int, count: int = COUNT) -> void:
 
 func tick(host: Node, origin: Vector3, dt: float) -> Dictionary:
 	var solid := Stream.ring(origin, Stream.COLLISION_RADIUS)
-	var draw := Stream.ring(origin, Stream.RENDER_RADIUS)
+	var draw := Stream.ring(origin, DISPLAY_RADIUS)
 	var active := 0
 	var visible := 0
 	var outside := 0

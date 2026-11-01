@@ -2,6 +2,7 @@ extends SceneTree
 const Stream=preload("res://scripts/world3d/world_stream.gd")
 const Batch=preload("res://scripts/world3d/ground_batcher.gd")
 const Cpu=preload("res://scripts/world3d/ground_cpu_mesh.gd")
+const FAR_CELL:=Vector2i(Stream.RENDER_RADIUS+8,Stream.RENDER_RADIUS+8)
 var checks:=0
 var failures:=0
 class CountedCpu extends Cpu:
@@ -20,7 +21,7 @@ func fixture(keep:int=-1)->Dictionary:
 	for i:int in 3:
 		var cpu:=CountedCpu.new();cpus.append(cpu)
 		var node:=MeshInstance3D.new();node.name="part%d"%i;node.mesh=cpu;map.add_child(node);nodes.append(node);meshes[str(node.name)]=node
-		var cell:=Vector2i.ZERO if i==keep else Vector2i(100,100)
+		var cell:=Vector2i.ZERO if i==keep else FAR_CELL
 		var row:Dictionary={"uuid":str(node.name),"chunk":cell,"chunk_min":cell,"chunk_max":cell,"mesh":cpu,"transform":Transform3D.IDENTITY,"extras":{"rmmo_collision":"none"}}
 		rows.append(row);by_id[row.uuid]=row;batch._member_groups[row.uuid]="group"
 	var visual:=Node3D.new();batch.add_child(visual)
@@ -33,7 +34,7 @@ func uploads(f:Dictionary)->int:
 	return count
 func run()->void:
 	var away:=Stream._ring_at(Vector2i.ZERO,Stream.RENDER_RADIUS)
-	var back:=Stream._ring_at(Vector2i(100,100),Stream.RENDER_RADIUS)
+	var back:=Stream._ring_at(FAR_CELL,Stream.RENDER_RADIUS)
 	var f:=fixture()
 	Stream._apply(f.map,f.map,f.rows[0],away,away,f.meshes,f.bodies)
 	check(uploads(f)==0,"first departing member never uploads the other members that are also outside demand")

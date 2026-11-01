@@ -724,6 +724,7 @@ func _physics_process(_delta: float) -> void:
 func activate_entry_neighbours()->void:
 	if not _ready_for_play or not is_instance_valid(_map_root) or not is_instance_valid(_player):return
 	if loading_profile.has("entry_prefetch_started_us"):return
+	preload("res://scripts/world3d/visual_stream_range.gd").sync(_map_root,_camera.camera,_player.global_position)
 	if is_instance_valid(_navigation):_navigation.covered_loading=false
 	var deferred:=_map_root.get_node_or_null("DeferredAssets")
 	if deferred!=null:
@@ -1248,6 +1249,7 @@ func _apply_residency(budget: int = 0) -> void:
 	# pinned. A second plan at the frozen player's old position would thrash it.
 	if not _local_transfer.is_empty():return
 	var started:=Time.get_ticks_usec()
+	if is_instance_valid(_camera):preload("res://scripts/world3d/visual_stream_range.gd").sync(_map_root,_camera.camera,_player.global_position)
 	Stream.sync(_map_root, self, _player.global_position, budget)
 	if budget>0 and budget<Stream.LOAD_BUDGET and not has_meta("profile_unshared_stream_budget"):
 		var batcher=_map_root.get_node_or_null("GroundRenderBatches")

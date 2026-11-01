@@ -2,6 +2,7 @@ extends SceneTree
 ## CPU-only imported membership/residency regression. No maps or assets written.
 const Index=preload("res://scripts/world3d/stream_index.gd")
 const Stream=preload("res://scripts/world3d/world_stream.gd")
+const Paths=preload("res://scripts/world3d/map_paths.gd")
 var checks:Array=[]
 var failed:=0
 
@@ -44,7 +45,7 @@ func run()->void:
 	check(imported.all(func(spec):return spec.render_building=="imported" and is_same(spec.render_bounds,reference)),"batched wall and nonbatched lamp/LOD/wind/glass share complete render bounds")
 	check(reference.chunk_min==Vector2i.ZERO and reference.chunk_max==Vector2i(1,0),"group render bounds cover every original member")
 	check(built.stream_prop_index.is_empty(),"explicit nonbatched building members do not become near-only props")
-	var far:={"low":Vector2i(19,-1),"high":Vector2i(21,1)}
+	var far:=Stream._ring_at(Vector2i(20,0),Stream.RENDER_RADIUS)
 	check(imported.all(func(spec):return Stream._draws(spec,far)),"actual runtime draw decision retains all members at town view distance")
 	check(built.stream_collision_index.size()==1 and built.stream_collision_index[Vector2i.ZERO].size()==1 and built.stream_collision_index[Vector2i.ZERO][0].uuid=="imported__wall","nonphysical membership does not add walk collision or enlarge near collision bounds")
 	check(imported.all(func(spec):return spec.transform==original[imported.find(spec)].transform and spec.chunk_min==original[imported.find(spec)].chunk_min and spec.chunk_max==original[imported.find(spec)].chunk_max),"grouping does not change actual transforms or physical cells")
@@ -63,8 +64,8 @@ func run()->void:
 	var ordinary:Array=[part("ordinary_wind__mesh",Vector2i.ZERO,{"rmmo_wind":{},"rmmo_collision":"none"}),part("ordinary_lod__mesh",Vector2i.ZERO,{"rmmo_auto_lod":true,"rmmo_visibility_range":{},"rmmo_collision":"none"})]
 	ordinary[0].mesh.size=Vector3(2,20,2)
 	var ordinary_index:=Index.build(ordinary)
-	check(ordinary_index.stream_building_groups.is_empty() and ordinary_index.stream_prop_index[Vector2i.ZERO].size()==2,"ordinary unowned wind and LOD props retain near residency without invented membership")
-	check(ordinary.all(func(spec):return not Stream._draws(spec,far)),"ordinary unowned wind and LOD still disappear outside their near draw ring")
+	check(ordinary_index.stream_building_groups.is_empty() and ordinary_index.stream_prop_index[Vector2i.ZERO].size()==2,"ordinary unowned wind and LOD props retain independent identity without invented building membership")
+	check(ordinary.all(func(spec):return Stream._draws(spec,far)),"ordinary unowned wind and LOD remain resident throughout the camera view")
 	var growth:=Index.build([]);var ordinary_add:=[part("later_wind__mesh",Vector2i.ZERO,{"rmmo_wind":{},"rmmo_collision":"none"}),part("later_lod__mesh",Vector2i.ZERO,{"rmmo_auto_lod":true,"rmmo_collision":"none"})]
 	check(Index.append(growth,ordinary_add).ok and growth.stream_building_groups.is_empty() and growth.stream_prop_index[Vector2i.ZERO].size()==2,"incremental ordinary wind/LOD behavior remains unchanged")
 	for bad_id:Variant in [42,1.5,null,[],{}]:
@@ -74,8 +75,20 @@ func run()->void:
 		check(not denied.ok and growing==before and bad==before_bad,"non-string authored owner rejected without mutating index or input: "+type_string(typeof(bad_id)))
 	var bad_shape:=part("invalid_shape__member",Vector2i.ZERO,{"building":"not_dictionary"})
 	check(not Index.append(growing,[bad_shape]).ok,"non-dictionary authored membership is rejected before grouping")
-	var destination:="D:/code/rmmo_runtime/review_artifacts/axel_landmarks_20261016/pipeline/imported_stream_index.json"
+	var destination:=OS.get_environment("RMMO_IMPORTED_STREAM_INDEX_REPORT")
+	if destination.is_empty():destination=Paths.cache_directory("imported_stream_index_%d_%d"%[OS.get_process_id(),Time.get_ticks_usec()]).path_join("result.json")
+	var allowed:=Paths.allowed(destination,Paths.external_root().path_join("cache/world3d")) or Paths.allowed(destination,Paths.external_root().path_join("review_artifacts"))
+	if not allowed or FileAccess.file_exists(destination):
+		check(false,"report requires a new path under external cache or review artifacts");quit(2);return
+	var directory_error:=DirAccess.make_dir_recursive_absolute(destination.get_base_dir())
+	if directory_error!=OK:
+		check(false,"create external report directory: "+error_string(directory_error));quit(2);return
 	var file:=FileAccess.open(destination,FileAccess.WRITE)
-	file.store_string(JSON.stringify({"checks":checks,"passed":checks.size()-failed,"failed":failed,"scope":"CPU-only full and incremental spatial indexing; no GPU, maps or assets changed","source_sha256":FileAccess.get_sha256("res://scripts/world3d/stream_index.gd")},"\t"));file.close()
+	if file==null:
+		check(false,"open external report: "+error_string(FileAccess.get_open_error()));quit(2);return
+	file.store_string(JSON.stringify({"checks":checks,"passed":checks.size()-failed,"failed":failed,"scope":"CPU-only full and incremental spatial indexing; no GPU, maps or assets changed","source_sha256":FileAccess.get_sha256("res://scripts/world3d/stream_index.gd")},"\t"))
+	file.flush();var write_error:=file.get_error();file.close()
+	if write_error!=OK:
+		check(false,"write external report: "+error_string(write_error));quit(2);return
 	print("IMPORTED_STREAM_INDEX checks=",checks.size()," failures=",failed)
 	quit(1 if failed else 0)

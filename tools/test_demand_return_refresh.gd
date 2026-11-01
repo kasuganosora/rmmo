@@ -44,7 +44,12 @@ func return_fixture()->Dictionary:
 		if i<BUILDINGS:q.register_runtime_building(row.record.uuid,row.bounds,supports)
 	for i:int in OUTSIDE_ROWS:
 		append_source(q,entries,"outside_%d"%i,SOURCE_ROWS+i,Vector3(16000.+float(i)*32.,0.,0.),"native_road")
-	q.prioritize(Vector3.ZERO);q.set_process(false);q._refresh_demanded()
+	q.prioritize(Vector3.ZERO)
+	# Keep an explicit typed consumer for the membership-cache regressions.
+	# Gameplay's shared visual ticket no longer creates redundant kind tickets.
+	var radius:int=preload("res://scripts/world3d/world_stream.gd").BUILDING_RENDER_RADIUS
+	q.set_demand("road_render",AABB(Vector3(-radius*32.,-100000,-radius*32.),Vector3((2*radius+1)*32.,200000,(2*radius+1)*32.)),10,"road")
+	q.set_process(false);q._refresh_demanded()
 	return {"queue":q,"map":map,"entries":entries}
 
 func check_production_invariants(q:Deferred,label:String)->void:

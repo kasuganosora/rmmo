@@ -36,7 +36,8 @@ static func build(library:Array,runtime_geometry:bool=false,initial_residency:Re
 		if nearby!=null:nearby.add(spec,geometry_bounds,true)
 		# Imported multi-mesh towers need whole-asset town visibility just as
 		# native houses do. Derive this from geometry, never from a display name.
-		# Foliage/cloth retain their own near residency and authored LOD policy.
+		# Foliage/cloth retain their own authored LOD policy and identity;
+		# visual distance is now shared by every scenery category.
 		if imported:
 			var asset_id:=str(spec.uuid).get_slice("__",0)
 			var bounds:AABB=geometry_bounds
