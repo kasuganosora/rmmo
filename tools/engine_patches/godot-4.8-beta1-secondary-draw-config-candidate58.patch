@@ -1,0 +1,32 @@
+--- a/core/config/project_settings.cpp
++++ b/core/config/project_settings.cpp
+@@ -1841,6 +1841,7 @@
+ 	GLOBAL_DEF(PropertyInfo(Variant::INT, "gui/common/auto_focus_strategy", PROPERTY_HINT_ENUM, "Legacy,Balloon"), 0);
+ 
+ #ifdef RD_ENABLED
++	GLOBAL_DEF_RST(PropertyInfo(Variant::INT, "rendering/rendering_device/rmmo/secondary_draw_lists", PROPERTY_HINT_RANGE, "0,16,1,or_greater"), 0);
+ 	GLOBAL_DEF_RST(PropertyInfo(Variant::INT, "rendering/rendering_device/vsync/frame_queue_size", PROPERTY_HINT_RANGE, "2,3,1"), 2);
+ 	GLOBAL_DEF_RST(PropertyInfo(Variant::INT, "rendering/rendering_device/vsync/swapchain_image_count", PROPERTY_HINT_RANGE, "2,4,1"), 3);
+ 	GLOBAL_DEF(PropertyInfo(Variant::INT, "rendering/rendering_device/staging_buffer/block_size_kb", PROPERTY_HINT_RANGE, "4,2048,1,or_greater"), 256);
+--- a/servers/rendering/rendering_device.cpp
++++ b/servers/rendering/rendering_device.cpp
+@@ -8798,11 +8798,16 @@
+ 	_configure_draw_graph_flags();
+ #endif
+ 
+-	// Isolated experiment: disabled unless explicitly requested, Vulkan only.
++	// Projects opt in at startup; explicit environment values override for diagnostics.
++	// Keep unsupported drivers and projects that do not opt in on the serial path.
+ 	int secondary_count = SECONDARY_COMMAND_BUFFERS_PER_FRAME;
+-	int requested_secondary_count = OS::get_singleton()->get_environment("RMMO_SECONDARY_DRAW_LISTS").to_int();
++	int64_t requested_secondary_count = GLOBAL_GET("rendering/rendering_device/rmmo/secondary_draw_lists");
++	if (OS::get_singleton()->has_environment("RMMO_SECONDARY_DRAW_LISTS")) {
++		const String requested = OS::get_singleton()->get_environment("RMMO_SECONDARY_DRAW_LISTS").strip_edges();
++		requested_secondary_count = requested.is_valid_int() ? requested.to_int() : 0;
++	}
+ 	if (requested_secondary_count > 0 && driver->get_api_name() == "Vulkan" && WorkerThreadPool::get_singleton() != nullptr) {
+-		secondary_count = MIN(requested_secondary_count, WorkerThreadPool::get_singleton()->get_thread_count());
++		secondary_count = int(MIN(requested_secondary_count, int64_t(WorkerThreadPool::get_singleton()->get_thread_count())));
+ 	}
+ 	draw_graph.initialize(driver, &_render_pass_create_from_graph, frames.size(), main_queue_family, secondary_count);
+ 	draw_graph.begin(frame);

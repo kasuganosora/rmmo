@@ -755,3 +755,61 @@ and pixels. Timing is mixed: reuse encode improves 5.4%, material encode grows
 5.1% and submit grows 15.0%. Retain the proven work reduction without claiming
 a general timing win. The manifest includes every timing group; cumulative map
 measurement remains pending and installed engines are unchanged.
+
+## Project-controlled parallel recording, candidate58 (2026-11-01)
+
+Apply `godot-4.8-beta1-secondary-draw-config-candidate58.patch` after the
+cumulative candidate49 source. It registers the restart-required integer setting
+`rendering/rendering_device/rmmo/secondary_draw_lists`. The engine default stays
+0; RMMO's proposed project value is 4. Both main and local Vulkan RenderingDevices
+read it once during initialization. An explicitly present
+`RMMO_SECONDARY_DRAW_LISTS` overrides the project value, including 0. Invalid or
+nonpositive text selects serial recording. Positive int64 requests are capped
+to the actual worker pool before narrowing to int. The UI range supports larger
+values; 16 is not a new hard limit. Values outside int64 keep Godot's existing
+String conversion contract. Unsupported backends keep the serial path.
+
+The two-file patch does not change draw dependency order, recording scheduling,
+or budgets. Independent review caught permissive `String.to_int()` parsing and
+premature int32 narrowing in the draft; the final patch checks lexical integer
+validity and narrows after the worker cap. Applying the saved patch to the saved
+parent reproduces both built sources after newline normalization.
+
+Nine functional categories pass 1,251 assertions: default serial, project4 on
+local/main RD, explicit env0, explicit env4, large project value with a two-worker
+pool, invalid text, large negative environment value, and restart metadata.
+Each of the seven local cases executes 214,144 fixture draws; all target and
+dependent-pass pixel hashes match. Project4 uses 28 complete recording tasks;
+pool2 uses 14; serial uses 0. The main fixture executes 148,032 draws and 72 complete
+recording tasks across two resource generations/frame slots. Its 88 additional
+native lists containing 44 window/compositor draws and six incomplete capture-
+boundary ancestor spans are retained separately. Every recording task completes;
+trace drops, orphan ends, crossing spans and task-name conflicts are zero.
+
+The pool2 case overlapped another content task's Blender process after launch;
+its pixel/work correctness remains valid, but no timing inference is made.
+The metadata headless test intentionally coexisted with Blender and records the
+processes. Final negative-environment GPU guards were clear. These are policy
+and correctness tests, not a timing/AB experiment or full-map performance claim.
+
+`tools/test_release_config58_metadata.gd` is the exact eight-check qualified
+source. Run it headless in a temporary minimal project with this key absent and
+`RMMO_SECONDARY_DRAW_LISTS` unset, passing `-- --output=<external result.json>`.
+It intentionally expects the native default 0, so the production project4 is not
+the correct host. The GPU fixtures and their exact source/launch/trace receipts
+are pinned in the candidate JSON; this metadata fixture alone does not reproduce
+the other eight categories.
+
+The external build uses the recorded GCC16.2/native-TLS options and `.tls34`
+incremental objects only with identical compiler/options. It validates 83 tracked
+source inputs plus the upstream archive comparison: 14,358 untouched files,
+69 changed upstream files covered by the source manifest, and zero missing files.
+Executable, console launcher, symbols and actual debuglink CRCs are recorded.
+
+Candidate58 is not installed. The default candidate10 and the live project
+configuration remain unchanged. Ordinary project4 day/night game acceptance,
+cumulative lifecycle contracts and relevant editor native/no-GLB/streamed
+regressions remain required before installation. The cumulative diagnostic APIs
+remain available with capture off; asynchronous mesh pipelines, pipeline batch
+and targeted property-query experiments remain off. Preserve the complete old
+executable/console/symbol/alias/manifest set for rollback, not only the EXE.
