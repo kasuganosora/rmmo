@@ -118,8 +118,12 @@ func refresh()->void:
 		if streamed:visible_=visible_ and is_instance_valid(source) and source.is_visible_in_tree()
 		var pose:Transform3D=source.global_transform if is_instance_valid(source) else f.pose
 		var at:Vector3=pose*f.flame
-		if f.effect.global_position!=at:f.effect.global_position=at
-		var distance_:float=eye.distance_squared_to(f.effect.global_position)
+		var actual_position:Vector3=f.effect.global_position
+		if actual_position!=at:
+			f.effect.global_position=at
+			# A transformed parent can round the requested world position.
+			actual_position=f.effect.global_position
+		var distance_:float=eye.distance_squared_to(actual_position)
 		f.effect.visible=visible_ and distance_<45.0*45.0
 		if visible_ and distance_<LIGHT_DISTANCE*LIGHT_DISTANCE:
 			var score:float=distance_
@@ -127,7 +131,7 @@ func refresh()->void:
 			# A candle just across a party wall must not steal an occupied room's budget.
 			if is_instance_valid(observer):
 				if eye.y<float(f.floor_y)-.25 or eye.y>float(f.floor_y)+3.9:score+=10000.0
-				var query:=PhysicsRayQueryParameters3D.create(eye+Vector3.UP*1.4,f.effect.global_position)
+				var query:=PhysicsRayQueryParameters3D.create(eye+Vector3.UP*1.4,actual_position)
 				if observer is CollisionObject3D:query.exclude=[observer.get_rid()]
 				query.collide_with_areas=false
 				if not observer.get_world_3d().direct_space_state.intersect_ray(query).is_empty():score+=1000.0

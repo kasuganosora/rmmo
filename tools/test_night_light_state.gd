@@ -34,7 +34,9 @@ func flush(watches:Array)->void:
 func reset(watches:Array,controller:Node)->void:
 	flush(watches)
 	for w:Watch in watches:w.transforms=0;w.visibility=0
-	if counted(controller):controller.get("_night_probe_calls").clear()
+	if counted(controller):
+		controller.get("_night_probe_calls").clear()
+		controller.set("_night_getter_calls",0)
 func counted(controller:Node)->bool:
 	return controller.get_property_list().any(func(p):return p.name=="_night_probe_calls")
 func receipt(watches:Array,controller:Node)->Dictionary:
@@ -42,7 +44,9 @@ func receipt(watches:Array,controller:Node)->Dictionary:
 	var result:Dictionary={"native_transform_notifications":0,"native_visibility_signals":0}
 	for w:Watch in watches:
 		result.native_transform_notifications+=w.transforms;result.native_visibility_signals+=w.visibility
-	if counted(controller):result.native_setter_calls=controller.get("_night_probe_calls").duplicate()
+	if counted(controller):
+		result.native_setter_calls=controller.get("_night_probe_calls").duplicate()
+		result.native_position_getter_calls=controller.get("_night_getter_calls")
 	return result
 func box(parent:Node,at:Vector3)->MeshInstance3D:
 	var result:=MeshInstance3D.new();result.mesh=BoxMesh.new();parent.add_child(result);result.position=at;return result
@@ -51,6 +55,7 @@ func run()->void:
 	await street_case()
 	await candle_case()
 	await occlusion_case()
+	await transformed_parent_case()
 	var report:Dictionary={"checks":checks,"passed":checks.size()-failures,"failed":failures,"work":work,
 		"street_sha256":FileAccess.get_sha256("res://scripts/world3d/streetlamp_lights.gd"),
 		"candle_sha256":FileAccess.get_sha256("res://scripts/world3d/house_candle_lights.gd"),
@@ -85,6 +90,7 @@ func street_case()->void:
 	if counted(controller):
 		check(work.street_steady.native_setter_calls.get("shadow_enabled",0)==0,"steady model lights call native shadow setter zero times")
 		check(work.street_steady.native_setter_calls.get("global_position",0)==0,"steady model lights call native position setter zero times")
+		check(work.street_steady.native_position_getter_calls==24,"model observer getter called once per fixture refresh")
 	check(controller.lights.map(func(l):return l.get_instance_id())==ids,"steady model light RIDs/nodes retained")
 	check(controller.fixtures.values().all(func(f):return f.glow.mesh==Candles.flame_mesh() and f.glow.visible),"all eligible authored flames retain shared mesh regardless of light rank")
 	check(controller.lights.all(func(l):return is_equal_approx(l.light_energy,.18) and l.light_color==Color(1,.8,.5) and is_equal_approx(l.omni_range,5.5)),"model light energy/color/range unchanged")
@@ -127,7 +133,9 @@ func candle_case()->void:
 	work.candle_steady=receipt(watches,controller)
 	check(work.candle_steady.native_visibility_signals==0,"steady selected candles cause zero native visibility changes")
 	check(work.candle_steady.native_transform_notifications==0,"steady candle effects cause zero native transform notifications")
-	if counted(controller):check(work.candle_steady.native_setter_calls.get("global_position",0)==0,"steady candles call native position setter zero times")
+	if counted(controller):
+		check(work.candle_steady.native_setter_calls.get("global_position",0)==0,"steady candles call native position setter zero times")
+		check(work.candle_steady.native_position_getter_calls==12,"steady candle getter reads committed position once per fixture refresh")
 	check(controller.fixtures.all(func(f):return f.effect.get_node("Flame").mesh==Candles.flame_mesh() and f.effect.visible and is_equal_approx(f.light.light_energy,.18) and f.light.shadow_enabled),"candle flame mesh/presentation/intensity/shadows remain authored")
 	var first:Dictionary=controller.fixtures[0]
 	reset(watches,controller);sources.candle0.position.z=1;controller.refresh();flush(watches)
@@ -162,4 +170,37 @@ func occlusion_case()->void:
 	var controller:=Candles.new();scene.add_child(controller);controller.set_process(false);controller.bind_map(scene,observer);controller.set_hours(0.0)
 	check(controller.fixtures[1].light.visible and controller.fixtures[2].light.visible and not controller.fixtures[0].light.visible and not controller.fixtures[3].light.visible,"real physics ray and floor priority preserve room selection")
 	observer.position.x=2.6;controller.refresh();check(controller.fixtures[0].light.visible,"crossing wall selects newly occupied room immediately")
+	controller.free();scene.free();await process_frame
+
+func transformed_parent_case()->void:
+	var scene:=Node3D.new();root.add_child(scene)
+	var records:Array=[];var sources:Dictionary={}
+	for i in 4:
+		var id:="transform%d"%i;var at:=Vector3(1.123+i,2.153,.247+i*.13)
+		records.append(record(id,at));sources[id]=box(scene,at)
+		sources[id].basis=Basis.from_euler(Vector3(.13,.29,-.17)).scaled(Vector3(1.2,.9,1.1))
+	scene.set_meta("extras",{"rmmo_records":records});scene.set_meta("stream_meshes",sources)
+	var observer:=Node3D.new();scene.add_child(observer);observer.position=Vector3(.15,.3,-.2)
+	var controller:=Candles.new();scene.add_child(controller);controller.set_process(false)
+	controller.transform=Transform3D(Basis.from_euler(Vector3(.37,.91,-.21)).scaled(Vector3(1.7,.65,2.3)),Vector3(100.123,11.876,-82.456))
+	controller.bind_map(scene,observer);controller.set_hours(0.0)
+	var saw_rounding:=false
+	for step in 3:
+		if counted(controller):controller.get("_night_ray_queries").clear()
+		sources.transform0.position.z+=.173
+		controller.refresh()
+		check(controller.lit_count()==2 and controller.fixtures[0].light.visible and controller.fixtures[1].light.visible,"nonidentity effect parent preserves actual distance selection "+str(step))
+		var query_rows:Array=controller.get("_night_ray_queries") if counted(controller) else []
+		if counted(controller):check(query_rows.size()==4,"nonidentity parent still casts all four real eligible rays "+str(step))
+		for i in controller.fixtures.size():
+			var f:Dictionary=controller.fixtures[i]
+			var actual:Vector3=f.effect.global_position
+			var requested:Vector3=sources[f.uuid].global_transform*f.flame
+			saw_rounding=saw_rounding or actual!=requested
+			check(actual.distance_to(requested)<.0001,"transformed parent commits intended flame pose within engine precision "+str(step)+"/"+str(i))
+			if counted(controller):
+				check(query_rows[i].to==actual,"actual physics query endpoint equals committed position exactly "+str(step)+"/"+str(i))
+				check(query_rows[i].from==observer.global_position+Vector3.UP*1.4 and not query_rows[i].areas,"physics query origin and area policy remain unchanged "+str(step)+"/"+str(i))
+	check(saw_rounding,"nonidentity parent exercises actual/requested float rounding difference")
+	work.transformed_parent={"saw_rounding":saw_rounding,"ray_endpoint_checked":counted(controller)}
 	controller.free();scene.free();await process_frame

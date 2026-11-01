@@ -51,3 +51,5 @@
 /tools/engine_patches/godot-4.8-beta1-pipeline-batch-candidate14.json text eol=lf
 /tools/engine_patches/godot-4.8-beta1-native-batch-candidate15.json text eol=lf
 /tools/engine_patches/godot-4.8-beta1-instance-property-candidate16.json text eol=lf
+# Historical sky oracle is verified by its byte-level SHA in the component test.
+/tools/fixtures/night_sky63_reference_methods.gd.txt text eol=lf

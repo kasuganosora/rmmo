@@ -186,10 +186,11 @@ func _refresh_model_light(node:MeshInstance3D,night:bool,candidates:Array)->void
 	var enabled:bool=node.is_visible_in_tree() and (night or socket.get("indoor",false))
 	row.glow.visible=enabled
 	var observer:Camera3D=camera if is_instance_valid(camera) else get_viewport().get_camera_3d()
-	var distance:float=observer.global_position.distance_squared_to(at) if is_instance_valid(observer) else 0.0
+	var eye:Vector3=observer.global_position if is_instance_valid(observer) else Vector3.ZERO
+	var distance:float=eye.distance_squared_to(at) if is_instance_valid(observer) else 0.0
 	var score:=distance
 	# Nearby upstairs candles must not consume the occupied hall's light budget.
-	if is_instance_valid(observer) and absf(observer.global_position.y-at.y)>3.1:score+=10000.0
+	if is_instance_valid(observer) and absf(eye.y-at.y)>3.1:score+=10000.0
 	if enabled and distance<18.0*18.0:candidates.append({"light":row.light,"distance":score})
 	elif row.light.visible:row.light.visible=false
 

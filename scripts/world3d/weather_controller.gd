@@ -193,7 +193,10 @@ func _process(delta: float) -> void:
 	var lightning_end:=Time.get_ticks_usec() if profile_start>0 else 0
 	if values.sky_enabled:
 		var flash_position: Vector3 = lightning.light.global_position
-		sky_material.set_shader_parameter("cloud_flash",Vector4(flash_position.x,flash_position.y,flash_position.z,lightning.light.light_energy/8.))
+		var flash_value:=Vector4(flash_position.x,flash_position.y,flash_position.z,lightning.light.light_energy/8.)
+		if flash_value!=_sky_submission_flash:
+			sky_material.set_shader_parameter("cloud_flash",flash_value)
+			_sky_submission_flash=flash_value
 	if transitioning or server_environment_dirty or values.celestial_cycle: server_environment_dirty = false; _apply()
 	elif values.sky_enabled: sky_material.set_shader_parameter("drift", drift)
 	var apply_end:=Time.get_ticks_usec() if profile_start>0 else 0
@@ -217,6 +220,17 @@ func _physics_process(delta: float) -> void:
 		if not precipitation.cast(offset,offset+Vector3.UP*180).is_empty(): covers+=1.
 		if not precipitation.cast(point,point+direction*3.).is_empty(): walls+=1.
 	roof_cover = covers/5.; enclosure_target = roof_cover*(.45+.55*walls/4.)
+
+# Scalar input/output history for this controller's sky material. No resource
+# owners or event packets are retained. Polling and time sampling still run on
+# every tick; material replacement invalidates all shader submission state.
+var _sky_submission_material_id:=0
+var _sky_submission_seed:=-1
+var _sky_submission_intensity:=NAN
+var _sky_submission_time:=NAN
+var _sky_submission_flash:=Vector4(NAN,NAN,NAN,NAN)
+var _sky_celestial_hour:=NAN
+var _sky_empty_meteors_submitted:=false
 
 var _sky_profile_slots:Array=[]
 var _sky_profile_frame:=-1
@@ -290,15 +304,41 @@ func _tick_night_sky_impl(delta: float, stamps:Variant=null) -> void:
 		stamps[6]=Time.get_ticks_usec();stamps[7]=Time.get_ticks_usec()
 	night_sky.sample(now+night_sky.clock_offset)
 	var hour: float = Cycle.hours(night_sky.snapshot,now+night_sky.clock_offset) if night_sky.ready else values.time_hours
-	celestial = Cycle.sample(hour)
+	if hour!=_sky_celestial_hour or celestial.is_empty():
+		celestial = Cycle.sample(hour)
+		_sky_celestial_hour=hour
 	var night: float = (float(celestial.night) if values.celestial_cycle else 1.0 if values.preset == "night" else 0.0) if values.sky_enabled else 0.0
 	var visibility: float = pow(1.0-current.cloud*.8,2.0) * (1.0-clampf(current.fog*18.0,0,1))
 	if stamps!=null:stamps[8]=Time.get_ticks_usec()
-	sky_material.set_shader_parameter("cloud_seed_offset",Clouds.seed_offset(night_sky.seed))
-	sky_material.set_shader_parameter("star_seed",night_sky.seed)
-	sky_material.set_shader_parameter("star_intensity",values.star_intensity*visibility*night if night_sky.ready else 0.0)
-	sky_material.set_shader_parameter("star_time",night_sky.time)
+	var material_id:=sky_material.get_instance_id()
+	if material_id!=_sky_submission_material_id:
+		_sky_submission_material_id=material_id
+		_sky_submission_seed=-1
+		_sky_submission_intensity=NAN
+		_sky_submission_time=NAN
+		_sky_submission_flash=Vector4(NAN,NAN,NAN,NAN)
+		_sky_empty_meteors_submitted=false
+	if night_sky.seed!=_sky_submission_seed:
+		sky_material.set_shader_parameter("cloud_seed_offset",Clouds.seed_offset(night_sky.seed))
+		sky_material.set_shader_parameter("star_seed",night_sky.seed)
+		_sky_submission_seed=night_sky.seed
+	# Weather blending can change visibility between _process and _apply in
+	# one frame. Compare the resulting value, never just frame/packet identity.
+	var intensity:float=values.star_intensity*visibility*night if night_sky.ready else 0.0
+	if intensity!=_sky_submission_intensity:
+		sky_material.set_shader_parameter("star_intensity",intensity)
+		_sky_submission_intensity=intensity
+	# A fixed authored hour does not freeze the independent star twinkle clock.
+	if night_sky.time!=_sky_submission_time:
+		sky_material.set_shader_parameter("star_time",night_sky.time)
+		_sky_submission_time=night_sky.time
 	if stamps!=null:stamps[9]=Time.get_ticks_usec()
+	# sample() above still discovers events starting/ending inside the same
+	# packet. Only repeated empty output skips allocation; active -> empty
+	# submits all five neutral arrays once so no old trail survives.
+	if night_sky.meteors.is_empty() and _sky_empty_meteors_submitted:
+		if stamps!=null:stamps[10]=Time.get_ticks_usec();stamps[11]=stamps[10]
+		return
 	var heads := PackedVector3Array(); var tails := PackedVector3Array(); var energies := PackedFloat32Array(); var kinds := PackedFloat32Array(); var brightness := PackedFloat32Array()
 	for i in 8:
 		var row: Dictionary = night_sky.meteors[i] if i<night_sky.meteors.size() else {}
@@ -308,6 +348,7 @@ func _tick_night_sky_impl(delta: float, stamps:Variant=null) -> void:
 	if stamps!=null:stamps[10]=Time.get_ticks_usec()
 	sky_material.set_shader_parameter("meteor_heads",heads); sky_material.set_shader_parameter("meteor_tails",tails)
 	sky_material.set_shader_parameter("meteor_energies",energies); sky_material.set_shader_parameter("meteor_kinds",kinds); sky_material.set_shader_parameter("meteor_brightness",brightness)
+	_sky_empty_meteors_submitted=night_sky.meteors.is_empty()
 	if stamps!=null:stamps[11]=Time.get_ticks_usec()
 
 func _tick_lightning(delta: float) -> void:
