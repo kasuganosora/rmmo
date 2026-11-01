@@ -146,7 +146,7 @@ func run() -> void:
 	check(editor._doc.records == records and editor._doc._undo.size() == history, "directory operations preserve map records and map undo history")
 	check(FileAccess.get_sha256(map_path) == before_sha and FileAccess.get_sha256(second_path) == second_sha, "original map filenames and bytes unchanged")
 	var status := await call_tool("editor_state")
-	check(status.world_addresses.phase == "D1" and not status.world_addresses.dirty and not status.world_addresses.world_layout_available, "editor diagnostics distinguish delivered D1 from pending world layout")
+	check(status.world_addresses.phase == "D1" and not status.world_addresses.dirty and status.world_addresses.world_layout_available and not status.world_layouts.continuous_runtime_available, "editor diagnostics distinguish address and authoring layout from pending continuous runtime")
 	var third := Doc.new(); third.map_meta.map_ref = "wa_http/third"
 	third.add_box_silent("ground", Vector3.ZERO, Vector3(2,0.2,2))
 	var third_path := pack_root.path_join("maps/orphan_demo/map.gltf")

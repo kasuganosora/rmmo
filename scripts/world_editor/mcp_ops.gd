@@ -24,6 +24,7 @@ func state() -> Dictionary:
 		"wind_preview":editor._wind_tools.preview_enabled,
 		"walk":editor._walk_mode.state(),
 		"world_addresses":editor._world_address_tools.state() if editor._world_address_tools != null else {},
+		"world_layouts":editor._world_layout_tools.state() if editor._world_layout_tools != null else {},
 		"object_count": editor._doc.records.size(), "selection": editor._selection_tools.ids.duplicate(),
 		"dirty": editor._dirty, "read_only": editor._load_failed, "undo_count": editor._doc._undo.size(), "redo_count": editor._doc._redo.size(),
 		"editor_view": editor._authoring.settings.duplicate(true), "playtest":editor._playtest.state(), "spawn_picking":editor._authoring.picking,
@@ -63,6 +64,14 @@ func execute(name: String, args: Dictionary) -> Dictionary:
 		"discard_world_catalog": return editor._world_address_tools.discard_catalog(args)
 		"resolve_world_address": return editor._world_address_tools.resolve_address(args)
 		"get_current_world_address": return editor._world_address_tools.current_address(args)
+		"list_worlds": return editor._world_layout_tools.list_worlds(args)
+		"get_world_layout": return editor._world_layout_tools.get_layout(args)
+		"preview_world_layout": return editor._world_layout_tools.preview_layout(args)
+		"apply_world_layout": return editor._world_layout_tools.apply_layout(args)
+		"save_world_layout": return editor._world_layout_tools.save_layout(args)
+		"discard_world_layout": return editor._world_layout_tools.discard_layout(args)
+		"validate_world_seams": return editor._world_layout_tools.validate_seams(args)
+		"locate_world_position": return editor._world_layout_tools.locate_position(args)
 	return editor._diagnostics.explain(_execute(name,args),name)
 
 func _execute(name: String, args: Dictionary) -> Dictionary:
@@ -405,6 +414,7 @@ func _execute(name: String, args: Dictionary) -> Dictionary:
 		"restore_editor_draft": return editor._safety.restore(args.draft_id, args.get("discard_changes", false))
 		"discard_editor_draft": return editor._safety.discard(args.draft_id)
 		"close_editor":
+			if args.action != "cancel" and editor._world_layout_tools != null and editor._world_layout_tools.has_unsaved_work(): return error("世界布局有未保存修改，请先保存、放弃布局或处理布局窗口中的草稿。")
 			if args.action != "cancel" and editor._world_address_tools != null and editor._world_address_tools.has_dirty_catalogs(): return error("地图编号目录有未保存修改，请先 save_world_catalog 或明确 discard_world_catalog。")
 			editor._safety._close_window = true
 			if args.action == "save": return editor._save_job.start(editor._path)

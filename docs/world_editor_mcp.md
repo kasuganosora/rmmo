@@ -1,10 +1,16 @@
 # 当前 3D 地图编辑器 MCP
 
+## 世界布局与接缝（2026-11-01，D2）
+
+“文件 → 世界布局与接缝…”支持不同尺寸地图的平移放置、连续空间、部分边接缝、预览/应用及独立保存。新增 `list_worlds`、`get_world_layout`、`preview_world_layout`、`apply_world_layout`、`save_world_layout`、`discard_world_layout`、`validate_world_seams`、`locate_world_position`；`undo_world_edit / redo_world_edit` 按文档句柄区分目录与布局历史。
+
+`resolve_world_address / get_current_world_address` 增加可选 `document_id / space_id / placement_id`；指定布局时返回双精度连续空间位置，并检查半开 XZ 归属范围；不指定布局保留 D1 行为。布局上下文已绑定包版本，不同时接受 `pack_root`。地形检查限定受支持的已保存原生高度场外边，始终返回 `can_transfer=false / continuous_ready=false`。`editor_state.world_layouts` 是缓存状态，不启动地图扫描；当前尚未实现无缝跨图运行。字段、上限、保存冲突与验收见 [D2 记录](world_layout_d2_20261101.md)。
+
 ## 世界地址与数字地图编号（2026-11-01，D1）
 
 “文件 → 世界地址与地图编号…”与当前 3D MCP 同步使用共享业务层。新增 `list_world_maps`、`register_world_map`、`save_world_catalog`、`undo_world_edit`、`redo_world_edit`、`discard_world_catalog`、`resolve_world_address` 和 `get_current_world_address`。目录独立保存与撤销；地图文件名、作者 `map_ref` 和地图 `undo/redo` 不变。编号使用精确十进制字符串，地址为 `包ID:数字编号:x,y,z`；坐标保留双精度，每轴地址范围 ±1e12 米，不表示渲染/物理已支持该世界范围。
 
-登记以 `list_world_maps` 返回的入口及文档修订为准，保存同时验证 `expected_edit_revision` 和 `expected_disk_sha`。解析只返回地图内位置，不贴地、不传送、不提供连续世界坐标；选中物件复制作者原点，胶囊行走复制实际脚点。包版本歧义需指定已发现的 `pack_root`。`editor_state.world_addresses` 只读缓存状态；目录未保存时退出保护有效。完整参数、保存合同、限制与验收见 [D1 交付记录](world_address_d1_20261101.md)。
+登记以 `list_world_maps` 返回的入口及文档修订为准，保存同时验证 `expected_edit_revision` 和 `expected_disk_sha`。不指定 D2 布局时，解析只返回地图内位置；选中物件复制作者原点，胶囊行走复制实际脚点，均不贴地或传送。包版本歧义需指定已发现的 `pack_root`。`editor_state.world_addresses` 只读缓存状态；目录未保存时退出保护有效。完整参数、保存合同、限制与历史验收见 [D1 交付记录](world_address_d1_20261101.md)。
 
 ## 道路端头（2026-10-29）
 

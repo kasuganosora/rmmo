@@ -70,6 +70,7 @@ var _gravity_toggle: CheckBox
 var _transform_drag = preload("res://scripts/world_editor/transform_drag.gd").new()
 var _pack_map_dialog: ConfirmationDialog
 var _world_address_tools: RefCounted
+var _world_layout_tools: RefCounted
 var _dock_tabs: TabContainer
 var _mode_buttons: Array[Button] = []
 var _thumbnails: Node
@@ -133,6 +134,7 @@ var _shared_preparation_ledger = preload("res://scripts/world3d/resource_admissi
 
 func _ready() -> void:
 	if _world_address_tools == null: _world_address_tools = preload("res://scripts/world_editor/world_address_tools.gd").new(self)
+	if _world_layout_tools == null: _world_layout_tools = preload("res://scripts/world_editor/world_layout_tools.gd").new(self,_world_address_tools)
 	var load_job_script=preload("res://scripts/world_editor/load_job.gd")
 	_shared_preparation_ledger.worker_limit=clampi(load_job_script.preparation_worker_limit,1,4) if load_job_script.parallel_preparation_enabled else 1
 	_shared_preparation_ledger.byte_limit=preload("res://scripts/world3d/definition_cache_policy.gd").work_budget(_shared_preparation_ledger.byte_limit)

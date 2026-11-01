@@ -35,7 +35,7 @@ static func build(editor: Node3D) -> void:
 	var file := MenuButton.new()
 	file.text = "文件"
 	menubar.add_child(file)
-	for label in ["资源包地图…", "保存  Ctrl+S", "另存为…", "恢复上次保存…", "返回登录…", "保存草稿", "恢复草稿…", "自动草稿设置…", "世界地址与地图编号…"]: file.get_popup().add_item(label)
+	for label in ["资源包地图…", "保存  Ctrl+S", "另存为…", "恢复上次保存…", "返回登录…", "保存草稿", "恢复草稿…", "自动草稿设置…", "世界地址与地图编号…", "世界布局与接缝…"]: file.get_popup().add_item(label)
 	file.get_popup().id_pressed.connect(func(id: int):
 		match id:
 			0: editor._open_pack_maps()
@@ -50,6 +50,7 @@ static func build(editor: Node3D) -> void:
 			6: editor._safety.show_recovery()
 			7: preload("res://scripts/world_editor/recovery_panel.gd").show_settings(editor)
 			8: preload("res://scripts/world_editor/world_address_dialog.gd").open(editor)
+			9: preload("res://scripts/world_editor/world_layout_dialog.gd").open(editor)
 	)
 	var edit_menu := MenuButton.new()
 	edit_menu.text = "编辑"
