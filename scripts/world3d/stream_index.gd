@@ -19,7 +19,7 @@ static var reuse_owned_retirement_plan_enabled:=true
 static var ordered_retirement_catalog_enabled:=true
 static var append_dependency_delta_enabled:=true # Diagnostic old reverse-edge rebuild control.
 static var retirement_schema_workers:=4 # Pure reads, joined within the atomic transaction; 0 selects serial control.
-static func build(library:Array,runtime_geometry:bool=false)->Dictionary:
+static func build(library:Array,runtime_geometry:bool=false,initial_residency:RefCounted=null)->Dictionary:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.stream_index.build") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	var result:Dictionary={}
 	var index:Dictionary={};var by_id:Dictionary={};var known:Dictionary={};var lamp_roots:Dictionary={}
@@ -27,6 +27,7 @@ static func build(library:Array,runtime_geometry:bool=false)->Dictionary:
 	var nearby:=Neighborhood.new() if runtime_geometry else null
 	for spec:Dictionary in library:
 		by_id[spec.uuid]=spec;known[spec.uuid]=true
+		if initial_residency!=null and spec.get("native_visual",false):initial_residency.mark_unsafe(str(spec.uuid).get_slice("__",0))
 		var geometry_bounds:=AABB()
 		var imported:bool=str(spec.uuid).contains("__") and spec.get("mesh") is Mesh
 		if (nearby!=null and spec.get("extras",EMPTY_RECORD).get("rmmo_collision","")!="none") or imported:
@@ -82,6 +83,7 @@ static func build(library:Array,runtime_geometry:bool=false)->Dictionary:
 						if not collisions.has(key):collisions[key]=[]
 						collisions[key].append(spec)
 		if id.is_empty():continue
+		if initial_residency!=null:initial_residency.note_grouped_namespace(asset_id)
 		if not groups.has(id):groups[id]=[]
 		groups[id].append(spec)
 	var group_bounds:Dictionary={}
@@ -103,7 +105,8 @@ static func build(library:Array,runtime_geometry:bool=false)->Dictionary:
 	if nearby!=null:nearby.coarse_index=collisions;nearby.revision=1
 	result.stream_collision_neighborhood=nearby
 	result.stream_building_count=library.size()
-	result.stream_append_state=_append_state(library,groups,result.stream_landscape,group_bounds)
+	result.stream_append_state=_append_state(library,groups,result.stream_landscape,group_bounds,initial_residency)
+	if initial_residency!=null:initial_residency.finish(result)
 	return result
 
 # Append bookkeeping is derived once alongside the full index. It contains only
@@ -121,7 +124,7 @@ static func _fixture_key(spec:Dictionary)->String:
 	var owner:String=preload("res://scripts/world3d/building_fixtures.gd").owner_id(extra)
 	return JSON.stringify([owner,str(extra.fixture.get("id",""))])
 
-static func _append_state(library:Array,groups:Dictionary,land:Array,raw_bounds:Dictionary={})->Dictionary:
+static func _append_state(library:Array,groups:Dictionary,land:Array,raw_bounds:Dictionary={},initial_residency:RefCounted=null)->Dictionary:
 	var state:={"namespaces":{},"prefixes":{},"namespace_sizes":{},"retirement_units":{},"fixtures":{},"group_bounds":{},"group_cells":{},"group_order":{},"ground_cells":{},"ground_order":{},"dependents":{}}
 	for spec:Dictionary in library:
 		var prefix:=str(spec.uuid).get_slice("__",0)
@@ -130,6 +133,7 @@ static func _append_state(library:Array,groups:Dictionary,land:Array,raw_bounds:
 		var fixture:=_fixture_key(spec)
 		if not fixture.is_empty():state.fixtures[fixture]=true
 		_retirement_member(state,spec,fixture)
+		if initial_residency!=null:initial_residency.add_spec(spec,prefix)
 	for spec:Dictionary in land:
 		if not Landscape.ground(spec):continue
 		state.ground_order[spec.uuid]=state.ground_order.size();state.dependents[spec.uuid]=[]
@@ -143,6 +147,9 @@ static func _append_state(library:Array,groups:Dictionary,land:Array,raw_bounds:
 		state.group_bounds[id]=bounds;state.group_order[id]=state.group_order.size()
 		_cells_add(state.group_cells,bounds,id)
 		for support:Dictionary in groups[id][0].get("render_supports",[]):state.dependents[support.uuid].append(id)
+	# A full rebuild replaces this state and naturally invalidates the one-shot
+	# token. Live append/retire instead advance stream_collision_revision.
+	if initial_residency!=null:state.initial_residency_token=initial_residency.token
 	return state
 
 # Scalar membership is built once with the index. Runtime sources keep their

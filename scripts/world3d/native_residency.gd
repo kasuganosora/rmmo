@@ -24,10 +24,24 @@ static var lazy_pending_scan_enabled:=true
 static var frame_retry_enabled:=true # Diagnostic control retains quarter-second dispatch.
 var _retry_candidates:Array=[] # At most one observation slice; UUIDs only, no resource owners.
 var _cleanup_pending:Array=[] # Mature unit cleanup; drained one unit per frame.
-func configure(host:Node,map_root:Node,queue:Node)->void:
+func configure(host:Node,map_root:Node,queue:Node,prepared:RefCounted=null)->void:
 	name="NativeResidency";set_meta("stream_instance",true);_host=host;_map=map_root;_queue=queue
+	profile.initial_directory_rows=0;profile.initial_spec_rows=0;profile.initial_prepared_adoptions=0;profile.initial_building_registrations=0
+	if prepared!=null:
+		var data:Dictionary=prepared.take_native()
+		_units=data.units;_owners=data.owners;_group_units=data.group_units;_model_entries=data.model_entries;_resident=data.resident
+		# These are live demand/catalog mutations, one per building entry. The
+		# worker already resolved all component membership and dependencies.
+		for unit:String in data.changed:
+			for entry:Dictionary in _units[unit].entries:
+				_queue.register_runtime_building(entry.compact_record.uuid,_units[unit].bounds,_units[unit].support_ids)
+				profile.initial_building_registrations+=1;prepared.profile.building_registrations+=1
+		profile.initial_prepared_adoptions=1;profile.resident_units=_resident.size();profile.known_units=_units.size()
+		profile.observed_bounds=int(data.observed_bounds)
+		queue.published.connect(observe);return
 	var index:Dictionary=queue._reference_index
 	for row:Dictionary in index.get("rows",[]):
+		profile.initial_directory_rows+=1
 		if not row.bounds_known:continue
 		if row.group_id.is_empty() and not row.asset_path.is_empty():
 			# Ordinary props stay with AssetResidency. Actual imported component
@@ -40,13 +54,14 @@ func configure(host:Node,map_root:Node,queue:Node)->void:
 		if not _units.has(unit):_units[unit]={"entries":[],"bounds":bounds,"kind":"building" if unit.begins_with("building:") else "all"}
 		var entry:={"record_index":row.order,"compact_record":index.extras.rmmo_records[row.order],"bounds":bounds,"classification":row.classification,"reason":row.reason,"asset_path":row.asset_path,"group_id":row.group_id,"memory_bytes":row.memory_bytes}
 		_units[unit].entries.append(entry);_owners[row.uuid]=unit
-	observe(map_root.get_meta("stream_library",[]));queue.published.connect(observe)
-func observe(specs:Array)->void:
+	observe(map_root.get_meta("stream_library",[]),true);queue.published.connect(observe)
+func observe(specs:Array,initial:bool=false)->void:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.native_residency.observe") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	var packet:RefCounted=_queue.get("publication_metadata") if is_instance_valid(_queue) else null
 	if packet!=null and packet.ready(specs) and _observe_publication(packet):return
 	var unsafe_namespaces:Dictionary={};var candidates:Dictionary={}
 	for spec:Dictionary in specs:
+		if initial:profile.initial_spec_rows+=1
 		var root_id:String=str(spec.uuid).get_slice("__",0)
 		if spec.get("native_visual",false):unsafe_namespaces[root_id]=true
 		if not _owners.has(root_id) and _model_entries.has(root_id) and spec.has("render_building"):candidates[root_id]=true
@@ -59,6 +74,7 @@ func observe(specs:Array)->void:
 	var changed:Dictionary={};var support_groups:Dictionary={};var observed:Dictionary={}
 	var last_unit:="";var definition:Dictionary={};var state:Dictionary={};var seen:Dictionary={};var bound_observations:=0
 	for spec:Dictionary in specs:
+		if initial:profile.initial_spec_rows+=1
 		var root_id:String=str(spec.uuid).get_slice("__",0)
 		var uuid:String=spec.get("ground_batch_record",EMPTY).get("uuid",root_id)
 		if not _owners.has(uuid):uuid=root_id
@@ -94,7 +110,9 @@ func observe(specs:Array)->void:
 					definition.support_ids[id]=true
 		if not state.known_ids.has(spec.uuid):state.ids.append(spec.uuid);state.known_ids[spec.uuid]=true
 	for unit:String in changed:
-		for entry:Dictionary in _units[unit].entries:_queue.register_runtime_building(entry.compact_record.uuid,_units[unit].bounds,_units[unit].support_ids)
+		for entry:Dictionary in _units[unit].entries:
+			_queue.register_runtime_building(entry.compact_record.uuid,_units[unit].bounds,_units[unit].support_ids)
+			if initial:profile.initial_building_registrations+=1
 	profile.resident_units=_resident.size();profile.known_units=_units.size()
 	profile.observed_bounds=int(profile.get("observed_bounds",0))+bound_observations
 func _observe_publication(packet:RefCounted)->bool:

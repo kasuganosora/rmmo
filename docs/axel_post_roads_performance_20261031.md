@@ -2096,3 +2096,50 @@ GPU ABBAAB三份每组`node_retirement42_series`：旧同步提交81.091 / 55.07
 - 51本次最大MAIN worker.wait只有6.908ms（RenderCommandRecord），不抹掉49已捕获的两个PipelineCompilation等待78.779ms。后者下一步补task→shader/cache owner generation/完整variant key及Vulkan阶段关联；源码表明draw_list中真正wait=true的是ubershader fallback，不能据此猜具体材质，也不能把包含re-spirv优化/ShaderModule创建的整个任务称作纯GPU驱动编译。
 
 证据：P/`node_trace51_01/{diagnostic.json,summary.json,blocking_attribution.json,csv/,return_csv/}`；P/`node_trace51_setup/manifest.json`保存候选61个overlay文件SHA。49引擎诊断补丁及组件测试已独立提交 `a2fff9b`；本轮应用改动另提交。保持当前目标active，优先补初始索引消费、同步树退出及实际释放/渲染任务身份，不再重复跑评分矩阵。
+
+## 45. 完整流程CSV而非评分对照：51的40.8秒返回收尾（2026-11-01）
+
+用户要求继续dump流程时间分布、谁等谁以及改动后哪些工作变化，不做ABAB。对现有51 return CSV单次读取1,752,463个span，按parent_span重算exclusive全部吻合，按连续phase区间裁剪，保留task级worker wait→execute交集。输出 `P/trace51_flow_analysis/`，含 `flow_findings.md`、`main_phase_categories.csv`、`main_phase_labels.csv`、`waiting_ledger.csv`、`wait_phase_summary.csv`、`worker_phase_summary.csv`、`queue_flow.csv`、`stage_totals.json` 等。重复出现的timeline_start/export不能用min→max包络分类，精确连续区间另存 `phase_segments.json`；初版离线stage归类的此错误已更正，没有把它误报为采集丢失。
+
+返回加载阶段105765825→146574996µs，**40.809171秒、1621帧**。主线程互斥exclusive：渲染其他范围18.498137秒（含draw_list单项8.297秒）、Deferred4.412231秒、其他游戏脚本4.514812秒、主循环其他3.934251秒、worker.wait2.490233秒、GroundBatcher2.443493秒、WorldStream1.703007秒、submit_present1.339897秒、native lifetime1.162872秒、script lifetime0.247528秒、明确device wait0.060239秒。分类不相互包含；全部是墙钟归因，不冒称CPU执行或GPU耗时。
+
+Deferred inclusive5.108923秒，平均每帧3.152ms；其外35.700秒穿插其他主线程流程。脚本stage ledger同段1621条：总5.017609秒，其中publish3.832430、dispatch0.484575、bookkeeping0.205510、poll0.179047、accept0.127409、resume0.031294秒；与native范围有不同起止及嵌套，不强行要求相等。全局FrameWorkBudget.enabled=false；实际Deferred自身interactive软预算2000µs，不能把等待归因于未启用的全局仲裁器。
+
+任务因果：return_loading MAIN等待 RenderCommandRecord合计1.827326秒、RenderCullInstances0.409914秒、Physics setup0.150614秒、solve0.102379秒。最长wait任务37226为6.908ms，其中6.868ms与执行重合、完成后40µs；无多秒单次native wait。MAIN完整iteration粗CPU合计7.688秒；已埋点worker.execute的墙钟union3.062秒，但项目Thread.new几何/合批未必被该标签覆盖，不能称全部后台工作只有3秒。
+
+队列采样显示长期有4个已完成结果、0个alive worker、仍有数百待需求实例；多个job年龄3–5.6秒。**年龄从dispatch起算，不是done→publish延迟**，还不能给等待原因下结论。主线程发生了2107个publication unit，但其中可含材质/实例/索引步骤，不等于2107次最终commit。下一dump52保持51生产实现和全部预算，补21个publication/material/instance/batch native scope、每slice的stop reason（budget/no_ready/workspace/demand_revision）及标量job状态，再启用已有CompletedJobTrace lifecycle把真实worker完成、accept、private finish、commit和释放串起来；不启用昂贵candidate estimator，不更改调度次序。
+
+独立初始登记修复也已完成组件Red→Green：`initial_residency52_green02`默认4.8 **111项PASS、错误0**；`red01 --legacy-initial`仅2项预期工作量失败，其他状态一致。2162-spec fixture中MAIN初始扫描6486→0、目录26→0、records12→0；worker在既有Index遍历融合2162项，并仅走13行目录、12行记录。0.437ms接管只是组件单样本，未宣告真实地图收益。生命周期、共享、多owner、scope、不合法过期快照fallback及原46项live发布/退役测试均覆盖；green01为fixture类型推断parse失败，已保留，不算有效样本。该应用层候选暂不混入52诊断，避免把新流程与新增观测相混淆；真实53验证后再验收其主线程收益。
+
+## 46. 52完整队列时序：秒级延迟主要在accept之后、第一次服务之前（2026-11-01）
+
+`node_trace52_01` 保持51生产、49引擎、冻结地图和预算，只补原定诊断。两段事件2,462,622 /4,180,491，drop/export/registration/结构错误均0；无脚本/引擎错误。退出1仍只有既知12秒回收队列未排空，冻结33文件全部恢复。entry9.065474s、full-ready49.424085s；unload204.611ms、return141.419ms、return_loading91.730ms/8帧>50。新增内层观测样本不能与51作正式性能A/B；本轮用来定位真实调用和等待。52返回加载本身为51.905089s，不能沿用51的40.809171s分母。
+
+CompletedJobTrace共19,849条，dropped0；initial/return各186个job，全部7种生命周期身份完整关联，3010次实例commit。3392条publication_slice中3365次budget退出（99.20%）、27次no_ready、workspace与demand_revision均0。返回加载1700次budget、3次no_ready；2227个publication unit累计墙钟4.026288s。切片elapsed含本帧先于publish的bookkeeping/accept，不能把它全算成发布。全预算保持原值，没有把增加预算当作修复。
+
+| 返回job（generation见原始表） | accepted→首次publication unit | 期间budget切片 | 期间被服务的其他单元 | finished→首次commit |
+|---|---:|---:|---:|---:|
+| building_2d20a149e625d009e719 | 4.751704s | 139 | 167 | 6.318225s |
+| reference:road_batch:136 | 3.658290s | 153 | 160 | 3.682847s |
+| building_b489fbca928d0d5ddb4c | 3.534581s | 117 | 151 | 6.259505s |
+| building_cbb9335d616045ab7a33 | 3.491038s | 103 | 134 | 4.242909s |
+
+这些等待窗口内目标始终accepted/result=true、worker_owner=false，目标publication unit为0。三栋建筑cursor=-1，道路已有cursor；因此不能把两类等待混作“worker没完成”。返回186个job的finished→accepted p95 41.447ms、max67.343ms；末commit→slot释放p95 10.238ms、max26.869ms；slot→lease登记max45µs。后两个标记及时只代表调度槽/lease登记释放，不证明物理资源回收完成。**accepted不等于eligible**：52尚不能区分优先级、碰撞/支撑依赖和建筑串行门槛，不能直接删掉它们。
+
+全部return capture内MAIN exclusive大项：draw_list9.397185s/17467次；GroundBatcher._prepare_step2.781964s/1380次（inclusive3.042487s，max24.786ms）；WorldDocument._mesh0.766387s/691次；_publish_items0.723051s/821次；_publish_ready0.662337s/1961次（inclusive4.721211s）；dispatch0.587579s；Stream.append0.388341s；_publication_ready0.330853s；AssetInstancePrep.advance0.249081s。材质begin0.218069s和step_and_publish0.213284s并非此次剩余几十秒的全部解释。上述为墙钟范围，父子inclusive不能叠加，也不冒称CPU或GPU时间。
+
+53在已通过111项组件的初始索引接管实现上继续dump：只在现有selector分支记录later_ready_building/choose_later_building与collision/support gate，关联path/generation/priority/rank/frame，不重复执行条件、不改变调度；开启既有GroundBatchTimeline拆出collect/prepare/bin/unique/filter/drop/add及worker阶段。下一步依据这些原因复现和修复，检查初始主线程扫描是否实际归零；没有重新开展ABAB评分。
+
+证据：`P/trace52_job_analysis/waiting_findings.md`（SHA `4c4eafa1a74cd45a5eef4411e55bd34d70b0ef2760e8aba658039d7646658d49`）、`job_lifecycle.csv`、`long_wait_windows.csv`、`long_wait_competitors.csv`、`publication_stop_summary.csv`；诊断源码与逐文件SHA在 `node_trace52_setup/manifest.json`，53新增原因探针和初始接管来源在 `node_trace53_setup/manifest.json`。
+
+## 47. 53真实初始接管命中；新时间线发现合批旧请求覆盖新状态（2026-11-01）
+
+53采用组件验证过的初始后台接管，保留52深层scope，增加selector原因和既有GroundBatchTimeline。初始ownership最终表融合在FinalIndex既有私有遍历，主线程只接管容器、登记必要building，不再重新扫描原library。token、目录身份、membership revision/count及未激活条件保证单次接管；过期则走既有正确回退，不保留Mesh/library快照，不新增资源认证。green02的7个生产文件及新测试SHA与当前工作区一致，111项通过、无引擎/脚本错误；独立只读审查未发现所有权或后台访问问题。
+
+实测返回CSV里Asset.configure **53µs**、Native.configure **86µs**，两者均没有嵌套observe。51同两范围合计49.623ms；这次不只是移动扫描：observe各由789次变788次，去掉初始整库调用。初始/返回map profile都记录worker目录2360行、已有索引遍历2473行、traits323行、接管时必要building登记1次。53宿主未导出两套initial MAIN扫描计数，不能冒称已读到这些真实地图计数；组件精确工作量及实测调用链共同证明接管分支生效。证据 `P/trace53_flow_extract/initial_handoff_proof.json`，记录原始span/time/thread与边界。
+
+本次仍为诊断，不作正常评分对照：entry9.142361s、full-ready52.842976s；unload220.675ms、empty327.039ms、return179.780ms、return_loading59.501ms/14帧>50。两个native capture事件2,522,762 /3,736,761，drop/export/registration/结构错误均0。game exit1仍只有原12秒回收队列条件，未宣告通过；项目冻结33逐文件恢复。该局部修复不能代表总加载或卸载长帧已经达标。
+
+selector事件实际捕获4006次建筑剪枝（later_ready_building3826、choose_later_building180），没有collision/support gate事件。返回2d20 accepted→首次服务3.217728s，被剪枝164次；b489 2.729287s/143次；cbb 2.133312s/118次。此前源码规则确实作用于真实等待者，但剪枝在资格检查之前，仍不能用“没有gate”断言它们当时满足全部依赖。历史规则为旧同步材质路径局部性折衷，非跨建筑依赖；后续确定性fixture需显式证明被跳过对象的资格，并保持原子发布/预算/资源所有权。
+
+GroundBatchTimeline无丢失，503次residency_request全部immutable_append=false。正式WorldStream调用全量权威meshes；已有StreamBatchArrivals helper未在实测project的scripts中被引用，因此组件中的immutable优化不能等同正式路径已接入。不能直接翻转flag：通用meshes包含恢复、替换、删除、外部adoption。更急的正确性缺口是待执行旧请求：prune/final保存_next_residency后，prepare/bin新请求直接更新当前preparation，却没有更新或清除旧_next_residency；完成时会回放更旧成员集合。实测g2已收到2848 roots@30.822s，g3却回放2841@31.802s；返回最新3914@155.659s，g9回放3898@156.432s。此项先做真实Batcher组件复现、保留最新权威状态后修复，再接新增源账本，不能以扩大预算掩盖重复和状态倒退。

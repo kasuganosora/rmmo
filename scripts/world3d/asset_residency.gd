@@ -30,24 +30,35 @@ var _retry_individually:=false
 var _clock:=0.0
 var _cursor:=0
 
-func configure(host:Node,map_root:Node,deferred:Node)->void:
+func configure(host:Node,map_root:Node,deferred:Node,prepared:RefCounted=null)->void:
 	name="AssetResidency";set_meta("stream_instance",true)
 	_host=host;_map=map_root;_deferred=deferred
+	profile.initial_directory_rows=0;profile.initial_record_rows=0;profile.initial_spec_rows=0;profile.initial_prepared_adoptions=0
+	if prepared!=null:
+		var data:Dictionary=prepared.take_ordinary()
+		_catalog=data.catalog;_resident=data.resident;_record_pins=data.record_pins;_record_paths=data.record_paths
+		_spec_namespaces=data.spec_namespaces;_namespace_specs=data.namespace_specs;_model_namespaces=data.model_namespaces
+		_unknown_asset_specs=data.unknown_asset_specs;_procedural_assets=data.procedural_assets;_native_namespaces=data.native_namespaces
+		profile.initial_prepared_adoptions=1;profile.resident_instances=_resident.size();_profile_usage()
+		deferred.published.connect(observe);return
 	var index:Dictionary=deferred._reference_index
 	for row:Dictionary in index.get("rows",[]):
+		profile.initial_directory_rows+=1
 		_record_paths[row.uuid]=row.asset_path # Includes pinned/native owners of shared models.
 		if row.classification!="spatial" or not row.group_id.is_empty() or row.asset_path.is_empty():continue
 		var compact:Dictionary=index.extras.rmmo_records[row.order]
 		_catalog[row.uuid]={"record_index":row.order,"compact_record":compact,"bounds":row.bounds,"classification":row.classification,"reason":row.reason,"asset_path":row.asset_path,"group_id":"","memory_bytes":row.memory_bytes}
-	for record:Dictionary in map_root.get_meta("extras",{}).get("rmmo_records",[]):_remember_traits(record)
-	observe(map_root.get_meta("stream_library",[]))
+	for record:Dictionary in map_root.get_meta("extras",{}).get("rmmo_records",[]):
+		profile.initial_record_rows+=1;_remember_traits(record)
+	observe(map_root.get_meta("stream_library",[]),true)
 	deferred.published.connect(observe)
 
-func observe(specs:Array)->void:
+func observe(specs:Array,initial:bool=false)->void:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.asset_residency.observe") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	var packet:RefCounted=_deferred.get("publication_metadata") if is_instance_valid(_deferred) else null
 	if packet!=null and packet.ready(specs) and _observe_publication(packet):return
 	for spec:Dictionary in specs:
+		if initial:profile.initial_spec_rows+=1
 		var root_id:String=str(spec.uuid).get_slice("__",0)
 		var source_record:Dictionary=spec.get("ground_batch_record",EMPTY_RECORD)
 		var uuid:String=str(source_record.get("uuid",root_id))
@@ -165,10 +176,13 @@ func model_in_use(path:String)->bool:
 func _remember_traits(record:Dictionary)->void:
 	_record_paths[record.uuid]=str(record.get("asset_path",""))
 	if record.has("bridge_mesh") and str(record.get("asset_path","")).is_empty():_procedural_assets[record.uuid]=true
+	_record_pins[record.uuid]=pin_for_record(record)
+
+static func pin_for_record(record:Dictionary)->String:
 	var pin:="" if record.get("kind","")=="asset" else "non_asset"
 	for field in ["building","fixture","fortification","house_prefab","bridge_mesh","surface_paint","prefab_materials","material","material_state","material_overrides","event","event_template","parametric_tree","tree","streetlamp"]:
 		if record.has(field):pin=field;break
-	_record_pins[record.uuid]=pin
+	return pin
 
 func _process(delta:float)->void:
 	_clock+=delta

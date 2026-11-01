@@ -1595,7 +1595,7 @@ func _build_records() -> void:
 	library.append_array(asset_specs)
 	var index_started:=Time.get_ticks_usec()
 	var final_dependencies:Dictionary=_full_reference_dependencies if not _full_reference_dependencies.is_empty() else _reference_dependencies
-	var index_job:=preload("res://scripts/world3d/final_index_preparation.gd").prepare.bind(library,final_dependencies,_path,_content_root,1 if background_preload else 4,PackagePolicy.trusted())
+	var index_job:=preload("res://scripts/world3d/final_index_preparation.gd").prepare.bind(library,final_dependencies,_path,_content_root,1 if background_preload else 4,PackagePolicy.trusted(),_dependency_index,_record_meta.rmmo_records)
 	_index_thread=Thread.new()
 	var final_preparation:Dictionary
 	if _index_thread.start(index_job)==OK:
@@ -1623,6 +1623,9 @@ func _build_records() -> void:
 	Trace.elapsed("game.build",build_started)
 	root.set_meta("stream_library",library)
 	for key:String in index_data:root.set_meta(key,index_data[key])
+	if final_preparation.initial_residency!=null:
+		root.set_meta("initial_residency_preparation",final_preparation.initial_residency)
+		_profile.initial_residency_preparation=final_preparation.initial_residency.profile
 	root.set_meta("stream_children", -1 if root.get_child_count(true) > 0 else 0)
 	root.set_meta("record_stream_load", true)
 	root.set_meta("load_box_cache_hits",doc.load_box_hits)
