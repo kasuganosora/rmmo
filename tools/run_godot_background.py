@@ -73,7 +73,7 @@ class _PipeCapture:
 
 
 def run_background(command, *, cwd=None, timeout=360, on_start=None, on_poll=None,
-                   capture_mode='pipe'):
+                   capture_mode='pipe', on_desktop=None):
     if os.name != 'nt':
         raise RuntimeError('Private-desktop GPU runner currently supports Windows only')
     if capture_mode not in ('pipe', 'file'):
@@ -120,6 +120,10 @@ def run_background(command, *, cwd=None, timeout=360, on_start=None, on_poll=Non
     if gui.is_file():
         command[0] = str(gui)
     try:
+        # Borrowed for native test-window messages. The runner remains owner;
+        # callers must finish helper threads before returning from on_poll.
+        if on_desktop is not None:
+            on_desktop(desktop)
         with tempfile.TemporaryFile() as output, open(os.devnull, 'rb') as null:
             capture = _PipeCapture(output) if capture_mode == 'pipe' else None
             startup = Startup()

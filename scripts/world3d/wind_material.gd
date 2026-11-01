@@ -2,7 +2,7 @@ extends RefCounted
 const Response = preload("res://scripts/world3d/wind_response.gd")
 static var shaders := {}
 
-# Main-thread cache. A Shader is ready only after its first material/uniform use.
+# Main-thread cache. Worker results publish only after their first material/uniform use.
 static func variant_key(source:StandardMaterial3D)->String:
 	if source==null:source=StandardMaterial3D.new()
 	return "%d/%d/%d/%s/%d/%s/%s/%d/%d" % [source.cull_mode,source.transparency,source.shading_mode,source.texture_repeat,source.texture_filter,source.backlight_enabled,source.detail_enabled,source.detail_blend_mode,source.detail_uv_layer]
@@ -20,29 +20,19 @@ static func make(source: StandardMaterial3D, config: Dictionary, bounds: AABB, t
 	if source == null: source = StandardMaterial3D.new()
 	var key:=variant_key(source)
 	timing.merge({"key":key,"cold":not variant_is_prepared(key),"cache_miss":false,"shader_source_ms":0.0,"shader_new_ms":0.0,"shader_code_ms":0.0,"material_new_ms":0.0,"material_shader_ms":0.0,"uniforms_ms":0.0,"first_uniform_ms":0.0,"textures_ms":0.0},true)
+	# Covered/legacy callers must not duplicate a variant already being prepared.
+	if _pending_variants.has(key):
+		var pending:Preparation=_pending_variants[key]
+		if pending.task>=0 and WorkerThreadPool.is_task_completed(pending.task):_finish_variant(pending)
+		if not variant_is_prepared(key):
+			timing.cache_miss=true;timing.total_ms=(Time.get_ticks_usec()-started)/1000.0
+			return null
 	if not allow_cold and not variant_is_prepared(key):
 		timing.cache_miss=true;timing.total_ms=(Time.get_ticks_usec()-started)/1000.0
 		return null
 	if not shaders.has(key):
 		var phase:=Time.get_ticks_usec()
-		var code: String = preload("res://scripts/world3d/wind_material.gdshader").code
-		var cull: String = ["cull_back","cull_front","cull_disabled"][source.cull_mode]
-		if source.shading_mode == BaseMaterial3D.SHADING_MODE_UNSHADED: cull += ", unshaded"
-		code = code.replace("render_mode cull_back;", "render_mode "+cull+";")
-		if not source.texture_repeat: code = code.replace("repeat_enable","repeat_disable")
-		var filters := ["filter_nearest","filter_linear","filter_nearest_mipmap","filter_linear_mipmap","filter_nearest_mipmap_anisotropic","filter_linear_mipmap_anisotropic"]
-		code = code.replace("filter_linear_mipmap_anisotropic",filters[source.texture_filter])
-		var alpha := ""
-		if source.transparency == BaseMaterial3D.TRANSPARENCY_ALPHA: alpha = "ALPHA = base.a;"
-		elif source.transparency == BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR: alpha = "ALPHA = base.a; ALPHA_SCISSOR_THRESHOLD = alpha_cut;"
-		code = code.replace("// ALPHA_INSERT",alpha)
-		code = code.replace("// BACKLIGHT_INSERT","BACKLIGHT = backlight + texture(backlight_tex,UV).rgb;" if source.backlight_enabled else "")
-		var detail:=""
-		if source.detail_enabled:
-			var uv:="UV2*detail_uv_scale.xy+detail_uv_offset.xy" if source.detail_uv_layer==BaseMaterial3D.DETAIL_UV_2 else "UV"
-			var blend:String=["art.rgb","ALBEDO+art.rgb","ALBEDO-art.rgb","ALBEDO*art.rgb"][source.detail_blend_mode]
-			detail="vec4 art=texture(detail_albedo_tex,"+uv+"); ALBEDO=mix(ALBEDO,"+blend+",art.a*texture(detail_mask_tex,UV).r);"
-		code=code.replace("// DETAIL_INSERT",detail)
+		var code:String=_shader_code(_shader_options(source))
 		timing.shader_source_ms=(Time.get_ticks_usec()-phase)/1000.0
 		phase=Time.get_ticks_usec()
 		var shader:=Shader.new()
@@ -88,3 +78,112 @@ static func make(source: StandardMaterial3D, config: Dictionary, bounds: AABB, t
 	shaders[key].set_meta("wind_variant_prepared",true)
 	timing.total_ms=(Time.get_ticks_usec()-started)/1000.0
 	return result
+
+# One shared cold shader task at a time. Consumers retain authored materials;
+# no Node, shared Shader or source Material is accessed by the worker.
+static var _pending_variants:Dictionary={}
+static var _variant_queue:Array=[]
+static var _active_variant:Preparation
+static var _background_started:=0
+static var _background_completed:=0
+static var _background_cancelled:=0
+static var _background_usec:=0
+static var _background_on_main:=0
+static var preparation_test_gate:Semaphore # Null in production; deterministic blocked-worker regression.
+
+class Preparation extends RefCounted:
+	var key:String
+	var options:Dictionary
+	var owners:Dictionary={}
+	var task:=-1
+	var shader:Shader
+	var warmup:ShaderMaterial
+	var elapsed_usec:=0
+	var ran_on_main:=false
+	var gate:Semaphore
+
+static func request_variant(source:StandardMaterial3D,owner:Node,key:String="")->void:
+	assert(Thread.is_main_thread())
+	if not is_instance_valid(owner) or not owner.is_inside_tree():return
+	if key.is_empty():key=variant_key(source)
+	if variant_is_prepared(key):return
+	var job:Preparation=_pending_variants.get(key)
+	if job==null:
+		job=Preparation.new();job.key=key;job.options=_shader_options(source)
+		_pending_variants[key]=job;_variant_queue.append(job)
+	job.owners[owner.get_instance_id()]=weakref(owner)
+	_start_next_variant()
+
+static func variant_is_preparing(key:String)->bool:return _pending_variants.has(key)
+
+static func background_profile()->Dictionary:
+	return {"mode":"background_variants","blocking":false,"started":_background_started,"completed":_background_completed,"cancelled":_background_cancelled,"pending":_pending_variants.size(),"active":int(_active_variant!=null),"worker_usec":_background_usec,"main_thread_builds":_background_on_main}
+
+static func _start_next_variant()->void:
+	if _active_variant!=null:return
+	while not _variant_queue.is_empty():
+		var job:Preparation=_variant_queue.pop_front()
+		var wanted:=false
+		for ref:WeakRef in job.owners.values():
+			var owner:Variant=ref.get_ref()
+			if is_instance_valid(owner) and owner.is_inside_tree() and owner.needs_wind_variant(job.key):wanted=true;break
+		if not wanted or variant_is_prepared(job.key):
+			_pending_variants.erase(job.key);_background_cancelled+=1;continue
+		_active_variant=job;job.gate=preparation_test_gate
+		job.task=WorkerThreadPool.add_task(_prepare_variant.bind(job),false,"WindShader:"+job.key)
+		_background_started+=1
+		return
+
+static func _prepare_variant(job:Preparation)->void:
+	job.ran_on_main=Thread.is_main_thread()
+	if job.gate!=null:job.gate.wait()
+	var started:=Time.get_ticks_usec()
+	job.shader=Shader.new();job.shader.code=_shader_code(job.options)
+	job.warmup=ShaderMaterial.new();job.warmup.shader=job.shader
+	# Prepare a private material RID via the engine's worker-safe shader path.
+	# A shader-uniform-list getter would synchronously wait for the main thread.
+	job.warmup.set_shader_parameter("tint",Color.WHITE)
+	job.warmup.get_rid()
+	job.elapsed_usec=Time.get_ticks_usec()-started
+	_finish_variant.call_deferred(job)
+
+static func _finish_variant(job:Preparation)->void:
+	assert(Thread.is_main_thread())
+	if _active_variant!=job:return
+	if not WorkerThreadPool.is_task_completed(job.task):
+		var tree:=Engine.get_main_loop() as SceneTree
+		if tree!=null:tree.process_frame.connect(_finish_variant.bind(job),CONNECT_ONE_SHOT)
+		return
+	# Only completed tasks are joined; a disappearing world never waits for it.
+	WorkerThreadPool.wait_for_task_completion(job.task)
+	job.shader.set_meta("wind_variant_prepared",true);shaders[job.key]=job.shader
+	_pending_variants.erase(job.key);_active_variant=null
+	_background_completed+=1;_background_usec+=job.elapsed_usec
+	_background_on_main+=int(job.ran_on_main)
+	job.warmup=null;job.owners.clear();job.options.clear()
+	_start_next_variant()
+
+static func _shader_options(source:StandardMaterial3D)->Dictionary:
+	if source==null:source=StandardMaterial3D.new()
+	return {"cull_mode":source.cull_mode,"transparency":source.transparency,"shading_mode":source.shading_mode,"texture_repeat":source.texture_repeat,"texture_filter":source.texture_filter,"backlight_enabled":source.backlight_enabled,"detail_enabled":source.detail_enabled,"detail_blend_mode":source.detail_blend_mode,"detail_uv_layer":source.detail_uv_layer}
+
+static func _shader_code(options:Dictionary)->String:
+	var code: String = preload("res://scripts/world3d/wind_material.gdshader").code
+	var cull: String = ["cull_back","cull_front","cull_disabled"][options.cull_mode]
+	if options.shading_mode == BaseMaterial3D.SHADING_MODE_UNSHADED: cull += ", unshaded"
+	code = code.replace("render_mode cull_back;", "render_mode "+cull+";")
+	if not options.texture_repeat: code = code.replace("repeat_enable","repeat_disable")
+	var filters := ["filter_nearest","filter_linear","filter_nearest_mipmap","filter_linear_mipmap","filter_nearest_mipmap_anisotropic","filter_linear_mipmap_anisotropic"]
+	code = code.replace("filter_linear_mipmap_anisotropic",filters[options.texture_filter])
+	var alpha := ""
+	if options.transparency == BaseMaterial3D.TRANSPARENCY_ALPHA: alpha = "ALPHA = base.a;"
+	elif options.transparency == BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR: alpha = "ALPHA = base.a; ALPHA_SCISSOR_THRESHOLD = alpha_cut;"
+	code = code.replace("// ALPHA_INSERT",alpha)
+	code = code.replace("// BACKLIGHT_INSERT","BACKLIGHT = backlight + texture(backlight_tex,UV).rgb;" if options.backlight_enabled else "")
+	var detail:=""
+	if options.detail_enabled:
+		var uv:="UV2*detail_uv_scale.xy+detail_uv_offset.xy" if options.detail_uv_layer==BaseMaterial3D.DETAIL_UV_2 else "UV"
+		var blend:String=["art.rgb","ALBEDO+art.rgb","ALBEDO-art.rgb","ALBEDO*art.rgb"][options.detail_blend_mode]
+		detail="vec4 art=texture(detail_albedo_tex,"+uv+"); ALBEDO=mix(ALBEDO,"+blend+",art.a*texture(detail_mask_tex,UV).r);"
+	code=code.replace("// DETAIL_INSERT",detail)
+	return code

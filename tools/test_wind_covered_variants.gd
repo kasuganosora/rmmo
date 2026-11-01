@@ -67,14 +67,14 @@ func run()->void:
 	runtime.refresh()
 	check(runtime.receivers.is_empty() and not receiver.has_meta("wind_original") and receiver.get_surface_override_material(0)==null and receiver.get_surface_override_material(1)==null,"a multisurface cache miss leaves all authored materials installed")
 	var capability:Dictionary=runtime.capability_status()
-	check(capability.pending_receivers==1 and capability.pending_variants==[key] and capability.reason=="covered_variant_preparation_pending","cold miss exposes a bounded retryable capability instead of silent loss")
+	check(capability.pending_receivers==1 and capability.pending_variants==[key] and capability.reason=="background_variant_preparation_pending","cold miss exposes a bounded retryable capability instead of silent loss")
 	check(Materials.shaders.size()==before and runtime.get_meta("refresh_timing").bound==0,"gameplay refresh does not create cold shaders or count static misses as bound")
 	var pending:Array=runtime.pending_specs()
 	check(pending.size()==1 and pending[0].mesh==mesh,"later cover receives only already-resident pending receiver resources")
 	var later:=Prepare.new();later.enqueue(pending);await later.finish_covered(self)
-	check(Materials.variant_is_prepared(key),"later covered transaction completes previously missing variant")
+	check(Materials.variant_is_prepared(key),"later covered transaction reuses the pending background variant")
 	runtime.refresh()
-	check(runtime.receivers.size()==1 and runtime.capability_status().pending_receivers==0,"pending receiver automatically binds after the covered variant becomes ready")
+	check(runtime.receivers.size()==1 and runtime.capability_status().pending_receivers==0,"pending receiver automatically binds after the shared variant becomes ready")
 	var phases:Dictionary=runtime.get_meta("refresh_timing").bind_details[0]
 	check(phases.has("install_ms") and phases.has("shared_state_ms") and phases.materials.size()==2 and not phases.materials[0].cold and not phases.materials[1].cold,"runtime reports material, install and shared-state phases separately")
 	runtime.set_enabled(false)
@@ -86,5 +86,8 @@ func run()->void:
 	runtime.refresh();check(runtime.capability_status().pending_receivers==1,"new post-entry variant remains explicitly pending")
 	abandoned.free();check(runtime.capability_status().pending_receivers==0,"retired pending receiver is not retained by the capability queue")
 	scene.free()
+	var until:=Time.get_ticks_msec()+30000
+	while Materials.background_profile().pending>0 and Time.get_ticks_msec()<until:await process_frame
+	check(Materials.background_profile().pending==0,"retiring the final consumer leaves no unfinished shader job")
 	print("test_wind_covered_variants: ",checks-failures," PASS / ",failures," FAIL")
 	quit(0 if failures==0 else 1)

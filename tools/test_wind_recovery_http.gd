@@ -1,10 +1,37 @@
 extends "res://tools/test_transfer_experience_http.gd"
+const WindMaterials=preload("res://scripts/world3d/wind_material.gd")
 const Navigation=preload("res://scripts/world3d/world_navigation.gd")
 var held:Array[Node]=[]
 var first:=true
 var stopped_wind:=false
+var first_rpc:=true
+
+func rpc(method:String,params:Dictionary={})->Dictionary:
+	if first_rpc:
+		first_rpc=false
+		var before:=Time.get_ticks_usec()
+		var frame_before:=Engine.get_process_frames()
+		# The shared RPC keeps its strict 5s deadline. Complete this editor's
+		# initial viewport draw before starting the first network operation.
+		await RenderingServer.frame_post_draw
+		evidence.first_rpc_draw={"begin_us":before,"end_us":Time.get_ticks_usec(),"frame_before":frame_before,"frame_after":Engine.get_process_frames()}
+		print("WIND_HTTP_FIRST_DRAW ",JSON.stringify(evidence.first_rpc_draw))
+	var began:=Time.get_ticks_usec()
+	var response:Dictionary=await super.rpc(method,params)
+	if response.is_empty():
+		evidence.rpc_failure={"method":method,"params":params,"begin_us":began,"end_us":Time.get_ticks_usec(),"timeout_ms":rpc_timeout_ms}
+		FileAccess.open(directory.path_join("http_failed.json"),FileAccess.WRITE).store_string(JSON.stringify(evidence,"  "))
+		print("WIND_HTTP_FAIL_FAST ",JSON.stringify(evidence.rpc_failure))
+		quit(2)
+		# Do not resume a parent that expects a valid RPC result after quitting.
+		await process_frame
+	return response
+
 func run()->void:
-	directory="D:/code/rmmo_runtime/review_artifacts/wind_cutout_20261018"
+	directory=OS.get_environment("RMMO_WIND_HTTP_ROOT")
+	if directory.is_empty():directory="D:/code/rmmo_runtime/review_artifacts/wind_http_%d_%d"%[OS.get_process_id(),Time.get_ticks_usec()]
+	if DirAccess.dir_exists_absolute(directory):
+		push_error("Wind HTTP evidence directory already exists: "+directory);quit(2);return
 	var callback:=func(node:Node):
 		if first and node.get_script()==Navigation:
 			node.process_mode=Node.PROCESS_MODE_DISABLED;held.append(node)
@@ -26,17 +53,20 @@ func trigger(id:String,destination:Vector3)->void:
 		material.texture_repeat=false;material.texture_filter=BaseMaterial3D.TEXTURE_FILTER_NEAREST;material.cull_mode=BaseMaterial3D.CULL_DISABLED
 		mesh.material=material;receiver.mesh=mesh;receiver.position=world._player.global_position+Vector3(2,1,0)
 		receiver.set_meta("extras",{"rmmo_wind":{"profile":"foliage","shelter":false}});world.add_child(receiver)
+		var gate:=Semaphore.new();WindMaterials.preparation_test_gate=gate
+		var before:Dictionary=WindMaterials.background_profile()
 		preload("res://scripts/world3d/wind_response.gd").register(receiver);wind.refresh()
 		var start:Vector3=world._player.global_position
 		state=await call_tool("playtest_state")
 		check(not state.preparation.wind.ready and state.preparation.wind.pending_receivers==1,"real HTTP exposes newly streamed wind material as pending")
+		check(not world._transfer_pending and not world._player.input_locked and not world.get_viewport().disable_3d and world.get_node_or_null("TransferLoading")==null,"real HTTP stays playable while the cold wind worker is deliberately blocked")
+		WindMaterials.preparation_test_gate=null;gate.post()
 		var until:=Time.get_ticks_msec()+60000
-		while not world.has_meta("wind_recovery_profile") and Time.get_ticks_msec()<until:await process_frame
+		while not wind.capability_status().ready and Time.get_ticks_msec()<until:await process_frame
 		state=await call_tool("playtest_state")
-		check(state.preparation.wind.ready and state.preparation.wind.last_recovery.cold_variants==1,"real production world automatically completes pending wind after a drawn cover")
-		var receipt:Dictionary=world.get_meta("wind_recovery_profile",{})
-		check(receipt.get("ok",false) and receipt.get("phase")=="revealed" and int(receipt.get("drawn_frame",-1))>=0,"wind recovery records actual opaque draw and first-frame reveal")
-		check(not world._player.input_locked and not world._transfer_pending and world._player.global_position.distance_to(start)<.15,"wind recovery restores gameplay at the original position")
+		check(state.preparation.wind.ready and WindMaterials.background_profile().completed>before.completed,"real production world automatically completes pending wind in background")
+		check(not world.has_meta("wind_recovery_profile") and world.get_node_or_null("TransferLoading")==null,"late wind preparation never creates an opaque recovery transaction")
+		check(not world._player.input_locked and not world._transfer_pending and world._player.global_position.distance_to(start)<.15,"wind preparation preserves gameplay at the original position")
 		check(receiver.get_active_material(0) is ShaderMaterial,"streamed receiver actually uses the prepared wind shader")
 		receiver.free()
 		first=false
@@ -52,11 +82,11 @@ func trigger(id:String,destination:Vector3)->void:
 		var node:=MeshInstance3D.new();var mesh:=PlaneMesh.new();var material:=StandardMaterial3D.new()
 		material.texture_repeat=false;material.texture_filter=BaseMaterial3D.TEXTURE_FILTER_LINEAR;material.cull_mode=BaseMaterial3D.CULL_FRONT
 		mesh.material=material;node.mesh=mesh;node.position=world._player.global_position+Vector3(2,1,0);node.set_meta("extras",{"rmmo_wind":{"profile":"foliage","shelter":false}})
+		var gate:=Semaphore.new();WindMaterials.preparation_test_gate=gate
 		world.add_child(node);preload("res://scripts/world3d/wind_response.gd").register(node);world._weather.wind_objects.refresh()
 		world._preparation_sample_at=0;world._update_preparation_hint()
-		var until:=Time.get_ticks_msec()+5000
-		while not world._transfer_pending and Time.get_ticks_msec()<until:await process_frame
-		check(world._wind_recovery_pending and world._transfer_pending and world._player.input_locked,"wind stop probe reaches actual guarded production recovery")
+		check(not world._transfer_pending and not world._player.input_locked and world._weather.wind_objects.capability_status().pending_receivers>0,"wind stop probe leaves gameplay active while background work is held")
 		await call_tool("stop_playtest");await wait_phase("idle")
-		check(not is_instance_valid(world) and not is_instance_valid(viewport),"stopping wind cover destroys its coroutine owner and private viewport safely")
+		WindMaterials.preparation_test_gate=null;gate.post()
+		check(not is_instance_valid(world) and not is_instance_valid(viewport),"stopping playtest destroys its world and private viewport without waiting for the wind worker")
 		await call_tool("start_playtest");await wait_phase("running")

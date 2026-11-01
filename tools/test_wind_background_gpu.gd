@@ -60,40 +60,43 @@ func run()->void:
 	create_timer(150).timeout.connect(func():quit(2))
 	DirAccess.make_dir_recursive_absolute(output)
 	var Materials=preload("res://scripts/world3d/wind_material.gd")
-	var Cover=preload("res://scripts/world3d/transfer_loading.gd")
 	var reference:=make_world()
 	var candidate:=make_world()
 	await shot(reference,12);await shot(candidate,12)
 	candidate.wind.set_enabled(false);candidate.wind.set_enabled(true);candidate.wind.set_physics_process(false)
 	Materials.shaders.clear();candidate.wind.cached_variants_only=true
+	var gate:=Semaphore.new();Materials.preparation_test_gate=gate
 	candidate.wind.refresh()
 	check(candidate.wind.capability_status().pending_receivers==4 and candidate.wind.receivers.is_empty(),"unseen variants preserve entire authored rows before background completion")
-	var no_cover:=Cover.new();candidate.view.add_child(no_cover)
-	check(not (await candidate.wind.prepare_pending_covered(no_cover)).ok and Materials.shaders.is_empty(),"undrawn cover cannot submit any cold shader or modify authored materials")
-	var before:=Time.get_ticks_usec();await no_cover.wait_until_drawn()
-	var prepared:Dictionary=await candidate.wind.prepare_pending_covered(no_cover)
+	await shot(candidate,4)
+	check(not candidate.view.disable_3d and candidate.view.find_child("TransferLoading",true,false)==null,"unprepared wind keeps real GPU frames visible without a cover")
+	var before:=Time.get_ticks_usec();Materials.preparation_test_gate=null;gate.post()
+	var until:=Time.get_ticks_msec()+60000
+	while not candidate.wind.capability_status().ready and Time.get_ticks_msec()<until:
+		candidate.wind._physics_process(.36);await process_frame
 	var status:Dictionary=candidate.wind.capability_status()
-	check(prepared.ok and status.ready and status.ready_receivers==4 and status.pending_receivers==0,"automatic covered fallback drains unseen variants and binds every receiver")
-	check(status.last_recovery.cold_variants==2,"duplicate keys prepare once under the drawn cover")
-	await no_cover.finish(candidate.camera);await no_cover.reveal();no_cover.retire()
+	check(status.ready and status.ready_receivers==4 and status.pending_receivers==0,"background preparation drains unseen variants and binds every receiver")
+	check(Materials.background_profile().completed==2 and Materials.background_profile().main_thread_builds==0,"duplicate keys prepare once on the worker")
 	var convergence_ms:float=(Time.get_ticks_usec()-before)/1000.
+
 	for view:Dictionary in [{"label":"detail","z":4.,"size":4.},{"label":"near","z":11.,"size":7.},{"label":"mid","z":30.,"size":14.},{"label":"far","z":70.,"size":30.}]:
 		for world:Dictionary in [reference,candidate]:world.camera.position.z=view.z;world.camera.size=view.size
 		for t:float in [1.,1.75]:
 			reference.wind.advance(Vector3(12,0,2),t);candidate.wind.advance(Vector3(12,0,2),t)
 			var a:=await shot(reference);var b:=await shot(candidate)
 			var result:=difference(a,b);result.label=view.label+"_"+str(t);comparisons.append(result)
-			check(result.mean_channel_delta<.02 and result.changed_channel_fraction<.0001,"covered cache vs synchronous material, fixed camera/light/time "+result.label+" "+str(result))
+			check(result.mean_channel_delta<.02 and result.changed_channel_fraction<.0001,"background cache vs synchronous material, fixed camera/light/time "+result.label+" "+str(result))
 			a.save_png(output.path_join(result.label+"_reference.png"));b.save_png(output.path_join(result.label+"_background.png"))
 	# A receiver that arrives after entry with a genuinely different key.
 	var late:=MeshInstance3D.new();late.mesh=grid();var source:=StandardMaterial3D.new();source.texture_repeat=false;source.texture_filter=BaseMaterial3D.TEXTURE_FILTER_NEAREST
 	late.mesh.surface_set_material(0,source);late.set_meta("extras",{"rmmo_wind":{"profile":"foliage","shelter":false}});candidate.scene.add_child(late);Response.register(late)
 	candidate.wind.refresh();check(candidate.wind.capability_status().pending_receivers==1,"post-entry stream arrival advertises real pending variant")
-	var late_cover:=Cover.new();candidate.view.add_child(late_cover);await late_cover.wait_until_drawn()
-	check((await candidate.wind.prepare_pending_covered(late_cover)).ok,"post-entry unseen material completes under its automatic cover")
-	await late_cover.finish(candidate.camera);await late_cover.reveal();late_cover.retire()
+	until=Time.get_ticks_msec()+60000
+	while not candidate.wind.capability_status().ready and Time.get_ticks_msec()<until:
+		candidate.wind._physics_process(.36);await process_frame
+	check(candidate.view.find_child("TransferLoading",true,false)==null and not candidate.view.disable_3d,"post-entry unseen material completes without covering or disabling the viewport")
 	check(candidate.wind.receivers.has(late.get_instance_id()) and candidate.wind.capability_status().ready,"post-entry material acquires wind automatically")
-	var result:={"failures":failures,"media":output,"comparisons":comparisons,"covered":status,"convergence_with_fades_ms":convergence_ms}
+	var result:={"failures":failures,"media":output,"comparisons":comparisons,"background":status,"convergence_ms":convergence_ms}
 	FileAccess.open("D:/code/rmmo_runtime/review_artifacts/wind_cutout_20261018/wind_gpu.json",FileAccess.WRITE).store_string(JSON.stringify(result,"  "))
 	reference.view.free();candidate.view.free();await process_frame
 	print("WIND_BACKGROUND_GPU_FAILURES ",failures," report=",result);quit(1 if failures else 0)
