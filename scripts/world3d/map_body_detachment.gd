@@ -34,7 +34,7 @@ func advance()->void:
 	var frame:=Engine.get_process_frames()
 	if _last_frame==frame:return
 	_last_frame=frame
-	var allowed:=Budget.allowance("retire",1000,true)
+	var allowed:=Budget.allowance_disposal(1000,true)
 	if allowed<=0:profile.budget_denials+=1;return
 	var began:=Time.get_ticks_usec();var progressed:=false
 	var world:Node=_world.get_ref()
@@ -57,7 +57,7 @@ func advance()->void:
 	if _cursor>=_roots.size():_finish(true,"")
 func _record_slice(began:int)->void:
 	var elapsed:=Time.get_ticks_usec()-began
-	Budget.charge("retire",began)
+	Budget.charge_disposal(began)
 	profile.slices+=1;profile.active_us+=elapsed;profile.max_slice_us=maxi(profile.max_slice_us,elapsed)
 func _finish(ok:bool,reason:String)->void:
 	if done:return

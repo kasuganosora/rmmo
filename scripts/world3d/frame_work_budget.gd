@@ -20,6 +20,18 @@ var _waiting:Array[String]=[]
 var _protected_lane:=""
 var counters:Dictionary={"frames":0,"elapsed_us":0,"max_frame_us":0,"over_budget_frames":0,"denied":0,"lanes":{},"protected_turns":0,"protected_grants":0,"priority_denials":0,"absent_protected_turns":0}
 static var _shared:RefCounted
+# Body/MapRoot detachment and the native owner queue share their existing 1ms
+# cap even while the experimental six-lane scheduler is disabled. Other lanes
+# and legacy retire callers retain their current scheduling behavior.
+const DISPOSAL_BUDGET_USEC:=1000
+static var _disposal_frame:=-1
+static var _disposal_spent_us:=0
+static var _disposal_frames:=0
+static var _disposal_calls:=0
+static var _disposal_active_us:=0
+static var _disposal_max_call_us:=0
+static var _disposal_max_frame_us:=0
+static var _disposal_denials:=0
 
 static func shared()->RefCounted:
 	if _shared==null:_shared=load("res://scripts/world3d/frame_work_budget.gd").new()
@@ -32,8 +44,30 @@ static func allowance(lane:String,wanted:int,covered:bool=false)->int:
 static func charge(lane:String,started:int)->void:
 	if enabled:shared().record(Engine.get_process_frames(),lane,maxi(0,Time.get_ticks_usec()-started))
 
+static func _advance_disposal_frame()->void:
+	var frame:=Engine.get_process_frames()
+	if frame==_disposal_frame:return
+	_disposal_frame=frame;_disposal_spent_us=0;_disposal_frames+=1
+
+static func allowance_disposal(wanted:int,covered:bool=false)->int:
+	if enabled:return allowance("retire",wanted,covered)
+	_advance_disposal_frame()
+	var allowed:=mini(maxi(0,wanted),maxi(0,DISPOSAL_BUDGET_USEC-_disposal_spent_us))
+	if wanted>0 and allowed==0:_disposal_denials+=1
+	return allowed
+
+static func charge_disposal(started:int)->void:
+	if enabled:charge("retire",started);return
+	_advance_disposal_frame()
+	var elapsed:=maxi(0,Time.get_ticks_usec()-started)
+	_disposal_spent_us+=elapsed;_disposal_calls+=1;_disposal_active_us+=elapsed
+	_disposal_max_call_us=maxi(_disposal_max_call_us,elapsed)
+	_disposal_max_frame_us=maxi(_disposal_max_frame_us,_disposal_spent_us)
+
 static func report()->Dictionary:
-	return shared().snapshot()
+	var result:Dictionary=shared().snapshot()
+	result.standalone_disposal={"active":not enabled,"limit_us":DISPOSAL_BUDGET_USEC,"frame":_disposal_frame,"spent_us":_disposal_spent_us,"frames":_disposal_frames,"calls":_disposal_calls,"active_us":_disposal_active_us,"max_call_us":_disposal_max_call_us,"max_frame_us":_disposal_max_frame_us,"denials":_disposal_denials}
+	return result
 
 func _advance(frame:int)->void:
 	if frame==_frame:return

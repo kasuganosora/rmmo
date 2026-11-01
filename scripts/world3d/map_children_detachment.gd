@@ -16,7 +16,7 @@ func advance()->void:
 	var frame:=Engine.get_process_frames()
 	if _last_frame==frame:return
 	_last_frame=frame
-	var allowed:=Budget.allowance("retire",1000,true)
+	var allowed:=Budget.allowance_disposal(1000,true)
 	if allowed<=0:profile.budget_denials+=1;return
 	var began:=Time.get_ticks_usec();var progressed:=false
 	while _cursor<_roots.size() and (not progressed or Time.get_ticks_usec()-began<allowed):

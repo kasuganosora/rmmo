@@ -2350,3 +2350,13 @@ root审查又发现：`_drop`同步释放visual，合法的`tree_exited`观察�
 排除两种宿主错误：直接free正在调用栈中的service被当前editor构建ObjectLock拒绝，服务并未销毁；不计生产UAF，移除没有依据的instance-ID热路径检查，改验合法queue_free。World首个适配夹具重复调用child helper且帧数上限不足，只修夹具后138项通过。原始失败样本仍保留。
 
 默认共享处置预算仍另行修复，未开启全局实验调度器。另需区分driver active与finished.emit同步恢复的World后续提交：active计时在emit前结束，后续root commit、adoption、投影和环境设置仍可能在同帧执行。下一累计CSV保留这条回调链，不能用小slice计数冒充整帧已达标。尚无本节对应的整图耗时/FPS结论。
+
+## 58. 默认关闭全局调度时，处置消费者仍共享原有1ms额度（2026-11-01）
+
+复核§56边界后，新独立测试用真实ResourceRetirement队列、两个有限PREDELETE前置任务、held body、逆序地图孩子和后置FIFO标记复现。默认`FrameWorkBudget.enabled=false`的旧路径出现3个预期失败：native前置任务已耗完额度，body仍可开始；同步body finished回调又让child取得一份完整额度。原总账开启场景12项已通过。有效红例共21通过/3失败、0脚本/引擎错误，不能说原开启模式也有此错误。
+
+只新增`allowance_disposal`/`charge_disposal`，由ResourceRetirement._process和body/child driver三个消费者调用。全局开关仍false时使用按Engine process frame重置的标量账本，共享原1000µs上限；开启总账时委托既有retire lane。其余碰撞、发布、合批、导航、风场，以及其他沿用旧retire接口的消费者都不变，没有开启整个实验调度器或增加worker。共享额度约束何时能开始下一个原子操作，不能阻止一个不可拆回调本身超额；实际超额、总active、调用数和拒绝次数由`report().standalone_disposal`单独记录，不伪装成全局账本已经开启。
+
+candidate58上新fixture **24/24**，累计MapChildren **183/183**、实际World **138/138**，合计 **345项、0错误**；有限FIFO前置任务最终完成，body/children和后置标记各执行一次。fixture刻意使用2ms原子回调证明同帧准入，数字不是生产帧耗时。首个green因推断Dictionary类型失败未执行有效断言，保留为无效解析样本；只补显式类型后通过。55个冻结路径全部恢复，三次绿例前后无其他引擎/编译/Blender工作负载。
+
+证据`P/disposal_budget60_revision02_setup/{README.md,validation_receipt.json,repo_integration_receipt.json}`；独立fixture `tools/test_disposal_frame_budget.gd`。生产四文件与通过样本文本一致。后续累计整图需同时确认新的额度拒绝、总卸载等待、12秒回收窗口、最终提交回调和真实最大帧，尚未以组件准入结果宣称整图低帧或加载时间改善。

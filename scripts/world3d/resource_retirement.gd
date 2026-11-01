@@ -664,7 +664,7 @@ func _finish_pixel_ticket(ticket:Dictionary)->void:
 		completion.owner._complete_pixel_retirement(ticket.admission,completion.lease,int(completion.bytes))
 	ticket.completions.clear();ticket.admission=null
 func _process(_delta:float)->void:
-	var allowed:=Budget.allowance("retire",1000,false)
+	var allowed:=Budget.allowance_disposal(1000,false)
 	if allowed<=0 or pending.is_empty():return
 	var began:=Time.get_ticks_usec()
 	var remaining:=allowed
@@ -683,7 +683,7 @@ func _process(_delta:float)->void:
 			# blocked worker/lease, or skip another ticket's ownership fence.
 			pending.pop_front();pending.append(front)
 		break
-	Budget.charge("retire",began)
+	Budget.charge_disposal(began)
 	if pending.is_empty():set_process(false)
 func _exit_tree()->void:
 	exiting=true
