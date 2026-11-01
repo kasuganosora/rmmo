@@ -2307,3 +2307,15 @@ CPU UID499（旧509）只有1个根，外层Dictionary15项、后代1828 records
 独立512投影覆盖高度、draw order及source order三级相等关系、旋转包围盒、局部/全图查询、同数量逆序重建、低层追加和空图替换。实际比较循环计数红例11通过/1预期失败，第二次排序 **3117次比较**；修复后12/12、该次比较 **0**。不带计数插桩的正式代码10/10，既有house footprint、world map append、shape index三个回归均exit0/错误0；headless下原shape-index测试跳过像素部分，不声称新增GPU画面对照。所有冻结文件恢复。证据 `P/map_projection_order57_setup` 及 `red01/green01/plain01`；仓库fixture为 `tools/test_world_map_build_order.gd`。这是已证明工作量减少，未单独宣称整图毫秒收益，随下一轮累计真实流程复测。
 
 卸载分帧前提的held reservation已在外部候选完成96项检查，含“离树但被其他parent接管”的真实红例；尚未接入生产。普通reserve撤销必须保留有效地图，begin_disposal后才是永久清理，Node ticket占FIFO直到全部退出回调结束。合批局部追加也已有有效红例：65行全量访问对应真正drop1/admit2，正做有明确fallback的增量候选。两项均待接通和真实地图验收，不能把独立检查当最终收益。
+
+## 55. 合批只收尾变化的分组，并补齐同步回调失效（2026-11-01）
+
+沿56返回阶段1.355s finalization继续检查：已有raw-bin前缀复用，但每次少量新源到达后，仍对全部分组排序、复制、合并singleton、过滤及检查drop/add。新增的cohort→raw-base、cohort→final-key只保存标量身份，沿用原raw-bin所有者，不缓存renderer、Resource、Callable或活group字典。不可变追加只重算受影响cohort；城防singleton跨raw-base的合并仍按原源顺序及容量规则完整重算相关cohort。普通编辑、retired/不兼容前缀、held/incomplete ground、来源退出均保留完整路径。没有增加worker、预算或checkpoint。
+
+独立工作量红例仅工作限制失败，功能oracle均通过。64个旧cell加入4个源时，order/copy/unique/filter各 **65→2**，drop候选 **64→1**、add候选 **65→2**；实际drop1/admit2、最终65组及1个新checkpoint不变。容量变化例各7→3，仍正确重排必要的5个源；城防singleton→重复模块例raw访问271→259，不能把259个必要相关bin当重复工作删除。未变化分组的renderer owner和generation保留。全量audit key快照仍为65/6/4行，未宣称所有扫描消失。
+
+root审查又发现：`_drop`同步释放visual，合法的`tree_exited`观察者可在当前slice里释放另一个源。失效标志虽已置位，旧候选仍可能完成add并清空状态，导致下次入口的失效处理永远不执行。有效红例6通过/1个full-oracle失败、0错误；只在两处实际drop后的同步边界结束当前slice，下一入口使用已接受的最新queued snapshot走原完整重建，绿例7/7。没有给每个源增加新轮询。首个使用`tree_exiting`的fixture触发Godot parent.blocked并崩溃，已保留为无效测试宿主样本，未冒称生产崩溃或有效红例。
+
+最终candidate02生产SHA `c8269ca842dc99270b2e07b78509088cf348ded40dda90f56f2952dba94793e8`（不含其他会话三行）。入库 `tools/test_batch_incremental_finalization.gd` 同一oracle普通运行96/96，18项只能依赖插桩的工作断言明确SKIP；注入实际循环计数后 `--require-work-ledger` 115/115、0 SKIP。严格模式缺ledger时正常失败，不能将缺计数当0。最终cache/prep两个相关回归250项通过；前版另有1069项组合覆盖，数字存在重叠，不相加冒称独立断言数。每次冻结工程逐SHA恢复、引擎错误0、无并发测试。证据 `P/batch_finalization57_candidate02/{results.md,validation_receipt.json,production.patch}`、`P/batch_finalization57_portable_setup`。
+
+本节是工作量和正确性结论，没有新的整图时间或FPS数字。body分帧、held生命周期和MapRoot拆分仍在独立验证；56正式配置也尚未发布：其secondary draw recording为4，而默认candidate10为0且没有原生节点退休API。已准备engine默认0、仅RMMO项目配置4、保留显式环境0覆盖的窄配置补丁，尚未编译/安装。后续先完成剩余候选，再以正式配置复测昼夜、编辑器与卸载/返回，不能拿诊断构建结果直接宣称普通启动已达标。

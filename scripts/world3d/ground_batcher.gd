@@ -355,6 +355,10 @@ func _invalidate_group(key:String,generation:int)->void:
 	if _residency_bins.get("immutable_append",false):
 		if Timeline.enabled:_trace_bin_reset("source_exit",groups[key].members)
 		_residency_bins={}
+	# A lifetime signal can arrive after the affected-key cursor passed
+	# this group. Revoke that plan; an unchanged imported root is not proof
+	# that all of its nested sources still exist.
+	if _preparation.get("immutable_append",false):_preparation.finalization_invalid=true
 	var group:Dictionary=groups[key]
 	groups.erase(key);pending.erase(key)
 	_drop(group)
@@ -505,6 +509,11 @@ func request_residency_sync(nodes:Array,excluded:Array=[],immutable_append:bool=
 	_preparation.immutable_append=immutable_append
 	_preparation.prepared_descriptors={};_preparation.prepare_names={}
 	_preparation.bin_names={};_preparation.bin_keys={};_preparation.dirty_bins={};_preparation.bin_remaining={}
+	# These tables contain scalar base/cohort/final-key identities, never live
+	# group dictionaries, renderer owners or callbacks. Dirty raw packing can
+	# finish before reconciliation, so retain its affected cohort separately.
+	_preparation.cohort_bases={};_preparation.changed_cohorts={};_preparation.final_keys={}
+	_preparation.final_incremental=reuse_completed and not reuse_retired and completed.get("finalized_complete",false)
 	# Main-thread single-writer ledger, owned by this existing raw-bin state.
 	# Descriptor identity includes its source owner, geometry/material grouping
 	# and pose; edits/removal revoke the corresponding completed membership.
@@ -516,10 +525,10 @@ func request_residency_sync(nodes:Array,excluded:Array=[],immutable_append:bool=
 	if sliced_source_collection_enabled and not completed.is_empty():
 		# Transfer the private raw-bin state; no shared geometry or material copy.
 		# Collection remains complete so removals and changed eligibility are seen.
-		for field:String in ["prepared_descriptors","bin_names","bin_keys","desired"]:_preparation[field]=completed[field]
+		for field:String in ["prepared_descriptors","bin_names","bin_keys","desired","cohort_bases","final_keys"]:_preparation[field]=completed[field]
 		for field:String in ["bin_pending","bin_last_name"]:_preparation[field]=completed.get(field,{})
 		_preparation.handoff_parents=completed.get("handoff_parents",{})
-		for field:String in ["dirty_bins","bin_rebuild"]:
+		for field:String in ["dirty_bins","bin_rebuild","changed_cohorts"]:
 			if completed.has(field):_preparation[field]=completed[field]
 		if reuse_retired:
 			# Recollect/prune on the existing cursor, so unknown omissions, duplicate
@@ -703,6 +712,9 @@ func _append_descriptor(node:Node,descriptor:Dictionary,desired:Dictionary)->voi
 		_preparation.prepared_descriptors[name_]=descriptor
 		if not _preparation.bin_names.has(descriptor.base):_preparation.bin_names[descriptor.base]={}
 		_preparation.bin_names[descriptor.base][name_]=true;_preparation.dirty_bins[descriptor.base]=true
+		_preparation.changed_cohorts[descriptor.merge_base]=true
+		if not _preparation.cohort_bases.has(descriptor.merge_base):_preparation.cohort_bases[descriptor.merge_base]={}
+		_preparation.cohort_bases[descriptor.merge_base][descriptor.base]=true
 		if resumable_bin_ledger_enabled:
 			if not _preparation.bin_pending.has(descriptor.base):_preparation.bin_pending[descriptor.base]={}
 			_preparation.bin_pending[descriptor.base][name_]=true
@@ -735,6 +747,10 @@ func _remove_prepared_descriptor(state:Dictionary,name_:String)->void:
 	var previous:Dictionary=state.prepared_descriptors.get(name_,{})
 	if previous.is_empty():return
 	state.bin_names[previous.base].erase(name_);state.dirty_bins[previous.base]=true
+	state.changed_cohorts[previous.merge_base]=true
+	if state.bin_names[previous.base].is_empty():
+		state.cohort_bases[previous.merge_base].erase(previous.base)
+		if state.cohort_bases[previous.merge_base].is_empty():state.cohort_bases.erase(previous.merge_base)
 	if resumable_bin_ledger_enabled:
 		if state.bin_pending.has(previous.base):state.bin_pending[previous.base].erase(name_)
 		state.bin_rebuild[previous.base]=true
@@ -779,11 +795,30 @@ func _resume_dirty_bins(state:Dictionary)->void:
 	state.items.sort();state.phase="bin"
 
 func _order_runtime_bins(state:Dictionary)->Dictionary:
-	# Unique fortification groups can combine across base keys in the next pass.
-	# Preserve the full sorted-source insertion order, including earlier names
-	# that arrived after an unrelated bucket had already completed.
+	# Fortification singletons combine across raw geometry bases. Recompute an
+	# affected merge cohort in its original sorted-source order, including a
+	# previously unique source that has just gained a repeated module. Other
+	# categories already use merge_base as their independent raw base.
+	var raw_keys:Array=[]
+	if state.final_incremental:
+		var old_keys:Dictionary={}
+		for cohort:String in state.changed_cohorts:
+			for key:String in state.final_keys.get(cohort,{}):old_keys[key]=true
+			state.final_keys.erase(cohort)
+			for base:String in state.cohort_bases.get(cohort,{}):raw_keys.append_array(state.bin_keys.get(base,[]))
+		# Closed units can be admitted before the final cursor begins. Include
+		# those exact new keys, without enumerating every existing live group.
+		for key:String in state.get("unit_admitted_keys",{}):old_keys[key]=true
+		var drop_order:Array=[]
+		for key:String in old_keys:
+			if groups.has(key):drop_order.append([groups[key].generation,key])
+		drop_order.sort_custom(func(a:Array,b:Array)->bool:return a[0]<b[0])
+		state.final_drop_keys=[]
+		for row:Array in drop_order:state.final_drop_keys.append(row[1])
+	else:
+		raw_keys=state.desired.keys();state.final_keys={}
 	var order:Array=[]
-	for key:String in state.desired:order.append([state.desired[key].sort_name,key])
+	for key:String in raw_keys:order.append([state.desired[key].sort_name,key])
 	order.sort_custom(func(a:Array,b:Array)->bool:return a[0]<b[0])
 	var ordered:Dictionary={}
 	# Live groups later gain renderer data and callbacks. Keep only membership
@@ -803,6 +838,14 @@ func _coalesce_covered_sources()->bool:
 func _prepare_step(budget_usec:int)->void:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.ground_batcher._prepare_step") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	if _preparation.is_empty():return
+	if _preparation.get("finalization_invalid",false):
+		# Do not feed this through immutable-prefix reuse: the root identities
+		# may survive a nested owner loss. The established generic cursor
+		# recollects valid sources; callbacks already removed the stale draw.
+		# A newer queued request is still the authoritative source snapshot.
+		var roots:Array=_next_residency.get("nodes",_preparation.runtime_roots)
+		var exclusions:Array=_next_residency.get("excluded",_preparation.runtime_excluded)
+		request_sync(roots,exclusions)
 	if _preparation.phase=="await_sources":
 		if not _next_residency.is_empty():
 			var next:Dictionary=_next_residency;_next_residency={}
@@ -865,12 +908,15 @@ func _prepare_step(budget_usec:int)->void:
 						state.phase="unit_add"
 						continue
 					state.raw_desired=desired
+					# Held ground may retain an older live draw after raw packing is
+					# complete. Keep the full existing reconciliation in that case.
+					state.final_incremental=state.final_incremental and not hold_ground
 					desired=_order_runtime_bins(state);state.desired=desired
 					if state.get("immutable_append",false):state.collected_named=state.named;state.named={}
 					else:state.named.clear()
 					state.items=desired.keys();state.phase="unique"
 				"unique":state.items=desired.keys();state.phase="filter"
-				"filter":state.items=groups.keys();state.phase="drop"
+				"filter":state.items=state.final_drop_keys if state.get("final_incremental",false) else groups.keys();state.phase="drop"
 				"drop":state.items=desired.keys();state.phase="add"
 				"unit_add":_next_closed_unit(state)
 				"add":
@@ -880,6 +926,9 @@ func _prepare_step(budget_usec:int)->void:
 					if state.has("raw_desired"):
 						_residency_bins={"prepared_descriptors":state.prepared_descriptors,"bin_names":state.bin_names,"bin_keys":state.bin_keys,"desired":state.raw_desired}
 						_residency_bins.handoff_parents=state.get("handoff_parents",{})
+						_residency_bins.cohort_bases=state.cohort_bases;_residency_bins.final_keys=state.final_keys
+						_residency_bins.changed_cohorts={}
+						_residency_bins.finalized_complete=state.get("immutable_append",false) and not state.get("held_ground",false)
 						for field:String in ["bin_pending","bin_last_name"]:_residency_bins[field]=state[field]
 						if state.get("immutable_append",false):
 							for field:String in ["runtime_roots","runtime_excluded","runtime_enabled","immutable_append"]:_residency_bins[field]=state[field]
@@ -944,6 +993,9 @@ func _prepare_step(budget_usec:int)->void:
 					# Sparse rejection must also reach the shared slice accounting.
 					# A lone heightfield still benefits from distant index LODs.
 					if sparse_cutout or (source.members.size()<2 and not preload("res://scripts/world3d/terrain_render_lod.gd").eligible(source.members[0].get_meta("ground_batch_record"))):desired.erase(item)
+					elif state.has("final_keys"):
+						if not state.final_keys.has(source.merge_base):state.final_keys[source.merge_base]={}
+						state.final_keys[source.merge_base][item]=true
 				"unit_add":
 					# Building ID is part of the base key: a complete building's
 					# bins cannot gain members from another independent building.
@@ -953,7 +1005,12 @@ func _prepare_step(budget_usec:int)->void:
 							var already_admitted:=groups.has(item)
 							if groups.has(item) and groups[item].signature!=group.signature:
 								_drop(groups[item]);groups.erase(item);pending.erase(item)
+								# Synchronous owner-exit observers may revoke this snapshot.
+								if state.get("finalization_invalid",false):break
 							_admit_group(item,group,state,true)
+							if groups.has(item):
+								if not state.has("unit_admitted_keys"):state.unit_admitted_keys={}
+								state.unit_admitted_keys[item]=true
 							if not already_admitted and groups.has(item):closed_unit_groups_admitted+=1
 				"drop":
 					if groups.has(item) and (not desired.has(item) or desired[item].signature!=groups[item].signature):
@@ -961,6 +1018,8 @@ func _prepare_step(budget_usec:int)->void:
 						else:
 							if Timeline.enabled:Timeline.record("membership_replace",groups[item].generation,Time.get_ticks_usec(),[item,groups[item].category,groups[item].members.size(),desired.get(item,{}).get("members",[]).size(),sync_count])
 							_drop(groups[item]);groups.erase(item);pending.erase(item)
+							# Synchronous owner-exit observers may revoke this snapshot.
+							if state.get("finalization_invalid",false):break
 				"add":
 					if not groups.has(item):
 						var group:Dictionary=desired[item]
