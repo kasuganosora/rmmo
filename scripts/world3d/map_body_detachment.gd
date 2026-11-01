@@ -39,13 +39,15 @@ func advance()->void:
 	var began:=Time.get_ticks_usec();var progressed:=false
 	var world:Node=_world.get_ref()
 	while _cursor<_roots.size() and (not progressed or Time.get_ticks_usec()-began<allowed):
-		progressed=true;var body:Node=_roots[_cursor];profile.visited+=1
+		progressed=true;var body:Variant=_roots[_cursor];profile.visited+=1
 		if is_instance_valid(body):
 			var parent:Node=body.get_parent()
 			if parent!=null:
 				if not world.is_ancestor_of(body):
 					_record_slice(began);_finish(false,"body_adopted");return
-				parent.remove_child(body);profile.detached+=1
+				if not _hold.remove_owned_node(body,parent):
+					_record_slice(began);_finish(false,"body_detach_refused");return
+				profile.detached+=1
 				# An exit callback can also close the cover/World and finish this driver.
 				if done:_record_slice(began);return
 			if is_instance_valid(body) and (body.is_inside_tree() or body.get_parent()!=null):

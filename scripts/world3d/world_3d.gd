@@ -1693,7 +1693,9 @@ func transfer_map(target: String, destination: Vector3, before_commit: Callable 
 	var disposal:Dictionary=_prepare_outgoing_disposal(cover,viewport,navigation,commit_timing)
 	if not await _detach_outgoing_bodies(disposal):return _outgoing_disposal_failed(disposal)
 	_transfer_commit_mark(commit_timing,"outgoing_bodies")
-	# MapRoot is intentionally still one synchronous detach in this iteration.
+	if not await _detach_outgoing_map_children(disposal):return _outgoing_disposal_failed(disposal)
+	_transfer_commit_mark(commit_timing,"outgoing_map_children")
+	# Plain runtime direct subtrees have already left; unknown roots stay atomic.
 	if not _detach_outgoing_map(disposal):return _outgoing_disposal_failed(disposal)
 	_transfer_commit_mark(commit_timing,"outgoing_map")
 	if disposal.hold!=null and not disposal.hold.commit():
@@ -1775,11 +1777,15 @@ func transfer_map(target: String, destination: Vector3, before_commit: Callable 
 
 func _prepare_outgoing_disposal(cover:Node,stage:Node,target_navigation:Node,timing:Dictionary={})->Dictionary:
 	var bodies:Array=_map_root.get_meta("stream_bodies",{}).values()
-	var roots:Array[Node]=[];roots.assign(bodies);roots.append(_map_root)
 	var retirement=preload("res://scripts/world3d/resource_retirement.gd")
-	var hold:RefCounted=retirement.reserve_node_trees(roots,self)
+	var forest:Dictionary=retirement.reserve_runtime_map_forest(bodies,_map_root,self)
+	var hold:RefCounted=forest.get("hold")
+	var roots:Array[Node]=[]
+	if forest.is_empty():
+		roots.assign(bodies);roots.append(_map_root)
+		hold=retirement.reserve_node_trees(roots,self)
 	var sliced:bool=hold!=null or retirement.defer_node_trees(roots)
-	var context:Dictionary={"map":weakref(_map_root),"bodies":bodies,"hold":hold,"sliced_nodes":sliced,"ready":_ready_for_play,"cover":weakref(cover),"stage":weakref(stage),"target_navigation":weakref(target_navigation),"tree":weakref(get_tree()),"reason":"","cancelled":false}
+	var context:Dictionary={"map":weakref(_map_root),"map_forest":forest,"bodies":bodies,"hold":hold,"sliced_nodes":sliced,"ready":_ready_for_play,"cover":weakref(cover),"stage":weakref(stage),"target_navigation":weakref(target_navigation),"tree":weakref(get_tree()),"reason":"","cancelled":false}
 	_outgoing_disposal=context;_ready_for_play=false
 	if hold!=null:hold.begin_disposal()
 	_map_root.process_mode=Node.PROCESS_MODE_DISABLED
@@ -1826,6 +1832,19 @@ func _detach_outgoing_bodies(context:Dictionary)->bool:
 	set_meta("body_detach_profile",driver.profile.duplicate())
 	return ok
 
+func _detach_outgoing_map_children(context:Dictionary)->bool:
+	if context.get("map_forest",{}).is_empty():return true
+	var outgoing:Node=context.map.get_ref()
+	if outgoing==null or outgoing!=_map_root or outgoing.is_queued_for_deletion():context.reason="map_changed";return false
+	var driver:=preload("res://scripts/world3d/map_children_detachment.gd").new()
+	add_child(driver)
+	driver.configure_map(self,outgoing,context.map_forest.children,context.hold,context.cover.get_ref(),context.stage.get_ref())
+	driver.advance()
+	var ok:bool=driver.succeeded if driver.done else await driver.finished
+	context.reason=driver.profile.reason
+	set_meta("map_children_detach_profile",driver.profile.duplicate())
+	return ok
+
 func _detach_outgoing_map(context:Dictionary)->bool:
 	# The body phase yielded. Preserve the same foreign-parent boundary as the
 	# held commit instead of unconditionally detaching a newly adopted MapRoot.
@@ -1834,7 +1853,11 @@ func _detach_outgoing_map(context:Dictionary)->bool:
 	var parent:Node=outgoing.get_parent()
 	if parent!=null and not is_ancestor_of(outgoing):context.reason="map_adopted";return false
 	if context.sliced_nodes:
-		if parent!=null:parent.remove_child(outgoing)
+		if not context.get("map_forest",{}).is_empty() and outgoing.get_child_count(true)!=0:context.reason="map_children_changed";return false
+		if parent!=null:
+			if context.hold!=null:
+				if not context.hold.remove_owned_node(outgoing,parent):context.reason="map_detach_refused";return false
+			else:parent.remove_child(outgoing)
 		if not is_instance_valid(outgoing) or outgoing.is_inside_tree() or outgoing.get_parent()!=null:context.reason="map_not_detached";return false
 	else:outgoing.free()
 	return true

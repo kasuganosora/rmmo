@@ -2324,7 +2324,7 @@ root审查又发现：`_drop`同步释放visual，合法的`tree_exited`观察�
 
 针对56的68.335ms body detach，在原传送不可逆提交点接入held reservation：reserve在捐交owner之前，begin_disposal在永久关闭之前；全部body和MapRoot退出后才允许同一FIFO票据开始原生销毁。普通reserve后取消仍保留有效地图，进入永久处置后取消只完成清理、不恢复旧图。当前独立根API不支持嵌套别名；MapRoot自身63.611ms仍同步，另做范围受控的直接孩子方案。
 
-实际World helper由独立driver在既有retire lane下移除body，每帧至多一个slice，仍请求原1000µs额度并计费，没有增加worker或预算。保留现有cover/落点/physics和目标绘制屏障；旧玩家与Combat暂停，旧Combat跨全部yield保留，因为radar仍读取其actors，目标成功adopt后才同步替换。World入口阻止处置期间的process/residency/危险回调；老Deferred沿用已完成quiesce，直接封闭生产者，Navigation终态取消并保留元数据借用期。Proxy永久关闭不能由显式tick/poll重新启动，普通clear仍可复用。天气的设置signal和显式process/physics也暂停、合并待应用设置；outline独立tick及mask viewport暂停，目标绑定后恢复。仅关process_mode不足以覆盖这些入口。
+实际World helper由独立driver调用既有retire lane接口移除body，每帧至多一个slice，仍请求原1000µs额度并调用计费接口，没有增加worker或单次请求预算。保留现有cover/落点/physics和目标绘制屏障；旧玩家与Combat暂停，旧Combat跨全部yield保留，因为radar仍读取其actors，目标成功adopt后才同步替换。World入口阻止处置期间的process/residency/危险回调；老Deferred沿用已完成quiesce，直接封闭生产者，Navigation终态取消并保留元数据借用期。Proxy永久关闭不能由显式tick/poll重新启动，普通clear仍可复用。天气的设置signal和显式process/physics也暂停、合并待应用设置；outline独立tick及mask viewport暂停，目标绑定后恢复。仅关process_mode不足以覆盖这些入口。
 
 首个有效预算红例仅忽略共享额度/集中单帧两项失败。最终真实World、Navigation、Deferred、Batch、Proxy和隔离目标SubViewport用例 **123/123**；天气/outline真实入口和signal **18/18**。测试仅将共享lane设为1µs强制分片，32个body实际visited=detached=32、32片、1次额度拒绝，最后检查33个根；不用微测墙钟阈值冒充真实68ms下降。正式代码仍1000µs。
 
@@ -2333,3 +2333,20 @@ root审查又发现：`_drop`同步释放visual，合法的`tree_exited`观察�
 四个未插桩的复现工具入库：`test_world_body_detachment.gd`、`test_body_detach_observers.gd`、`test_held_node_reservation.gd`、`test_held_post_remove_foreign.gd`。使用`--headless --path <project> --script res://tools/<fixture>`；held另有`-- --foreign-only`、`-- --shutdown=service_first`及`owner_first`。缺API的World/held使用`-- --unsupported`；不把native跳过称作正向通过。完整参数、保存字节SHA及资格在 `P/body_detach58_setup/{README.md,business_manifest.json,fixture_delivery.json}`。候选保存件含CRLF，入库仅统一文本换行；Weather只施加本轮hunk，保留其他会话10行，Batcher也保留其3行WIP。早期混入Weather WIP和缺旧Navigation方法的样本均排除在最终隔离资格外。
 
 这只是独立正确性及分帧工作量资格，尚无新的整图收益。body阶段墙钟会包含新增覆盖帧，后续须同时记录active slice、总传送时间和最大帧。旧map process_mode传播、MapRoot退出、最终根检查及返回adoption仍是实际工作，不能宣称卸载已全部解决。MapRoot的现有native时间线进一步确认3922个直接子树共52.176ms、最大1.828ms，下一步只针对这一层拆帧，保留一般scripted根的原子退出合同。正式引擎配置候选正在外部构建，默认安装入口尚未替换。
+
+
+后续默认配置复核纠正：上述共享额度组件测试显式开启了 `FrameWorkBudget.enabled`；生产及56实测该开关均为false，`allowance`直接返回各调用者wanted、`charge`不记账。因此本节证明的是每个driver独立分片及开启总账时的兼容性，尚未证明默认启动时body、MapRoot与ResourceRetirement共享同一个每帧上限。后续限定这三个处置消费者补默认共享计费，不翻转其他五条加载通道的实验开关；保留原组件结果及此边界，不能将开启场景外推为生产默认。
+
+## 57. 运行时地图直接子树分片退出，保留回调与资源栅栏（2026-11-01）
+
+56的MapRoot同步退出63.611ms中，3922个直接子树合计52.176ms，最大单个1.828ms。新路径只用于MapLoader已有`runtime_record_metadata_cpu_only`合同下的无脚本Node3D根：一次包含internal children的直接快照，逆序移除，body→直接子树→最终MapRoot共用一个held FIFO票据。没有递归预遍历；每个子树退出仍原子执行。普通、带脚本及导入根保留原同步合同。独立根检查通过后才将全部根交给原生销毁，不让后台CPU资源先于退出回调释放。
+
+新`map_children_detachment.gd`沿用body driver的每帧一次推进和1000µs请求；单个不可拆退出仍可能超额。快照后新增孩子拒绝“已经清空”的完成判断，已释放快照项跳过，异地接管立即中止并保留新所有者。最终MapRoot只承担空根退出。同步remove期间用`detach_depth`阻止abort/native/fallback提前销毁；服务关闭将整条FIFO交给尾服务，并等真实remove调用返回后才安排尾服务删除。记录实际snapshot、visited/detached/skipped、commit checks、slice active/max、拒绝次数；不称总工作量下降。
+
+有效服务关闭红例7通过/1预期失败/0错误：idle服务在真实child.tree_exited回调中被释放，原候选直到尾服务PREDELETE才置abort，driver可能继续移除。现在立即置abort，尾服务仍等回调返回。另一轮实际发现已释放快照项先赋给Node类型会在有效性检查之前报错；body、child及held commit/abort统一先按Variant读取，再检查有效性，不新增扫描或资源所有权。
+
+最终 **448项通过、0引擎/脚本错误**：MapChildren183、实际World helper138、held59、foreign28、post-remove26、两种shutdown各4、旧默认引擎unsupported同步fallback6。主组件使用candidate49，最后fallback为candidate10；不是candidate58整图验收。headless功能用例允许并记录其他内容任务的Blender，不使用这些墙钟作性能结论；测试启动遇其他Godot则等待。每次55个冻结路径恢复，最终进程清单为空。交付及逐项回执在`P/map_children59_revision04_setup/`，七份生产/fixture文本与通过样本一致，仅允许入库换行规范化。
+
+排除两种宿主错误：直接free正在调用栈中的service被当前editor构建ObjectLock拒绝，服务并未销毁；不计生产UAF，移除没有依据的instance-ID热路径检查，改验合法queue_free。World首个适配夹具重复调用child helper且帧数上限不足，只修夹具后138项通过。原始失败样本仍保留。
+
+默认共享处置预算仍另行修复，未开启全局实验调度器。另需区分driver active与finished.emit同步恢复的World后续提交：active计时在emit前结束，后续root commit、adoption、投影和环境设置仍可能在同帧执行。下一累计CSV保留这条回调链，不能用小slice计数冒充整帧已达标。尚无本节对应的整图耗时/FPS结论。

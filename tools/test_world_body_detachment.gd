@@ -15,6 +15,7 @@ class World extends "res://scripts/world3d/world_3d.gd":
 		# Same await/failure branch as transfer_map, on the actual World instance.
 		# In particular failure runs while owner/stage/cover exit is still on-stack.
 		if not await _detach_outgoing_bodies(context):return _outgoing_disposal_failed(context)
+		if not await _detach_outgoing_map_children(context):return _outgoing_disposal_failed(context)
 		return true
 class Player extends CharacterBody3D:
 	var input_locked:=true
@@ -121,6 +122,7 @@ func complete_case()->void:
 		await process_frame;frames+=1
 	check(state.done and state.ok and f.journal.exits==f.bodies.size() and f.journal.frames.size()>1,"real World driver detaches every body exactly once over multiple frames")
 	check(f.bodies.all(func(n:Node)->bool:return is_instance_valid(n) and n.get_parent()==null and not n.is_inside_tree()),"completed cursor leaves all bodies individually detached and retained")
+	check(world.get_meta("map_children_detach_profile",{}).get("reason","missing")=="" and f.map.get_child_count(true)==0,"actual World continuation already completed the child forest once")
 	check(world._detach_outgoing_map(f.context),"actual World map phase detaches its unchanged owned MapRoot synchronously")
 	check(f.journal.map_borrow,"final MapRoot exit still borrows retained body prefix and CPU records")
 	check(f.context.hold.commit(),"checked commit accepts the actual final independent root state")
@@ -174,7 +176,7 @@ func adopted_map_case()->void:
 	f.context=world._prepare_outgoing_disposal(f.cover,f.viewport,f.target_navigation)
 	Budget.shared().record(Engine.get_process_frames(),"retire",1000);Queue._service().set_process(false)
 	var state:Dictionary={"done":false,"ok":false};start_detach(f,state)
-	for i:int in 8:
+	for i:int in 32:
 		if state.done:break
 		Queue._service().set_process(false);await process_frame
 	check(state.done and state.ok,"map ownership fixture completes the real body phase before final map step")

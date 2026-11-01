@@ -80,6 +80,22 @@ static func reserve_node_trees(roots:Array[Node],owner:Node)->RefCounted:
 	if not _enqueue_node_trees(roots,state):return null
 	state.configure(roots,owner)
 	return NodeDetachReservation.Hold.new(state)
+static func reserve_runtime_map_forest(bodies:Array,map:Node,owner:Node)->Dictionary:
+	# This is the MapLoader _build_records plain runtime root contract, not a
+	# generic nested-root extension. Unknown/scripted/imported roots stay atomic.
+	if not is_instance_valid(map) or map.get_class()!=&"Node3D" or map.get_script()!=null or not bool(map.get_meta("runtime_record_metadata_cpu_only",false)):return {}
+	if not is_instance_valid(owner) or not owner.is_inside_tree() or not owner.is_ancestor_of(map):return {}
+	if not Thread.is_main_thread() or not native_node_retirement_enabled:return {}
+	if _native_node_retirement_available<0:_native_node_retirement_available=int(ClassDB.class_has_method("Node","rmmo_retire_detached_nodes_step"))
+	if _native_node_retirement_available==0:return {}
+	# The runtime stream bodies are independent World siblings. One shallow
+	# snapshot includes internal children. Never rescan/flatten descendants.
+	var children:Array[Node]=map.get_children(true);children.reverse()
+	var roots:Array[Node]=[];roots.assign(bodies);roots.append_array(children);roots.append(map)
+	var state:=NodeDetachReservation.new()
+	if not _enqueue_node_trees(roots,state):return {}
+	state.configure(roots,owner)
+	return {"hold":NodeDetachReservation.Hold.new(state),"children":children,"direct_snapshots":1,"direct_children":children.size()}
 static func _enqueue_node_trees(roots:Array[Node],reservation:RefCounted=null)->bool:
 	# Caller donates this private outer array. Node handles are not Ref owners.
 	if not native_node_retirement_enabled or roots.is_empty() or not Thread.is_main_thread():return false
@@ -346,7 +362,11 @@ func _advance_ticket(ticket:Dictionary,budget_usec:int)->bool:
 func _advance_node_trees(ticket:Dictionary,budget_usec:int)->bool:
 	var began:=Time.get_ticks_usec()
 	if ticket.has("detachment") and ticket.detachment.held:
+		var forwards:int=ticket.detachment.shutdown_deferrals
 		if not ticket.detachment.advance_abort(budget_usec):return false
+		# A callback during abort may have moved this entire FIFO to a shutdown
+		# tail. This former service must not also consume its native cursor.
+		if ticket.detachment.shutdown_deferrals!=forwards:return false
 		if budget_usec>0:
 			budget_usec-=Time.get_ticks_usec()-began
 			if budget_usec<=0:return false
@@ -367,6 +387,8 @@ func _advance_node_trees(ticket:Dictionary,budget_usec:int)->bool:
 	return complete
 
 func _finish_node_trees_shutdown(ticket:Dictionary)->void:
+	# Direct callers too must never free a forest during an exit callback.
+	if ticket.has("detachment") and ticket.detachment.detach_depth>0:return
 	# Normally step(0) drains the detached graph. If a reservation was never
 	# committed or a node re-entered the tree, it still belongs to that tree.
 	# Release only the remaining detached nodes; never destroy a live borrower.
@@ -648,7 +670,8 @@ func _process(_delta:float)->void:
 	var remaining:=allowed
 	while not pending.is_empty() and remaining>0:
 		var front:Dictionary=pending[0]
-		if _advance(front,remaining):
+		var complete:bool=_advance(front,remaining)
+		if complete:
 			_finish_front()
 			# A cheap completed ticket need not waste the rest of this callback.
 			# Continue FIFO under the SAME allowance, including completion work.
@@ -668,16 +691,19 @@ func _exit_tree()->void:
 func _drain_shutdown(after_exit_callbacks:bool)->void:
 	while not pending.is_empty():
 		var ticket:Dictionary=pending[0]
-		if ticket.has("detachment") and not after_exit_callbacks:
+		if ticket.has("detachment") and (not after_exit_callbacks or ticket.detachment.detach_depth>0):
 			# SceneTree.finalize flushes this deletion after root EXIT/AFTER_EXIT
 			# and destruction. Normal service.free also returns from exit signals
 			# before the deletion queue runs. Preserve the entire FIFO owner tail.
 			var tail:Node=get_script().new()
 			tail.pending=pending;tail.known=known;tail.profile=profile
 			pending=[];known={};tail.exiting=true;tail._shutdown_tail=true
-			tail.queue_free();return
+			ticket.detachment.defer_shutdown_tail(tail);return
 		if ticket.has("detachment"):ticket.detachment.request_abort("service_shutdown")
-		if not _advance(ticket,0) and ticket.get("kind","")=="node_trees":_finish_node_trees_shutdown(ticket)
+		var complete:bool=_advance(ticket,0)
+		# Abort's remove_child callback can transfer this FIFO recursively.
+		if pending.is_empty() or not is_same(pending[0],ticket):return
+		if not complete and ticket.get("kind","")=="node_trees":_finish_node_trees_shutdown(ticket)
 		_finish_front()
 func _notification(what:int)->void:
 	if what==NOTIFICATION_PREDELETE and _shutdown_tail:_drain_shutdown(true)
