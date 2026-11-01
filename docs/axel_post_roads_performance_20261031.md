@@ -2389,3 +2389,15 @@ candidate58上新fixture **24/24**，累计MapChildren **183/183**、实际World
 初始变慢的已有证据：reference_index_read0.248→3.349s，唯一initial native compiled_read3.037→6.726s，任务/字节/原生SHA相同，不能称重复模型加载。后续仍同323初始记录、1505实例、23模型、302道路、2928 arrivals且duplicate0，但worker墙钟显著增加；这些不是CPU计时，原因尚未完全定位。合批额外重复则已精确对应：packed visits5515→6233，invalidated rows2905→3623，两者相减均2610，新增718次访问全部来自桶失效；最终219groups/367surfaces/2100849vertices相同。晚到name插入已排序桶触发整个桶重排，是可独立复现的下一项工作，不取消canonical排序或偷偷放大队列。
 
 两份native capture事件2,727,919/5,037,074，drop、registration drop、export error、orphan、crossing及task冲突均0；回收journal12,861事件/1,235票、最终pending0。证据`P/trace59_flow_extract`、`P/trace59_native_analysis`、`P/cumulative59_quick01`，每个spans.csv只顺序读取一次生成归因。下步限定已发现的永久关闭、SceneState重复计数查询、晚到源造成的重复装箱与返回前缀，不因此切换到其他外围优化；默认引擎安装和普通日夜/编辑器验收仍待完成。
+
+## 60. 按用户要求收敛到夜晚灯光/星空，修复已确认重复工作后暂停（2026-11-01）
+
+用户最新指令优先检查夜晚灯光、星空，完成两项后停在当前阶段，覆盖§59后续自动推进顺序。三个回收/装箱外部候选保存但不集成。专项完整记录在 `docs/axel_night_performance_20261101.md`。
+
+已修复：模型灯和烛灯每轮先关再开的可见性、同值位置和阴影重复提交；月面fbm不再在没有月面贡献的天空像素计算，保留统一控制流的fwidth。灯光真实native通知及setter红/绿验证81项通过：三次稳态模型灯24变换/36可见性/18阴影调用、烛灯12变换/12可见性，均降为0；实际移动、日夜、排名/阴影重入、遮挡、隐藏和释放不变。月面GPU104项、8组图逐字节相同，短时全屏天空GPU均值夜0.399→0.362ms、日0.191→0.134ms；不是整图low收益声明。
+
+固定地图、candidate58项目配置4的原始夜景CSV记录5,355,811事件，0丢失/结构错误。夜街景low29.355、sky49.330，稳态无>50ms；GPU viewport夜街景max4.013ms、Weather max2.007ms、灯refresh max1.231ms，剩余主要为render.draw_list/main.scene_process。首个切夜330.267ms中302.136ms发生在采集时钟前，实际生产请求1.543ms；采集前会分配/预触碰448MiB，但未记录调用入口，不能将前段精确全归因分配。原始慢帧保留。timer实测比30秒短0.653/3.074ms导致外层严格断言失败，也保留，不改写为通过；最终正常宿主改为绝对ticks截止。
+
+累计无深度探针的 `night61_plain01` 两段各>=30秒，游戏/功能与源恢复均通过；夜街景low **30.111 FPS/max44.002ms**、天空 **56.690 FPS/max33.769ms**，切夜max33.362ms，均0帧>50ms。日间low24.317，entry12.840s/full-ready62.794s。运行中另一会话Blender与加载/日间窗口重叠，外层隔离条件失败，原receipt保留；夜间已无该Blender，但有其他CPU活动，不能归因全部变化于外部负载。35FPS街景目标仍未通过，不宣称整体优化完成；不把诊断和正常样本当纯AB收益。
+
+补充外部单线程HostLoad，约1秒记录系统每核CPU、各盘IO、Process V2按PID CPU及WDDM原始每PID/engine GPU，结束后落盘并保留自耗时。它确认存在外部活动，但粒度不足以证明某个短帧因果。灯光数量、强度、范围和阴影质量未降低；其他会话新增彩窗/室内反射WIP不在本轮测试覆盖内。默认candidate10未替换，candidate58正式发布及编辑器资格仍未完成。按最新指令暂停在此，不继续普通场景处理、加载/回收或其他候选。

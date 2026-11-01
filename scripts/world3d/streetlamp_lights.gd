@@ -149,9 +149,13 @@ func refresh()->void:
 	for id in fixtures.keys():
 		if not active.has(id):_restore(fixtures[id]);fixtures.erase(id)
 	model_candidates.sort_custom(func(a,b):return a.distance<b.distance)
-	for i in mini(model_candidates.size(),6):
+	# Commit the final rank once. Toggling every selected light off/on
+	# dirties native visibility and shadow work even in a stationary room.
+	for i in model_candidates.size():
 		var light:OmniLight3D=model_candidates[i].light
-		light.visible=true;light.shadow_enabled=i<2
+		var selected:=i<6
+		if light.visible!=selected:light.visible=selected
+		if selected and light.shadow_enabled!=(i<2):light.shadow_enabled=i<2
 	if profile_start>0:set_meta("frame_timing",{"frame":Engine.get_process_frames(),"ms":(Time.get_ticks_usec()-profile_start)/1000.0,"material_builds":material_builds,"materials":night_materials.size()})
 
 func _restore(row:Dictionary)->void:
@@ -178,7 +182,7 @@ func _refresh_model_light(node:MeshInstance3D,night:bool,candidates:Array)->void
 		fixtures[id]={"node":weakref(node),"model_socket":true,"glow":effect,"light":light}
 	var row:Dictionary=fixtures[id]
 	var p:Array=socket.position;var at:Vector3=node.global_transform*Vector3(p[0],p[1],p[2])
-	row.light.global_position=at;row.light.visible=false
+	if row.light.global_position!=at:row.light.global_position=at
 	var enabled:bool=node.is_visible_in_tree() and (night or socket.get("indoor",false))
 	row.glow.visible=enabled
 	var observer:Camera3D=camera if is_instance_valid(camera) else get_viewport().get_camera_3d()
@@ -187,6 +191,7 @@ func _refresh_model_light(node:MeshInstance3D,night:bool,candidates:Array)->void
 	# Nearby upstairs candles must not consume the occupied hall's light budget.
 	if is_instance_valid(observer) and absf(observer.global_position.y-at.y)>3.1:score+=10000.0
 	if enabled and distance<18.0*18.0:candidates.append({"light":row.light,"distance":score})
+	elif row.light.visible:row.light.visible=false
 
 static func _mark_light_effect(effect:MeshInstance3D)->void:
 	# Created during frame updates, so a sliced editor load may encounter these

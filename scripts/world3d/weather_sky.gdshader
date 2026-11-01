@@ -82,10 +82,13 @@ void sky() {
 	float lunar_radius = length(EYEDIR-lunar_axis)/.018;
 	float lunar_edge = max(fwidth(lunar_radius),.015);
 	float moon = 1.-smoothstep(1.-lunar_edge,1.+lunar_edge,lunar_radius);
-	// Fixed surface markings and limb shading, independent of cloud drift.
-	float maria = smoothstep(.30,.68,fbm(lunar_uv*3.+vec2(8.,19.)));
-	float lunar_shade = sqrt(max(0.,1.-min(dot(lunar_uv,lunar_uv),1.)));
-	base += vec3(.88,.90,1.) * moon * mix(.48,1.,maria) * mix(.55,1.,lunar_shade) * night_amount;
+	// Derivatives above stay in uniform flow. Surface markings contribute only
+	// inside the anti-aliased moon disc and when its night weight is nonzero.
+	if (moon > 0. && night_amount != 0.) {
+		float maria = smoothstep(.30,.68,fbm(lunar_uv*3.+vec2(8.,19.)));
+		float lunar_shade = sqrt(max(0.,1.-min(dot(lunar_uv,lunar_uv),1.)));
+		base += vec3(.88,.90,1.) * moon * mix(.48,1.,maria) * mix(.55,1.,lunar_shade) * night_amount;
+	}
 	vec4 thin = thin_clouds(POSITION,EYEDIR);
 	base = base*(1.-thin.a)+thin.rgb;
 	vec4 volume;

@@ -117,9 +117,10 @@ func refresh()->void:
 		var visible_:bool=night and is_instance_valid(map_root)
 		if streamed:visible_=visible_ and is_instance_valid(source) and source.is_visible_in_tree()
 		var pose:Transform3D=source.global_transform if is_instance_valid(source) else f.pose
-		f.effect.global_position=pose*f.flame
+		var at:Vector3=pose*f.flame
+		if f.effect.global_position!=at:f.effect.global_position=at
 		var distance_:float=eye.distance_squared_to(f.effect.global_position)
-		f.effect.visible=visible_ and distance_<45.0*45.0;f.light.visible=false
+		f.effect.visible=visible_ and distance_<45.0*45.0
 		if visible_ and distance_<LIGHT_DISTANCE*LIGHT_DISTANCE:
 			var score:float=distance_
 			# Prefer the player's floor and an unobstructed connection to the room.
@@ -131,8 +132,14 @@ func refresh()->void:
 				query.collide_with_areas=false
 				if not observer.get_world_3d().direct_space_state.intersect_ray(query).is_empty():score+=1000.0
 			active.append({"fixture":f,"distance":score})
+		elif f.light.visible:f.light.visible=false
 	active.sort_custom(func(a,b):return a.distance<b.distance)
-	for i in mini(active.size(),MAX_LIGHTS):active[i].fixture.light.visible=true
+	# Preserve floor/occlusion ranking while submitting each final visibility
+	# state only once; unchanged selected candles retain their shadow state.
+	for i in active.size():
+		var light:OmniLight3D=active[i].fixture.light
+		var selected:=i<MAX_LIGHTS
+		if light.visible!=selected:light.visible=selected
 
 func lit_count()->int:
 	return fixtures.filter(func(f):return f.light.visible and f.effect.visible).size()
