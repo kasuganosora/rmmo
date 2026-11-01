@@ -42,8 +42,13 @@ var _material_keys: Dictionary = {}
 var _instance_meshes: Dictionary = {}
 var _workers: Array = []
 var _retiring_workers:=false
+var _permanently_closed:=false
 var _retired_leases:Array=[]
 var _resume_processing:=true
+var _scene_handoff:=false
+var _source_parents:Dictionary={} # Weak actual component parents, counted by live group.
+var _handoff_parents:Array[WeakRef]=[]
+var _handoff_parent_changed:Callable
 const MAX_WORKERS=3
 var _generation := 0
 var last_commit_ms := 0.0
@@ -171,10 +176,14 @@ static func _fingerprint(value:Variant)->String:
 	hash.update(var_to_bytes(value));return hash.finish().hex_encode()
 
 func _enter_tree()->void:
+	if _permanently_closed:return
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.ground_batcher._enter_tree") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
+	if _scene_handoff:
+		_cutout_camera_state.clear();return
 	_retiring_workers=false;_cutout_camera_state.clear();set_process(_resume_processing)
 
 func _ready() -> void:
+	if _permanently_closed:return
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.ground_batcher._ready") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	RenderingServer.frame_pre_draw.connect(update_cutout_visibility)
 	name = "GroundRenderBatches"
@@ -202,6 +211,40 @@ static func restore(node: MeshInstance3D) -> void:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.ground_batcher.restore") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	if node.mesh is Cpu: node.mesh = preload("res://scripts/world3d/prepared_cpu_upload.gd").restore(node.mesh,str(node.name))
 	if node.has_meta(SUSPENDED_DRAW):node.remove_meta(SUSPENDED_DRAW)
+
+
+func close_permanently()->void:
+	# Only WorldStream.prepare_map_disposal calls this after retiring workers
+	# and retaining catalog/group owners. Temporary/editor clear keeps restore.
+	if _permanently_closed:return
+	_permanently_closed=true
+	_end_scene_handoff_observation()
+	if Timeline.enabled:_trace_bin_reset("permanent_close")
+	if RenderingServer.frame_pre_draw.is_connected(update_cutout_visibility):RenderingServer.frame_pre_draw.disconnect(update_cutout_visibility)
+	if get_parent()!=null:
+		var proxy:=get_parent().get_node_or_null("DistantBuildingProxy")
+		if proxy!=null:proxy.clear()
+	_preparation.clear();_residency_descriptors.clear();_residency_bins.clear();_next_residency.clear()
+	for group:Dictionary in groups.values():
+		var watcher=group.get("pose_watcher")
+		if is_instance_valid(watcher):
+			watcher.changed=Callable();watcher.set_notify_transform(false);watcher.queue_free()
+		var callback:Callable=group.get("exit_callback",Callable())
+		var visible_callback:Callable=group.get("visible_callback",Callable())
+		for index:int in group.members.size():
+			var node:Node=group.members[index]
+			if not is_instance_valid(node):continue
+			if callback.is_valid() and node.tree_exiting.is_connected(callback):node.tree_exiting.disconnect(callback)
+			# _watch_group observes every vegetation member, only building's first.
+			if visible_callback.is_valid() and (group.category=="vegetation" or index==0) and node.visibility_changed.is_connected(visible_callback):node.visibility_changed.disconnect(visible_callback)
+		# Keep today's native visual lifetime; no queue_free spike relocation.
+		if is_instance_valid(group.get("visual")):group.visual.free()
+	# Every index belongs to this closing service. No per-member/visual erases,
+	# renderer-visibility restoration, CpuMesh restore or borrowed-data mutation.
+	groups.clear();pending.clear();_material_keys.clear();_instance_meshes.clear();_member_groups.clear();_building_meshes.clear()
+	terrain_lod_visuals.clear();cutout_visuals.clear();_cutout_camera_state.clear();_cutout_timing.clear();_cutout_samples.clear();_cutout_gpu_samples.clear();_cutout_admitted=false
+	_audit_keys.clear();_audit_cursor=0
+	_source_parents.clear()
 
 func clear(restore_sources: bool = true,retiring:Dictionary={}) -> void:
 	if Timeline.enabled:_trace_bin_reset("clear")
@@ -273,6 +316,10 @@ func _release_groups(ids: Array,retiring:Dictionary={},suspended:Dictionary={}) 
 
 func _drop(group: Dictionary, restore_sources: bool = true,retiring:Dictionary={},suspended:Dictionary={}) -> void:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.ground_batcher._drop") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
+	for identity:int in group.get("source_parent_ids",[]):
+		if not _source_parents.has(identity):continue
+		_source_parents[identity].groups-=1
+		if _source_parents[identity].groups==0:_source_parents.erase(identity)
 	var watcher=group.get("pose_watcher")
 	if is_instance_valid(watcher):
 		watcher.changed=Callable();watcher.set_notify_transform(false);watcher.queue_free()
@@ -298,6 +345,9 @@ func _drop(group: Dictionary, restore_sources: bool = true,retiring:Dictionary={
 			node.set_meta(SUSPENDED_DRAW,true);suspended_source_uploads+=1
 		else:restore(node)
 
+func _source_exited(key:String,generation:int)->void:
+	if not _scene_handoff:_invalidate_group(key,generation)
+
 func _invalidate_group(key:String,generation:int)->void:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.ground_batcher._invalidate_group") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	if not groups.has(key) or groups[key].generation!=generation:return
@@ -314,13 +364,21 @@ func _watch_group(key:String,group:Dictionary)->void:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.ground_batcher._watch_group") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	# Residency can free sources before the next sync. Invalidate the combined
 	# visual immediately, including when a non-leading member leaves the tree.
-	var callback:=_invalidate_group.bind(key,group.generation)
-	group.exit_callback=callback;group.member_ids=[]
+	var callback:=_source_exited.bind(key,group.generation)
+	group.exit_callback=callback;group.member_ids=[];group.source_parent_ids=[]
+	var parent_ids:Dictionary={}
 	group.moving=group.category=="building" and group.members[0].get_meta("ground_batch_record",{}).has("fixture")
 	if group.category in ["building","vegetation"]:
 		group.visible_callback=(_invalidate_group if group.category=="vegetation" else _sync_visibility).bind(key,group.generation)
 		if group.category=="building":group.members[0].visibility_changed.connect(group.visible_callback)
 	for node in group.members:
+		var parent:Node=node.get_parent()
+		if parent!=null and parent!=get_parent():
+			var identity:=parent.get_instance_id()
+			if not parent_ids.has(identity):
+				parent_ids[identity]=true;group.source_parent_ids.append(identity)
+				if not _source_parents.has(identity):_source_parents[identity]={"reference":weakref(parent),"groups":0}
+				_source_parents[identity].groups+=1
 		if group.category=="vegetation":node.visibility_changed.connect(group.visible_callback)
 		group.member_ids.append(str(node.name))
 		node.tree_exiting.connect(callback)
@@ -394,6 +452,7 @@ static func _expanded_exclusions(nodes:Array,excluded:Array)->Array:
 	return result
 
 func request_residency_sync(nodes:Array,excluded:Array=[],immutable_append:bool=false)->void:
+	if _permanently_closed:return
 	if Timeline.enabled:
 		Timeline.record("residency_request",sync_count,Time.get_ticks_usec(),[nodes.size(),excluded.size(),immutable_append,_preparation.get("phase",""),_trace_prefix(_preparation.get("runtime_roots",[]),nodes),_trace_prefix(_residency_bins.get("runtime_roots",[]),nodes),_residency_bins.get("immutable_append",false),get_stack()])
 	# Every request supersedes the pending snapshot, even when its sources can
@@ -459,6 +518,7 @@ func request_residency_sync(nodes:Array,excluded:Array=[],immutable_append:bool=
 		# Collection remains complete so removals and changed eligibility are seen.
 		for field:String in ["prepared_descriptors","bin_names","bin_keys","desired"]:_preparation[field]=completed[field]
 		for field:String in ["bin_pending","bin_last_name"]:_preparation[field]=completed.get(field,{})
+		_preparation.handoff_parents=completed.get("handoff_parents",{})
 		for field:String in ["dirty_bins","bin_rebuild"]:
 			if completed.has(field):_preparation[field]=completed[field]
 		if reuse_retired:
@@ -494,6 +554,13 @@ static func _trace_prefix(previous:Array,current:Array)->Array:
 	return [previous.size(),first,_trace_owner(previous[first]) if first>=0 else null,_trace_owner(current[first]) if first>=0 else null]
 
 func _collect_named(state:Dictionary,node:Node)->void:
+	# A sliced preparation can own nested components before any group exists.
+	# Record each encountered parent in that scratch state's own lifetime.
+	var parent:Node=node.get_parent()
+	if parent!=null and parent!=get_parent():
+		if not state.has("handoff_parents"):state.handoff_parents={}
+		var identity:=parent.get_instance_id()
+		if not state.handoff_parents.has(identity):state.handoff_parents[identity]=weakref(parent)
 	var key:=str(node.name)
 	if state.has("unit_candidates") and not state.named.has(key):
 		var spec:Dictionary=state.unit_specs.get(key,{})
@@ -538,6 +605,7 @@ func _admit_group(key:String,group:Dictionary,state:Dictionary,copy_raw:bool=fal
 	for node in group.members:_member_groups[str(node.name)]=key
 
 func request_sync(nodes:Array,excluded:Array=[])->void:
+	if _permanently_closed:return
 	if Timeline.enabled:Timeline.record("request",sync_count+1,Time.get_ticks_usec(),[nodes.size(),_preparation.get("phase",""),pending.size(),_workers.size()])
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.ground_batcher.request_sync") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	# New residency supersedes unfinished preparation. No source has been hidden
@@ -811,6 +879,7 @@ func _prepare_step(budget_usec:int)->void:
 					last_sync_ms=(state.cpu_us+Time.get_ticks_usec()-started)/1000.0
 					if state.has("raw_desired"):
 						_residency_bins={"prepared_descriptors":state.prepared_descriptors,"bin_names":state.bin_names,"bin_keys":state.bin_keys,"desired":state.raw_desired}
+						_residency_bins.handoff_parents=state.get("handoff_parents",{})
 						for field:String in ["bin_pending","bin_last_name"]:_residency_bins[field]=state[field]
 						if state.get("immutable_append",false):
 							for field:String in ["runtime_roots","runtime_excluded","runtime_enabled","immutable_append"]:_residency_bins[field]=state[field]
@@ -1185,6 +1254,45 @@ func _finish_worker(index: int) -> void:
 			if not pending.has(target.key):pending.append(target.key)
 	WorkerRetirement.complete(job.get("retirement",{}))
 
+func begin_scene_handoff(state:Dictionary)->void:
+	if _permanently_closed:return
+	_scene_handoff=true
+	# Source collection already knows these parents. Observe their structural
+	# changes only for this synchronous migration, not every source every frame.
+	_handoff_parent_changed=func():state.changed=true
+	var observed:Dictionary={}
+	for row:Dictionary in _source_parents.values():
+		_watch_handoff_parent(row.reference,observed)
+	for prepared:Dictionary in [_preparation,_residency_bins]:
+		var parents:Dictionary=prepared.get("handoff_parents",{})
+		for identity:int in parents.keys():
+			if parents[identity].get_ref()==null:parents.erase(identity)
+			else:_watch_handoff_parent(parents[identity],observed)
+
+func _watch_handoff_parent(reference:WeakRef,observed:Dictionary)->void:
+	var parent:Node=reference.get_ref()
+	if parent==null or observed.has(parent.get_instance_id()):return
+	observed[parent.get_instance_id()]=true
+	parent.child_order_changed.connect(_handoff_parent_changed)
+	_handoff_parents.append(reference)
+
+func end_scene_handoff(reusable:bool)->void:
+	if _permanently_closed:return
+	_end_scene_handoff_observation()
+	if reusable:return
+	# Unexpected mutation while off-tree cannot retain immutable descriptors or
+	# let an old worker overwrite edited owners. Keep the existing cold repair.
+	retire_workers();clear()
+	if is_inside_tree() and not is_queued_for_deletion():
+		_retiring_workers=false;set_process(_resume_processing)
+
+func _end_scene_handoff_observation()->void:
+	_scene_handoff=false
+	for reference:WeakRef in _handoff_parents:
+		var parent:Node=reference.get_ref()
+		if parent!=null and parent.child_order_changed.is_connected(_handoff_parent_changed):parent.child_order_changed.disconnect(_handoff_parent_changed)
+	_handoff_parents.clear();_handoff_parent_changed=Callable()
+
 func retire_workers(_tree:SceneTree=null)->void:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.ground_batcher.retire_workers") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	if not _retiring_workers:_resume_processing=is_processing()
@@ -1201,7 +1309,7 @@ func retire_workers(_tree:SceneTree=null)->void:
 
 func _exit_tree() -> void:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.ground_batcher._exit_tree") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
-	retire_workers()
+	if not _scene_handoff:retire_workers()
 	# A batch owner can leave while editable sources stay. Release derived
 	# renderer suppression immediately; reparenting can evaluate again on entry.
 	for group:Dictionary in cutout_visuals.values():

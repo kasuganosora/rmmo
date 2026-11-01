@@ -2245,3 +2245,55 @@ red01因runner未带两份新静态依赖而没有运行有效断言；red02的�
 最大PackedScene UID512累计318.569ms：纯扫描20片 **21.384ms**，纯引用释放249片 **292.789ms**，其余混合/完成约4.4ms。优化getter只能处理小部分，当前大头是释放。196个terrain票据650引用全服务，第一项110175421µs开始，最后112588415µs完成，MAIN累计456.582ms；最慢单值原生释放 **34.622ms**，类别ConcavePolygonShape3D。不能当作属性扫描或空等待。
 
 cpu_values:509后台耗时231.057ms、队头驻留约237ms，但其真实外层只有1个值（导航元数据根、1828 records）。因此不能用宽外层循环微测解释这个231ms；应继续追踪该嵌套根的实际析构。票据释放仅指服务放弃所有权，不代表其他owner或GPU物理内存已经回收。完整证据 `P/trace55_retirement_analysis/findings.md`、FIFO/phase/terrain逐片CSV；下一轮继续针对真实大块头，不以这次清零结束任务。
+
+## 53. 56真实流程：消除移交重备，继续拆解退树与释放（2026-11-01）
+
+沿用同一冻结地图和candidate49，实际只跑 `node_trace56_01`，未增加AB/ABBA序列。封存69文件的manifest SHA为 `99fb4c132169055ebbb9c104baf6734bc3d521665cc785e1164cfcbbdfb205c4`。GPU exit0、功能失败/引擎错误/并发引擎均0，工程逐文件恢复。native unload/return事件2935464/4872335，drop、registration_drop、export_error、孤立/交叉scope、task_name冲突均0。后一个capture现在包括既有15秒return-steady，不能把事件量变化当工作量变化。仍是诊断引擎结果，不是正常引擎稳定验收。
+
+### 实现与独立验证
+
+WorldStream同步移交入口将已准备地图从staging viewport挂到World：只在这一段不yield的同SceneTree操作中保留arrival roster、adoption状态、batch描述和活worker；检查真实结构事件及global pose，异常路径仍失效并拒收旧代结果。嵌套父节点的弱引用在既有收集/分组时登记，仅移交期间连接结构观察，结束即断开；没有新增逐帧身份认证或资源校验。普通删除、离树编辑、不同几何/材质、已完成singleton和部分准备、同数量节点替换均保留原失效语义。附着失败保留失败cover，不能回滚到已处置旧图。
+
+`stream_handoff56_green04` **138/138**、既有arrival回归 **134/134**，均0错误。64组512源移交后的累计准备由1024改为512；Semaphore阻塞的真实worker保持同一Thread，新源继续准备。实际整图本次没有跨完整target_adoption之后才join的worker，因此只把活worker跨交接列为组件已验证，不声称整图另有此样本。
+
+永久卸载新增 `GroundBatcher.close_permanently`，在原有worker退役、catalog/group owner捐交后断开回调、保留当前visual.free生命周期、一次清空所属索引。省去逐成员/visual索引erase及即将销毁源的visibility/CPU mesh恢复；普通clear、局部释放和编辑仍恢复存活对象，不改借用者数据。24成员实际计数：member erase48→0、visual catalog erase6→0、无用visibility restore8→0。注入计数fixture31项、扩大到768成员30项、相关处置/缓存/移交/真实worker既有回归200项通过；这些回归有重叠，不相加冒称独立覆盖数。未注入的普通fixture27项通过并明确SKIP计数断言。另补“未入树先处置再首次入树”的确定红例，`_ready`关闭守卫后28/28，防止重连frame_pre_draw。
+
+证据：`P/stream_handoff56_results.md`、`P/batch_fast_close56_merged_setup/validation_receipt.json`、`P/batch_ready56_setup`。未触碰地图、资源或其他会话的GroundBatcher三行改动。
+
+### 真实工作量与计时
+
+55返回移交导致的64次source_exit/827成员失效在56整段BatchTimeline为0；仅余两次真正permanent_close。返回prepared_source_visits **4900→3914**，其中986次重备消失；full_roster_builds/rows **2/1972→1/986**、owner_loss_repairs **1→0**。新initial full-ready标量快照确认初始完整账本也是arrivals/appended_roots=2928、full_roster_builds=1、rows986、owner_loss_repairs0；initial与return的early_requests/duplicate_arrivals均0。不能继续拿entry快照当初始完整账本。
+
+| 诊断样本实测 | 55 | 56 |
+| --- | ---: | ---: |
+| entry | 11.678216s | 9.393786s |
+| initial full-ready | 53.153918s | 39.564826s |
+| 入口后收尾 | 41.475686s | 30.171040s |
+| return_loading连续phase | 35.569170s | 31.961553s |
+| unload最大帧 | 232.296ms | 198.417ms |
+| map_return最大帧 / >50ms帧 | 177.797ms / 6 | 121.843ms / 4 |
+| return_loading最大帧 / >50ms帧 | 56.193ms / 2 | 44.706ms / 0 |
+| steady low1% | 41.027fps | 53.596fps |
+| return-steady low1% / 最大帧 | 26.691fps / 54.615ms | 49.084fps / 22.465ms |
+
+以上保留跨轮实际数字，不将全部时差归因于两项代码改动；初始阶段本来不经过这次故障reparent，不能把13.589s差额全部记作handoff收益。完整加载、卸载和返回提交仍未解决。native初次覆盖返回稳态后，最慢三帧22.465/22.199/21.293ms可见distant proxy候选扫描约3.9–5.3ms的tick及渲染draw-list等实际工作，没有依据归为OS空闲。profile复制实际仅175µs，不能解释这些帧。夜晚尚未验收，也不以本次静止稳态代替步行/同地图区块退役覆盖。
+
+合批finalization各非重叠phase wall总和初始1.757→1.441s、返回1.449→1.355s，仍有重复全量访问，返回drop约0.686s。初始packed visits **5430→5515**、invalidated rows +85/buckets +4；返回requests **262→269**、ground membership replace **149→150**、private upload **158→161**。返回queued459→396/requeues240→177，最终219组相同。上述不利计数全部保留，准备下一组件复现，不把前缀复用扩大成“重复工作已经全部消除”。
+
+### 198ms仍是同步退树；关闭探针缺口原样保留
+
+最大帧MAIN iteration198.367ms，transfer continuation175.318ms。两个不重叠业务scope：bodies_detach **68.335ms**（2141次remove/5017个exit），map_detach **63.611ms**（1次remove/4437个exit）；prepare_disposal **30.823ms**。该帧MAIN worker.wait总计仅117µs、max56µs。body最大一次remove366µs，MapRoot最大非根exit1.828ms，继续支持“大量小子树集中退出”的判断。前两项仍没有分帧。已有native退休游标只负责离树后的销毁，不能只在原循环加await：FIFO node ticket可能先销毁已离树前缀，而后续exit回调还借用它。下一改造先建立held reservation与明确永久关闭状态，再处理body游标；map子树拆分须保留/审核通知、owner、可编辑来源和碰撞隔离语义。
+
+本轮新 `detail56.ground_batcher.close_permanently` wrapper漏入NativeMapTrace注册白名单，两个capture各有一个unknown scope（20.024ms/46µs），55没有unknown。保存源码中这是唯一未注册的NativeMapTrace字面量begin；此信息支持来源推断，但**原CSV不改名，也不将旧clear/drop标签消失解释为关闭成本为0**。独立empty Batcher复现了同一标签缺失；一行注册后8项断言及6项native检查通过，实际close/repeated-close具名、unknown0，69保存GD文件字面量标签覆盖缺项0。修补保存在 `P/scope_registration57_setup` 供下一采集，不改sealed56、不为标签问题重跑整图。其余56释放标签已在独立fixture验证身份、共享借用者及真实worker。
+
+return_loading的最大非重叠MAIN项仍包括draw_list **5.130899s/13665次**、batch.prepare **2.102446s/965次**、WorldStream.sync **1.497120s/1519次**、worker.wait **1.554794s**。这是同线程clipped exclusive墙钟，不是CPU，也不能把父子耗时相加。两份native spans分别只读一次（1402787/2292539行）；细节见 `P/trace56_native_analysis`，完整map/batch/job工作量见 `P/trace56_handoff_analysis`。
+
+### 回收进一步定位到具体所有者，仍保留不利项
+
+238入队/238完成，9412 node units、24 PackedScenes/2372 Resources、196 terrain tickets/650引用与55相同。最后队列完成在landing settled后 **10.207752s**，deadline余量 **1.802689s**；没有消除这批真实释放工作。最长terrain首服务等待反而 **3.780808→3.912620s**，不能只报排空变快。
+
+新scene-step/unref标签显示2372项是2338个不同ArrayMesh及34个不同StandardMaterial3D。最大scene UID502含2007个ArrayMesh，step累计306.911ms，其中value=null **265.915ms**，单项最高0.772ms；不是同一Mesh反复释放或getter主导。纯phase1相对55 **292.789→340.687ms**，新逐项scope/name也处于预算内，不能直接叫作生产退化或删除慢样本。
+
+CPU UID499（旧509）只有1个根，外层Dictionary15项、后代1828 records，root span **197.634ms**，原worker总span197.663ms；UID501的6根中末个Dictionary10项耗45.540ms，其余5根合计约0.95ms。继续查实际嵌套容器释放，不能用宽外层循环微测替代。
+
+对§52“34.622ms原生释放”的归因作更正：目前只是ConcavePolygonShape3D **unref路径**，56同类仍29.500ms。当前冻结配置指向Godot Physics；源码 `GodotPhysicsServer3D::free_rid` 会先运行全局 `_update_shapes`，wrapper在MAIN还可能flush physics command queue，故尚未证明是目标Shape自身BVH析构。直接把Resource放引用移worker可能只把服务器工作排回MAIN。下一原生探针应拆queue flush/全局shape更新/owner detach/memdelete，并用“零owner shape A + 其他body B待更新”确定复现；ArrayMesh和容器释放也按实际类型深入，不继续优化不占大头的getter。证据 `P/trace56_retirement_analysis/findings.md`、`P/trace55_retirement_analysis/shape_release_source_review56.md`。

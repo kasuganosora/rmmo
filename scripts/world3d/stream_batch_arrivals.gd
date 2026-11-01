@@ -14,6 +14,7 @@ var _mutable_invalidated:=false
 var _owner_lost:=false
 var _owned_exit_id:=0
 var _root:WeakRef
+var _scene_handoff:=false
 var _tracked_ids:Dictionary={}
 var profile:Dictionary={"arrivals":0,"closed_units":0,"early_requests":0,"verified_members":0,"invalidations":0,"max_dispatch_us":0,"full_roster_builds":0,"full_roster_rows":0,"appended_roots":0,"duplicate_arrivals":0,"owner_loss_repairs":0}
 
@@ -52,7 +53,14 @@ func begin_owned_exit(identity:int)->int:
 
 func end_owned_exit(previous:int)->void:_owned_exit_id=previous
 
+func begin_scene_handoff(_state:Dictionary)->void:_scene_handoff=true
+
+func end_scene_handoff(reusable:bool)->void:
+	_scene_handoff=false
+	if not reusable:invalidate_mutable()
+
 func _child_exiting(child:Node)->void:
+	if _scene_handoff:return
 	var identity:=child.get_instance_id()
 	if identity==_owned_exit_id:return # Only a synchronous Stream._drop owns this guard.
 	var known:bool=_tracked_ids.has(identity)
@@ -69,6 +77,7 @@ func _child_exiting(child:Node)->void:
 	if known:_owner_lost=true;invalidate(true)
 
 func _tree_exited()->void:
+	if _scene_handoff:return
 	# Mutations outside the tree emit no child lifetime signal. Re-entry must
 	# establish a fresh roster even when the direct child count did not change.
 	invalidate_mutable()

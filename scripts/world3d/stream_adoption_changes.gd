@@ -4,6 +4,7 @@ extends RefCounted
 var root:WeakRef
 var pending:Dictionary={}
 var full_scan:=false
+var _scene_handoff:=false
 
 func _init(map_root:Node,initial_scan:bool)->void:
 	root=weakref(map_root);full_scan=initial_scan
@@ -11,12 +12,20 @@ func _init(map_root:Node,initial_scan:bool)->void:
 	map_root.tree_exited.connect(_tree_exited)
 
 func _entered(child:Node)->void:
+	if _scene_handoff:return
 	if not child.has_meta("stream_instance"):pending[child.get_instance_id()]=weakref(child)
 
 func _tree_exited()->void:
+	if _scene_handoff:return
 	# Changes outside the tree do not emit child_entered_tree. Re-entry must
 	# reconcile them even if remove/add left the direct child count unchanged.
 	full_scan=true;pending.clear()
+
+func begin_scene_handoff(_state:Dictionary)->void:_scene_handoff=true
+
+func end_scene_handoff(reusable:bool)->void:
+	_scene_handoff=false
+	if not reusable:full_scan=true;pending.clear()
 
 func dirty()->bool:return full_scan or not pending.is_empty()
 

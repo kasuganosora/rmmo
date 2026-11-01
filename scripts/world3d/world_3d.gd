@@ -1720,8 +1720,7 @@ func transfer_map(target: String, destination: Vector3, before_commit: Callable 
 	_map_root = prepared
 	_geometry_wait_locked=false
 	_player.geometry_blocked=false
-	prepared.reparent(self)
-	if target_deferred!=null:target_deferred.end_scene_handoff(self)
+	if not _adopt_transfer_target(prepared,target_deferred,cover):return false
 	for body in prepared.get_meta("stream_bodies", {}).values():
 		if is_instance_valid(body): body.reparent(self)
 	_navigation = navigation
@@ -1783,6 +1782,15 @@ func transfer_map(target: String, destination: Vector3, before_commit: Callable 
 	if prepared.has_meta("entry_plan"):Stream.clear_entry_scope(prepared)
 	_status.text = "已进入目标地图。"
 	return true
+
+func _adopt_transfer_target(prepared:Node3D,deferred:Node,cover:CanvasLayer)->bool:
+	var attached:=Stream.reparent_prepared_map(prepared,self)
+	if is_instance_valid(deferred):deferred.end_scene_handoff(self)
+	if attached:return true
+	# Outgoing owners have already been retired. Keep the failure cover and
+	# staging lifetime until character selection; ordinary rollback is invalid.
+	_ready_for_play=false;_geometry_wait_locked=true;_player.geometry_blocked=true
+	return _hold_transfer_presentation(cover)
 
 func _transfer_commit_mark(timing:Dictionary,stage:String)->void:
 	# Opt-in clocks for the contiguous synchronous handoff; no awaits or graph

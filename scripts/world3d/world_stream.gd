@@ -50,6 +50,37 @@ const COLLISION_CANDIDATE_LIMIT:=8192
 const CollisionCandidate=preload("res://scripts/world3d/collision_query_candidate.gd")
 
 
+static func reparent_prepared_map(map_root:Node3D,destination:Node3D)->bool:
+	# A single synchronous same-tree migration is not an offline editing window.
+	# Ordinary remove/add keeps its full invalidation. Never expose begin/end to
+	# the caller or suspend over a frame with immutable reuse enabled.
+	if not is_instance_valid(map_root) or not is_instance_valid(destination):return false
+	if not map_root.is_inside_tree() or not destination.is_inside_tree():return false
+	if map_root.get_tree()!=destination.get_tree() or map_root==destination or map_root.is_ancestor_of(destination):return false
+	if map_root.is_queued_for_deletion() or destination.is_queued_for_deletion():return false
+	if map_root.get_parent()==destination:return true
+	var tree:=map_root.get_tree();var pose:=map_root.global_transform
+	var observers:Array=[]
+	for key:StringName in [BATCH_ARRIVALS_META,&"runtime_adoption_changes"]:
+		if map_root.has_meta(key):observers.append(map_root.get_meta(key))
+	var batcher:=map_root.get_node_or_null("GroundRenderBatches")
+	if batcher!=null:observers.append(batcher)
+	# Reparent temporarily leaves the tree. A source freed/replaced by a signal
+	# callback there emits no source tree-exit signal, even at equal child count.
+	# The root's structural event catches this without rescanning all identities.
+	var state:={"changed":false}
+	var changed:=func():state.changed=true
+	map_root.child_order_changed.connect(changed)
+	for observer:Variant in observers:observer.begin_scene_handoff(state)
+	map_root.reparent(destination,true)
+	var attached:bool=is_instance_valid(map_root) and is_instance_valid(destination) and map_root.get_parent()==destination and map_root.is_inside_tree() and map_root.get_tree()==tree and not map_root.is_queued_for_deletion() and not destination.is_queued_for_deletion()
+	var reusable:bool=attached and not state.changed and map_root.global_transform.is_equal_approx(pose)
+	if is_instance_valid(map_root):map_root.child_order_changed.disconnect(changed)
+	for observer:Variant in observers:
+		if is_instance_valid(observer):observer.end_scene_handoff(reusable)
+	return attached
+
+
 static func chunk_key(position: Vector3) -> Vector2i:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.world_stream.chunk_key") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
 	return Vector2i(
@@ -413,7 +444,7 @@ static func prepare_map_disposal(map_root:Node,tree:SceneTree=null,record_consum
 			# The snapshot never mutates groups retained by another borrower.
 			if sliced_cache_disposal_enabled:
 				preload("res://scripts/world3d/resource_retirement.gd").defer_private_array(outgoing.groups.values(),true)
-			outgoing.clear(false)
+			outgoing.close_permanently()
 	# Runtime specs may own CPU projections while each restored drawing mesh is
 	# owned only by its live MeshInstance3D. Freeing the map otherwise destroys
 	# all those ArrayMeshes (and native renderer dependencies) in one callback.
