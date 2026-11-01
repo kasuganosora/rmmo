@@ -2297,3 +2297,13 @@ return_loading的最大非重叠MAIN项仍包括draw_list **5.130899s/13665次**
 CPU UID499（旧509）只有1个根，外层Dictionary15项、后代1828 records，root span **197.634ms**，原worker总span197.663ms；UID501的6根中末个Dictionary10项耗45.540ms，其余5根合计约0.95ms。继续查实际嵌套容器释放，不能用宽外层循环微测替代。
 
 对§52“34.622ms原生释放”的归因作更正：目前只是ConcavePolygonShape3D **unref路径**，56同类仍29.500ms。当前冻结配置指向Godot Physics；源码 `GodotPhysicsServer3D::free_rid` 会先运行全局 `_update_shapes`，wrapper在MAIN还可能flush physics command queue，故尚未证明是目标Shape自身BVH析构。直接把Resource放引用移worker可能只把服务器工作排回MAIN。下一原生探针应拆queue flush/全局shape更新/owner detach/memdelete，并用“零owner shape A + 其他body B待更新”确定复现；ArrayMesh和容器释放也按实际类型深入，不继续优化不占大头的getter。证据 `P/trace56_retirement_analysis/findings.md`、`P/trace55_retirement_analysis/shape_release_source_review56.md`。
+
+## 54. 收尾范围与地图投影重复排序（2026-11-01）
+
+用户认可本轮low已过合格线，后续收敛到已发现的卸载/返回长帧、重复合批访问和模板GPU中间工作，完成后补正式引擎及夜间灯光/星空验收，不继续扩展外围性能专项。56为诊断构建结果；默认安装仍为candidate10，其缺少Node原生分片退休API、仍走原同步fallback，不能将candidate49数字直接当默认入口表现。后续合格原生改动需同步正式构建后再收尾。
+
+沿56返回提交中15.822ms的map projection审查发现，`WorldMapData.build`先用 `_paint_less` 排序shapes，`rebuild_shape_index`又按同一比较器重排这些已排序位置。保留第一次排序：overview等消费者需要原storage绘制顺序；只在build的已排序入口跳过第二次索引排序。一般重建仍默认完整排序，晚到投影继续合并到正确的绘制顺序，没有跳过变更失效或增加身份认证。
+
+独立512投影覆盖高度、draw order及source order三级相等关系、旋转包围盒、局部/全图查询、同数量逆序重建、低层追加和空图替换。实际比较循环计数红例11通过/1预期失败，第二次排序 **3117次比较**；修复后12/12、该次比较 **0**。不带计数插桩的正式代码10/10，既有house footprint、world map append、shape index三个回归均exit0/错误0；headless下原shape-index测试跳过像素部分，不声称新增GPU画面对照。所有冻结文件恢复。证据 `P/map_projection_order57_setup` 及 `red01/green01/plain01`；仓库fixture为 `tools/test_world_map_build_order.gd`。这是已证明工作量减少，未单独宣称整图毫秒收益，随下一轮累计真实流程复测。
+
+卸载分帧前提的held reservation已在外部候选完成96项检查，含“离树但被其他parent接管”的真实红例；尚未接入生产。普通reserve撤销必须保留有效地图，begin_disposal后才是永久清理，Node ticket占FIFO直到全部退出回调结束。合批局部追加也已有有效红例：65行全量访问对应真正drop1/admit2，正做有明确fallback的增量候选。两项均待接通和真实地图验收，不能把独立检查当最终收益。

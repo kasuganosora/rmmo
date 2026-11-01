@@ -44,13 +44,14 @@ func _index_shape(i:int)->void:
 			if not _shape_cells.has(cell):_shape_cells[cell]=[]
 			_shape_cells[cell].append(i)
 
-func rebuild_shape_index()->void:
+func rebuild_shape_index(storage_is_sorted:bool=false)->void:
 	shape_revision+=1;order_revision+=1
 	_shape_cells.clear();_large_shapes.clear();_paint_order.clear()
 	_indexed_shape_count=shapes.size()
 	for i in shapes.size():
 		shapes[i].draw_id=i;_paint_order.append(i);_index_shape(i)
-	_paint_order.sort_custom(func(a,b):return _paint_less(shapes[a],shapes[b]))
+	# build already sorted storage with the same painter comparator.
+	if not storage_is_sorted:_paint_order.sort_custom(func(a,b):return _paint_less(shapes[a],shapes[b]))
 	for rank in _paint_order.size():shapes[_paint_order[rank]].draw_order=rank
 
 func visible_shapes(rect:Rect2)->Array:
@@ -147,7 +148,7 @@ func build(root:Node)->void:
 	var projected:=_project_specs(root.get_meta("stream_library",[]))
 	if not projected.ok:push_error(projected.error);rebuild_shape_index();return
 	shapes.append_array(projected.shapes);shapes.sort_custom(_paint_less)
-	_commit_projection(projected);rebuild_shape_index()
+	_commit_projection(projected);rebuild_shape_index(true)
 
 ## Append stable storage slots and spatial buckets; existing footprints/RIDs do
 ## not change identity. Only draw-order ranks may move for overlapping heights.
