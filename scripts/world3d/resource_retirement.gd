@@ -16,7 +16,7 @@ static var native_node_retirement_enabled:=true
 static var _native_node_retirement_available:=-1
 static var pixel_retirement_test_gate:Semaphore # Test only; production remains null.
 static var pixel_retirement_test_start_failure:=false # Test only.
-static var _pixel_service_requested:=false
+static var _service_requested:=false
 static var _geometry_sizes:=preload("res://scripts/world3d/cpu_geometry_size.gd").new()
 const BACKGROUND_BYTE_MIN:=8*1024*1024
 const CPU_GEOMETRIES_PER_BATCH:=1024
@@ -38,7 +38,16 @@ static func _service()->Node:
 	if service==null:
 		service=new();service.name=NODE_NAME;service.process_mode=Node.PROCESS_MODE_ALWAYS;tree.root.add_child(service)
 		if service.get_parent()!=tree.root or not service.is_inside_tree():service.free();return null
+		service.set_process(false) # Early setup is idle until an owner is donated.
 	return service
+static func existing_service()->Node:
+	# Destructors/exit propagation may not add a child to a locked SceneTree.
+	# Producers request setup while alive; an immediate close keeps native free.
+	if not Thread.is_main_thread():return null
+	var tree:SceneTree=Engine.get_main_loop() as SceneTree
+	if tree==null or not is_instance_valid(tree.root) or not tree.root.is_inside_tree():return null
+	var service:Node=tree.root.get_node_or_null(NODE_NAME)
+	return service if service!=null and not service.exiting else null
 static func defer_scene(scene:PackedScene)->bool:
 	if scene==null or not Thread.is_main_thread():return false
 	# Node count does not bound native ownership: one node may own a large mesh.
@@ -170,16 +179,19 @@ static func defer_cpu_values(values:Array,logical_bytes:int)->bool:
 	return true
 
 static func request_shared_pixel_service()->void:
+	request_service()
+
+static func request_service()->void:
 	# Never attempt root.add_child during exit propagation. The request is made
 	# while the producer is committed; if no future frame exists it simply dies.
-	if _pixel_service_requested or not Thread.is_main_thread():return
+	if _service_requested or not Thread.is_main_thread():return
 	var tree:SceneTree=Engine.get_main_loop() as SceneTree
 	if tree==null or not is_instance_valid(tree.root) or tree.root.get_node_or_null(NODE_NAME)!=null:return
-	_pixel_service_requested=true
-	Callable(load("res://scripts/world3d/resource_retirement.gd"),"_prepare_pixel_service").call_deferred()
+	_service_requested=true
+	Callable(load("res://scripts/world3d/resource_retirement.gd"),"_prepare_service").call_deferred()
 
-static func _prepare_pixel_service()->void:
-	_pixel_service_requested=false
+static func _prepare_service()->void:
+	_service_requested=false
 	_service()
 
 static func defer_shared_pixel_buffers(values:Array,completions:Array,admission:RefCounted)->bool:

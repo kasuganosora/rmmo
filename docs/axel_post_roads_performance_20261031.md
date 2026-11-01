@@ -1998,3 +1998,37 @@ GPU ABBAAB三份每组`node_retirement42_series`：旧同步提交81.091 / 55.07
 46返回还捕获122.419ms（实例化、材质及cooked restore）、104.202ms（包含MapLoader脚本成员集中释放37.014ms）、166.926ms（接管、相机绑定25.467ms及地图投影）三类帧。return_loading 72–83ms帧中实际draw_list独占约18.6–24.7ms，不能再统称编译。返回窗口所记录worker.wait最大6.099ms，不足以证明大帧来自后台上传锁；这仍不覆盖所有未标注锁。
 
 下一段按证据追MapLoader最终成员释放。相机绑定除了剖切还为室内距离查询提供房间索引，不能仅因interior_cutaway默认关闭就删除整个绑定。47外部归因夹具在原退出流程已join所有worker之后，按字段解除本loader的容器/RefCounted引用，原生时间线记录每个字段，不清空借用内容。这会改变最终引用释放位置，仅用于定位，尚不是生产修复。
+
+### 41. 加载器最终成员：分离恢复后的原生资源与纯解码数据
+
+40的节点/目录接入及共享预算修复已提交推送`433a52d4`。继续直接读时间线，没有恢复ABBA或其他正常对照系列。
+
+47逐成员实验`node_trace47_01`功能、引擎、导出及结构检查全部通过。返回时主要释放位置是`_mesh_cache_data` **23.172ms**、`_source_snapshot` **11.117ms**、`_terrain_context` **8.289ms**；其余字段最大`_deferred_ids`0.656ms。可操作原因是三个成员混合/持有大批最终引用，而非这三个范围在等待上传锁。实验在exit之后主动解除成员引用，会改变最终释放位置；不把本轮与正常地图样本作FPS比较。
+
+生产修复保持明确的生产者数据边界：
+
+- `loader_data_retirement.gd`浅复制cooked外层包，拿出`RuntimeMeshCache.restore`唯一追加的`_restored_meshes`交给既有MAIN分片，剩余读取解码字段交给既有CPU队列。不会把整份混合字典当纯CPU数据，也不清空借用容器。
+- `document_source_snapshot.gd`仅在实际PREDELETE时保留JSON和原字节到CPU票据；共享Snapshot仍存活时不提前修改其字段。后台线程本身的销毁、无可用服务及语言退出保持原生同步释放。
+- `terrain_neighbors.gd`在实际PREDELETE时移交明确的派生signature/边界索引/normals/邻接值；Image/region_mask仍在MAIN分片，任意作者source记录保留在原析构，不递归猜测其类型。
+- 回收服务在生产者存活时预约创建，析构只使用已有服务。独立用例发现第一版在`_exit_tree`调用root.add_child会遇到SceneTree子节点锁（4条ERROR，`loader_green_01`完整保留），现已修复；创建后立即关闭可安全同步回退。预建的空服务关闭_process，首次入队再启动，不添加空轮询。
+
+`tools/test_loader_data_retirement.gd`直接销毁真实MapLoader，以JSON/二进制解码所有权、原生ArrayMesh/Image及外部借用者复现。旧实现`loader_red_01`引擎错误0，4项准确失败，128组同步退出6.816ms。修复后`loader_green_02`12项通过：退出0.291ms，后续MAIN累计0.549ms，CPU实际9.137ms。512组`loader48_stress`仍12项通过：退出0.255ms、后续MAIN0.677ms、CPU23.241ms。不是重复别名堆大计数，测试通过序列化/解码产生独立嵌套数组；CPU票据的Object/RID/Callable隔离只在测试递归检查，生产没有该扫描。最后补空服务不轮询断言，`loader_green_03`13项通过（退出0.267ms）。
+
+源快照真实读写/冲突检查、地形后台准备的几何与图像字节一致、共享像素回收合同回归全部通过，零引擎错误，见`loader48_regressions.json`。只改变资源生命周期，没有更改模型、材质或作者地图。
+
+48真实复核`node_trace48_01`保留47成员标签，主线程cooked移交 **0.187ms**、源Snapshot **0.055ms**、地形context **0.456ms**。对应CPU票据631/634/633实际执行 **20.685 / 6.918 / 12.647ms**，调用来源分别是retain_cooked及两个PREDELETE；这些工作被移动，没有消失。Mesh/Image仍在MAIN，未用延迟泄漏冒充释放。主线程剩余成员峰值为_deferred_ids0.588ms。48采集之后只补了空服务关闭_process这一条，并由最终13项用例验证，不倒称它已包含在48整图中。
+
+48双捕获2,503,492与3,663,131事件，无丢失/导出/结构错误，无并跑，源文件按SHA恢复。完整需求55.739s、返回加载入口及收尾见原始profile；它是诊断样本，不作为加载收益评分。游戏唯一失败仍是空场12秒回收未排空：pending=known=183，旧map/loader owner已经死亡。全量profile中的416个geometry批次包含初始阶段；卸载窗口实际只有7个CPU票据，72/76之类推进调用数不是线程数。
+
+剩余具体范围：
+
+| 捕获帧 | 已定位工作 | 尚未处理 |
+|---|---|---|
+| 卸载4580，217.273ms | Node退出传播与原生退出通知占主段 | 同步detach及通知工作，不是本轮三个loader成员 |
+| 空场5277，22.082ms | 12.433ms来自测试专用root_alias_probe | 13.388ms private峰值包含这个旧诊断扫描，不能冒称新的生产数据释放退化 |
+| 返回6952，99.333ms | cooked restore31.965ms、实例化25.743ms、材质15.059ms | 加载发布仍聚集在同一帧 |
+| 返回7100，99.530ms | entry_scope_ready及导航之外，main.scene_process仍有66.250ms未细分 | 优先补异步恢复/回调及清理的范围，不能填成shader编译或GPU等待 |
+| 返回7159，148.128ms | camera.bind_map22.340ms、重挂及地图投影9.691ms | 接管链的其他同步工作 |
+| 返回加载7986–7988，71.8–76.5ms | draw_list独占15.7–26.8ms，已记录worker.wait约5–8ms | 原生绘制列表内部的管线查找、绑定、命令构建仍需细分 |
+
+旧道路字段/别名问题已确认，后续诊断不必继续做root_alias_probe的重复扫描；但完整证据留档，不删除慢帧。183项尾部仍要继续减少实际回收工作并检查调度，不扩大预算冒充解决。白天总体及35FPS门槛未通过，夜景未开始，默认Godot入口未替换，候选43只用于本轮原生节点接口/时间线复核。

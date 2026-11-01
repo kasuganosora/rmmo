@@ -12,6 +12,18 @@ var _bytes := PackedByteArray()
 var _retained := false
 var error := "Cannot read map source"
 
+func _init()->void:
+	preload("res://scripts/world3d/resource_retirement.gd").request_service()
+
+func _notification(what:int)->void:
+	# JSON/bytes are immutable CPU values. Transfer only when the final wrapper
+	# actually dies, so another loader/prefetch borrower keeps a usable snapshot.
+	# Worker destruction and language shutdown need no MAIN-to-worker handoff.
+	if what!=NOTIFICATION_PREDELETE or not Thread.is_main_thread() or Engine.get_main_loop()==null:return
+	if _data==null and _bytes.is_empty():return
+	var retirement=preload("res://scripts/world3d/resource_retirement.gd")
+	if retirement.existing_service()!=null:retirement.defer_cpu_values([_data,_bytes],_bytes.size())
+
 static func read_file(path: String, retain_limit: int = RETAIN_LIMIT, read_limit:int=0) -> RefCounted:
 	var result := new()
 	result._path = path

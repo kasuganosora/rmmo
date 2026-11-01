@@ -9,6 +9,27 @@ var point_index:Dictionary={}
 var dependents:Dictionary={}
 var last_work:Dictionary={}
 
+func _init()->void:
+	preload("res://scripts/world3d/resource_retirement.gd").request_service()
+
+func _notification(what:int)->void:
+	if what!=NOTIFICATION_PREDELETE or not Thread.is_main_thread() or Engine.get_main_loop()==null:return
+	if data.is_empty() and signature.is_empty() and edge_cache.is_empty() and point_index.is_empty() and dependents.is_empty():return
+	var retirement=preload("res://scripts/world3d/resource_retirement.gd")
+	if retirement.existing_service()==null:return
+	# Derived seams/signatures contain only CPU values. Images are native
+	# Resources and stay on MAIN; arbitrary authored source records stay here.
+	# Retain fields without mutating a row that another context may borrow.
+	var cpu:Array=[signature,edge_cache,point_index,dependents]
+	var images:Array=[]
+	for row:Dictionary in data.values():
+		for field:String in ["signature","normals","neighbors"]:
+			if row.has(field):cpu.append(row[field])
+		for field:String in ["image","region_mask"]:
+			if row.has(field):images.append(row[field])
+	retirement.defer_private_array(images,true)
+	retirement.defer_cpu_values(cpu,0)
+
 static func compatible(a: Dictionary,b: Dictionary) -> bool:
 	var ta:=Terrain.transform(a); var tb:=Terrain.transform(b)
 	if not ta.basis.is_equal_approx(tb.basis): return false

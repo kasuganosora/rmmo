@@ -89,6 +89,8 @@ var _native_model_manifests:Dictionary={} # This load's immutable product observ
 var _early_deferred:Node
 var _draining_deferred:Node
 
+func _ready()->void:
+	preload("res://scripts/world3d/resource_retirement.gd").request_service()
 
 static func resolve_path(requested: String) -> String:
 	var _method_scope:RefCounted=preload("res://scripts/world3d/load_trace.gd").method_scope("method.map_loader.resolve_path") if preload("res://scripts/world3d/load_trace.gd").methods_enabled else null
@@ -1093,6 +1095,10 @@ func _exit_tree() -> void:
 	for key:String in _decoded_textures:
 		if textures.get(key)==_decoded_textures[key]:textures.erase(key)
 	_decoded_textures.clear()
+	# Every reader has joined above. The cooked packet mixes decoded values
+	# with restored Mesh owners; hand them to their respective existing lanes.
+	preload("res://scripts/world3d/loader_data_retirement.gd").retain_cooked(_mesh_cache_data)
+	_mesh_cache_data={}
 
 func _install_texture_handoff()->void:
 	var paint=preload("res://scripts/world3d/surface_materials.gd")
